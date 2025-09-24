@@ -1,0 +1,7 @@
+
+boto3
+botocore
+
+pytest
+httpx
+pytest-asyncio

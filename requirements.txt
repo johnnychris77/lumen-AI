@@ -1,0 +1,5 @@
+
+passlib[bcrypt]
+PyJWT
+prometheus-client
+python-multipart
