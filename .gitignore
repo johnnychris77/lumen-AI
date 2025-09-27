@@ -1,23 +1,6 @@
-# Node
 node_modules/
-npm-debug.log*
-yarn*.log
-pnpm-lock.yaml
-
-# Build / dist
 dist/
 build/
-.cache/
-.tmp/
-.next/
-out/
-
-# Env
 .env
 .env.*
-
-# IDE / OS
 .vscode/
-.idea/
-.DS_Store
-Thumbs.db
