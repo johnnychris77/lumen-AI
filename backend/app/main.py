@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from backend.app.routers import uploads
 from backend.app.db.session import engine
 from backend.app.db.base import Base
 from backend.app.models import user, review  # ensure models are registered
@@ -7,6 +8,7 @@ from backend.app.routers import users as users_router
 from backend.app.routers import reviews as reviews_router
 
 app = FastAPI(title="LumenAI API")
+app.include_router(uploads.router)
 
 @app.get("/health")
 def health():
