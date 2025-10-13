@@ -4,3 +4,7 @@ build/
 .env
 .env.*
 .vscode/
+
+# local artifacts
+cookies.txtsample.bin
+
