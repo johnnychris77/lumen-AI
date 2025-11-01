@@ -22,3 +22,7 @@ def on_startup():
 app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(reviews_router.router)
+
+from backend.app.routers.uploads import router as uploads_router
+app.include_router(uploads_router, prefix='/uploads', tags=['uploads'])
+
