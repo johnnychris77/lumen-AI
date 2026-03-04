@@ -17,7 +17,10 @@
       "title": "Latency p95",
       "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
       "targets": [
-        {"expr": "histogram_quantile(0.95, sum(rate(lumenai_prediction_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(lumenai_prediction_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
       ]
     },
     {
