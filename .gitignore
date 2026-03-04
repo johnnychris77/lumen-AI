@@ -8,3 +8,22 @@ build/
 # local artifacts
 cookies.txtsample.bin
 
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.db
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+
+# Local artifacts
+report*.pdf
+sample.bin
