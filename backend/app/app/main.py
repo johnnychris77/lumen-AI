@@ -6,6 +6,7 @@ from app.routes.system import router as system_router
 from app.routes.inspect import router as inspect_router
 from app.routes.history import router as history_router
 from app.routes.reports import router as reports_router
+from app.routes.inspections import router as inspections_router
 from app.db import Base, engine
 
 app = FastAPI(title="LumenAI API")
@@ -30,3 +31,4 @@ app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(inspect_router, prefix=settings.API_PREFIX)
 app.include_router(history_router, prefix=settings.API_PREFIX)
 app.include_router(reports_router, prefix=settings.API_PREFIX)
+app.include_router(inspections_router, prefix=settings.API_PREFIX)

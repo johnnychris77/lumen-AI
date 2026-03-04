@@ -1,10 +1,19 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from sqlalchemy.orm import Session
+import os
 
 from app.deps import get_db
 from app.db import models
 
+# RQ
+from redis import Redis
+from rq import Queue
+
+from app.jobs.inspection_job import run_inspection
+
 router = APIRouter(tags=["inspect"])
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 
 @router.post("/inspect")
@@ -13,37 +22,31 @@ async def inspect_image(
     db: Session = Depends(get_db),
 ):
     """
-    Stub inspection endpoint:
-
-    - accepts an uploaded image
-    - runs a *fake* model (hard-coded values for now)
-    - writes a row into Postgres
-    - returns the saved record
+    Async inspection endpoint:
+    - stores an Inspection row with status=queued
+    - enqueues a background job (RQ) to run inference
+    - returns immediately with the queued inspection
     """
-
-    # Read the file to ensure it's actually uploaded (even though we don't use pixels yet)
     contents = await file.read()
     if not contents:
-        # FastAPI will turn this into a 400
-        raise ValueError("Empty file uploaded")
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
 
-    # ---- STUB MODEL OUTPUT ----
-    # You can plug real model predictions here later.
-    stain_detected = True
-    confidence = 0.92
-    material_type = "unknown"  # e.g., "rigid_scope", "lumen", etc.
-    status = "completed"
-
+    # create queued row (no results yet)
     row = models.Inspection(
-        file_name=file.filename or "uploaded-image",
-        stain_detected=stain_detected,
-        confidence=confidence,
-        material_type=material_type,
-        status=status,
+        file_name=file.filename or "uploaded-file",
+        stain_detected=False,
+        confidence=0.0,
+        material_type="unknown",
+        status="queued",
     )
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    # enqueue job
+    redis = Redis.from_url(REDIS_URL)
+    q = Queue("lumenai", connection=redis)
+    q.enqueue(run_inspection, row.id, contents)
 
     return {
         "id": row.id,
