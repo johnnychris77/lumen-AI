@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lumenai-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lumenai-worker
+  template:
+    metadata:
+      labels:
+        app: lumenai-worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository_worker }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["rq","worker","lumenai","--url","redis://redis:6379/0"]
+          env:
+            {{- range $k, $v := .Values.api.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: lumenai-secrets
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

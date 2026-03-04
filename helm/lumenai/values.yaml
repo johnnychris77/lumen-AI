@@ -1,0 +1,25 @@
+image:
+  repository_api: ghcr.io/johnnychris77/lumenai-api
+  repository_worker: ghcr.io/johnnychris77/lumenai-worker
+  tag: latest
+  pullPolicy: IfNotPresent
+
+api:
+  port: 8000
+  env:
+    DATABASE_URL: "postgresql+psycopg2://lumen:lumen@postgres:5432/lumenai"
+    REDIS_URL: "redis://redis:6379/0"
+    QUEUE_BACKEND: "rq"
+    RESULT_MODE: "advanced"
+    LUMENAI_DATA_DIR: "/data"
+
+secrets:
+  jwtSecret: "CHANGE_ME"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
