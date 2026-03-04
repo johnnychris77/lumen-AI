@@ -5,8 +5,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend ./backend
-COPY worker ./worker
-
 ENV PYTHONPATH=/app/backend
 
-CMD ["rq","worker","lumenai","--url","redis://redis:6379/0"]
+# Placeholder: update command once worker module exists in repo
+CMD ["python","-c","print('Worker image built. Add worker entrypoint/module and update CMD.')"]
