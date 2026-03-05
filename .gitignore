@@ -27,3 +27,6 @@ dist/
 # Local artifacts
 report*.pdf
 sample.bin
+
+backend/app.BACKUP_*/
+sample.png
