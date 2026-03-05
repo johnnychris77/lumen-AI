@@ -13,7 +13,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    working_dir: /app/backend
+    working_dir: /app/backend/app
+    environment:
+      PYTHONPATH: /app/backend/app
     # If you have a run_api.sh that does migrations, you can swap this for: ["sh", "run_api.sh"]
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     env_file:
@@ -22,6 +24,28 @@ services:
       - db
     ports:
       - "8000:8000"
+
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app/backend/app
+    environment:
+      PYTHONPATH: /app/backend/app
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - backend/.env
+    depends_on:
+      - redis
+      - db
+    command: rq worker lumenai --url redis://redis:6379/0
 
   edge:
     image: nginx:1.27-alpine
