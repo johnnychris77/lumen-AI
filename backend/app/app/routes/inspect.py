@@ -5,7 +5,6 @@ import os
 from app.deps import get_db
 from app.db import models
 
-# RQ
 from redis import Redis
 from rq import Queue
 
@@ -22,16 +21,15 @@ async def inspect_image(
     db: Session = Depends(get_db),
 ):
     """
-    Async inspection endpoint:
-    - stores an Inspection row with status=queued
-    - enqueues a background job (RQ) to run inference
-    - returns immediately with the queued inspection
+    Async inspection:
+      - create inspection row as queued
+      - enqueue RQ job
+      - return queued inspection
     """
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
 
-    # create queued row (no results yet)
     row = models.Inspection(
         file_name=file.filename or "uploaded-file",
         stain_detected=False,
@@ -43,7 +41,6 @@ async def inspect_image(
     db.commit()
     db.refresh(row)
 
-    # enqueue job
     redis = Redis.from_url(REDIS_URL)
     q = Queue("lumenai", connection=redis)
     q.enqueue(run_inspection, row.id, contents)
