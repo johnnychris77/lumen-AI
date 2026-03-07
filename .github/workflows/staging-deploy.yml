@@ -1,0 +1,15 @@
+name: Staging Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  staging-placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Staging deploy placeholder
+        run: |
+          echo "Staging deploy workflow created."
+          echo "Next step: wire Helm/kubectl or remote Docker host deployment."

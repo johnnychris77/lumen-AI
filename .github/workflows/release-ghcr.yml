@@ -1,4 +1,5 @@
-name: Release (GHCR)
+name: Release to GHCR
+
 on:
   push:
     tags:
@@ -9,15 +10,14 @@ permissions:
   packages: write
 
 jobs:
-  build-and-push:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      - name: Login to GHCR
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -25,25 +25,37 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract tag
-        id: vars
+        id: meta
         run: echo "TAG=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Build & push API
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.api
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/lumenai-api:${{ steps.vars.outputs.TAG }}
-            ghcr.io/${{ github.repository_owner }}/lumenai-api:latest
+      - name: Build and push API
+        run: |
+          if [ -f docker/Dockerfile.api ]; then
+            docker buildx build \
+              -f docker/Dockerfile.api \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-api:${{ steps.meta.outputs.TAG }} \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-api:latest \
+              --push .
+          else
+            docker buildx build \
+              -f Dockerfile \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-api:${{ steps.meta.outputs.TAG }} \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-api:latest \
+              --push .
+          fi
 
-      - name: Build & push Worker
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/lumenai-worker:${{ steps.vars.outputs.TAG }}
-            ghcr.io/${{ github.repository_owner }}/lumenai-worker:latest
+      - name: Build and push Worker
+        run: |
+          if [ -f docker/Dockerfile.worker ]; then
+            docker buildx build \
+              -f docker/Dockerfile.worker \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-worker:${{ steps.meta.outputs.TAG }} \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-worker:latest \
+              --push .
+          else
+            docker buildx build \
+              -f Dockerfile \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-worker:${{ steps.meta.outputs.TAG }} \
+              -t ghcr.io/${{ github.repository_owner }}/lumen-ai-worker:latest \
+              --push .
+          fi
