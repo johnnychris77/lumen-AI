@@ -21,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
     last_error = None
     for attempt in range(1, max_attempts + 1):
@@ -35,10 +36,12 @@ def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
             time.sleep(sleep_seconds)
     raise RuntimeError(f"Database did not become ready: {last_error}")
 
+
 @app.on_event("startup")
 async def _startup() -> None:
     wait_for_db()
     Base.metadata.create_all(bind=engine)
+
 
 app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(inspect_router, prefix=settings.API_PREFIX)
