@@ -1,4 +1,3 @@
-from .base import Base  # noqa: F401
-from .session import SessionLocal, engine  # noqa: F401
-
+from .base import Base
+from .session import SessionLocal, engine
 from . import models  # noqa: F401
