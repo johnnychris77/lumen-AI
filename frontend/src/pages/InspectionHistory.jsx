@@ -35,6 +35,38 @@ function statusBadge(status) {
   }
 }
 
+function reportActions(item) {
+  const reportUrl = `${API_BASE}/reports/${item.id}.pdf`;
+  const isCompleted = String(item.status).toLowerCase() === "completed";
+
+  if (!isCompleted) {
+    return <span style={{ color: "#6b7280" }}>Report pending</span>;
+  }
+
+  return (
+    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+      <a
+        href={reportUrl}
+        target="_blank"
+        rel="noreferrer"
+        style={actionLinkPrimary}
+        title={`Open report for inspection #${item.id}`}
+      >
+        Open Report
+      </a>
+
+      <a
+        href={reportUrl}
+        download
+        style={actionLinkSecondary}
+        title={`Download PDF for inspection #${item.id}`}
+      >
+        Download PDF
+      </a>
+    </div>
+  );
+}
+
 export default function InspectionHistory() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +119,8 @@ export default function InspectionHistory() {
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ margin: 0 }}>Inspection History</h1>
         <p style={{ color: "#4b5563" }}>
-          Review completed and in-progress LumenAI inspections.
+          Review completed and in-progress LumenAI inspections and access PDF
+          reports for completed jobs.
         </p>
       </div>
 
@@ -127,6 +160,8 @@ export default function InspectionHistory() {
               borderCollapse: "collapse",
               background: "#fff",
               border: "1px solid #e5e7eb",
+              borderRadius: "12px",
+              overflow: "hidden",
             }}
           >
             <thead style={{ background: "#f9fafb" }}>
@@ -148,7 +183,9 @@ export default function InspectionHistory() {
                   <td style={td}>{item.file_name || "—"}</td>
                   <td style={td}>{formatDate(item.created_at)}</td>
                   <td style={td}>
-                    <span style={statusBadge(item.status)}>{item.status || "unknown"}</span>
+                    <span style={statusBadge(item.status)}>
+                      {item.status || "unknown"}
+                    </span>
                   </td>
                   <td style={td}>
                     {item.stain_detected === true
@@ -163,19 +200,7 @@ export default function InspectionHistory() {
                       : "—"}
                   </td>
                   <td style={td}>{item.material_type || "—"}</td>
-                  <td style={td}>
-                    {String(item.status).toLowerCase() === "completed" ? (
-                      <a
-                        href={`${API_BASE}/reports/${item.id}.pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Download PDF
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
+                  <td style={td}>{reportActions(item)}</td>
                 </tr>
               ))}
             </tbody>
@@ -198,4 +223,27 @@ const td = {
   fontSize: "14px",
   color: "#111827",
   verticalAlign: "top",
+};
+
+const actionLinkPrimary = {
+  display: "inline-block",
+  padding: "6px 10px",
+  borderRadius: "8px",
+  background: "#111827",
+  color: "#ffffff",
+  textDecoration: "none",
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
+const actionLinkSecondary = {
+  display: "inline-block",
+  padding: "6px 10px",
+  borderRadius: "8px",
+  background: "#f3f4f6",
+  color: "#111827",
+  textDecoration: "none",
+  fontSize: "13px",
+  fontWeight: 600,
+  border: "1px solid #d1d5db",
 };
