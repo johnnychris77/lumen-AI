@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+import time
 
 from app.core.settings import settings
 from app.routes.system import router as system_router
@@ -20,13 +22,27 @@ app.add_middleware(
 )
 
 
+def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"Database ready on attempt {attempt}")
+            return
+        except Exception as exc:
+            last_error = exc
+            print(f"Database not ready (attempt {attempt}/{max_attempts}): {exc}")
+            time.sleep(sleep_seconds)
+    raise RuntimeError(f"Database did not become ready: {last_error}")
+
+
 @app.on_event("startup")
 async def _startup() -> None:
-    # Create database tables if they don't exist
+    wait_for_db()
     Base.metadata.create_all(bind=engine)
 
 
-# Routers (all sharing /api prefix)
 app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(inspect_router, prefix=settings.API_PREFIX)
 app.include_router(history_router, prefix=settings.API_PREFIX)

@@ -3,28 +3,16 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: YOUR_POSTGRES_USER
-      POSTGRES_PASSWORD: YOUR_POSTGRES_PASSWORD
-      POSTGRES_DB: YOUR_POSTGRES_DB
+      POSTGRES_USER: lumen
+      POSTGRES_PASSWORD: lumen
+      POSTGRES_DB: lumenai
     volumes:
       - db_data:/var/lib/postgresql/data
-
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    working_dir: /app/backend/app
-    environment:
-      PYTHONPATH: /app/backend/app
-    # If you have a run_api.sh that does migrations, you can swap this for: ["sh", "run_api.sh"]
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file:
-      - backend/.env
-    depends_on:
-      - db
-    ports:
-      - "8000:8000"
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumen -d lumenai"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7-alpine
@@ -32,20 +20,37 @@ services:
     ports:
       - "6379:6379"
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app/backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
   worker:
     build:
       context: .
       dockerfile: Dockerfile
-    working_dir: /app/backend/app
-    environment:
-      PYTHONPATH: /app/backend/app
-      REDIS_URL: redis://redis:6379/0
+    working_dir: /app/backend
+    command: rq worker lumenai --url redis://redis:6379/0
     env_file:
       - backend/.env
     depends_on:
-      - redis
-      - db
-    command: rq worker lumenai --url redis://redis:6379/0
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
 
   edge:
     image: nginx:1.27-alpine
