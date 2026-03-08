@@ -24,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    working_dir: /app/backend
+    working_dir: /app/backend/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     env_file:
       - backend/.env
@@ -41,7 +41,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    working_dir: /app/backend
+    working_dir: /app/backend/app
     command: rq worker lumenai --url redis://redis:6379/0
     env_file:
       - backend/.env
