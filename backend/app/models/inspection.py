@@ -1,15 +1,27 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
-class InferenceResult(BaseModel):
-    stain_detected: bool
-    confidence: float = Field(ge=0, le=1)
-    material_type: str
+from sqlalchemy import Boolean, DateTime, Float, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
-class InspectionOut(BaseModel):
-    instrument_name: str
-    results: InferenceResult
-    status: str = "processed"
-    timestamp: datetime
-    id: Optional[str] = None
+from app.db.base import Base
+
+
+class Inspection(Base):
+    __tablename__ = "inspections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    stain_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    material_type: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="queued", nullable=False)
+
+    model_name: Mapped[str] = mapped_column(String(100), default="lumenai-baseline", nullable=False)
+    model_version: Mapped[str] = mapped_column(String(50), default="0.1.0", nullable=False)
+    inference_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

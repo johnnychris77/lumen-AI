@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 import os
 
@@ -20,22 +20,19 @@ async def inspect_image(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """
-    Async inspection:
-      - create inspection row as queued
-      - enqueue RQ job
-      - return queued inspection
-    """
     contents = await file.read()
     if not contents:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
+        raise ValueError("Empty file uploaded")
 
     row = models.Inspection(
-        file_name=file.filename or "uploaded-file",
+        file_name=file.filename or "uploaded-image",
         stain_detected=False,
         confidence=0.0,
         material_type="unknown",
         status="queued",
+        model_name="lumenai-baseline",
+        model_version="0.1.0",
+        inference_timestamp=None,
     )
     db.add(row)
     db.commit()
@@ -53,4 +50,7 @@ async def inspect_image(
         "confidence": row.confidence,
         "material_type": row.material_type,
         "status": row.status,
+        "model_name": row.model_name,
+        "model_version": row.model_version,
+        "inference_timestamp": row.inference_timestamp.isoformat() if row.inference_timestamp else None,
     }

@@ -15,9 +15,6 @@ def get_history(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """
-    Return inspection history from Postgres, newest first.
-    """
     rows: List[models.Inspection] = (
         db.query(models.Inspection)
         .order_by(models.Inspection.created_at.desc())
@@ -35,6 +32,9 @@ def get_history(
             "confidence": r.confidence,
             "material_type": r.material_type,
             "status": r.status,
+            "model_name": getattr(r, "model_name", "lumenai-baseline"),
+            "model_version": getattr(r, "model_version", "0.1.0"),
+            "inference_timestamp": r.inference_timestamp.isoformat() if getattr(r, "inference_timestamp", None) else None,
         }
         for r in rows
     ]

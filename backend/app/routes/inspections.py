@@ -21,4 +21,7 @@ def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
         "confidence": row.confidence,
         "material_type": row.material_type,
         "status": row.status,
+        "model_name": getattr(row, "model_name", "lumenai-baseline"),
+        "model_version": getattr(row, "model_version", "0.1.0"),
+        "inference_timestamp": row.inference_timestamp.isoformat() if getattr(row, "inference_timestamp", None) else None,
     }
