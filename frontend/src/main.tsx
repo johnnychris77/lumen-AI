@@ -18,20 +18,33 @@ function Home() {
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
         }}
       >
-        <div
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: "12px",
-            padding: "20px",
-            background: "#fff",
-          }}
-        >
+        <div style={card}>
           <h2 style={{ marginTop: 0 }}>Inspection History</h2>
           <p style={{ color: "#4b5563" }}>
             Review completed and in-progress inspections, confidence scores,
-            material classifications, and PDF reports.
+            material classifications, model metadata, and PDF reports.
           </p>
           <Link to="/history">Open history</Link>
+        </div>
+
+        <div style={card}>
+          <h2 style={{ marginTop: 0 }}>Reports</h2>
+          <p style={{ color: "#4b5563" }}>
+            Completed inspections expose report actions directly from the
+            history table for quick QA review.
+          </p>
+          <Link to="/history">View completed reports</Link>
+        </div>
+
+        <div style={card}>
+          <h2 style={{ marginTop: 0 }}>System Status</h2>
+          <p style={{ color: "#4b5563" }}>
+            LumenAI is running with API, Postgres, Redis, and worker-backed
+            asynchronous processing.
+          </p>
+          <a href="/api/health" target="_blank" rel="noreferrer">
+            Check API health
+          </a>
         </div>
       </div>
     </div>
@@ -71,6 +84,13 @@ function Layout() {
     </BrowserRouter>
   );
 }
+
+const card = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "20px",
+  background: "#fff",
+};
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

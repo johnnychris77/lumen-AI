@@ -115,12 +115,12 @@ export default function InspectionHistory() {
   }, [token]);
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ margin: 0 }}>Inspection History</h1>
         <p style={{ color: "#4b5563" }}>
-          Review completed and in-progress LumenAI inspections and access PDF
-          reports for completed jobs.
+          Review completed and in-progress LumenAI inspections, model metadata,
+          and PDF reports.
         </p>
       </div>
 
@@ -173,6 +173,8 @@ export default function InspectionHistory() {
                 <th style={th}>Stain</th>
                 <th style={th}>Confidence</th>
                 <th style={th}>Material</th>
+                <th style={th}>Model</th>
+                <th style={th}>Inference Time</th>
                 <th style={th}>Report</th>
               </tr>
             </thead>
@@ -200,6 +202,13 @@ export default function InspectionHistory() {
                       : "—"}
                   </td>
                   <td style={td}>{item.material_type || "—"}</td>
+                  <td style={td}>
+                    <div>{item.model_name || "—"}</div>
+                    <div style={{ color: "#6b7280", fontSize: "12px" }}>
+                      v{item.model_version || "—"}
+                    </div>
+                  </td>
+                  <td style={td}>{formatDate(item.inference_timestamp)}</td>
                   <td style={td}>{reportActions(item)}</td>
                 </tr>
               ))}
@@ -216,6 +225,7 @@ const th = {
   padding: "12px",
   fontSize: "13px",
   color: "#374151",
+  whiteSpace: "nowrap",
 };
 
 const td = {
