@@ -6,16 +6,10 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.db import models
 from app.ai.inference import LumenAIModel
+from app.reports.pdf_report import generate_report
 
 
 def run_inspection(inspection_id: int, file_bytes: bytes) -> None:
-    """
-    RQ job:
-      - mark row running
-      - run model prediction
-      - persist results
-      - mark completed/failed
-    """
     db: Session = SessionLocal()
     try:
         row = (
@@ -50,6 +44,9 @@ def run_inspection(inspection_id: int, file_bytes: bytes) -> None:
 
         db.add(row)
         db.commit()
+        db.refresh(row)
+
+        generate_report(row)
 
     except Exception:
         try:
