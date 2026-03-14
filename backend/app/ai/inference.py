@@ -1,5 +1,6 @@
 import io
 import os
+import json
 import hashlib
 from datetime import datetime, timezone
 
@@ -21,18 +22,23 @@ except Exception:
 class LumenAIModel:
     _shared_model = None
     _shared_model_path = None
+    _shared_label_map = None
+    _shared_label_map_path = None
 
-    def __init__(self, model_path=None, model_name="lumenai-vision", model_version="0.3.0"):
+    def __init__(self, model_path=None, model_name="lumenai-vision", model_version="0.4.0"):
         env_model_path = os.getenv("LUMENAI_MODEL_PATH", "").strip()
+        env_label_map = os.getenv("LUMENAI_LABEL_MAP", "").strip()
+
         self.model_path = model_path or env_model_path or "models/lumenai_model.pt"
+        self.label_map_path = env_label_map or "backend/config/label_map.example.json"
         self.model_name = model_name
         self.model_version = model_version
         self.model = self._load_model()
+        self.label_map = self._load_label_map()
 
     def _load_model(self):
         if YOLO is None:
             return None
-
         if not os.path.exists(self.model_path):
             return None
 
@@ -50,12 +56,38 @@ class LumenAIModel:
         except Exception:
             return None
 
+    def _load_label_map(self):
+        if not os.path.exists(self.label_map_path):
+            return {}
+
+        if (
+            LumenAIModel._shared_label_map is not None
+            and LumenAIModel._shared_label_map_path == self.label_map_path
+        ):
+            return LumenAIModel._shared_label_map
+
+        try:
+            with open(self.label_map_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            LumenAIModel._shared_label_map = data
+            LumenAIModel._shared_label_map_path = self.label_map_path
+            return data
+        except Exception:
+            return {}
+
+    def _map_label(self, detected_label: str):
+        mapped = self.label_map.get(detected_label, {})
+        return {
+            "instrument_type": mapped.get("instrument_type", "unknown"),
+            "detected_issue": mapped.get("detected_issue", detected_label or "unknown"),
+            "material_type": mapped.get("material_type", "unknown"),
+        }
+
     def _deterministic_fallback(self, image_bytes: bytes):
         digest = hashlib.sha256(image_bytes).hexdigest()
         seed_value = int(digest[:8], 16)
 
         confidence = round(((seed_value % 51) + 40) / 100, 2)
-
         material_options = ["stainless_steel", "polymer", "titanium"]
         instrument_options = [
             "arthroscopy_shaver",
@@ -107,43 +139,32 @@ class LumenAIModel:
                 "model_name": self.model_name,
                 "model_version": self.model_version,
                 "inference_timestamp": datetime.now(timezone.utc).isoformat(),
-                "inference_mode": "yolo",
+                "inference_mode": "trained-yolo",
             }
 
         best_idx = int(boxes.conf.argmax().item())
         confidence = round(float(boxes.conf[best_idx].item()), 2)
-
         class_id = int(boxes.cls[best_idx].item()) if boxes.cls is not None else -1
         names = getattr(result, "names", {}) or {}
         detected_label = names.get(class_id, f"class_{class_id}")
 
-        stain_detected = detected_label.lower() not in {"clean", "ok", "normal"}
+        mapped = self._map_label(detected_label)
+        detected_issue = mapped["detected_issue"]
+        instrument_type = mapped["instrument_type"]
+        material_type = mapped["material_type"]
 
-        instrument_type = "unknown"
-        detected_issue = detected_label
-
-        instrument_labels = {
-            "arthroscopy_shaver",
-            "laparoscopic_grasper",
-            "orthopedic_drill",
-            "robotic_instrument",
-            "general_surgical_instrument",
-        }
-
-        if detected_label in instrument_labels:
-            instrument_type = detected_label
-            detected_issue = "clean"
+        stain_detected = str(detected_issue).lower() not in {"clean", "ok", "normal"}
 
         return {
             "stain_detected": stain_detected,
             "confidence": confidence,
-            "material_type": "stainless_steel",
+            "material_type": material_type,
             "instrument_type": instrument_type,
             "detected_issue": detected_issue,
             "model_name": self.model_name,
             "model_version": self.model_version,
             "inference_timestamp": datetime.now(timezone.utc).isoformat(),
-            "inference_mode": "yolo",
+            "inference_mode": "trained-yolo",
         }
 
     def predict(self, image_bytes: bytes):

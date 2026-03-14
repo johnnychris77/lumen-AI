@@ -1,0 +1,17 @@
+{
+  "bioburden_drill": {
+    "instrument_type": "orthopedic_drill",
+    "detected_issue": "debris",
+    "material_type": "stainless_steel"
+  },
+  "clean_grasper": {
+    "instrument_type": "laparoscopic_grasper",
+    "detected_issue": "clean",
+    "material_type": "stainless_steel"
+  },
+  "stain_shaver": {
+    "instrument_type": "arthroscopy_shaver",
+    "detected_issue": "stain",
+    "material_type": "titanium"
+  }
+}

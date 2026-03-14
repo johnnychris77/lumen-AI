@@ -119,35 +119,21 @@ export default function InspectionHistory() {
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ margin: 0 }}>Inspection History</h1>
         <p style={{ color: "#4b5563" }}>
-          Review completed and in-progress LumenAI inspections, instrument
-          metadata, issues, inference mode, and PDF reports.
+          Review completed and in-progress LumenAI inspections, instrument metadata,
+          issues, inference mode, and PDF reports.
         </p>
       </div>
 
       {loading && <p>Loading inspection history...</p>}
 
       {!loading && error && (
-        <div
-          style={{
-            background: "#fee2e2",
-            color: "#991b1b",
-            padding: "12px 16px",
-            borderRadius: "8px",
-          }}
-        >
+        <div style={{ background: "#fee2e2", color: "#991b1b", padding: "12px 16px", borderRadius: "8px" }}>
           {error}
         </div>
       )}
 
       {!loading && !error && items.length === 0 && (
-        <div
-          style={{
-            background: "#f9fafb",
-            border: "1px solid #e5e7eb",
-            padding: "16px",
-            borderRadius: "8px",
-          }}
-        >
+        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", padding: "16px", borderRadius: "8px" }}>
           No inspections found yet.
         </div>
       )}
