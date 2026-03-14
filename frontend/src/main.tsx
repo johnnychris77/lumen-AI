@@ -6,7 +6,7 @@ import InspectionHistory from "./pages/InspectionHistory";
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 
-function formatDate(value) {
+function formatDate(value: string | null | undefined) {
   if (!value) return "—";
   try {
     return new Date(value).toLocaleString();
@@ -15,8 +15,8 @@ function formatDate(value) {
   }
 }
 
-function statusPill(status) {
-  const base = {
+function statusPill(status: string) {
+  const base: React.CSSProperties = {
     display: "inline-block",
     padding: "4px 10px",
     borderRadius: "999px",
@@ -38,11 +38,42 @@ function statusPill(status) {
   }
 }
 
+type SummaryItem = { label: string; count: number };
+
+type Summary = {
+  total_inspections: number;
+  completed: number;
+  queued: number;
+  running: number;
+  failed: number;
+  top_issues: SummaryItem[];
+  top_instruments: SummaryItem[];
+};
+
+type Inspection = {
+  id: number;
+  created_at?: string;
+  file_name?: string;
+  stain_detected?: boolean;
+  confidence?: number;
+  material_type?: string;
+  status?: string;
+  model_name?: string;
+  model_version?: string;
+  inference_timestamp?: string | null;
+  instrument_type?: string;
+  detected_issue?: string;
+  inference_mode?: string;
+};
+
 function DashboardHome() {
-  const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [recent, setRecent] = useState<Inspection[]>([]);
+  const [health, setHealth] = useState("checking");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const token = useMemo(() => localStorage.getItem("token") || "dev-token", []);
+
+  const token = useMemo(() => localStorage.getItem("token") || "", []);
 
   useEffect(() => {
     let ignore = false;
@@ -52,24 +83,42 @@ function DashboardHome() {
       setError("");
 
       try {
-        const res = await fetch(`${API_BASE}/history?limit=8`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Dashboard request failed (${res.status}): ${text}`);
+        const [summaryRes, historyRes, healthRes] = await Promise.all([
+          fetch(`${API_BASE}/history/summary`, { headers }),
+          fetch(`${API_BASE}/history?limit=8`, { headers }),
+          fetch(`${API_BASE}/health`),
+        ]);
+
+        if (!summaryRes.ok) {
+          throw new Error(`Summary request failed (${summaryRes.status})`);
+        }
+        if (!historyRes.ok) {
+          throw new Error(`History request failed (${historyRes.status})`);
         }
 
-        const data = await res.json();
-        const normalized = Array.isArray(data) ? data : data.items || [];
+        const summaryData = await summaryRes.json();
+        const historyData = await historyRes.json();
+
+        let healthStatus = "unavailable";
+        if (healthRes.ok) {
+          try {
+            const healthJson = await healthRes.json();
+            healthStatus = healthJson.status || "ok";
+          } catch {
+            healthStatus = "ok";
+          }
+        }
 
         if (!ignore) {
-          setItems(normalized);
+          setSummary(summaryData);
+          setRecent(Array.isArray(historyData.items) ? historyData.items : []);
+          setHealth(healthStatus);
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!ignore) {
-          setError(err.message || "Failed to load dashboard data.");
+          setError(err?.message || "Failed to load dashboard.");
         }
       } finally {
         if (!ignore) {
@@ -84,188 +133,189 @@ function DashboardHome() {
     };
   }, [token]);
 
-  const total = items.length;
-  const completed = items.filter((x) => String(x.status).toLowerCase() === "completed").length;
-  const pending = items.filter((x) =>
-    ["queued", "running"].includes(String(x.status).toLowerCase())
-  ).length;
-  const reportsReady = items.filter((x) => String(x.status).toLowerCase() === "completed").length;
+  const csvExportUrl = `${API_BASE}/history/export.csv`;
+  const jsonExportUrl = `${API_BASE}/history/export.json`;
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <section
-        style={{
-          background: "linear-gradient(135deg, #111827, #1f2937)",
-          color: "white",
-          borderRadius: "20px",
-          padding: "28px",
-          marginBottom: "24px",
-        }}
-      >
-        <div style={{ maxWidth: "760px" }}>
+    <div style={{ padding: "24px", maxWidth: "1280px", margin: "0 auto" }}>
+      <div style={{ marginBottom: "24px" }}>
+        <h1 style={{ marginBottom: "8px" }}>LumenAI Executive Dashboard</h1>
+        <p style={{ color: "#4b5563", margin: 0 }}>
+          AI-powered surgical instrument inspection intelligence for SPD teams,
+          vendors, and device manufacturers.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
+        <a href={csvExportUrl} style={primaryButton}>
+          Export CSV
+        </a>
+        <a href={jsonExportUrl} style={secondaryButton}>
+          Export JSON
+        </a>
+        <Link to="/history" style={secondaryButton}>
+          Open Full History
+        </Link>
+        <a href={`${API_BASE}/health`} target="_blank" rel="noreferrer" style={secondaryButton}>
+          API Health
+        </a>
+      </div>
+
+      {loading && <p>Loading executive dashboard...</p>}
+
+      {!loading && error && (
+        <div style={errorBox}>
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && summary && (
+        <>
           <div
             style={{
-              display: "inline-block",
-              padding: "6px 10px",
-              borderRadius: "999px",
-              background: "rgba(255,255,255,0.12)",
-              fontSize: "12px",
-              fontWeight: 700,
-              marginBottom: "14px",
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              marginBottom: "24px",
             }}
           >
-            Executive Demo Dashboard
-          </div>
-          <h1 style={{ margin: "0 0 10px 0", fontSize: "34px", lineHeight: 1.15 }}>
-            LumenAI
-          </h1>
-          <p style={{ margin: 0, color: "#d1d5db", fontSize: "16px", lineHeight: 1.6 }}>
-            AI-powered instrument inspection workflow with asynchronous analysis,
-            model traceability, operational history, and report-ready outputs.
-          </p>
-
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "20px" }}>
-            <Link to="/history" style={primaryHeroButton}>
-              View Inspection History
-            </Link>
-            <a href="/api/health" target="_blank" rel="noreferrer" style={secondaryHeroButton}>
-              System Health
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gap: "16px",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          marginBottom: "24px",
-        }}
-      >
-        <MetricCard label="Recent Inspections" value={String(total)} help="Latest dashboard sample" />
-        <MetricCard label="Completed Analyses" value={String(completed)} help="Finished processing jobs" />
-        <MetricCard label="Pending Queue" value={String(pending)} help="Queued or running jobs" />
-        <MetricCard label="Reports Available" value={String(reportsReady)} help="Completed report-ready items" />
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gap: "16px",
-          gridTemplateColumns: "2fr 1fr",
-          alignItems: "start",
-        }}
-      >
-        <div style={panel}>
-          <div style={panelHeader}>
-            <div>
-              <h2 style={{ margin: 0 }}>Recent Inspections</h2>
-              <p style={panelSubtext}>
-                Most recent async analyses with model output and status visibility.
-              </p>
+            <div style={card}>
+              <div style={cardLabel}>Total Inspections</div>
+              <div style={cardValue}>{summary.total_inspections}</div>
             </div>
-            <Link to="/history">Open full history</Link>
+
+            <div style={card}>
+              <div style={cardLabel}>Completed</div>
+              <div style={cardValue}>{summary.completed}</div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>Queued / Running</div>
+              <div style={cardValue}>{summary.queued + summary.running}</div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>Failed</div>
+              <div style={cardValue}>{summary.failed}</div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>System Health</div>
+              <div style={cardValueSmall}>
+                <span style={statusPill(health)}>{health}</span>
+              </div>
+            </div>
           </div>
 
-          {loading && <p>Loading dashboard data...</p>}
-
-          {!loading && error && (
-            <div style={errorBox}>
-              {error}
-            </div>
-          )}
-
-          {!loading && !error && items.length === 0 && (
-            <div style={emptyBox}>
-              No inspections found yet.
-            </div>
-          )}
-
-          {!loading && !error && items.length > 0 && (
-            <div style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  background: "#fff",
-                }}
-              >
-                <thead style={{ background: "#f9fafb" }}>
-                  <tr>
-                    <th style={th}>ID</th>
-                    <th style={th}>File</th>
-                    <th style={th}>Status</th>
-                    <th style={th}>Confidence</th>
-                    <th style={th}>Material</th>
-                    <th style={th}>Model</th>
-                    <th style={th}>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.id} style={{ borderTop: "1px solid #e5e7eb" }}>
-                      <td style={td}>{item.id}</td>
-                      <td style={td}>{item.file_name || "—"}</td>
-                      <td style={td}>
-                        <span style={statusPill(item.status)}>{item.status || "unknown"}</span>
-                      </td>
-                      <td style={td}>
-                        {typeof item.confidence === "number" ? item.confidence.toFixed(2) : "—"}
-                      </td>
-                      <td style={td}>{item.material_type || "—"}</td>
-                      <td style={td}>
-                        <div>{item.model_name || "—"}</div>
-                        <div style={{ color: "#6b7280", fontSize: "12px" }}>
-                          v{item.model_version || "—"}
-                        </div>
-                      </td>
-                      <td style={td}>{formatDate(item.created_at)}</td>
-                    </tr>
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              marginBottom: "24px",
+            }}
+          >
+            <div style={card}>
+              <h2 style={sectionTitle}>Top Detected Issues</h2>
+              {summary.top_issues.length === 0 ? (
+                <p style={muted}>No issue data yet.</p>
+              ) : (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {summary.top_issues.map((item) => (
+                    <div key={item.label} style={listRow}>
+                      <span>{item.label}</span>
+                      <strong>{item.count}</strong>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <div style={{ display: "grid", gap: "16px" }}>
-          <div style={panel}>
-            <h2 style={{ marginTop: 0 }}>Demo Story</h2>
-            <p style={panelSubtext}>
-              LumenAI demonstrates a complete workflow from upload through
-              asynchronous analysis, model traceability, history review, and PDF report access.
-            </p>
-            <ul style={{ paddingLeft: "18px", marginBottom: 0, color: "#374151", lineHeight: 1.7 }}>
-              <li>Async queue-backed processing</li>
-              <li>Model metadata traceability</li>
-              <li>Operational history visibility</li>
-              <li>Report-ready inspection outputs</li>
-            </ul>
-          </div>
-
-          <div style={panel}>
-            <h2 style={{ marginTop: 0 }}>Quick Actions</h2>
-            <div style={{ display: "grid", gap: "10px" }}>
-              <Link to="/history" style={actionTile}>View Full Inspection History</Link>
-              <a href="/api/health" target="_blank" rel="noreferrer" style={actionTile}>Check API Health</a>
-              <a href="/docs" target="_blank" rel="noreferrer" style={actionTile}>Open API Docs</a>
+            <div style={card}>
+              <h2 style={sectionTitle}>Top Instrument Types</h2>
+              {summary.top_instruments.length === 0 ? (
+                <p style={muted}>No instrument data yet.</p>
+              ) : (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {summary.top_instruments.map((item) => (
+                    <div key={item.label} style={listRow}>
+                      <span>{item.label}</span>
+                      <strong>{item.count}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </section>
-    </div>
-  );
-}
 
-function MetricCard({ label, value, help }) {
-  return (
-    <div style={metricCard}>
-      <div style={{ color: "#6b7280", fontSize: "13px", marginBottom: "8px" }}>{label}</div>
-      <div style={{ fontSize: "32px", fontWeight: 800, color: "#111827", marginBottom: "6px" }}>
-        {value}
-      </div>
-      <div style={{ color: "#6b7280", fontSize: "13px" }}>{help}</div>
+          <div style={card}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
+              <h2 style={sectionTitle}>Recent Completed Inspections & Reports</h2>
+              <Link to="/history" style={{ textDecoration: "none" }}>
+                View all
+              </Link>
+            </div>
+
+            {recent.length === 0 ? (
+              <p style={muted}>No recent inspections found.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={table}>
+                  <thead style={{ background: "#f9fafb" }}>
+                    <tr>
+                      <th style={th}>ID</th>
+                      <th style={th}>File</th>
+                      <th style={th}>Status</th>
+                      <th style={th}>Instrument</th>
+                      <th style={th}>Issue</th>
+                      <th style={th}>Confidence</th>
+                      <th style={th}>Created</th>
+                      <th style={th}>Report</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map((item) => (
+                      <tr key={item.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                        <td style={td}>{item.id}</td>
+                        <td style={td}>{item.file_name || "—"}</td>
+                        <td style={td}>
+                          <span style={statusPill(item.status || "unknown")}>
+                            {item.status || "unknown"}
+                          </span>
+                        </td>
+                        <td style={td}>{item.instrument_type || "unknown"}</td>
+                        <td style={td}>{item.detected_issue || "unknown"}</td>
+                        <td style={td}>
+                          {typeof item.confidence === "number" ? item.confidence.toFixed(2) : "—"}
+                        </td>
+                        <td style={td}>{formatDate(item.created_at)}</td>
+                        <td style={td}>
+                          {(item.status || "").toLowerCase() === "completed" ? (
+                            <a
+                              href={`${API_BASE}/reports/${item.id}.pdf`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={secondaryButtonInline}
+                            >
+                              Open PDF
+                            </a>
+                          ) : (
+                            <span style={muted}>Pending</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
+            Exports can be opened in Excel directly, or imported into Power BI and Tableau for deeper analysis.
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -282,14 +332,15 @@ function Layout() {
       >
         <div
           style={{
-            maxWidth: "1200px",
+            maxWidth: "1280px",
             margin: "0 auto",
             display: "flex",
             gap: "16px",
             alignItems: "center",
+            flexWrap: "wrap",
           }}
         >
-          <Link to="/" style={{ fontWeight: 800, textDecoration: "none", color: "#111827" }}>
+          <Link to="/" style={{ fontWeight: 700, textDecoration: "none", color: "#111827" }}>
             LumenAI
           </Link>
           <Link to="/history">History</Link>
@@ -304,50 +355,98 @@ function Layout() {
   );
 }
 
-const metricCard = {
+const card: React.CSSProperties = {
   border: "1px solid #e5e7eb",
-  borderRadius: "16px",
-  padding: "18px",
-  background: "#fff",
-};
-
-const panel = {
-  border: "1px solid #e5e7eb",
-  borderRadius: "16px",
+  borderRadius: "14px",
   padding: "20px",
-  background: "#fff",
+  background: "#ffffff",
 };
 
-const panelHeader = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  alignItems: "flex-start",
+const cardLabel: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#6b7280",
+  marginBottom: "10px",
+};
+
+const cardValue: React.CSSProperties = {
+  fontSize: "32px",
+  fontWeight: 800,
+  color: "#111827",
+};
+
+const cardValueSmall: React.CSSProperties = {
+  fontSize: "18px",
+  fontWeight: 700,
+  color: "#111827",
+};
+
+const sectionTitle: React.CSSProperties = {
+  marginTop: 0,
   marginBottom: "12px",
 };
 
-const panelSubtext = {
-  color: "#6b7280",
-  marginTop: "6px",
-  marginBottom: 0,
-  lineHeight: 1.6,
+const listRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  padding: "10px 0",
+  borderBottom: "1px solid #f3f4f6",
 };
 
-const errorBox = {
+const primaryButton: React.CSSProperties = {
+  display: "inline-block",
+  padding: "10px 14px",
+  borderRadius: "10px",
+  background: "#111827",
+  color: "#ffffff",
+  textDecoration: "none",
+  fontWeight: 600,
+};
+
+const secondaryButton: React.CSSProperties = {
+  display: "inline-block",
+  padding: "10px 14px",
+  borderRadius: "10px",
+  background: "#f3f4f6",
+  color: "#111827",
+  textDecoration: "none",
+  fontWeight: 600,
+  border: "1px solid #d1d5db",
+};
+
+const secondaryButtonInline: React.CSSProperties = {
+  display: "inline-block",
+  padding: "6px 10px",
+  borderRadius: "8px",
+  background: "#f3f4f6",
+  color: "#111827",
+  textDecoration: "none",
+  fontWeight: 600,
+  border: "1px solid #d1d5db",
+  fontSize: "13px",
+};
+
+const errorBox: React.CSSProperties = {
   background: "#fee2e2",
   color: "#991b1b",
   padding: "12px 16px",
   borderRadius: "8px",
 };
 
-const emptyBox = {
-  background: "#f9fafb",
-  border: "1px solid #e5e7eb",
-  padding: "16px",
-  borderRadius: "8px",
+const muted: React.CSSProperties = {
+  color: "#6b7280",
 };
 
-const th = {
+const table: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  background: "#fff",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  overflow: "hidden",
+};
+
+const th: React.CSSProperties = {
   textAlign: "left",
   padding: "12px",
   fontSize: "13px",
@@ -355,43 +454,11 @@ const th = {
   whiteSpace: "nowrap",
 };
 
-const td = {
+const td: React.CSSProperties = {
   padding: "12px",
   fontSize: "14px",
   color: "#111827",
   verticalAlign: "top",
-};
-
-const primaryHeroButton = {
-  display: "inline-block",
-  padding: "10px 14px",
-  borderRadius: "10px",
-  background: "#ffffff",
-  color: "#111827",
-  textDecoration: "none",
-  fontWeight: 700,
-};
-
-const secondaryHeroButton = {
-  display: "inline-block",
-  padding: "10px 14px",
-  borderRadius: "10px",
-  background: "rgba(255,255,255,0.08)",
-  color: "#ffffff",
-  textDecoration: "none",
-  border: "1px solid rgba(255,255,255,0.18)",
-  fontWeight: 700,
-};
-
-const actionTile = {
-  display: "block",
-  padding: "12px 14px",
-  borderRadius: "10px",
-  background: "#f9fafb",
-  border: "1px solid #e5e7eb",
-  textDecoration: "none",
-  color: "#111827",
-  fontWeight: 600,
 };
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
