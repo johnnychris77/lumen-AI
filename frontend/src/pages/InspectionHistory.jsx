@@ -82,7 +82,7 @@ export default function InspectionHistory() {
       setError("");
 
       try {
-        const res = await fetch(`${API_BASE}/history?limit=50`, {
+        const res = await fetch(`${API_BASE}/history?limit=100`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -115,12 +115,12 @@ export default function InspectionHistory() {
   }, [token]);
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
+    <div style={{ padding: "24px", maxWidth: "1500px", margin: "0 auto" }}>
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ margin: 0 }}>Inspection History</h1>
         <p style={{ color: "#4b5563" }}>
-          Review completed and in-progress LumenAI inspections, model metadata,
-          and PDF reports.
+          Review completed and in-progress LumenAI inspections, instrument
+          metadata, issues, inference mode, and PDF reports.
         </p>
       </div>
 
@@ -170,6 +170,9 @@ export default function InspectionHistory() {
                 <th style={th}>File</th>
                 <th style={th}>Created</th>
                 <th style={th}>Status</th>
+                <th style={th}>Instrument</th>
+                <th style={th}>Issue</th>
+                <th style={th}>Inference Mode</th>
                 <th style={th}>Stain</th>
                 <th style={th}>Confidence</th>
                 <th style={th}>Material</th>
@@ -189,6 +192,9 @@ export default function InspectionHistory() {
                       {item.status || "unknown"}
                     </span>
                   </td>
+                  <td style={td}>{item.instrument_type || "unknown"}</td>
+                  <td style={td}>{item.detected_issue || "unknown"}</td>
+                  <td style={td}>{item.inference_mode || "unknown"}</td>
                   <td style={td}>
                     {item.stain_detected === true
                       ? "Yes"
