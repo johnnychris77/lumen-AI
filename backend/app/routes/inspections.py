@@ -7,12 +7,7 @@ from app.db import models
 router = APIRouter(tags=["inspections"])
 
 
-@router.get("/inspections/{inspection_id}")
-def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
-    row = db.query(models.Inspection).filter(models.Inspection.id == inspection_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Inspection not found")
-
+def inspection_response(row: models.Inspection) -> dict:
     return {
         "id": row.id,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -21,7 +16,23 @@ def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
         "confidence": row.confidence,
         "material_type": row.material_type,
         "status": row.status,
-        "model_name": getattr(row, "model_name", "lumenai-baseline"),
-        "model_version": getattr(row, "model_version", "0.1.0"),
-        "inference_timestamp": row.inference_timestamp.isoformat() if getattr(row, "inference_timestamp", None) else None,
+        "model_name": row.model_name,
+        "model_version": row.model_version,
+        "inference_timestamp": row.inference_timestamp.isoformat() if row.inference_timestamp else None,
+        "instrument_type": row.instrument_type,
+        "detected_issue": row.detected_issue,
+        "inference_mode": row.inference_mode,
     }
+
+
+@router.get("/inspections/{inspection_id}")
+async def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
+    row = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == inspection_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    return inspection_response(row)

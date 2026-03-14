@@ -25,3 +25,7 @@ class Inspection(Base):
     model_name: Mapped[str] = mapped_column(String(100), default="lumenai-baseline", nullable=False)
     model_version: Mapped[str] = mapped_column(String(50), default="0.1.0", nullable=False)
     inference_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    instrument_type: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+    detected_issue: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+    inference_mode: Mapped[str] = mapped_column(String(50), default="deterministic-fallback", nullable=False)

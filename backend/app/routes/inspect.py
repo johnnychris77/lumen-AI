@@ -25,6 +25,9 @@ def enqueue_inspection(db: Session, contents: bytes, file_name: str) -> models.I
         model_name="lumenai-baseline",
         model_version="0.1.0",
         inference_timestamp=None,
+        instrument_type="unknown",
+        detected_issue="unknown",
+        inference_mode="queued",
     )
     db.add(row)
     db.commit()
@@ -49,6 +52,9 @@ def inspection_response(row: models.Inspection) -> dict:
         "model_name": row.model_name,
         "model_version": row.model_version,
         "inference_timestamp": row.inference_timestamp.isoformat() if row.inference_timestamp else None,
+        "instrument_type": row.instrument_type,
+        "detected_issue": row.detected_issue,
+        "inference_mode": row.inference_mode,
     }
 
 

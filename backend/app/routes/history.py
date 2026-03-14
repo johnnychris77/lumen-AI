@@ -1,5 +1,3 @@
-from typing import List
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -9,34 +7,33 @@ from app.db import models
 router = APIRouter(tags=["history"])
 
 
+def inspection_response(row: models.Inspection) -> dict:
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "file_name": row.file_name,
+        "stain_detected": row.stain_detected,
+        "confidence": row.confidence,
+        "material_type": row.material_type,
+        "status": row.status,
+        "model_name": row.model_name,
+        "model_version": row.model_version,
+        "inference_timestamp": row.inference_timestamp.isoformat() if row.inference_timestamp else None,
+        "instrument_type": row.instrument_type,
+        "detected_issue": row.detected_issue,
+        "inference_mode": row.inference_mode,
+    }
+
+
 @router.get("/history")
-def get_history(
+async def get_history(
+    limit: int = Query(default=20, ge=1, le=200),
     db: Session = Depends(get_db),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
 ):
-    rows: List[models.Inspection] = (
+    rows = (
         db.query(models.Inspection)
-        .order_by(models.Inspection.created_at.desc())
-        .offset(offset)
+        .order_by(models.Inspection.id.desc())
         .limit(limit)
         .all()
     )
-
-    items = [
-        {
-            "id": r.id,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "file_name": r.file_name,
-            "stain_detected": r.stain_detected,
-            "confidence": r.confidence,
-            "material_type": r.material_type,
-            "status": r.status,
-            "model_name": getattr(r, "model_name", "lumenai-baseline"),
-            "model_version": getattr(r, "model_version", "0.1.0"),
-            "inference_timestamp": r.inference_timestamp.isoformat() if getattr(r, "inference_timestamp", None) else None,
-        }
-        for r in rows
-    ]
-
-    return {"items": items}
+    return {"items": [inspection_response(r) for r in rows]}

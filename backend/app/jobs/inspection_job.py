@@ -32,6 +32,9 @@ def run_inspection(inspection_id: int, file_bytes: bytes) -> None:
         row.material_type = str(res.get("material_type", "unknown"))
         row.model_name = str(res.get("model_name", "lumenai-baseline"))
         row.model_version = str(res.get("model_version", "0.1.0"))
+        row.instrument_type = str(res.get("instrument_type", "unknown"))
+        row.detected_issue = str(res.get("detected_issue", "unknown"))
+        row.inference_mode = str(res.get("inference_mode", "deterministic-fallback"))
 
         ts = res.get("inference_timestamp")
         if ts:
