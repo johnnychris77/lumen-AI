@@ -47,3 +47,7 @@ report*.pdf
 sample.bin
 sample.png
 .venv
+demo_frames/
+reports/
+demo_frames/
+reports/
