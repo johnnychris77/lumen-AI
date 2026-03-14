@@ -35,6 +35,8 @@ services:
         condition: service_started
     ports:
       - "8000:8000"
+    volumes:
+      - ./reports:/app/reports
     restart: unless-stopped
 
   worker:
@@ -50,6 +52,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    volumes:
+      - ./reports:/app/reports
     restart: unless-stopped
 
   edge:
