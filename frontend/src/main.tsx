@@ -466,3 +466,4 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Layout />
   </React.StrictMode>
 );
+);
