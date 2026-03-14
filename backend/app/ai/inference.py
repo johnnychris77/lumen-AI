@@ -1,120 +1,156 @@
 import io
 import os
-from dataclasses import dataclass
+import hashlib
 from datetime import datetime, timezone
-from typing import Any
 
-from PIL import Image, ImageStat
+from PIL import Image
 
+try:
+    import cv2
+    import numpy as np
+except Exception:
+    cv2 = None
+    np = None
 
-@dataclass
-class InferenceConfig:
-    model_path: str | None = None
-    model_name: str = "lumenai-baseline"
-    model_version: str = "0.2.0"
+try:
+    from ultralytics import YOLO
+except Exception:
+    YOLO = None
 
 
 class LumenAIModel:
-    """
-    Structured inference pipeline for LumenAI.
+    _shared_model = None
+    _shared_model_path = None
 
-    Current behavior:
-    - deterministic fallback classifier based on image statistics
-    - stable output schema for API/worker consumers
-    - explicit hooks for future trained-model integration
+    def __init__(self, model_path=None, model_name="lumenai-vision", model_version="0.3.0"):
+        env_model_path = os.getenv("LUMENAI_MODEL_PATH", "").strip()
+        self.model_path = model_path or env_model_path or "models/lumenai_model.pt"
+        self.model_name = model_name
+        self.model_version = model_version
+        self.model = self._load_model()
 
-    Future behavior:
-    - load real model from model_path
-    - replace _predict_with_fallback with real inference backend
-    """
+    def _load_model(self):
+        if YOLO is None:
+            return None
 
-    def __init__(
-        self,
-        model_path: str | None = None,
-        model_name: str = "lumenai-baseline",
-        model_version: str = "0.2.0",
-    ):
-        self.config = InferenceConfig(
-            model_path=model_path or os.getenv("LUMENAI_MODEL_PATH"),
-            model_name=model_name,
-            model_version=model_version,
-        )
-        self._model: Any = None
-        self._load_model()
+        if not os.path.exists(self.model_path):
+            return None
 
-    def _load_model(self) -> None:
-        """
-        Placeholder model loader.
-        Keeps structure ready for Torch/ONNX/TensorFlow integration later.
-        """
-        if self.config.model_path and os.path.exists(self.config.model_path):
-            # Future:
-            # self._model = load_your_model(self.config.model_path)
-            self._model = "configured-model-placeholder"
-        else:
-            self._model = None
+        if (
+            LumenAIModel._shared_model is not None
+            and LumenAIModel._shared_model_path == self.model_path
+        ):
+            return LumenAIModel._shared_model
 
-    def _preprocess(self, image_bytes: bytes) -> Image.Image:
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        return image
+        try:
+            model = YOLO(self.model_path)
+            LumenAIModel._shared_model = model
+            LumenAIModel._shared_model_path = self.model_path
+            return model
+        except Exception:
+            return None
 
-    def _predict_with_fallback(self, image: Image.Image) -> dict[str, Any]:
-        """
-        Deterministic fallback classifier based on image statistics.
+    def _deterministic_fallback(self, image_bytes: bytes):
+        digest = hashlib.sha256(image_bytes).hexdigest()
+        seed_value = int(digest[:8], 16)
 
-        This is intentionally simple but stable:
-        - brightness drives confidence
-        - low channel variance leans metallic/stainless
-        - higher variance leans polymer/mixed surface
-        """
-        stat = ImageStat.Stat(image)
-        mean_rgb = stat.mean[:3]
-        std_rgb = stat.stddev[:3]
+        confidence = round(((seed_value % 51) + 40) / 100, 2)
 
-        brightness = sum(mean_rgb) / 3.0
-        variance_score = sum(std_rgb) / 3.0
+        material_options = ["stainless_steel", "polymer", "titanium"]
+        instrument_options = [
+            "arthroscopy_shaver",
+            "laparoscopic_grasper",
+            "orthopedic_drill",
+            "general_surgical_instrument",
+        ]
+        issue_options = ["stain", "debris", "clean", "corrosion"]
 
-        # Normalize to 0..1 range
-        brightness_norm = max(0.0, min(1.0, brightness / 255.0))
-        variance_norm = max(0.0, min(1.0, variance_score / 128.0))
-
-        # Deterministic confidence formula
-        confidence = round((0.65 * brightness_norm) + (0.35 * (1.0 - variance_norm)), 2)
-
-        # Deterministic material heuristic
-        material_type = "stainless_steel" if variance_norm < 0.32 else "polymer"
-
-        # Deterministic stain heuristic
-        stain_detected = confidence >= 0.58
+        material_type = material_options[seed_value % len(material_options)]
+        instrument_type = instrument_options[seed_value % len(instrument_options)]
+        detected_issue = issue_options[seed_value % len(issue_options)]
+        stain_detected = detected_issue in {"stain", "debris", "corrosion"}
 
         return {
             "stain_detected": stain_detected,
             "confidence": confidence,
             "material_type": material_type,
-        }
-
-    def _predict(self, image: Image.Image) -> dict[str, Any]:
-        """
-        Uses real model if available; otherwise uses deterministic fallback.
-        """
-        if self._model is not None:
-            # Future real inference path goes here.
-            # Keep output schema identical.
-            return self._predict_with_fallback(image)
-
-        return self._predict_with_fallback(image)
-
-    def _postprocess(self, prediction: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "stain_detected": bool(prediction.get("stain_detected", False)),
-            "confidence": float(prediction.get("confidence", 0.0)),
-            "material_type": str(prediction.get("material_type", "unknown")),
-            "model_name": self.config.model_name,
-            "model_version": self.config.model_version,
+            "instrument_type": instrument_type,
+            "detected_issue": detected_issue,
+            "model_name": self.model_name,
+            "model_version": self.model_version,
             "inference_timestamp": datetime.now(timezone.utc).isoformat(),
+            "inference_mode": "deterministic-fallback",
         }
 
-    def predict(self, image_bytes: bytes) -> dict[str, Any]:
-        image = self._preprocess(image_bytes)
-        prediction = self._predict(image)
-        return self._postprocess(prediction)
+    def _predict_with_yolo(self, image_bytes: bytes):
+        if self.model is None or cv2 is None or np is None:
+            return None
+
+        image = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if image is None:
+            return None
+
+        results = self.model(image, verbose=False)
+        if not results:
+            return None
+
+        result = results[0]
+        boxes = getattr(result, "boxes", None)
+
+        if boxes is None or len(boxes) == 0:
+            return {
+                "stain_detected": False,
+                "confidence": 0.0,
+                "material_type": "unknown",
+                "instrument_type": "unknown",
+                "detected_issue": "clean",
+                "model_name": self.model_name,
+                "model_version": self.model_version,
+                "inference_timestamp": datetime.now(timezone.utc).isoformat(),
+                "inference_mode": "yolo",
+            }
+
+        best_idx = int(boxes.conf.argmax().item())
+        confidence = round(float(boxes.conf[best_idx].item()), 2)
+
+        class_id = int(boxes.cls[best_idx].item()) if boxes.cls is not None else -1
+        names = getattr(result, "names", {}) or {}
+        detected_label = names.get(class_id, f"class_{class_id}")
+
+        stain_detected = detected_label.lower() not in {"clean", "ok", "normal"}
+
+        instrument_type = "unknown"
+        detected_issue = detected_label
+
+        instrument_labels = {
+            "arthroscopy_shaver",
+            "laparoscopic_grasper",
+            "orthopedic_drill",
+            "robotic_instrument",
+            "general_surgical_instrument",
+        }
+
+        if detected_label in instrument_labels:
+            instrument_type = detected_label
+            detected_issue = "clean"
+
+        return {
+            "stain_detected": stain_detected,
+            "confidence": confidence,
+            "material_type": "stainless_steel",
+            "instrument_type": instrument_type,
+            "detected_issue": detected_issue,
+            "model_name": self.model_name,
+            "model_version": self.model_version,
+            "inference_timestamp": datetime.now(timezone.utc).isoformat(),
+            "inference_mode": "yolo",
+        }
+
+    def predict(self, image_bytes: bytes):
+        Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+        yolo_result = self._predict_with_yolo(image_bytes)
+        if yolo_result is not None:
+            return yolo_result
+
+        return self._deterministic_fallback(image_bytes)
