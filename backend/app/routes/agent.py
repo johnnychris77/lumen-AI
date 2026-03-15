@@ -29,6 +29,4 @@ def get_agent_feed(limit: int = 20, db: Session = Depends(get_db)):
         .limit(limit)
         .all()
     )
-    return {
-        "items": [build_agent_assessment(r) for r in rows]
-    }
+    return {"items": [build_agent_assessment(r) for r in rows]}
