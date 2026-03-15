@@ -35,6 +35,7 @@ def run_inspection(inspection_id: int, file_bytes: bytes) -> None:
         row.instrument_type = str(res.get("instrument_type", "unknown"))
         row.detected_issue = str(res.get("detected_issue", "unknown"))
         row.inference_mode = str(res.get("inference_mode", "deterministic-fallback"))
+        row.risk_score = int(res.get("risk_score", 0) or 0)
 
         ts = res.get("inference_timestamp")
         if ts:

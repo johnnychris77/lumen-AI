@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime, timezone
 
 from PIL import Image
+from app.analytics.risk_engine import calculate_risk
 
 try:
     import cv2
@@ -102,6 +103,7 @@ class LumenAIModel:
         detected_issue = issue_options[seed_value % len(issue_options)]
         stain_detected = detected_issue in {"stain", "debris", "corrosion"}
 
+        risk_score = calculate_risk(detected_issue, confidence)
         return {
             "stain_detected": stain_detected,
             "confidence": confidence,
@@ -112,6 +114,7 @@ class LumenAIModel:
             "model_version": self.model_version,
             "inference_timestamp": datetime.now(timezone.utc).isoformat(),
             "inference_mode": "deterministic-fallback",
+            "risk_score": risk_score,
         }
 
     def _predict_with_yolo(self, image_bytes: bytes):
@@ -155,6 +158,7 @@ class LumenAIModel:
 
         stain_detected = str(detected_issue).lower() not in {"clean", "ok", "normal"}
 
+        risk_score = calculate_risk(detected_issue, confidence)
         return {
             "stain_detected": stain_detected,
             "confidence": confidence,
@@ -165,6 +169,7 @@ class LumenAIModel:
             "model_version": self.model_version,
             "inference_timestamp": datetime.now(timezone.utc).isoformat(),
             "inference_mode": "trained-yolo",
+            "risk_score": risk_score,
         }
 
     def predict(self, image_bytes: bytes):
