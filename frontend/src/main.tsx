@@ -40,6 +40,28 @@ function statusPill(status: string) {
   }
 }
 
+function priorityPill(priority: string) {
+  const base: React.CSSProperties = {
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: 700,
+    textTransform: "capitalize",
+  };
+
+  switch ((priority || "").toLowerCase()) {
+    case "critical":
+      return { ...base, background: "#7f1d1d", color: "#ffffff" };
+    case "high":
+      return { ...base, background: "#fee2e2", color: "#991b1b" };
+    case "medium":
+      return { ...base, background: "#fef3c7", color: "#92400e" };
+    default:
+      return { ...base, background: "#dcfce7", color: "#166534" };
+  }
+}
+
 type SummaryItem = { label: string; count: number };
 
 type Summary = {
@@ -68,9 +90,19 @@ type Inspection = {
   inference_mode?: string;
 };
 
+type AgentItem = {
+  inspection_id: number;
+  priority: string;
+  risk_score: number;
+  escalation_needed: boolean;
+  recommended_actions: string[];
+  summary: string;
+};
+
 function DashboardHome() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
+  const [agentFeed, setAgentFeed] = useState<AgentItem[]>([]);
   const [health, setHealth] = useState("checking");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -87,21 +119,20 @@ function DashboardHome() {
       try {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const [summaryRes, historyRes, healthRes] = await Promise.all([
+        const [summaryRes, historyRes, healthRes, agentRes] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
           fetch(`${API_BASE}/health`),
+          fetch(`${API_BASE}/agent/feed?limit=8`, { headers }),
         ]);
 
-        if (!summaryRes.ok) {
-          throw new Error(`Summary request failed (${summaryRes.status})`);
-        }
-        if (!historyRes.ok) {
-          throw new Error(`History request failed (${historyRes.status})`);
-        }
+        if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
+        if (!historyRes.ok) throw new Error(`History request failed (${historyRes.status})`);
+        if (!agentRes.ok) throw new Error(`Agent request failed (${agentRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
+        const agentData = await agentRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -116,6 +147,7 @@ function DashboardHome() {
         if (!ignore) {
           setSummary(summaryData);
           setRecent(Array.isArray(historyData.items) ? historyData.items : []);
+          setAgentFeed(Array.isArray(agentData.items) ? agentData.items : []);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -140,6 +172,10 @@ function DashboardHome() {
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
   const bundleExportUrl = `${API_BASE}/history/export.bundle.zip`;
 
+  const criticalCount = agentFeed.filter((x) => x.priority === "critical").length;
+  const highCount = agentFeed.filter((x) => x.priority === "high").length;
+  const escalationCount = agentFeed.filter((x) => x.escalation_needed).length;
+
   return (
     <div style={{ padding: "24px", maxWidth: "1280px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
@@ -160,7 +196,6 @@ function DashboardHome() {
       </div>
 
       {loading && <p>Loading executive dashboard...</p>}
-
       {!loading && error && <div style={errorBox}>{error}</div>}
 
       {!loading && !error && summary && (
@@ -189,14 +224,47 @@ function DashboardHome() {
             </div>
 
             <div style={card}>
-              <div style={cardLabel}>Failed</div>
-              <div style={cardValue}>{summary.failed}</div>
+              <div style={cardLabel}>Escalations Needed</div>
+              <div style={cardValue}>{escalationCount}</div>
             </div>
 
             <div style={card}>
               <div style={cardLabel}>System Health</div>
               <div style={cardValueSmall}>
                 <span style={statusPill(health)}>{health}</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              marginBottom: "24px",
+            }}
+          >
+            <div style={card}>
+              <div style={cardLabel}>Critical Priority</div>
+              <div style={cardValue}>{criticalCount}</div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>High Priority</div>
+              <div style={cardValue}>{highCount}</div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>Top Detected Issue</div>
+              <div style={cardValueSmall}>
+                {summary.top_issues[0]?.label || "—"}
+              </div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>Top Instrument</div>
+              <div style={cardValueSmall}>
+                {summary.top_instruments[0]?.label || "—"}
               </div>
             </div>
           </div>
@@ -323,41 +391,57 @@ function DashboardHome() {
             </div>
 
             <div style={card}>
-              <h2 style={sectionTitle}>Export Center</h2>
-              <p style={{ color: "#4b5563", marginTop: 0 }}>
-                Download LumenAI inspection data for Excel, Power BI, Tableau,
-                investor decks, or vendor QA analysis.
-              </p>
+              <h2 style={sectionTitle}>SPD Agent Feed</h2>
+              {agentFeed.length === 0 ? (
+                <p style={muted}>No agent recommendations available.</p>
+              ) : (
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {agentFeed.map((item) => (
+                    <div key={item.inspection_id} style={agentCard}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                        <strong>Inspection #{item.inspection_id}</strong>
+                        <span style={priorityPill(item.priority)}>{item.priority}</span>
+                      </div>
 
-              <div style={{ display: "grid", gap: "12px" }}>
-                <a href={csvExportUrl} style={primaryButton}>
-                  Export CSV
-                </a>
-                <div style={exportHint}>
-                  Best for Excel, Power BI, and Tableau text-file import.
-                </div>
+                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>
+                        {item.summary}
+                      </div>
 
-                <a href={xlsxExportUrl} style={primaryButton}>
-                  Export Excel Workbook
-                </a>
-                <div style={exportHint}>
-                  Includes inspection rows plus a summary sheet for leadership review.
-                </div>
+                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>
+                        Risk score: {item.risk_score} · Escalation: {item.escalation_needed ? "Yes" : "No"}
+                      </div>
 
-                <a href={jsonExportUrl} style={secondaryButton}>
-                  Export JSON
-                </a>
-                <div style={exportHint}>
-                  Useful for custom pipelines, integrations, and engineering analysis.
+                      <ul style={{ marginTop: "10px", paddingLeft: "18px", color: "#111827" }}>
+                        {item.recommended_actions.map((action, idx) => (
+                          <li key={idx}>{action}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
+              )}
+            </div>
+          </div>
 
-                <a href={bundleExportUrl} style={secondaryButton}>
-                  Download Full Export Bundle
-                </a>
-                <div style={exportHint}>
-                  ZIP package containing CSV, JSON, XLSX, and summary artifacts.
-                </div>
-              </div>
+          <div style={card}>
+            <h2 style={sectionTitle}>Export Center</h2>
+            <p style={{ color: "#4b5563", marginTop: 0 }}>
+              Download LumenAI inspection data for Excel, Power BI, Tableau,
+              investor decks, or vendor QA analysis.
+            </p>
+
+            <div style={{ display: "grid", gap: "12px" }}>
+              <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
+              <div style={exportHint}>Best for Excel, Power BI, and Tableau text-file import.</div>
+
+              <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
+              <div style={exportHint}>Includes inspection rows plus a summary sheet for leadership review.</div>
+
+              <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
+              <div style={exportHint}>Useful for custom pipelines, integrations, and engineering analysis.</div>
+
+              <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
+              <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
             </div>
           </div>
 
@@ -410,6 +494,13 @@ const card: React.CSSProperties = {
   borderRadius: "14px",
   padding: "20px",
   background: "#ffffff",
+};
+
+const agentCard: React.CSSProperties = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+  padding: "14px",
+  background: "#fafafa",
 };
 
 const cardLabel: React.CSSProperties = {
