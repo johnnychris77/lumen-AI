@@ -33,6 +33,8 @@ function statusPill(status: string) {
       return { ...base, background: "#dbeafe", color: "#1d4ed8" };
     case "failed":
       return { ...base, background: "#fee2e2", color: "#991b1b" };
+    case "ok":
+      return { ...base, background: "#dcfce7", color: "#166534" };
     default:
       return { ...base, background: "#e5e7eb", color: "#374151" };
   }
@@ -135,6 +137,8 @@ function DashboardHome() {
 
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
+  const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
+  const bundleExportUrl = `${API_BASE}/history/export.bundle.zip`;
 
   return (
     <div style={{ padding: "24px", maxWidth: "1280px", margin: "0 auto" }}>
@@ -147,12 +151,6 @@ function DashboardHome() {
       </div>
 
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
-        <a href={csvExportUrl} style={primaryButton}>
-          Export CSV
-        </a>
-        <a href={jsonExportUrl} style={secondaryButton}>
-          Export JSON
-        </a>
         <Link to="/history" style={secondaryButton}>
           Open Full History
         </Link>
@@ -163,11 +161,7 @@ function DashboardHome() {
 
       {loading && <p>Loading executive dashboard...</p>}
 
-      {!loading && error && (
-        <div style={errorBox}>
-          {error}
-        </div>
-      )}
+      {!loading && error && <div style={errorBox}>{error}</div>}
 
       {!loading && !error && summary && (
         <>
@@ -248,71 +242,127 @@ function DashboardHome() {
             </div>
           </div>
 
-          <div style={card}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
-              <h2 style={sectionTitle}>Recent Completed Inspections & Reports</h2>
-              <Link to="/history" style={{ textDecoration: "none" }}>
-                View all
-              </Link>
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "1.2fr 1fr",
+              marginBottom: "24px",
+            }}
+          >
+            <div style={card}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <h2 style={sectionTitle}>Recent Completed Inspections & Reports</h2>
+                <Link to="/history" style={{ textDecoration: "none" }}>
+                  View all
+                </Link>
+              </div>
+
+              {recent.length === 0 ? (
+                <p style={muted}>No recent inspections found.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={table}>
+                    <thead style={{ background: "#f9fafb" }}>
+                      <tr>
+                        <th style={th}>ID</th>
+                        <th style={th}>File</th>
+                        <th style={th}>Status</th>
+                        <th style={th}>Instrument</th>
+                        <th style={th}>Issue</th>
+                        <th style={th}>Confidence</th>
+                        <th style={th}>Created</th>
+                        <th style={th}>Report</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recent.map((item) => (
+                        <tr key={item.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                          <td style={td}>{item.id}</td>
+                          <td style={td}>{item.file_name || "—"}</td>
+                          <td style={td}>
+                            <span style={statusPill(item.status || "unknown")}>
+                              {item.status || "unknown"}
+                            </span>
+                          </td>
+                          <td style={td}>{item.instrument_type || "unknown"}</td>
+                          <td style={td}>{item.detected_issue || "unknown"}</td>
+                          <td style={td}>
+                            {typeof item.confidence === "number" ? item.confidence.toFixed(2) : "—"}
+                          </td>
+                          <td style={td}>{formatDate(item.created_at)}</td>
+                          <td style={td}>
+                            {(item.status || "").toLowerCase() === "completed" ? (
+                              <a
+                                href={`${API_BASE}/reports/${item.id}.pdf`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={secondaryButtonInline}
+                              >
+                                Open PDF
+                              </a>
+                            ) : (
+                              <span style={muted}>Pending</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
-            {recent.length === 0 ? (
-              <p style={muted}>No recent inspections found.</p>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={table}>
-                  <thead style={{ background: "#f9fafb" }}>
-                    <tr>
-                      <th style={th}>ID</th>
-                      <th style={th}>File</th>
-                      <th style={th}>Status</th>
-                      <th style={th}>Instrument</th>
-                      <th style={th}>Issue</th>
-                      <th style={th}>Confidence</th>
-                      <th style={th}>Created</th>
-                      <th style={th}>Report</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recent.map((item) => (
-                      <tr key={item.id} style={{ borderTop: "1px solid #e5e7eb" }}>
-                        <td style={td}>{item.id}</td>
-                        <td style={td}>{item.file_name || "—"}</td>
-                        <td style={td}>
-                          <span style={statusPill(item.status || "unknown")}>
-                            {item.status || "unknown"}
-                          </span>
-                        </td>
-                        <td style={td}>{item.instrument_type || "unknown"}</td>
-                        <td style={td}>{item.detected_issue || "unknown"}</td>
-                        <td style={td}>
-                          {typeof item.confidence === "number" ? item.confidence.toFixed(2) : "—"}
-                        </td>
-                        <td style={td}>{formatDate(item.created_at)}</td>
-                        <td style={td}>
-                          {(item.status || "").toLowerCase() === "completed" ? (
-                            <a
-                              href={`${API_BASE}/reports/${item.id}.pdf`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={secondaryButtonInline}
-                            >
-                              Open PDF
-                            </a>
-                          ) : (
-                            <span style={muted}>Pending</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div style={card}>
+              <h2 style={sectionTitle}>Export Center</h2>
+              <p style={{ color: "#4b5563", marginTop: 0 }}>
+                Download LumenAI inspection data for Excel, Power BI, Tableau,
+                investor decks, or vendor QA analysis.
+              </p>
+
+              <div style={{ display: "grid", gap: "12px" }}>
+                <a href={csvExportUrl} style={primaryButton}>
+                  Export CSV
+                </a>
+                <div style={exportHint}>
+                  Best for Excel, Power BI, and Tableau text-file import.
+                </div>
+
+                <a href={xlsxExportUrl} style={primaryButton}>
+                  Export Excel Workbook
+                </a>
+                <div style={exportHint}>
+                  Includes inspection rows plus a summary sheet for leadership review.
+                </div>
+
+                <a href={jsonExportUrl} style={secondaryButton}>
+                  Export JSON
+                </a>
+                <div style={exportHint}>
+                  Useful for custom pipelines, integrations, and engineering analysis.
+                </div>
+
+                <a href={bundleExportUrl} style={secondaryButton}>
+                  Download Full Export Bundle
+                </a>
+                <div style={exportHint}>
+                  ZIP package containing CSV, JSON, XLSX, and summary artifacts.
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
-          <div style={{ marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
-            Exports can be opened in Excel directly, or imported into Power BI and Tableau for deeper analysis.
+          <div style={{ marginTop: "12px", color: "#6b7280", fontSize: "14px" }}>
+            Exports can be opened directly in Excel or imported into Power BI and Tableau for deeper operational analysis.
           </div>
         </>
       )}
@@ -424,6 +474,12 @@ const secondaryButtonInline: React.CSSProperties = {
   fontWeight: 600,
   border: "1px solid #d1d5db",
   fontSize: "13px",
+};
+
+const exportHint: React.CSSProperties = {
+  color: "#6b7280",
+  fontSize: "13px",
+  marginTop: "-4px",
 };
 
 const errorBox: React.CSSProperties = {
