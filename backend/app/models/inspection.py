@@ -30,3 +30,4 @@ class Inspection(Base):
     detected_issue: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
     inference_mode: Mapped[str] = mapped_column(String(50), default="deterministic-fallback", nullable=False)
     risk_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    vendor_name: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)

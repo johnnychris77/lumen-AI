@@ -30,6 +30,7 @@ def inspection_response(row: models.Inspection) -> dict:
         "detected_issue": row.detected_issue,
         "inference_mode": row.inference_mode,
         "risk_score": row.risk_score,
+        "vendor_name": row.vendor_name,
     }
 
 
@@ -91,6 +92,7 @@ def csv_text(rows):
         "detected_issue",
         "inference_mode",
         "risk_score",
+        "vendor_name",
         "model_name",
         "model_version",
         "inference_timestamp",
@@ -108,6 +110,7 @@ def csv_text(rows):
             r.detected_issue,
             r.inference_mode,
             r.risk_score,
+            r.vendor_name,
             r.model_name,
             r.model_version,
             r.inference_timestamp.isoformat() if r.inference_timestamp else "",
@@ -132,6 +135,7 @@ def xlsx_bytes(rows):
         "detected_issue",
         "inference_mode",
         "risk_score",
+        "vendor_name",
         "model_name",
         "model_version",
         "inference_timestamp",
@@ -149,6 +153,7 @@ def xlsx_bytes(rows):
             r.detected_issue,
             r.inference_mode,
             r.risk_score,
+            r.vendor_name,
             r.model_name,
             r.model_version,
             r.inference_timestamp.isoformat() if r.inference_timestamp else "",

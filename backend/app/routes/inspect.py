@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, Form
 from sqlalchemy.orm import Session
 import os
 
@@ -15,9 +15,18 @@ router = APIRouter(tags=["inspect"])
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 
-def enqueue_inspection(db: Session, contents: bytes, file_name: str) -> models.Inspection:
+@router.post("/inspect")
+async def inspect_image(
+    file: UploadFile = File(...),
+    vendor_name: str = Form(default="unknown"),
+    db: Session = Depends(get_db),
+):
+    contents = await file.read()
+    if not contents:
+        raise ValueError("Empty file uploaded")
+
     row = models.Inspection(
-        file_name=file_name or "uploaded-image",
+        file_name=file.filename or "uploaded-image",
         stain_detected=False,
         confidence=0.0,
         material_type="unknown",
@@ -27,7 +36,9 @@ def enqueue_inspection(db: Session, contents: bytes, file_name: str) -> models.I
         inference_timestamp=None,
         instrument_type="unknown",
         detected_issue="unknown",
-        inference_mode="queued",
+        inference_mode="deterministic-fallback",
+        risk_score=0,
+        vendor_name=vendor_name or "unknown",
     )
     db.add(row)
     db.commit()
@@ -37,10 +48,6 @@ def enqueue_inspection(db: Session, contents: bytes, file_name: str) -> models.I
     q = Queue("lumenai", connection=redis)
     q.enqueue(run_inspection, row.id, contents)
 
-    return row
-
-
-def inspection_response(row: models.Inspection) -> dict:
     return {
         "id": row.id,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -55,41 +62,6 @@ def inspection_response(row: models.Inspection) -> dict:
         "instrument_type": row.instrument_type,
         "detected_issue": row.detected_issue,
         "inference_mode": row.inference_mode,
-    }
-
-
-@router.post("/inspect")
-async def inspect_image(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
-    contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
-
-    row = enqueue_inspection(
-        db=db,
-        contents=contents,
-        file_name=file.filename or "uploaded-image",
-    )
-    return inspection_response(row)
-
-
-@router.post("/camera-frame")
-async def inspect_camera_frame(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
-    contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Empty camera frame uploaded")
-
-    row = enqueue_inspection(
-        db=db,
-        contents=contents,
-        file_name=file.filename or "camera-frame.jpg",
-    )
-    return {
-        "status": "queued",
-        "inspection": inspection_response(row),
+        "risk_score": row.risk_score,
+        "vendor_name": row.vendor_name,
     }
