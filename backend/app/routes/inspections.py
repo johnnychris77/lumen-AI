@@ -22,6 +22,7 @@ def inspection_response(row: models.Inspection) -> dict:
         "instrument_type": row.instrument_type,
         "detected_issue": row.detected_issue,
         "inference_mode": row.inference_mode,
+        "risk_score": row.risk_score,
     }
 
 
