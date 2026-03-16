@@ -22,10 +22,12 @@ function statusPill(status: string) {
     borderRadius: "999px",
     fontSize: "12px",
     fontWeight: 700,
+    textTransform: "capitalize",
   };
 
   switch ((status || "").toLowerCase()) {
     case "completed":
+    case "ok":
       return { ...base, background: "#dcfce7", color: "#166534" };
     case "queued":
       return { ...base, background: "#fef3c7", color: "#92400e" };
@@ -33,8 +35,6 @@ function statusPill(status: string) {
       return { ...base, background: "#dbeafe", color: "#1d4ed8" };
     case "failed":
       return { ...base, background: "#fee2e2", color: "#991b1b" };
-    case "ok":
-      return { ...base, background: "#dcfce7", color: "#166534" };
     default:
       return { ...base, background: "#e5e7eb", color: "#374151" };
   }
@@ -88,6 +88,8 @@ type Inspection = {
   instrument_type?: string;
   detected_issue?: string;
   inference_mode?: string;
+  risk_score?: number;
+  vendor_name?: string;
 };
 
 type AgentItem = {
@@ -99,10 +101,36 @@ type AgentItem = {
   summary: string;
 };
 
+type VendorIssue = {
+  label: string;
+  count: number;
+};
+
+type VendorItem = {
+  vendor_name: string;
+  total_inspections: number;
+  escalations: number;
+  avg_confidence: number;
+  top_issues: VendorIssue[];
+};
+
+type AlertItem = {
+  inspection_id: number;
+  file_name: string;
+  vendor_name: string;
+  instrument_type: string;
+  detected_issue: string;
+  risk_score: number;
+  status: string;
+  message: string;
+};
+
 function DashboardHome() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [agentFeed, setAgentFeed] = useState<AgentItem[]>([]);
+  const [vendors, setVendors] = useState<VendorItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [health, setHealth] = useState("checking");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -119,20 +147,27 @@ function DashboardHome() {
       try {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const [summaryRes, historyRes, healthRes, agentRes] = await Promise.all([
-          fetch(`${API_BASE}/history/summary`, { headers }),
-          fetch(`${API_BASE}/history?limit=8`, { headers }),
-          fetch(`${API_BASE}/health`),
-          fetch(`${API_BASE}/agent/feed?limit=8`, { headers }),
-        ]);
+        const [summaryRes, historyRes, healthRes, agentRes, vendorRes, alertsRes] =
+          await Promise.all([
+            fetch(`${API_BASE}/history/summary`, { headers }),
+            fetch(`${API_BASE}/history?limit=8`, { headers }),
+            fetch(`${API_BASE}/health`),
+            fetch(`${API_BASE}/agent/feed?limit=8`, { headers }),
+            fetch(`${API_BASE}/analytics/vendors`, { headers }),
+            fetch(`${API_BASE}/alerts/feed`, { headers }),
+          ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
         if (!historyRes.ok) throw new Error(`History request failed (${historyRes.status})`);
         if (!agentRes.ok) throw new Error(`Agent request failed (${agentRes.status})`);
+        if (!vendorRes.ok) throw new Error(`Vendor analytics request failed (${vendorRes.status})`);
+        if (!alertsRes.ok) throw new Error(`Alerts request failed (${alertsRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
         const agentData = await agentRes.json();
+        const vendorData = await vendorRes.json();
+        const alertsData = await alertsRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -148,6 +183,8 @@ function DashboardHome() {
           setSummary(summaryData);
           setRecent(Array.isArray(historyData.items) ? historyData.items : []);
           setAgentFeed(Array.isArray(agentData.items) ? agentData.items : []);
+          setVendors(Array.isArray(vendorData.items) ? vendorData.items : []);
+          setAlerts(Array.isArray(alertsData.items) ? alertsData.items : []);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -175,14 +212,19 @@ function DashboardHome() {
   const criticalCount = agentFeed.filter((x) => x.priority === "critical").length;
   const highCount = agentFeed.filter((x) => x.priority === "high").length;
   const escalationCount = agentFeed.filter((x) => x.escalation_needed).length;
+  const totalVendors = vendors.length;
+  const topVendor = vendors[0]?.vendor_name || "—";
+  const topVendorEscalations = vendors[0]?.escalations || 0;
+  const liveQueuedCount = recent.filter((x) => (x.status || "").toLowerCase() === "queued").length;
+  const liveCompletedCount = recent.filter((x) => (x.status || "").toLowerCase() === "completed").length;
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1280px", margin: "0 auto" }}>
+    <div style={{ padding: "24px", maxWidth: "1320px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ marginBottom: "8px" }}>LumenAI Executive Dashboard</h1>
+        <h1 style={{ marginBottom: "8px" }}>LumenAI Phase 2 Command Dashboard</h1>
         <p style={{ color: "#4b5563", margin: 0 }}>
-          AI-powered surgical instrument inspection intelligence for SPD teams,
-          vendors, and device manufacturers.
+          Real-time surgical instrument quality intelligence for SPD teams,
+          surgical vendors, and device manufacturers.
         </p>
       </div>
 
@@ -195,7 +237,7 @@ function DashboardHome() {
         </a>
       </div>
 
-      {loading && <p>Loading executive dashboard...</p>}
+      {loading && <p>Loading Phase 2 dashboard...</p>}
       {!loading && error && <div style={errorBox}>{error}</div>}
 
       {!loading && !error && summary && (
@@ -219,13 +261,13 @@ function DashboardHome() {
             </div>
 
             <div style={card}>
-              <div style={cardLabel}>Queued / Running</div>
-              <div style={cardValue}>{summary.queued + summary.running}</div>
+              <div style={cardLabel}>Escalations Needed</div>
+              <div style={cardValue}>{escalationCount}</div>
             </div>
 
             <div style={card}>
-              <div style={cardLabel}>Escalations Needed</div>
-              <div style={cardValue}>{escalationCount}</div>
+              <div style={cardLabel}>Active Alerts</div>
+              <div style={cardValue}>{alerts.length}</div>
             </div>
 
             <div style={card}>
@@ -255,16 +297,21 @@ function DashboardHome() {
             </div>
 
             <div style={card}>
-              <div style={cardLabel}>Top Detected Issue</div>
+              <div style={cardLabel}>Tracked Vendors</div>
+              <div style={cardValue}>{totalVendors}</div>
+            </div>
+
+            <div style={card}>
+              <div style={cardLabel}>Top Vendor by Escalations</div>
               <div style={cardValueSmall}>
-                {summary.top_issues[0]?.label || "—"}
+                {topVendor} ({topVendorEscalations})
               </div>
             </div>
 
             <div style={card}>
-              <div style={cardLabel}>Top Instrument</div>
+              <div style={cardLabel}>Live Stream Queued / Completed</div>
               <div style={cardValueSmall}>
-                {summary.top_instruments[0]?.label || "—"}
+                {liveQueuedCount} / {liveCompletedCount}
               </div>
             </div>
           </div>
@@ -314,7 +361,74 @@ function DashboardHome() {
             style={{
               display: "grid",
               gap: "16px",
-              gridTemplateColumns: "1.2fr 1fr",
+              gridTemplateColumns: "1fr 1fr",
+              marginBottom: "24px",
+            }}
+          >
+            <div style={card}>
+              <h2 style={sectionTitle}>SPD Alert Center</h2>
+              {alerts.length === 0 ? (
+                <p style={muted}>No active alerts.</p>
+              ) : (
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {alerts.slice(0, 8).map((item) => (
+                    <div key={item.inspection_id} style={alertCard}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                        <strong>Inspection #{item.inspection_id}</strong>
+                        <span style={priorityPill(item.risk_score >= 80 ? "critical" : item.risk_score >= 50 ? "medium" : "low")}>
+                          Risk {item.risk_score}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>
+                        {item.message}
+                      </div>
+                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>
+                        Vendor: {item.vendor_name || "unknown"} · Instrument: {item.instrument_type || "unknown"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={card}>
+              <h2 style={sectionTitle}>Vendor Intelligence</h2>
+              {vendors.length === 0 ? (
+                <p style={muted}>No vendor analytics available.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={table}>
+                    <thead style={{ background: "#f9fafb" }}>
+                      <tr>
+                        <th style={th}>Vendor</th>
+                        <th style={th}>Inspections</th>
+                        <th style={th}>Escalations</th>
+                        <th style={th}>Avg Confidence</th>
+                        <th style={th}>Top Issue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendors.slice(0, 8).map((vendor) => (
+                        <tr key={vendor.vendor_name} style={{ borderTop: "1px solid #e5e7eb" }}>
+                          <td style={td}>{vendor.vendor_name}</td>
+                          <td style={td}>{vendor.total_inspections}</td>
+                          <td style={td}>{vendor.escalations}</td>
+                          <td style={td}>{vendor.avg_confidence.toFixed(2)}</td>
+                          <td style={td}>{vendor.top_issues[0]?.label || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "1.15fr 1fr",
               marginBottom: "24px",
             }}
           >
@@ -329,7 +443,7 @@ function DashboardHome() {
                   flexWrap: "wrap",
                 }}
               >
-                <h2 style={sectionTitle}>Recent Completed Inspections & Reports</h2>
+                <h2 style={sectionTitle}>Recent Live Stream Activity & Reports</h2>
                 <Link to="/history" style={{ textDecoration: "none" }}>
                   View all
                 </Link>
@@ -344,10 +458,11 @@ function DashboardHome() {
                       <tr>
                         <th style={th}>ID</th>
                         <th style={th}>File</th>
+                        <th style={th}>Vendor</th>
                         <th style={th}>Status</th>
                         <th style={th}>Instrument</th>
                         <th style={th}>Issue</th>
-                        <th style={th}>Confidence</th>
+                        <th style={th}>Risk</th>
                         <th style={th}>Created</th>
                         <th style={th}>Report</th>
                       </tr>
@@ -357,6 +472,7 @@ function DashboardHome() {
                         <tr key={item.id} style={{ borderTop: "1px solid #e5e7eb" }}>
                           <td style={td}>{item.id}</td>
                           <td style={td}>{item.file_name || "—"}</td>
+                          <td style={td}>{item.vendor_name || "unknown"}</td>
                           <td style={td}>
                             <span style={statusPill(item.status || "unknown")}>
                               {item.status || "unknown"}
@@ -364,9 +480,7 @@ function DashboardHome() {
                           </td>
                           <td style={td}>{item.instrument_type || "unknown"}</td>
                           <td style={td}>{item.detected_issue || "unknown"}</td>
-                          <td style={td}>
-                            {typeof item.confidence === "number" ? item.confidence.toFixed(2) : "—"}
-                          </td>
+                          <td style={td}>{typeof item.risk_score === "number" ? item.risk_score : "—"}</td>
                           <td style={td}>{formatDate(item.created_at)}</td>
                           <td style={td}>
                             {(item.status || "").toLowerCase() === "completed" ? (
@@ -427,18 +541,18 @@ function DashboardHome() {
             <h2 style={sectionTitle}>Export Center</h2>
             <p style={{ color: "#4b5563", marginTop: 0 }}>
               Download LumenAI inspection data for Excel, Power BI, Tableau,
-              investor decks, or vendor QA analysis.
+              investor decks, hospital QA analysis, or vendor defect reporting.
             </p>
 
             <div style={{ display: "grid", gap: "12px" }}>
               <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
-              <div style={exportHint}>Best for Excel, Power BI, and Tableau text-file import.</div>
+              <div style={exportHint}>Best for Excel, Power BI, and Tableau import.</div>
 
               <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
-              <div style={exportHint}>Includes inspection rows plus a summary sheet for leadership review.</div>
+              <div style={exportHint}>Includes inspection rows plus leadership summary sheet.</div>
 
               <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
-              <div style={exportHint}>Useful for custom pipelines, integrations, and engineering analysis.</div>
+              <div style={exportHint}>Useful for engineering pipelines and integrations.</div>
 
               <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
               <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
@@ -446,7 +560,7 @@ function DashboardHome() {
           </div>
 
           <div style={{ marginTop: "12px", color: "#6b7280", fontSize: "14px" }}>
-            Exports can be opened directly in Excel or imported into Power BI and Tableau for deeper operational analysis.
+            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, and autonomous agent recommendations.
           </div>
         </>
       )}
@@ -466,7 +580,7 @@ function Layout() {
       >
         <div
           style={{
-            maxWidth: "1280px",
+            maxWidth: "1320px",
             margin: "0 auto",
             display: "flex",
             gap: "16px",
@@ -501,6 +615,13 @@ const agentCard: React.CSSProperties = {
   borderRadius: "12px",
   padding: "14px",
   background: "#fafafa",
+};
+
+const alertCard: React.CSSProperties = {
+  border: "1px solid #fecaca",
+  borderRadius: "12px",
+  padding: "14px",
+  background: "#fff7f7",
 };
 
 const cardLabel: React.CSSProperties = {
