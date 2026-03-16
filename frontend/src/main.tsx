@@ -28,12 +28,14 @@ function statusPill(status: string) {
   switch ((status || "").toLowerCase()) {
     case "completed":
     case "ok":
+    case "enabled":
       return { ...base, background: "#dcfce7", color: "#166534" };
     case "queued":
       return { ...base, background: "#fef3c7", color: "#92400e" };
     case "running":
       return { ...base, background: "#dbeafe", color: "#1d4ed8" };
     case "failed":
+    case "disabled":
       return { ...base, background: "#fee2e2", color: "#991b1b" };
     default:
       return { ...base, background: "#e5e7eb", color: "#374151" };
@@ -125,12 +127,42 @@ type AlertItem = {
   message: string;
 };
 
+type AlertStatus = {
+  enabled: boolean;
+  channels: {
+    slack: { configured: boolean; enabled: boolean };
+    teams: { configured: boolean; enabled: boolean };
+    email: { configured: boolean; enabled: boolean };
+  };
+};
+
+type DispatchResult = {
+  enabled: boolean;
+  results: Array<{
+    channel: string;
+    sent: boolean;
+    reason?: string;
+    status_code?: number;
+    response_text?: string;
+  }>;
+  message?: string;
+};
+
+type DispatchResponse = {
+  inspection_id: number;
+  alert: AlertItem;
+  dispatch: DispatchResult;
+};
+
 function DashboardHome() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [agentFeed, setAgentFeed] = useState<AgentItem[]>([]);
   const [vendors, setVendors] = useState<VendorItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
+  const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
+  const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [health, setHealth] = useState("checking");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -147,27 +179,37 @@ function DashboardHome() {
       try {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const [summaryRes, historyRes, healthRes, agentRes, vendorRes, alertsRes] =
-          await Promise.all([
-            fetch(`${API_BASE}/history/summary`, { headers }),
-            fetch(`${API_BASE}/history?limit=8`, { headers }),
-            fetch(`${API_BASE}/health`),
-            fetch(`${API_BASE}/agent/feed?limit=8`, { headers }),
-            fetch(`${API_BASE}/analytics/vendors`, { headers }),
-            fetch(`${API_BASE}/alerts/feed`, { headers }),
-          ]);
+        const [
+          summaryRes,
+          historyRes,
+          healthRes,
+          agentRes,
+          vendorRes,
+          alertsRes,
+          alertStatusRes,
+        ] = await Promise.all([
+          fetch(`${API_BASE}/history/summary`, { headers }),
+          fetch(`${API_BASE}/history?limit=8`, { headers }),
+          fetch(`${API_BASE}/health`),
+          fetch(`${API_BASE}/agent/feed?limit=8`, { headers }),
+          fetch(`${API_BASE}/analytics/vendors`, { headers }),
+          fetch(`${API_BASE}/alerts/feed`, { headers }),
+          fetch(`${API_BASE}/alerts/status`, { headers }),
+        ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
         if (!historyRes.ok) throw new Error(`History request failed (${historyRes.status})`);
         if (!agentRes.ok) throw new Error(`Agent request failed (${agentRes.status})`);
         if (!vendorRes.ok) throw new Error(`Vendor analytics request failed (${vendorRes.status})`);
         if (!alertsRes.ok) throw new Error(`Alerts request failed (${alertsRes.status})`);
+        if (!alertStatusRes.ok) throw new Error(`Alert status request failed (${alertStatusRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
         const agentData = await agentRes.json();
         const vendorData = await vendorRes.json();
         const alertsData = await alertsRes.json();
+        const alertStatusData = await alertStatusRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -185,6 +227,7 @@ function DashboardHome() {
           setAgentFeed(Array.isArray(agentData.items) ? agentData.items : []);
           setVendors(Array.isArray(vendorData.items) ? vendorData.items : []);
           setAlerts(Array.isArray(alertsData.items) ? alertsData.items : []);
+          setAlertStatus(alertStatusData);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -203,6 +246,46 @@ function DashboardHome() {
       ignore = true;
     };
   }, [token]);
+
+  async function sendTestAlert(inspectionId: number) {
+    try {
+      setDispatchingId(inspectionId);
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${API_BASE}/alerts/send/${inspectionId}`, {
+        method: "POST",
+        headers,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Alert send failed (${res.status}): ${text}`);
+      }
+
+      const data = await res.json();
+      setLastDispatch(data);
+    } catch (err: any) {
+      setLastDispatch({
+        inspection_id: inspectionId,
+        alert: {
+          inspection_id: inspectionId,
+          file_name: "",
+          vendor_name: "",
+          instrument_type: "",
+          detected_issue: "",
+          risk_score: 0,
+          status: "failed",
+          message: err?.message || "Alert send failed",
+        },
+        dispatch: {
+          enabled: false,
+          results: [],
+          message: err?.message || "Alert send failed",
+        },
+      });
+    } finally {
+      setDispatchingId(null);
+    }
+  }
 
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
@@ -320,53 +403,99 @@ function DashboardHome() {
             style={{
               display: "grid",
               gap: "16px",
-              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gridTemplateColumns: "1.1fr 0.9fr",
               marginBottom: "24px",
             }}
           >
             <div style={card}>
-              <h2 style={sectionTitle}>Top Detected Issues</h2>
-              {summary.top_issues.length === 0 ? (
-                <p style={muted}>No issue data yet.</p>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {summary.top_issues.map((item) => (
-                    <div key={item.label} style={listRow}>
-                      <span>{item.label}</span>
-                      <strong>{item.count}</strong>
-                    </div>
-                  ))}
+              <h2 style={sectionTitle}>Alert Control Center</h2>
+
+              <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
+                <div style={controlRow}>
+                  <span>Global Alerts</span>
+                  <span style={statusPill(alertStatus?.enabled ? "enabled" : "disabled")}>
+                    {alertStatus?.enabled ? "enabled" : "disabled"}
+                  </span>
                 </div>
-              )}
+
+                <div style={controlRow}>
+                  <span>Slack</span>
+                  <span style={statusPill(alertStatus?.channels.slack.configured ? "enabled" : "disabled")}>
+                    {alertStatus?.channels.slack.configured ? "configured" : "not configured"}
+                  </span>
+                </div>
+
+                <div style={controlRow}>
+                  <span>Teams</span>
+                  <span style={statusPill(alertStatus?.channels.teams.configured ? "enabled" : "disabled")}>
+                    {alertStatus?.channels.teams.configured ? "configured" : "not configured"}
+                  </span>
+                </div>
+
+                <div style={controlRow}>
+                  <span>Email</span>
+                  <span style={statusPill(alertStatus?.channels.email.configured ? "enabled" : "disabled")}>
+                    {alertStatus?.channels.email.configured ? "configured" : "not configured"}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <h3 style={subTitle}>Send Test Alert</h3>
+                {alerts.length === 0 ? (
+                  <p style={muted}>No alert-ready inspections available.</p>
+                ) : (
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    {alerts.slice(0, 3).map((item) => (
+                      <button
+                        key={item.inspection_id}
+                        onClick={() => sendTestAlert(item.inspection_id)}
+                        disabled={dispatchingId === item.inspection_id}
+                        style={buttonStyle}
+                      >
+                        {dispatchingId === item.inspection_id
+                          ? `Sending #${item.inspection_id}...`
+                          : `Send Alert #${item.inspection_id}`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 style={subTitle}>Last Dispatch Result</h3>
+                {!lastDispatch ? (
+                  <p style={muted}>No alert dispatch attempted yet.</p>
+                ) : (
+                  <div style={agentCard}>
+                    <div><strong>Inspection:</strong> #{lastDispatch.inspection_id}</div>
+                    <div style={{ marginTop: "6px" }}>
+                      <strong>Dispatch Enabled:</strong> {lastDispatch.dispatch.enabled ? "Yes" : "No"}
+                    </div>
+                    {lastDispatch.dispatch.message && (
+                      <div style={{ marginTop: "6px", color: "#6b7280" }}>
+                        {lastDispatch.dispatch.message}
+                      </div>
+                    )}
+                    {lastDispatch.dispatch.results?.length > 0 && (
+                      <div style={{ marginTop: "10px", display: "grid", gap: "8px" }}>
+                        {lastDispatch.dispatch.results.map((r, idx) => (
+                          <div key={idx} style={controlRow}>
+                            <span>{r.channel}</span>
+                            <span style={statusPill(r.sent ? "enabled" : "disabled")}>
+                              {r.sent ? "sent" : "not sent"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={card}>
-              <h2 style={sectionTitle}>Top Instrument Types</h2>
-              {summary.top_instruments.length === 0 ? (
-                <p style={muted}>No instrument data yet.</p>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {summary.top_instruments.map((item) => (
-                    <div key={item.label} style={listRow}>
-                      <span>{item.label}</span>
-                      <strong>{item.count}</strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "1fr 1fr",
-              marginBottom: "24px",
-            }}
-          >
-            <div style={card}>
-              <h2 style={sectionTitle}>SPD Alert Center</h2>
+              <h2 style={sectionTitle}>SPD Alert Queue</h2>
               {alerts.length === 0 ? (
                 <p style={muted}>No active alerts.</p>
               ) : (
@@ -390,7 +519,16 @@ function DashboardHome() {
                 </div>
               )}
             </div>
+          </div>
 
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "1fr 1fr",
+              marginBottom: "24px",
+            }}
+          >
             <div style={card}>
               <h2 style={sectionTitle}>Vendor Intelligence</h2>
               {vendors.length === 0 ? (
@@ -422,13 +560,45 @@ function DashboardHome() {
                 </div>
               )}
             </div>
+
+            <div style={card}>
+              <h2 style={sectionTitle}>SPD Agent Feed</h2>
+              {agentFeed.length === 0 ? (
+                <p style={muted}>No agent recommendations available.</p>
+              ) : (
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {agentFeed.map((item) => (
+                    <div key={item.inspection_id} style={agentCard}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                        <strong>Inspection #{item.inspection_id}</strong>
+                        <span style={priorityPill(item.priority)}>{item.priority}</span>
+                      </div>
+
+                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>
+                        {item.summary}
+                      </div>
+
+                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>
+                        Risk score: {item.risk_score} · Escalation: {item.escalation_needed ? "Yes" : "No"}
+                      </div>
+
+                      <ul style={{ marginTop: "10px", paddingLeft: "18px", color: "#111827" }}>
+                        {item.recommended_actions.map((action, idx) => (
+                          <li key={idx}>{action}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div
             style={{
               display: "grid",
               gap: "16px",
-              gridTemplateColumns: "1.15fr 1fr",
+              gridTemplateColumns: "1.15fr 0.85fr",
               marginBottom: "24px",
             }}
           >
@@ -505,62 +675,30 @@ function DashboardHome() {
             </div>
 
             <div style={card}>
-              <h2 style={sectionTitle}>SPD Agent Feed</h2>
-              {agentFeed.length === 0 ? (
-                <p style={muted}>No agent recommendations available.</p>
-              ) : (
-                <div style={{ display: "grid", gap: "12px" }}>
-                  {agentFeed.map((item) => (
-                    <div key={item.inspection_id} style={agentCard}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                        <strong>Inspection #{item.inspection_id}</strong>
-                        <span style={priorityPill(item.priority)}>{item.priority}</span>
-                      </div>
+              <h2 style={sectionTitle}>Export Center</h2>
+              <p style={{ color: "#4b5563", marginTop: 0 }}>
+                Download LumenAI inspection data for Excel, Power BI, Tableau,
+                investor decks, hospital QA analysis, or vendor defect reporting.
+              </p>
 
-                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>
-                        {item.summary}
-                      </div>
+              <div style={{ display: "grid", gap: "12px" }}>
+                <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
+                <div style={exportHint}>Best for Excel, Power BI, and Tableau import.</div>
 
-                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>
-                        Risk score: {item.risk_score} · Escalation: {item.escalation_needed ? "Yes" : "No"}
-                      </div>
+                <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
+                <div style={exportHint}>Includes inspection rows plus leadership summary sheet.</div>
 
-                      <ul style={{ marginTop: "10px", paddingLeft: "18px", color: "#111827" }}>
-                        {item.recommended_actions.map((action, idx) => (
-                          <li key={idx}>{action}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+                <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
+                <div style={exportHint}>Useful for engineering pipelines and integrations.</div>
 
-          <div style={card}>
-            <h2 style={sectionTitle}>Export Center</h2>
-            <p style={{ color: "#4b5563", marginTop: 0 }}>
-              Download LumenAI inspection data for Excel, Power BI, Tableau,
-              investor decks, hospital QA analysis, or vendor defect reporting.
-            </p>
-
-            <div style={{ display: "grid", gap: "12px" }}>
-              <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
-              <div style={exportHint}>Best for Excel, Power BI, and Tableau import.</div>
-
-              <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
-              <div style={exportHint}>Includes inspection rows plus leadership summary sheet.</div>
-
-              <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
-              <div style={exportHint}>Useful for engineering pipelines and integrations.</div>
-
-              <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
-              <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
+                <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
+                <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
+              </div>
             </div>
           </div>
 
           <div style={{ marginTop: "12px", color: "#6b7280", fontSize: "14px" }}>
-            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, and autonomous agent recommendations.
+            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, autonomous agent recommendations, and an alert control center.
           </div>
         </>
       )}
@@ -647,11 +785,26 @@ const sectionTitle: React.CSSProperties = {
   marginBottom: "12px",
 };
 
+const subTitle: React.CSSProperties = {
+  marginTop: 0,
+  marginBottom: "10px",
+  fontSize: "15px",
+};
+
 const listRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: "12px",
   padding: "10px 0",
+  borderBottom: "1px solid #f3f4f6",
+};
+
+const controlRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "center",
+  padding: "8px 0",
   borderBottom: "1px solid #f3f4f6",
 };
 
@@ -686,6 +839,16 @@ const secondaryButtonInline: React.CSSProperties = {
   fontWeight: 600,
   border: "1px solid #d1d5db",
   fontSize: "13px",
+};
+
+const buttonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: "10px",
+  background: "#111827",
+  color: "#ffffff",
+  border: "none",
+  cursor: "pointer",
+  fontWeight: 600,
 };
 
 const exportHint: React.CSSProperties = {
