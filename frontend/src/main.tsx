@@ -291,6 +291,10 @@ function DashboardHome() {
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
   const bundleExportUrl = `${API_BASE}/history/export.bundle.zip`;
+  const vendorCsvExportUrl = `${API_BASE}/analytics/vendors/export.csv`;
+  const vendorJsonExportUrl = `${API_BASE}/analytics/vendors/export.json`;
+  const vendorXlsxExportUrl = `${API_BASE}/analytics/vendors/export.xlsx`;
+  const vendorBundleExportUrl = `${API_BASE}/analytics/vendors/export.bundle.zip`;
 
   const criticalCount = agentFeed.filter((x) => x.priority === "critical").length;
   const highCount = agentFeed.filter((x) => x.priority === "high").length;
