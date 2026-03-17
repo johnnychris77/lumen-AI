@@ -1,6 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
+from io import StringIO, BytesIO
+import csv
+import json
+import zipfile
 import os
+
+from openpyxl import Workbook
 
 from app.deps import get_db
 from app.db import models
@@ -24,6 +31,106 @@ def alert_response(r: models.Inspection) -> dict:
         "status": r.status,
         "message": f"Inspection {r.id} flagged for SPD review: {r.detected_issue} on {r.instrument_type}.",
     }
+
+
+def alert_event_response(row: models.AlertEvent) -> dict:
+    return {
+        "id": row.id,
+        "inspection_id": row.inspection_id,
+        "vendor_name": row.vendor_name,
+        "instrument_type": row.instrument_type,
+        "detected_issue": row.detected_issue,
+        "risk_score": row.risk_score,
+        "channel": row.channel,
+        "sent": row.sent,
+        "status_code": row.status_code,
+        "failure_reason": row.failure_reason,
+        "dispatch_batch_id": row.dispatch_batch_id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def fetch_alert_events(db: Session, limit: int | None = None):
+    q = db.query(models.AlertEvent).order_by(models.AlertEvent.id.desc())
+    if limit:
+        q = q.limit(limit)
+    return q.all()
+
+
+def alert_events_csv_text(rows):
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id",
+        "inspection_id",
+        "vendor_name",
+        "instrument_type",
+        "detected_issue",
+        "risk_score",
+        "channel",
+        "sent",
+        "status_code",
+        "failure_reason",
+        "dispatch_batch_id",
+        "created_at",
+    ])
+    for r in rows:
+        writer.writerow([
+            r.id,
+            r.inspection_id,
+            r.vendor_name,
+            r.instrument_type,
+            r.detected_issue,
+            r.risk_score,
+            r.channel,
+            r.sent,
+            r.status_code,
+            r.failure_reason,
+            r.dispatch_batch_id,
+            r.created_at.isoformat() if r.created_at else "",
+        ])
+    return output.getvalue()
+
+
+def alert_events_xlsx_bytes(rows):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Alert Audit Trail"
+    ws.append([
+        "id",
+        "inspection_id",
+        "vendor_name",
+        "instrument_type",
+        "detected_issue",
+        "risk_score",
+        "channel",
+        "sent",
+        "status_code",
+        "failure_reason",
+        "dispatch_batch_id",
+        "created_at",
+    ])
+
+    for r in rows:
+        ws.append([
+            r.id,
+            r.inspection_id,
+            r.vendor_name,
+            r.instrument_type,
+            r.detected_issue,
+            r.risk_score,
+            r.channel,
+            r.sent,
+            r.status_code,
+            r.failure_reason,
+            r.dispatch_batch_id,
+            r.created_at.isoformat() if r.created_at else "",
+        ])
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio.getvalue()
 
 
 @router.get("/alerts/feed")
@@ -59,18 +166,9 @@ def alerts_status():
     return {
         "enabled": _truthy(os.getenv("LUMENAI_ALERTS_ENABLED", "false")),
         "channels": {
-            "slack": {
-                "configured": slack_configured,
-                "enabled": slack_configured,
-            },
-            "teams": {
-                "configured": teams_configured,
-                "enabled": teams_configured,
-            },
-            "email": {
-                "configured": email_configured,
-                "enabled": email_configured,
-            },
+            "slack": {"configured": slack_configured, "enabled": slack_configured},
+            "teams": {"configured": teams_configured, "enabled": teams_configured},
+            "email": {"configured": email_configured, "enabled": email_configured},
         },
     }
 
@@ -92,3 +190,61 @@ def send_alert_for_inspection(inspection_id: int, db: Session = Depends(get_db))
         "alert": alert,
         "dispatch": result,
     }
+
+
+@router.get("/alerts/history")
+def alerts_history(
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    rows = fetch_alert_events(db, limit=limit)
+    return {"items": [alert_event_response(r) for r in rows]}
+
+
+@router.get("/alerts/history/export.json")
+def alerts_history_export_json(db: Session = Depends(get_db)):
+    rows = fetch_alert_events(db)
+    return JSONResponse({"items": [alert_event_response(r) for r in rows]})
+
+
+@router.get("/alerts/history/export.csv")
+def alerts_history_export_csv(db: Session = Depends(get_db)):
+    rows = fetch_alert_events(db)
+    text = alert_events_csv_text(rows)
+    return StreamingResponse(
+        iter([text]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=lumenai_alert_audit_trail.csv"},
+    )
+
+
+@router.get("/alerts/history/export.xlsx")
+def alerts_history_export_xlsx(db: Session = Depends(get_db)):
+    rows = fetch_alert_events(db)
+    content = alert_events_xlsx_bytes(rows)
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=lumenai_alert_audit_trail.xlsx"},
+    )
+
+
+@router.get("/alerts/history/export.bundle.zip")
+def alerts_history_export_bundle(db: Session = Depends(get_db)):
+    rows = fetch_alert_events(db)
+    json_content = json.dumps({"items": [alert_event_response(r) for r in rows]}, indent=2)
+    csv_content = alert_events_csv_text(rows)
+    xlsx_content = alert_events_xlsx_bytes(rows)
+
+    bio = BytesIO()
+    with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("lumenai_alert_audit_trail.json", json_content)
+        zf.writestr("lumenai_alert_audit_trail.csv", csv_content)
+        zf.writestr("lumenai_alert_audit_trail.xlsx", xlsx_content)
+
+    bio.seek(0)
+    return StreamingResponse(
+        bio,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=lumenai_alert_audit_trail_bundle.zip"},
+    )
