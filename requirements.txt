@@ -16,3 +16,4 @@ reportlab==4.0.9
 rq
 redis
 openpyxl
+requests
