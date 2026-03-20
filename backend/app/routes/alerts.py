@@ -192,6 +192,34 @@ def send_alert_for_inspection(inspection_id: int, db: Session = Depends(get_db))
     }
 
 
+@router.post("/alerts/resend/{alert_event_id}")
+def resend_from_audit_event(alert_event_id: int, db: Session = Depends(get_db)):
+    event = (
+        db.query(models.AlertEvent)
+        .filter(models.AlertEvent.id == alert_event_id)
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Alert event not found")
+
+    inspection = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == event.inspection_id)
+        .first()
+    )
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    alert = alert_response(inspection)
+    result = dispatch_alert(alert)
+    return {
+        "source_alert_event_id": alert_event_id,
+        "inspection_id": inspection.id,
+        "alert": alert,
+        "dispatch": result,
+    }
+
+
 @router.get("/alerts/history")
 def alerts_history(
     limit: int = Query(default=100, ge=1, le=1000),

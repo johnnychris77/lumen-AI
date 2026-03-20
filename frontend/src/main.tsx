@@ -157,6 +157,7 @@ type DispatchResponse = {
   inspection_id: number;
   alert: AlertItem;
   dispatch: DispatchResult;
+  source_alert_event_id?: number;
 };
 
 type AlertAuditItem = {
@@ -184,11 +185,20 @@ function DashboardHome() {
   const [alertAudit, setAlertAudit] = useState<AlertAuditItem[]>([]);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
+  const [resendingAuditId, setResendingAuditId] = useState<number | null>(null);
   const [health, setHealth] = useState("checking");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const token = useMemo(() => localStorage.getItem("token") || "", []);
+
+  async function refreshAudit(headers: HeadersInit = {}) {
+    const auditRes = await fetch(`${API_BASE}/alerts/history?limit=12`, { headers });
+    if (auditRes.ok) {
+      const auditData = await auditRes.json();
+      setAlertAudit(Array.isArray(auditData.items) ? auditData.items : []);
+    }
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -289,12 +299,7 @@ function DashboardHome() {
 
       const data = await res.json();
       setLastDispatch(data);
-
-      const auditRes = await fetch(`${API_BASE}/alerts/history?limit=12`, { headers });
-      if (auditRes.ok) {
-        const auditData = await auditRes.json();
-        setAlertAudit(Array.isArray(auditData.items) ? auditData.items : []);
-      }
+      await refreshAudit(headers);
     } catch (err: any) {
       setLastDispatch({
         inspection_id: inspectionId,
@@ -316,6 +321,48 @@ function DashboardHome() {
       });
     } finally {
       setDispatchingId(null);
+    }
+  }
+
+  async function resendAuditEvent(alertEventId: number) {
+    try {
+      setResendingAuditId(alertEventId);
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${API_BASE}/alerts/resend/${alertEventId}`, {
+        method: "POST",
+        headers,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Alert resend failed (${res.status}): ${text}`);
+      }
+
+      const data = await res.json();
+      setLastDispatch(data);
+      await refreshAudit(headers);
+    } catch (err: any) {
+      setLastDispatch({
+        inspection_id: 0,
+        source_alert_event_id: alertEventId,
+        alert: {
+          inspection_id: 0,
+          file_name: "",
+          vendor_name: "",
+          instrument_type: "",
+          detected_issue: "",
+          risk_score: 0,
+          status: "failed",
+          message: err?.message || "Alert resend failed",
+        },
+        dispatch: {
+          enabled: false,
+          results: [],
+          message: err?.message || "Alert resend failed",
+        },
+      });
+    } finally {
+      setResendingAuditId(null);
     }
   }
 
@@ -356,12 +403,8 @@ function DashboardHome() {
       </div>
 
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
-        <Link to="/history" style={secondaryButton}>
-          Open Full History
-        </Link>
-        <a href={`${API_BASE}/health`} target="_blank" rel="noreferrer" style={secondaryButton}>
-          API Health
-        </a>
+        <Link to="/history" style={secondaryButton}>Open Full History</Link>
+        <a href={`${API_BASE}/health`} target="_blank" rel="noreferrer" style={secondaryButton}>API Health</a>
       </div>
 
       {loading && <p>Loading Phase 2 dashboard...</p>}
@@ -369,119 +412,31 @@ function DashboardHome() {
 
       {!loading && !error && summary && (
         <>
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              marginBottom: "24px",
-            }}
-          >
-            <div style={card}>
-              <div style={cardLabel}>Total Inspections</div>
-              <div style={cardValue}>{summary.total_inspections}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>Completed</div>
-              <div style={cardValue}>{summary.completed}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>Escalations Needed</div>
-              <div style={cardValue}>{escalationCount}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>Active Alerts</div>
-              <div style={cardValue}>{alerts.length}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>System Health</div>
-              <div style={cardValueSmall}>
-                <span style={statusPill(health)}>{health}</span>
-              </div>
-            </div>
+          <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginBottom: "24px" }}>
+            <div style={card}><div style={cardLabel}>Total Inspections</div><div style={cardValue}>{summary.total_inspections}</div></div>
+            <div style={card}><div style={cardLabel}>Completed</div><div style={cardValue}>{summary.completed}</div></div>
+            <div style={card}><div style={cardLabel}>Escalations Needed</div><div style={cardValue}>{escalationCount}</div></div>
+            <div style={card}><div style={cardLabel}>Active Alerts</div><div style={cardValue}>{alerts.length}</div></div>
+            <div style={card}><div style={cardLabel}>System Health</div><div style={cardValueSmall}><span style={statusPill(health)}>{health}</span></div></div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              marginBottom: "24px",
-            }}
-          >
-            <div style={card}>
-              <div style={cardLabel}>Critical Priority</div>
-              <div style={cardValue}>{criticalCount}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>High Priority</div>
-              <div style={cardValue}>{highCount}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>Tracked Vendors</div>
-              <div style={cardValue}>{totalVendors}</div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>Top Vendor by Escalations</div>
-              <div style={cardValueSmall}>
-                {topVendor} ({topVendorEscalations})
-              </div>
-            </div>
-
-            <div style={card}>
-              <div style={cardLabel}>Live Stream Queued / Completed</div>
-              <div style={cardValueSmall}>
-                {liveQueuedCount} / {liveCompletedCount}
-              </div>
-            </div>
+          <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginBottom: "24px" }}>
+            <div style={card}><div style={cardLabel}>Critical Priority</div><div style={cardValue}>{criticalCount}</div></div>
+            <div style={card}><div style={cardLabel}>High Priority</div><div style={cardValue}>{highCount}</div></div>
+            <div style={card}><div style={cardLabel}>Tracked Vendors</div><div style={cardValue}>{totalVendors}</div></div>
+            <div style={card}><div style={cardLabel}>Top Vendor by Escalations</div><div style={cardValueSmall}>{topVendor} ({topVendorEscalations})</div></div>
+            <div style={card}><div style={cardLabel}>Live Stream Queued / Completed</div><div style={cardValueSmall}>{liveQueuedCount} / {liveCompletedCount}</div></div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "1.05fr 0.95fr",
-              marginBottom: "24px",
-            }}
-          >
+          <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "1.05fr 0.95fr", marginBottom: "24px" }}>
             <div style={card}>
               <h2 style={sectionTitle}>Alert Control Center</h2>
 
               <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
-                <div style={controlRow}>
-                  <span>Global Alerts</span>
-                  <span style={statusPill(alertStatus?.enabled ? "enabled" : "disabled")}>
-                    {alertStatus?.enabled ? "enabled" : "disabled"}
-                  </span>
-                </div>
-
-                <div style={controlRow}>
-                  <span>Slack</span>
-                  <span style={statusPill(alertStatus?.channels.slack.configured ? "configured" : "not configured")}>
-                    {alertStatus?.channels.slack.configured ? "configured" : "not configured"}
-                  </span>
-                </div>
-
-                <div style={controlRow}>
-                  <span>Teams</span>
-                  <span style={statusPill(alertStatus?.channels.teams.configured ? "configured" : "not configured")}>
-                    {alertStatus?.channels.teams.configured ? "configured" : "not configured"}
-                  </span>
-                </div>
-
-                <div style={controlRow}>
-                  <span>Email</span>
-                  <span style={statusPill(alertStatus?.channels.email.configured ? "configured" : "not configured")}>
-                    {alertStatus?.channels.email.configured ? "configured" : "not configured"}
-                  </span>
-                </div>
+                <div style={controlRow}><span>Global Alerts</span><span style={statusPill(alertStatus?.enabled ? "enabled" : "disabled")}>{alertStatus?.enabled ? "enabled" : "disabled"}</span></div>
+                <div style={controlRow}><span>Slack</span><span style={statusPill(alertStatus?.channels.slack.configured ? "configured" : "not configured")}>{alertStatus?.channels.slack.configured ? "configured" : "not configured"}</span></div>
+                <div style={controlRow}><span>Teams</span><span style={statusPill(alertStatus?.channels.teams.configured ? "configured" : "not configured")}>{alertStatus?.channels.teams.configured ? "configured" : "not configured"}</span></div>
+                <div style={controlRow}><span>Email</span><span style={statusPill(alertStatus?.channels.email.configured ? "configured" : "not configured")}>{alertStatus?.channels.email.configured ? "configured" : "not configured"}</span></div>
               </div>
 
               <div style={{ marginBottom: "16px" }}>
@@ -497,9 +452,7 @@ function DashboardHome() {
                         disabled={dispatchingId === item.inspection_id}
                         style={buttonStyle}
                       >
-                        {dispatchingId === item.inspection_id
-                          ? `Sending #${item.inspection_id}...`
-                          : `Send Alert #${item.inspection_id}`}
+                        {dispatchingId === item.inspection_id ? `Sending #${item.inspection_id}...` : `Send Alert #${item.inspection_id}`}
                       </button>
                     ))}
                   </div>
@@ -512,28 +465,17 @@ function DashboardHome() {
                   <p style={muted}>No alert dispatch attempted yet.</p>
                 ) : (
                   <div style={agentCard}>
+                    {lastDispatch.source_alert_event_id ? <div><strong>Source Audit Event:</strong> #{lastDispatch.source_alert_event_id}</div> : null}
                     <div><strong>Inspection:</strong> #{lastDispatch.inspection_id}</div>
-                    <div style={{ marginTop: "6px" }}>
-                      <strong>Dispatch Enabled:</strong> {lastDispatch.dispatch.enabled ? "Yes" : "No"}
-                    </div>
-                    {lastDispatch.dispatch.dispatch_batch_id && (
-                      <div style={{ marginTop: "6px" }}>
-                        <strong>Dispatch Batch:</strong> {lastDispatch.dispatch.dispatch_batch_id}
-                      </div>
-                    )}
-                    {lastDispatch.dispatch.message && (
-                      <div style={{ marginTop: "6px", color: "#6b7280" }}>
-                        {lastDispatch.dispatch.message}
-                      </div>
-                    )}
+                    <div style={{ marginTop: "6px" }}><strong>Dispatch Enabled:</strong> {lastDispatch.dispatch.enabled ? "Yes" : "No"}</div>
+                    {lastDispatch.dispatch.dispatch_batch_id && <div style={{ marginTop: "6px" }}><strong>Dispatch Batch:</strong> {lastDispatch.dispatch.dispatch_batch_id}</div>}
+                    {lastDispatch.dispatch.message && <div style={{ marginTop: "6px", color: "#6b7280" }}>{lastDispatch.dispatch.message}</div>}
                     {lastDispatch.dispatch.results?.length > 0 && (
                       <div style={{ marginTop: "10px", display: "grid", gap: "8px" }}>
                         {lastDispatch.dispatch.results.map((r, idx) => (
                           <div key={idx} style={controlRow}>
                             <span>{r.channel}</span>
-                            <span style={statusPill(r.sent ? "sent" : "not sent")}>
-                              {r.sent ? "sent" : "not sent"}
-                            </span>
+                            <span style={statusPill(r.sent ? "sent" : "not sent")}>{r.sent ? "sent" : "not sent"}</span>
                           </div>
                         ))}
                       </div>
@@ -553,16 +495,10 @@ function DashboardHome() {
                     <div key={item.inspection_id} style={alertCard}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
                         <strong>Inspection #{item.inspection_id}</strong>
-                        <span style={priorityPill(item.risk_score >= 80 ? "critical" : item.risk_score >= 50 ? "medium" : "low")}>
-                          Risk {item.risk_score}
-                        </span>
+                        <span style={priorityPill(item.risk_score >= 80 ? "critical" : item.risk_score >= 50 ? "medium" : "low")}>Risk {item.risk_score}</span>
                       </div>
-                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>
-                        {item.message}
-                      </div>
-                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>
-                        Vendor: {item.vendor_name || "unknown"} · Instrument: {item.instrument_type || "unknown"}
-                      </div>
+                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>{item.message}</div>
+                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>Vendor: {item.vendor_name || "unknown"} · Instrument: {item.instrument_type || "unknown"}</div>
                     </div>
                   ))}
                 </div>
@@ -570,14 +506,7 @@ function DashboardHome() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "1fr 1fr",
-              marginBottom: "24px",
-            }}
-          >
+          <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "1fr 1fr", marginBottom: "24px" }}>
             <div style={card}>
               <h2 style={sectionTitle}>Vendor Intelligence</h2>
               {vendors.length === 0 ? (
@@ -586,13 +515,7 @@ function DashboardHome() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={table}>
                     <thead style={{ background: "#f9fafb" }}>
-                      <tr>
-                        <th style={th}>Vendor</th>
-                        <th style={th}>Inspections</th>
-                        <th style={th}>Escalations</th>
-                        <th style={th}>Avg Confidence</th>
-                        <th style={th}>Top Issue</th>
-                      </tr>
+                      <tr><th style={th}>Vendor</th><th style={th}>Inspections</th><th style={th}>Escalations</th><th style={th}>Avg Confidence</th><th style={th}>Top Issue</th></tr>
                     </thead>
                     <tbody>
                       {vendors.slice(0, 8).map((vendor) => (
@@ -622,19 +545,10 @@ function DashboardHome() {
                         <strong>Inspection #{item.inspection_id}</strong>
                         <span style={priorityPill(item.priority)}>{item.priority}</span>
                       </div>
-
-                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>
-                        {item.summary}
-                      </div>
-
-                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>
-                        Risk score: {item.risk_score} · Escalation: {item.escalation_needed ? "Yes" : "No"}
-                      </div>
-
+                      <div style={{ marginTop: "8px", color: "#374151", fontSize: "14px" }}>{item.summary}</div>
+                      <div style={{ marginTop: "8px", fontSize: "13px", color: "#6b7280" }}>Risk score: {item.risk_score} · Escalation: {item.escalation_needed ? "Yes" : "No"}</div>
                       <ul style={{ marginTop: "10px", paddingLeft: "18px", color: "#111827" }}>
-                        {item.recommended_actions.map((action, idx) => (
-                          <li key={idx}>{action}</li>
-                        ))}
+                        {item.recommended_actions.map((action, idx) => <li key={idx}>{action}</li>)}
                       </ul>
                     </div>
                   ))}
@@ -643,29 +557,11 @@ function DashboardHome() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "1.15fr 0.85fr",
-              marginBottom: "24px",
-            }}
-          >
+          <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "1.15fr 0.85fr", marginBottom: "24px" }}>
             <div style={card}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
                 <h2 style={sectionTitle}>Recent Live Stream Activity & Reports</h2>
-                <Link to="/history" style={{ textDecoration: "none" }}>
-                  View all
-                </Link>
+                <Link to="/history" style={{ textDecoration: "none" }}>View all</Link>
               </div>
 
               {recent.length === 0 ? (
@@ -674,17 +570,7 @@ function DashboardHome() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={table}>
                     <thead style={{ background: "#f9fafb" }}>
-                      <tr>
-                        <th style={th}>ID</th>
-                        <th style={th}>File</th>
-                        <th style={th}>Vendor</th>
-                        <th style={th}>Status</th>
-                        <th style={th}>Instrument</th>
-                        <th style={th}>Issue</th>
-                        <th style={th}>Risk</th>
-                        <th style={th}>Created</th>
-                        <th style={th}>Report</th>
-                      </tr>
+                      <tr><th style={th}>ID</th><th style={th}>File</th><th style={th}>Vendor</th><th style={th}>Status</th><th style={th}>Instrument</th><th style={th}>Issue</th><th style={th}>Risk</th><th style={th}>Created</th><th style={th}>Report</th></tr>
                     </thead>
                     <tbody>
                       {recent.map((item) => (
@@ -692,25 +578,14 @@ function DashboardHome() {
                           <td style={td}>{item.id}</td>
                           <td style={td}>{item.file_name || "—"}</td>
                           <td style={td}>{item.vendor_name || "unknown"}</td>
-                          <td style={td}>
-                            <span style={statusPill(item.status || "unknown")}>
-                              {item.status || "unknown"}
-                            </span>
-                          </td>
+                          <td style={td}><span style={statusPill(item.status || "unknown")}>{item.status || "unknown"}</span></td>
                           <td style={td}>{item.instrument_type || "unknown"}</td>
                           <td style={td}>{item.detected_issue || "unknown"}</td>
                           <td style={td}>{typeof item.risk_score === "number" ? item.risk_score : "—"}</td>
                           <td style={td}>{formatDate(item.created_at)}</td>
                           <td style={td}>
                             {(item.status || "").toLowerCase() === "completed" ? (
-                              <a
-                                href={`${API_BASE}/reports/${item.id}.pdf`}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={secondaryButtonInline}
-                              >
-                                Open PDF
-                              </a>
+                              <a href={`${API_BASE}/reports/${item.id}.pdf`} target="_blank" rel="noreferrer" style={secondaryButtonInline}>Open PDF</a>
                             ) : (
                               <span style={muted}>Pending</span>
                             )}
@@ -733,13 +608,10 @@ function DashboardHome() {
                 <div style={{ display: "grid", gap: "12px" }}>
                   <a href={vendorCsvExportUrl} style={primaryButton}>Export Vendor CSV</a>
                   <div style={exportHint}>Flat scorecard format for Excel, Power BI, and Tableau.</div>
-
                   <a href={vendorXlsxExportUrl} style={primaryButton}>Export Vendor Excel Workbook</a>
                   <div style={exportHint}>Includes vendor summary sheet and top issue detail.</div>
-
                   <a href={vendorJsonExportUrl} style={secondaryButton}>Export Vendor JSON</a>
                   <div style={exportHint}>Useful for custom integrations and partner analytics pipelines.</div>
-
                   <a href={vendorBundleExportUrl} style={secondaryButton}>Download Vendor Bundle</a>
                   <div style={exportHint}>ZIP package containing CSV, JSON, and XLSX vendor scorecards.</div>
                 </div>
@@ -749,18 +621,9 @@ function DashboardHome() {
                 <h2 style={sectionTitle}>Alert Audit Center</h2>
 
                 <div style={{ display: "grid", gap: "10px", marginBottom: "16px" }}>
-                  <div style={controlRow}>
-                    <span>Recent Audit Events</span>
-                    <strong>{alertAudit.length}</strong>
-                  </div>
-                  <div style={controlRow}>
-                    <span>Sent</span>
-                    <span style={statusPill("sent")}>{auditSentCount}</span>
-                  </div>
-                  <div style={controlRow}>
-                    <span>Not Sent</span>
-                    <span style={statusPill("not sent")}>{auditFailedCount}</span>
-                  </div>
+                  <div style={controlRow}><span>Recent Audit Events</span><strong>{alertAudit.length}</strong></div>
+                  <div style={controlRow}><span>Sent</span><span style={statusPill("sent")}>{auditSentCount}</span></div>
+                  <div style={controlRow}><span>Not Sent</span><span style={statusPill("not sent")}>{auditFailedCount}</span></div>
                 </div>
 
                 <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
@@ -796,6 +659,17 @@ function DashboardHome() {
                             {item.failure_reason}
                           </div>
                         ) : null}
+                        {!item.sent ? (
+                          <div style={{ marginTop: "10px" }}>
+                            <button
+                              onClick={() => resendAuditEvent(item.id)}
+                              disabled={resendingAuditId === item.id}
+                              style={buttonStyle}
+                            >
+                              {resendingAuditId === item.id ? `Resending #${item.id}...` : `Resend #${item.id}`}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -812,13 +686,10 @@ function DashboardHome() {
                 <div style={{ display: "grid", gap: "12px" }}>
                   <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
                   <div style={exportHint}>Best for Excel, Power BI, and Tableau import.</div>
-
                   <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
                   <div style={exportHint}>Includes inspection rows plus leadership summary sheet.</div>
-
                   <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
                   <div style={exportHint}>Useful for engineering pipelines and integrations.</div>
-
                   <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
                   <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
                 </div>
@@ -827,7 +698,7 @@ function DashboardHome() {
           </div>
 
           <div style={{ marginTop: "12px", color: "#6b7280", fontSize: "14px" }}>
-            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, autonomous agent recommendations, and a full alert audit center.
+            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, autonomous agent recommendations, a full alert audit center, and resend actions for failed alerts.
           </div>
         </>
       )}
@@ -838,26 +709,9 @@ function DashboardHome() {
 function Layout() {
   return (
     <BrowserRouter>
-      <div
-        style={{
-          borderBottom: "1px solid #e5e7eb",
-          padding: "12px 24px",
-          background: "#ffffff",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1360px",
-            margin: "0 auto",
-            display: "flex",
-            gap: "16px",
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link to="/" style={{ fontWeight: 700, textDecoration: "none", color: "#111827" }}>
-            LumenAI
-          </Link>
+      <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
+        <div style={{ maxWidth: "1360px", margin: "0 auto", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
+          <Link to="/" style={{ fontWeight: 700, textDecoration: "none", color: "#111827" }}>LumenAI</Link>
           <Link to="/history">History</Link>
         </div>
       </div>
