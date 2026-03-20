@@ -185,6 +185,14 @@ def dispatch_alert(alert: Dict[str, Any]) -> Dict[str, Any]:
     dispatch_batch_id = str(uuid.uuid4())
 
     if not ALERTS_ENABLED:
+        _log_alert_event(
+            alert,
+            "system",
+            False,
+            dispatch_batch_id,
+            status_code="DISABLED",
+            failure_reason="Alerts are disabled. Set LUMENAI_ALERTS_ENABLED=true to enable dispatch.",
+        )
         return {
             "enabled": False,
             "dispatch_batch_id": dispatch_batch_id,
