@@ -29,6 +29,8 @@ function statusPill(status: string) {
     case "completed":
     case "ok":
     case "enabled":
+    case "sent":
+    case "configured":
       return { ...base, background: "#dcfce7", color: "#166534" };
     case "queued":
       return { ...base, background: "#fef3c7", color: "#92400e" };
@@ -36,6 +38,8 @@ function statusPill(status: string) {
       return { ...base, background: "#dbeafe", color: "#1d4ed8" };
     case "failed":
     case "disabled":
+    case "not sent":
+    case "not configured":
       return { ...base, background: "#fee2e2", color: "#991b1b" };
     default:
       return { ...base, background: "#e5e7eb", color: "#374151" };
@@ -146,12 +150,28 @@ type DispatchResult = {
     response_text?: string;
   }>;
   message?: string;
+  dispatch_batch_id?: string;
 };
 
 type DispatchResponse = {
   inspection_id: number;
   alert: AlertItem;
   dispatch: DispatchResult;
+};
+
+type AlertAuditItem = {
+  id: number;
+  inspection_id: number;
+  vendor_name: string;
+  instrument_type: string;
+  detected_issue: string;
+  risk_score: number;
+  channel: string;
+  sent: boolean;
+  status_code: string;
+  failure_reason: string;
+  dispatch_batch_id: string;
+  created_at: string;
 };
 
 function DashboardHome() {
@@ -161,6 +181,7 @@ function DashboardHome() {
   const [vendors, setVendors] = useState<VendorItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
+  const [alertAudit, setAlertAudit] = useState<AlertAuditItem[]>([]);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [health, setHealth] = useState("checking");
@@ -187,6 +208,7 @@ function DashboardHome() {
           vendorRes,
           alertsRes,
           alertStatusRes,
+          alertAuditRes,
         ] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
@@ -195,6 +217,7 @@ function DashboardHome() {
           fetch(`${API_BASE}/analytics/vendors`, { headers }),
           fetch(`${API_BASE}/alerts/feed`, { headers }),
           fetch(`${API_BASE}/alerts/status`, { headers }),
+          fetch(`${API_BASE}/alerts/history?limit=12`, { headers }),
         ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
@@ -203,6 +226,7 @@ function DashboardHome() {
         if (!vendorRes.ok) throw new Error(`Vendor analytics request failed (${vendorRes.status})`);
         if (!alertsRes.ok) throw new Error(`Alerts request failed (${alertsRes.status})`);
         if (!alertStatusRes.ok) throw new Error(`Alert status request failed (${alertStatusRes.status})`);
+        if (!alertAuditRes.ok) throw new Error(`Alert audit request failed (${alertAuditRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
@@ -210,6 +234,7 @@ function DashboardHome() {
         const vendorData = await vendorRes.json();
         const alertsData = await alertsRes.json();
         const alertStatusData = await alertStatusRes.json();
+        const alertAuditData = await alertAuditRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -228,6 +253,7 @@ function DashboardHome() {
           setVendors(Array.isArray(vendorData.items) ? vendorData.items : []);
           setAlerts(Array.isArray(alertsData.items) ? alertsData.items : []);
           setAlertStatus(alertStatusData);
+          setAlertAudit(Array.isArray(alertAuditData.items) ? alertAuditData.items : []);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -263,6 +289,12 @@ function DashboardHome() {
 
       const data = await res.json();
       setLastDispatch(data);
+
+      const auditRes = await fetch(`${API_BASE}/alerts/history?limit=12`, { headers });
+      if (auditRes.ok) {
+        const auditData = await auditRes.json();
+        setAlertAudit(Array.isArray(auditData.items) ? auditData.items : []);
+      }
     } catch (err: any) {
       setLastDispatch({
         inspection_id: inspectionId,
@@ -291,10 +323,16 @@ function DashboardHome() {
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
   const bundleExportUrl = `${API_BASE}/history/export.bundle.zip`;
+
   const vendorCsvExportUrl = `${API_BASE}/analytics/vendors/export.csv`;
   const vendorJsonExportUrl = `${API_BASE}/analytics/vendors/export.json`;
   const vendorXlsxExportUrl = `${API_BASE}/analytics/vendors/export.xlsx`;
   const vendorBundleExportUrl = `${API_BASE}/analytics/vendors/export.bundle.zip`;
+
+  const alertAuditCsvExportUrl = `${API_BASE}/alerts/history/export.csv`;
+  const alertAuditJsonExportUrl = `${API_BASE}/alerts/history/export.json`;
+  const alertAuditXlsxExportUrl = `${API_BASE}/alerts/history/export.xlsx`;
+  const alertAuditBundleExportUrl = `${API_BASE}/alerts/history/export.bundle.zip`;
 
   const criticalCount = agentFeed.filter((x) => x.priority === "critical").length;
   const highCount = agentFeed.filter((x) => x.priority === "high").length;
@@ -304,9 +342,11 @@ function DashboardHome() {
   const topVendorEscalations = vendors[0]?.escalations || 0;
   const liveQueuedCount = recent.filter((x) => (x.status || "").toLowerCase() === "queued").length;
   const liveCompletedCount = recent.filter((x) => (x.status || "").toLowerCase() === "completed").length;
+  const auditSentCount = alertAudit.filter((x) => x.sent).length;
+  const auditFailedCount = alertAudit.filter((x) => !x.sent).length;
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1320px", margin: "0 auto" }}>
+    <div style={{ padding: "24px", maxWidth: "1360px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
         <h1 style={{ marginBottom: "8px" }}>LumenAI Phase 2 Command Dashboard</h1>
         <p style={{ color: "#4b5563", margin: 0 }}>
@@ -407,7 +447,7 @@ function DashboardHome() {
             style={{
               display: "grid",
               gap: "16px",
-              gridTemplateColumns: "1.1fr 0.9fr",
+              gridTemplateColumns: "1.05fr 0.95fr",
               marginBottom: "24px",
             }}
           >
@@ -424,21 +464,21 @@ function DashboardHome() {
 
                 <div style={controlRow}>
                   <span>Slack</span>
-                  <span style={statusPill(alertStatus?.channels.slack.configured ? "enabled" : "disabled")}>
+                  <span style={statusPill(alertStatus?.channels.slack.configured ? "configured" : "not configured")}>
                     {alertStatus?.channels.slack.configured ? "configured" : "not configured"}
                   </span>
                 </div>
 
                 <div style={controlRow}>
                   <span>Teams</span>
-                  <span style={statusPill(alertStatus?.channels.teams.configured ? "enabled" : "disabled")}>
+                  <span style={statusPill(alertStatus?.channels.teams.configured ? "configured" : "not configured")}>
                     {alertStatus?.channels.teams.configured ? "configured" : "not configured"}
                   </span>
                 </div>
 
                 <div style={controlRow}>
                   <span>Email</span>
-                  <span style={statusPill(alertStatus?.channels.email.configured ? "enabled" : "disabled")}>
+                  <span style={statusPill(alertStatus?.channels.email.configured ? "configured" : "not configured")}>
                     {alertStatus?.channels.email.configured ? "configured" : "not configured"}
                   </span>
                 </div>
@@ -476,6 +516,11 @@ function DashboardHome() {
                     <div style={{ marginTop: "6px" }}>
                       <strong>Dispatch Enabled:</strong> {lastDispatch.dispatch.enabled ? "Yes" : "No"}
                     </div>
+                    {lastDispatch.dispatch.dispatch_batch_id && (
+                      <div style={{ marginTop: "6px" }}>
+                        <strong>Dispatch Batch:</strong> {lastDispatch.dispatch.dispatch_batch_id}
+                      </div>
+                    )}
                     {lastDispatch.dispatch.message && (
                       <div style={{ marginTop: "6px", color: "#6b7280" }}>
                         {lastDispatch.dispatch.message}
@@ -486,7 +531,7 @@ function DashboardHome() {
                         {lastDispatch.dispatch.results.map((r, idx) => (
                           <div key={idx} style={controlRow}>
                             <span>{r.channel}</span>
-                            <span style={statusPill(r.sent ? "enabled" : "disabled")}>
+                            <span style={statusPill(r.sent ? "sent" : "not sent")}>
                               {r.sent ? "sent" : "not sent"}
                             </span>
                           </div>
@@ -678,31 +723,111 @@ function DashboardHome() {
               )}
             </div>
 
-            <div style={card}>
-              <h2 style={sectionTitle}>Export Center</h2>
-              <p style={{ color: "#4b5563", marginTop: 0 }}>
-                Download LumenAI inspection data for Excel, Power BI, Tableau,
-                investor decks, hospital QA analysis, or vendor defect reporting.
-              </p>
+            <div style={{ display: "grid", gap: "16px" }}>
+              <div style={card}>
+                <h2 style={sectionTitle}>Vendor Scorecard Exports</h2>
+                <p style={{ color: "#4b5563", marginTop: 0 }}>
+                  Export vendor performance scorecards for hospitals, suppliers, and executive review.
+                </p>
 
-              <div style={{ display: "grid", gap: "12px" }}>
-                <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
-                <div style={exportHint}>Best for Excel, Power BI, and Tableau import.</div>
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <a href={vendorCsvExportUrl} style={primaryButton}>Export Vendor CSV</a>
+                  <div style={exportHint}>Flat scorecard format for Excel, Power BI, and Tableau.</div>
 
-                <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
-                <div style={exportHint}>Includes inspection rows plus leadership summary sheet.</div>
+                  <a href={vendorXlsxExportUrl} style={primaryButton}>Export Vendor Excel Workbook</a>
+                  <div style={exportHint}>Includes vendor summary sheet and top issue detail.</div>
 
-                <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
-                <div style={exportHint}>Useful for engineering pipelines and integrations.</div>
+                  <a href={vendorJsonExportUrl} style={secondaryButton}>Export Vendor JSON</a>
+                  <div style={exportHint}>Useful for custom integrations and partner analytics pipelines.</div>
 
-                <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
-                <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
+                  <a href={vendorBundleExportUrl} style={secondaryButton}>Download Vendor Bundle</a>
+                  <div style={exportHint}>ZIP package containing CSV, JSON, and XLSX vendor scorecards.</div>
+                </div>
+              </div>
+
+              <div style={card}>
+                <h2 style={sectionTitle}>Alert Audit Center</h2>
+
+                <div style={{ display: "grid", gap: "10px", marginBottom: "16px" }}>
+                  <div style={controlRow}>
+                    <span>Recent Audit Events</span>
+                    <strong>{alertAudit.length}</strong>
+                  </div>
+                  <div style={controlRow}>
+                    <span>Sent</span>
+                    <span style={statusPill("sent")}>{auditSentCount}</span>
+                  </div>
+                  <div style={controlRow}>
+                    <span>Not Sent</span>
+                    <span style={statusPill("not sent")}>{auditFailedCount}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
+                  <a href={alertAuditCsvExportUrl} style={primaryButton}>Export Alert Audit CSV</a>
+                  <a href={alertAuditXlsxExportUrl} style={primaryButton}>Export Alert Audit Excel</a>
+                  <a href={alertAuditJsonExportUrl} style={secondaryButton}>Export Alert Audit JSON</a>
+                  <a href={alertAuditBundleExportUrl} style={secondaryButton}>Download Alert Audit Bundle</a>
+                </div>
+
+                {alertAudit.length === 0 ? (
+                  <p style={muted}>No audit events recorded yet.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    {alertAudit.slice(0, 6).map((item) => (
+                      <div key={item.id} style={agentCard}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                          <strong>#{item.id} · {item.channel}</strong>
+                          <span style={statusPill(item.sent ? "sent" : "not sent")}>
+                            {item.sent ? "sent" : "not sent"}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: "6px", fontSize: "14px", color: "#374151" }}>
+                          Inspection #{item.inspection_id} · {item.vendor_name} · {item.detected_issue}
+                        </div>
+                        <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>
+                          Batch: {item.dispatch_batch_id}
+                        </div>
+                        <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>
+                          {formatDate(item.created_at)}
+                        </div>
+                        {item.failure_reason ? (
+                          <div style={{ marginTop: "8px", fontSize: "12px", color: "#991b1b" }}>
+                            {item.failure_reason}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={card}>
+                <h2 style={sectionTitle}>Export Center</h2>
+                <p style={{ color: "#4b5563", marginTop: 0 }}>
+                  Download LumenAI inspection data for Excel, Power BI, Tableau,
+                  investor decks, hospital QA analysis, or vendor defect reporting.
+                </p>
+
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <a href={csvExportUrl} style={primaryButton}>Export CSV</a>
+                  <div style={exportHint}>Best for Excel, Power BI, and Tableau import.</div>
+
+                  <a href={xlsxExportUrl} style={primaryButton}>Export Excel Workbook</a>
+                  <div style={exportHint}>Includes inspection rows plus leadership summary sheet.</div>
+
+                  <a href={jsonExportUrl} style={secondaryButton}>Export JSON</a>
+                  <div style={exportHint}>Useful for engineering pipelines and integrations.</div>
+
+                  <a href={bundleExportUrl} style={secondaryButton}>Download Full Export Bundle</a>
+                  <div style={exportHint}>ZIP package containing CSV, JSON, XLSX, and summary artifacts.</div>
+                </div>
               </div>
             </div>
           </div>
 
           <div style={{ marginTop: "12px", color: "#6b7280", fontSize: "14px" }}>
-            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, autonomous agent recommendations, and an alert control center.
+            Phase 2 now supports live stream ingestion, vendor intelligence, SPD alerts, autonomous agent recommendations, and a full alert audit center.
           </div>
         </>
       )}
@@ -722,7 +847,7 @@ function Layout() {
       >
         <div
           style={{
-            maxWidth: "1320px",
+            maxWidth: "1360px",
             margin: "0 auto",
             display: "flex",
             gap: "16px",
@@ -793,14 +918,6 @@ const subTitle: React.CSSProperties = {
   marginTop: 0,
   marginBottom: "10px",
   fontSize: "15px",
-};
-
-const listRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  padding: "10px 0",
-  borderBottom: "1px solid #f3f4f6",
 };
 
 const controlRow: React.CSSProperties = {
