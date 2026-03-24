@@ -16,6 +16,11 @@ def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _looks_like_slack_webhook(url: str) -> bool:
+    url = (url or "").strip()
+    return url.startswith("https://hooks.slack.com/services/")
+
+
 ALERTS_ENABLED = _truthy(os.getenv("LUMENAI_ALERTS_ENABLED", "false"))
 
 SLACK_WEBHOOK_URL = os.getenv("LUMENAI_SLACK_WEBHOOK_URL", "").strip()
@@ -27,6 +32,11 @@ SMTP_USERNAME = os.getenv("LUMENAI_SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("LUMENAI_SMTP_PASSWORD", "").strip()
 SMTP_FROM = os.getenv("LUMENAI_SMTP_FROM", "lumenai@localhost").strip()
 ALERT_EMAIL_TO = os.getenv("LUMENAI_ALERT_EMAIL_TO", "").strip()
+
+# Safe rollout switches
+SLACK_ENABLED = _truthy(os.getenv("LUMENAI_SLACK_ENABLED", "false"))
+TEAMS_ENABLED = _truthy(os.getenv("LUMENAI_TEAMS_ENABLED", "false"))
+EMAIL_ENABLED = _truthy(os.getenv("LUMENAI_EMAIL_ENABLED", "false"))
 
 
 def format_alert_message(alert: Dict[str, Any]) -> str:
@@ -61,7 +71,7 @@ def _log_alert_event(
             risk_score=int(alert.get("risk_score") or 0),
             channel=channel,
             sent=bool(sent),
-            status_code=str(status_code or ""),
+            status_code=str(status_code or "")[:50],
             failure_reason=str(failure_reason or "")[:500],
             dispatch_batch_id=dispatch_batch_id,
         )
@@ -72,42 +82,72 @@ def _log_alert_event(
 
 
 def send_slack_alert(alert: Dict[str, Any], dispatch_batch_id: str) -> Dict[str, Any]:
-    if not SLACK_WEBHOOK_URL:
-        result = {"channel": "slack", "sent": False, "reason": "Slack webhook not configured"}
-        _log_alert_event(alert, "slack", False, dispatch_batch_id, failure_reason=result["reason"])
+    if not SLACK_ENABLED:
+        result = {"channel": "slack", "sent": False, "reason": "Slack channel disabled"}
+        _log_alert_event(alert, "slack", False, dispatch_batch_id, status_code="DISABLED", failure_reason=result["reason"])
         return result
 
-    text = format_alert_message(alert)
-    payload = {"text": text}
+    if not SLACK_WEBHOOK_URL:
+        result = {"channel": "slack", "sent": False, "reason": "Slack webhook not configured"}
+        _log_alert_event(alert, "slack", False, dispatch_batch_id, status_code="NOT_CONFIGURED", failure_reason=result["reason"])
+        return result
+
+    if not _looks_like_slack_webhook(SLACK_WEBHOOK_URL):
+        result = {"channel": "slack", "sent": False, "reason": "Slack webhook format is invalid"}
+        _log_alert_event(alert, "slack", False, dispatch_batch_id, status_code="INVALID_WEBHOOK", failure_reason=result["reason"])
+        return result
+
+    payload = {
+        "text": format_alert_message(alert)
+    }
 
     try:
-        resp = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=15)
-        sent = 200 <= resp.status_code < 300
+        resp = requests.post(
+            SLACK_WEBHOOK_URL,
+            json=payload,
+            timeout=15,
+            headers={"Content-Type": "application/json"},
+        )
+
+        response_text = (resp.text or "")[:500]
+        sent = resp.status_code == 200 and response_text.strip().lower() == "ok"
+
         result = {
             "channel": "slack",
             "sent": sent,
             "status_code": resp.status_code,
-            "response_text": resp.text[:500],
+            "response_text": response_text,
         }
+
         _log_alert_event(
             alert,
             "slack",
             sent,
             dispatch_batch_id,
             status_code=str(resp.status_code),
-            failure_reason="" if sent else resp.text[:500],
+            failure_reason="" if sent else response_text,
         )
         return result
-    except Exception as exc:
+
+    except requests.Timeout:
+        result = {"channel": "slack", "sent": False, "reason": "Slack request timed out"}
+        _log_alert_event(alert, "slack", False, dispatch_batch_id, status_code="TIMEOUT", failure_reason=result["reason"])
+        return result
+    except requests.RequestException as exc:
         result = {"channel": "slack", "sent": False, "reason": str(exc)[:500]}
-        _log_alert_event(alert, "slack", False, dispatch_batch_id, failure_reason=result["reason"])
+        _log_alert_event(alert, "slack", False, dispatch_batch_id, status_code="REQUEST_ERROR", failure_reason=result["reason"])
         return result
 
 
 def send_teams_alert(alert: Dict[str, Any], dispatch_batch_id: str) -> Dict[str, Any]:
+    if not TEAMS_ENABLED:
+        result = {"channel": "teams", "sent": False, "reason": "Teams channel disabled"}
+        _log_alert_event(alert, "teams", False, dispatch_batch_id, status_code="DISABLED", failure_reason=result["reason"])
+        return result
+
     if not TEAMS_WEBHOOK_URL:
         result = {"channel": "teams", "sent": False, "reason": "Teams webhook not configured"}
-        _log_alert_event(alert, "teams", False, dispatch_batch_id, failure_reason=result["reason"])
+        _log_alert_event(alert, "teams", False, dispatch_batch_id, status_code="NOT_CONFIGURED", failure_reason=result["reason"])
         return result
 
     payload = {
@@ -137,7 +177,7 @@ def send_teams_alert(alert: Dict[str, Any], dispatch_batch_id: str) -> Dict[str,
             "channel": "teams",
             "sent": sent,
             "status_code": resp.status_code,
-            "response_text": resp.text[:500],
+            "response_text": (resp.text or "")[:500],
         }
         _log_alert_event(
             alert,
@@ -145,19 +185,24 @@ def send_teams_alert(alert: Dict[str, Any], dispatch_batch_id: str) -> Dict[str,
             sent,
             dispatch_batch_id,
             status_code=str(resp.status_code),
-            failure_reason="" if sent else resp.text[:500],
+            failure_reason="" if sent else (resp.text or "")[:500],
         )
         return result
     except Exception as exc:
         result = {"channel": "teams", "sent": False, "reason": str(exc)[:500]}
-        _log_alert_event(alert, "teams", False, dispatch_batch_id, failure_reason=result["reason"])
+        _log_alert_event(alert, "teams", False, dispatch_batch_id, status_code="REQUEST_ERROR", failure_reason=result["reason"])
         return result
 
 
 def send_email_alert(alert: Dict[str, Any], dispatch_batch_id: str) -> Dict[str, Any]:
+    if not EMAIL_ENABLED:
+        result = {"channel": "email", "sent": False, "reason": "Email channel disabled"}
+        _log_alert_event(alert, "email", False, dispatch_batch_id, status_code="DISABLED", failure_reason=result["reason"])
+        return result
+
     if not (SMTP_HOST and ALERT_EMAIL_TO):
         result = {"channel": "email", "sent": False, "reason": "SMTP or recipient not configured"}
-        _log_alert_event(alert, "email", False, dispatch_batch_id, failure_reason=result["reason"])
+        _log_alert_event(alert, "email", False, dispatch_batch_id, status_code="NOT_CONFIGURED", failure_reason=result["reason"])
         return result
 
     msg = EmailMessage()
@@ -173,11 +218,11 @@ def send_email_alert(alert: Dict[str, Any], dispatch_batch_id: str) -> Dict[str,
                 server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(msg)
         result = {"channel": "email", "sent": True}
-        _log_alert_event(alert, "email", True, dispatch_batch_id)
+        _log_alert_event(alert, "email", True, dispatch_batch_id, status_code="200")
         return result
     except Exception as exc:
         result = {"channel": "email", "sent": False, "reason": str(exc)[:500]}
-        _log_alert_event(alert, "email", False, dispatch_batch_id, failure_reason=result["reason"])
+        _log_alert_event(alert, "email", False, dispatch_batch_id, status_code="REQUEST_ERROR", failure_reason=result["reason"])
         return result
 
 
