@@ -515,7 +515,7 @@ function DashboardHome() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={table}>
                     <thead style={{ background: "#f9fafb" }}>
-                      <tr><th style={th}>Vendor</th><th style={th}>Inspections</th><th style={th}>Escalations</th><th style={th}>Avg Confidence</th><th style={th}>Top Issue</th><th style={th}>Scorecard</th></tr>
+                      <tr><th style={th}>Vendor</th><th style={th}>Inspections</th><th style={th}>Escalations</th><th style={th}>Avg Confidence</th><th style={th}>Top Issue</th><th style={th}>Scorecard</th><th style={th}>Scorecard</th></tr>
                     </thead>
                     <tbody>
                       {vendors.slice(0, 8).map((vendor) => (
