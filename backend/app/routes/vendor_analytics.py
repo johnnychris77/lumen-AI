@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 from io import StringIO, BytesIO
 import csv
@@ -10,6 +10,7 @@ from openpyxl import Workbook
 
 from app.deps import get_db
 from app.db import models
+from app.reports.vendor_scorecard import generate_vendor_scorecard_pdf
 
 router = APIRouter(tags=["vendor-analytics"])
 
@@ -65,6 +66,13 @@ def build_vendor_items(rows):
 
     items.sort(key=lambda x: (x["escalations"], x["high_risk_count"], x["total_inspections"]), reverse=True)
     return items
+
+
+def find_vendor_scorecard(items, vendor_name: str):
+    for item in items:
+        if item["vendor_name"].strip().lower() == vendor_name.strip().lower():
+            return item
+    return None
 
 
 def vendor_csv_text(items):
@@ -200,4 +208,30 @@ def vendor_analytics_export_bundle(db: Session = Depends(get_db)):
         bio,
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=lumenai_vendor_scorecards_bundle.zip"},
+    )
+
+
+@router.get("/analytics/vendors/{vendor_name}/scorecard.json")
+def vendor_scorecard_json(vendor_name: str, db: Session = Depends(get_db)):
+    rows = db.query(models.Inspection).all()
+    items = build_vendor_items(rows)
+    scorecard = find_vendor_scorecard(items, vendor_name)
+    if not scorecard:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    return JSONResponse(scorecard)
+
+
+@router.get("/analytics/vendors/{vendor_name}/scorecard.pdf")
+def vendor_scorecard_pdf(vendor_name: str, db: Session = Depends(get_db)):
+    rows = db.query(models.Inspection).all()
+    items = build_vendor_items(rows)
+    scorecard = find_vendor_scorecard(items, vendor_name)
+    if not scorecard:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    pdf_path = generate_vendor_scorecard_pdf(scorecard)
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"lumenai_vendor_scorecard_{vendor_name}.pdf",
     )
