@@ -515,7 +515,7 @@ function DashboardHome() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={table}>
                     <thead style={{ background: "#f9fafb" }}>
-                      <tr><th style={th}>Vendor</th><th style={th}>Inspections</th><th style={th}>Escalations</th><th style={th}>Avg Confidence</th><th style={th}>Top Issue</th></tr>
+                      <tr><th style={th}>Vendor</th><th style={th}>Inspections</th><th style={th}>Escalations</th><th style={th}>Avg Confidence</th><th style={th}>Top Issue</th><th style={th}>Scorecard</th></tr>
                     </thead>
                     <tbody>
                       {vendors.slice(0, 8).map((vendor) => (
@@ -525,6 +525,16 @@ function DashboardHome() {
                           <td style={td}>{vendor.escalations}</td>
                           <td style={td}>{vendor.avg_confidence.toFixed(2)}</td>
                           <td style={td}>{vendor.top_issues[0]?.label || "—"}</td>
+                          <td style={td}>
+                            <a
+                              href={`${API_BASE}/analytics/vendors/${encodeURIComponent(vendor.vendor_name)}/scorecard.pdf`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={secondaryButtonInline}
+                            >
+                              Download PDF
+                            </a>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
