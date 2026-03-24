@@ -12,6 +12,7 @@ from openpyxl import Workbook
 from app.deps import get_db
 from app.db import models
 from app.notifications.notifier import dispatch_alert
+from app.authz import require_roles
 
 router = APIRouter(tags=["alerts"])
 
@@ -155,7 +156,7 @@ def alerts_feed(limit: int = 20, db: Session = Depends(get_db)):
 
 
 @router.get("/alerts/status")
-def alerts_status():
+def alerts_status(current_user=Depends(require_roles("admin", "spd_manager"))):
     slack_configured = bool(os.getenv("LUMENAI_SLACK_WEBHOOK_URL", "").strip())
     teams_configured = bool(os.getenv("LUMENAI_TEAMS_WEBHOOK_URL", "").strip())
     email_configured = bool(
@@ -174,7 +175,7 @@ def alerts_status():
 
 
 @router.post("/alerts/send/{inspection_id}")
-def send_alert_for_inspection(inspection_id: int, db: Session = Depends(get_db)):
+def send_alert_for_inspection(inspection_id: int, db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager"))):
     row = (
         db.query(models.Inspection)
         .filter(models.Inspection.id == inspection_id)
@@ -193,7 +194,7 @@ def send_alert_for_inspection(inspection_id: int, db: Session = Depends(get_db))
 
 
 @router.post("/alerts/resend/{alert_event_id}")
-def resend_from_audit_event(alert_event_id: int, db: Session = Depends(get_db)):
+def resend_from_audit_event(alert_event_id: int, db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager"))):
     event = (
         db.query(models.AlertEvent)
         .filter(models.AlertEvent.id == alert_event_id)
@@ -224,19 +225,20 @@ def resend_from_audit_event(alert_event_id: int, db: Session = Depends(get_db)):
 def alerts_history(
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
 ):
     rows = fetch_alert_events(db, limit=limit)
     return {"items": [alert_event_response(r) for r in rows]}
 
 
 @router.get("/alerts/history/export.json")
-def alerts_history_export_json(db: Session = Depends(get_db)):
+def alerts_history_export_json(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager"))):
     rows = fetch_alert_events(db)
     return JSONResponse({"items": [alert_event_response(r) for r in rows]})
 
 
 @router.get("/alerts/history/export.csv")
-def alerts_history_export_csv(db: Session = Depends(get_db)):
+def alerts_history_export_csv(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager"))):
     rows = fetch_alert_events(db)
     text = alert_events_csv_text(rows)
     return StreamingResponse(
@@ -247,7 +249,7 @@ def alerts_history_export_csv(db: Session = Depends(get_db)):
 
 
 @router.get("/alerts/history/export.xlsx")
-def alerts_history_export_xlsx(db: Session = Depends(get_db)):
+def alerts_history_export_xlsx(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager"))):
     rows = fetch_alert_events(db)
     content = alert_events_xlsx_bytes(rows)
     return StreamingResponse(
@@ -258,7 +260,7 @@ def alerts_history_export_xlsx(db: Session = Depends(get_db)):
 
 
 @router.get("/alerts/history/export.bundle.zip")
-def alerts_history_export_bundle(db: Session = Depends(get_db)):
+def alerts_history_export_bundle(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager"))):
     rows = fetch_alert_events(db)
     json_content = json.dumps({"items": [alert_event_response(r) for r in rows]}, indent=2)
     csv_content = alert_events_csv_text(rows)

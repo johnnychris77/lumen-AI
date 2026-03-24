@@ -10,6 +10,7 @@ from openpyxl import Workbook
 
 from app.deps import get_db
 from app.db import models
+from app.authz import require_roles
 
 router = APIRouter(tags=["history"])
 
@@ -185,25 +186,26 @@ def xlsx_bytes(rows):
 async def get_history(
     limit: int = Query(default=20, ge=1, le=500),
     db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer")),
 ):
     rows = fetch_rows(db)[:limit]
     return {"items": [inspection_response(r) for r in rows]}
 
 
 @router.get("/history/summary")
-async def get_history_summary(db: Session = Depends(get_db)):
+async def get_history_summary(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer"))):
     rows = fetch_rows(db)
     return build_summary(rows)
 
 
 @router.get("/history/export.json")
-async def export_history_json(db: Session = Depends(get_db)):
+async def export_history_json(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = fetch_rows(db)
     return JSONResponse({"items": [inspection_response(r) for r in rows]})
 
 
 @router.get("/history/export.csv")
-async def export_history_csv(db: Session = Depends(get_db)):
+async def export_history_csv(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = fetch_rows(db)
     text = csv_text(rows)
     return StreamingResponse(
@@ -214,7 +216,7 @@ async def export_history_csv(db: Session = Depends(get_db)):
 
 
 @router.get("/history/export.xlsx")
-async def export_history_xlsx(db: Session = Depends(get_db)):
+async def export_history_xlsx(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = fetch_rows(db)
     content = xlsx_bytes(rows)
     return StreamingResponse(
@@ -225,7 +227,7 @@ async def export_history_xlsx(db: Session = Depends(get_db)):
 
 
 @router.get("/history/export.bundle.zip")
-async def export_history_bundle(db: Session = Depends(get_db)):
+async def export_history_bundle(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = fetch_rows(db)
     summary = build_summary(rows)
     inspections = {"items": [inspection_response(r) for r in rows]}

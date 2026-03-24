@@ -11,6 +11,7 @@ from openpyxl import Workbook
 from app.deps import get_db
 from app.db import models
 from app.reports.vendor_scorecard import generate_vendor_scorecard_pdf
+from app.authz import require_roles
 
 router = APIRouter(tags=["vendor-analytics"])
 
@@ -152,20 +153,20 @@ def vendor_xlsx_bytes(items):
 
 
 @router.get("/analytics/vendors")
-def vendor_analytics(db: Session = Depends(get_db)):
+def vendor_analytics(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer"))):
     rows = db.query(models.Inspection).all()
     return {"items": build_vendor_items(rows)}
 
 
 @router.get("/analytics/vendors/export.json")
-def vendor_analytics_export_json(db: Session = Depends(get_db)):
+def vendor_analytics_export_json(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = db.query(models.Inspection).all()
     items = build_vendor_items(rows)
     return JSONResponse({"items": items})
 
 
 @router.get("/analytics/vendors/export.csv")
-def vendor_analytics_export_csv(db: Session = Depends(get_db)):
+def vendor_analytics_export_csv(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = db.query(models.Inspection).all()
     items = build_vendor_items(rows)
     text = vendor_csv_text(items)
@@ -177,7 +178,7 @@ def vendor_analytics_export_csv(db: Session = Depends(get_db)):
 
 
 @router.get("/analytics/vendors/export.xlsx")
-def vendor_analytics_export_xlsx(db: Session = Depends(get_db)):
+def vendor_analytics_export_xlsx(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = db.query(models.Inspection).all()
     items = build_vendor_items(rows)
     content = vendor_xlsx_bytes(items)
@@ -189,7 +190,7 @@ def vendor_analytics_export_xlsx(db: Session = Depends(get_db)):
 
 
 @router.get("/analytics/vendors/export.bundle.zip")
-def vendor_analytics_export_bundle(db: Session = Depends(get_db)):
+def vendor_analytics_export_bundle(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = db.query(models.Inspection).all()
     items = build_vendor_items(rows)
 
@@ -212,7 +213,7 @@ def vendor_analytics_export_bundle(db: Session = Depends(get_db)):
 
 
 @router.get("/analytics/vendors/{vendor_name}/scorecard.json")
-def vendor_scorecard_json(vendor_name: str, db: Session = Depends(get_db)):
+def vendor_scorecard_json(vendor_name: str, db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = db.query(models.Inspection).all()
     items = build_vendor_items(rows)
     scorecard = find_vendor_scorecard(items, vendor_name)
@@ -222,7 +223,7 @@ def vendor_scorecard_json(vendor_name: str, db: Session = Depends(get_db)):
 
 
 @router.get("/analytics/vendors/{vendor_name}/scorecard.pdf")
-def vendor_scorecard_pdf(vendor_name: str, db: Session = Depends(get_db)):
+def vendor_scorecard_pdf(vendor_name: str, db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
     rows = db.query(models.Inspection).all()
     items = build_vendor_items(rows)
     scorecard = find_vendor_scorecard(items, vendor_name)
