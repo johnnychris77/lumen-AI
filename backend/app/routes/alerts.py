@@ -58,6 +58,42 @@ def fetch_alert_events(db: Session, limit: int | None = None):
     return q.all()
 
 
+@router.get("/alerts/channel-health")
+def alerts_channel_health(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    channels = ["slack", "teams", "email"]
+    items = []
+
+    for channel in channels:
+        last_event = (
+            db.query(models.AlertEvent)
+            .filter(models.AlertEvent.channel == channel)
+            .order_by(models.AlertEvent.id.desc())
+            .first()
+        )
+
+        last_success = (
+            db.query(models.AlertEvent)
+            .filter(models.AlertEvent.channel == channel, models.AlertEvent.sent == True)
+            .order_by(models.AlertEvent.id.desc())
+            .first()
+        )
+
+        items.append({
+            "channel": channel,
+            "last_attempt_at": last_event.created_at.isoformat() if last_event and last_event.created_at else None,
+            "last_attempt_sent": bool(last_event.sent) if last_event else False,
+            "last_status_code": last_event.status_code if last_event else "",
+            "last_failure_reason": last_event.failure_reason if last_event else "",
+            "last_dispatch_batch_id": last_event.dispatch_batch_id if last_event else "",
+            "last_success_at": last_success.created_at.isoformat() if last_success and last_success.created_at else None,
+        })
+
+    return {"items": items}
+
+
 def alert_events_csv_text(rows):
     output = StringIO()
     writer = csv.writer(output)

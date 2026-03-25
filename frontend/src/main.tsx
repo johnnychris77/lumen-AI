@@ -175,6 +175,31 @@ type AlertAuditItem = {
   created_at: string;
 };
 
+type ChannelHealthItem = {
+  channel: string;
+  last_attempt_at: string | null;
+  last_attempt_sent: boolean;
+  last_status_code: string;
+  last_failure_reason: string;
+  last_dispatch_batch_id: string;
+  last_success_at: string | null;
+};
+
+type AlertAuditItem = {
+  id: number;
+  inspection_id: number;
+  vendor_name: string;
+  instrument_type: string;
+  detected_issue: string;
+  risk_score: number;
+  channel: string;
+  sent: boolean;
+  status_code: string;
+  failure_reason: string;
+  dispatch_batch_id: string;
+  created_at: string;
+};
+
 function DashboardHome() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
@@ -183,6 +208,7 @@ function DashboardHome() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
   const [alertAudit, setAlertAudit] = useState<AlertAuditItem[]>([]);
+  const [channelHealth, setChannelHealth] = useState<ChannelHealthItem[]>([]);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [resendingAuditId, setResendingAuditId] = useState<number | null>(null);
@@ -219,6 +245,7 @@ function DashboardHome() {
           alertsRes,
           alertStatusRes,
           alertAuditRes,
+          channelHealthRes,
         ] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
@@ -228,6 +255,7 @@ function DashboardHome() {
           fetch(`${API_BASE}/alerts/feed`, { headers }),
           fetch(`${API_BASE}/alerts/status`, { headers }),
           fetch(`${API_BASE}/alerts/history?limit=12`, { headers }),
+          fetch(`${API_BASE}/alerts/channel-health`, { headers }),
         ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
@@ -237,6 +265,7 @@ function DashboardHome() {
         if (!alertsRes.ok) throw new Error(`Alerts request failed (${alertsRes.status})`);
         if (!alertStatusRes.ok) throw new Error(`Alert status request failed (${alertStatusRes.status})`);
         if (!alertAuditRes.ok) throw new Error(`Alert audit request failed (${alertAuditRes.status})`);
+        if (!channelHealthRes.ok) throw new Error(`Channel health request failed (${channelHealthRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
@@ -245,6 +274,7 @@ function DashboardHome() {
         const alertsData = await alertsRes.json();
         const alertStatusData = await alertStatusRes.json();
         const alertAuditData = await alertAuditRes.json();
+        const channelHealthData = await channelHealthRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -264,6 +294,7 @@ function DashboardHome() {
           setAlerts(Array.isArray(alertsData.items) ? alertsData.items : []);
           setAlertStatus(alertStatusData);
           setAlertAudit(Array.isArray(alertAuditData.items) ? alertAuditData.items : []);
+          setChannelHealth(Array.isArray(channelHealthData.items) ? channelHealthData.items : []);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -625,6 +656,37 @@ function DashboardHome() {
                   <a href={vendorBundleExportUrl} style={secondaryButton}>Download Vendor Bundle</a>
                   <div style={exportHint}>ZIP package containing CSV, JSON, and XLSX vendor scorecards.</div>
                 </div>
+              </div>
+
+              <div style={card}>
+                <h2 style={sectionTitle}>Channel Health</h2>
+                {channelHealth.length === 0 ? (
+                  <p style={muted}>No channel health data yet.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "10px", marginBottom: "8px" }}>
+                    {channelHealth.map((item) => (
+                      <div key={item.channel} style={agentCard}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                          <strong>{item.channel}</strong>
+                          <span style={statusPill(item.last_attempt_sent ? "sent" : "not sent")}>
+                            {item.last_attempt_sent ? "healthy" : "attention"}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>
+                          Last success: {formatDate(item.last_success_at)}
+                        </div>
+                        <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>
+                          Last attempt: {formatDate(item.last_attempt_at)}
+                        </div>
+                        {item.last_failure_reason ? (
+                          <div style={{ marginTop: "8px", fontSize: "12px", color: "#991b1b" }}>
+                            {item.last_failure_reason}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div style={card}>
