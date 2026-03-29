@@ -69,3 +69,11 @@ app.include_router(qa_review_router, prefix=settings.API_PREFIX)
 app.include_router(review_analytics_router, prefix=settings.API_PREFIX)
 
 app.include_router(model_performance_router, prefix=settings.API_PREFIX)
+
+
+from app.routes.site_analytics import router as site_analytics_router
+from app.routes.executive_digest import router as executive_digest_router
+
+app.include_router(site_analytics_router, prefix=settings.API_PREFIX)
+
+app.include_router(executive_digest_router, prefix=settings.API_PREFIX)
