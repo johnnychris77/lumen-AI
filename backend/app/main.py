@@ -12,6 +12,7 @@ from app.routes.inspections import router as inspections_router
 from app.routes.agent import router as agent_router
 from app.routes.qa_review import router as qa_review_router
 from app.routes.review_analytics import router as review_analytics_router
+from app.routes.model_performance import router as model_performance_router
 from app.routes.stream import router as stream_router
 from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
@@ -66,3 +67,5 @@ app.include_router(alerts_router, prefix=settings.API_PREFIX)
 app.include_router(qa_review_router, prefix=settings.API_PREFIX)
 
 app.include_router(review_analytics_router, prefix=settings.API_PREFIX)
+
+app.include_router(model_performance_router, prefix=settings.API_PREFIX)

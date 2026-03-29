@@ -190,6 +190,20 @@ type ChannelHealthItem = {
   last_success_at: string | null;
 };
 
+type ModelPerformanceSummary = {
+  summary: {
+    total_reviewed: number;
+    total_approved: number;
+    total_overridden: number;
+    agreement_rate: number;
+    override_rate: number;
+  };
+  by_vendor: { label: string; reviewed: number; approved: number; overridden: number; agreement_rate: number; override_rate: number }[];
+  by_issue: { label: string; reviewed: number; approved: number; overridden: number; agreement_rate: number; override_rate: number }[];
+  by_reviewer: { label: string; reviewed: number; approved: number; overridden: number; agreement_rate: number; override_rate: number }[];
+  timeseries: { date: string; reviewed: number; approved: number; overridden: number; agreement_rate: number; override_rate: number }[];
+};
+
 type ReviewAnalyticsSummary = {
   total_reviewed: number;
   total_pending: number;
@@ -252,6 +266,7 @@ function DashboardHome() {
   const [channelHealth, setChannelHealth] = useState<ChannelHealthItem[]>([]);
   const [qaPending, setQaPending] = useState<QAReviewItem[]>([]);
   const [reviewAnalytics, setReviewAnalytics] = useState<ReviewAnalyticsSummary | null>(null);
+  const [modelPerformance, setModelPerformance] = useState<ModelPerformanceSummary | null>(null);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [resendingAuditId, setResendingAuditId] = useState<number | null>(null);
@@ -291,6 +306,7 @@ function DashboardHome() {
           channelHealthRes,
           qaPendingRes,
           reviewAnalyticsRes,
+          modelPerformanceRes,
         ] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
@@ -303,6 +319,7 @@ function DashboardHome() {
           fetch(`${API_BASE}/alerts/channel-health`, { headers }),
           fetch(`${API_BASE}/qa-review/pending`, { headers }),
           fetch(`${API_BASE}/review-analytics/summary`, { headers }),
+          fetch(`${API_BASE}/model-performance/summary`, { headers }),
         ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
@@ -315,6 +332,7 @@ function DashboardHome() {
         if (!channelHealthRes.ok) throw new Error(`Channel health request failed (${channelHealthRes.status})`);
         if (!qaPendingRes.ok) throw new Error(`QA pending request failed (${qaPendingRes.status})`);
         if (!reviewAnalyticsRes.ok) throw new Error(`Review analytics request failed (${reviewAnalyticsRes.status})`);
+        if (!modelPerformanceRes.ok) throw new Error(`Model performance request failed (${modelPerformanceRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
@@ -326,6 +344,7 @@ function DashboardHome() {
         const channelHealthData = await channelHealthRes.json();
         const qaPendingData = await qaPendingRes.json();
         const reviewAnalyticsData = await reviewAnalyticsRes.json();
+        const modelPerformanceData = await modelPerformanceRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -348,6 +367,7 @@ function DashboardHome() {
           setChannelHealth(Array.isArray(channelHealthData.items) ? channelHealthData.items : []);
           setQaPending(Array.isArray(qaPendingData.items) ? qaPendingData.items : []);
           setReviewAnalytics(reviewAnalyticsData);
+          setModelPerformance(modelPerformanceData);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -797,6 +817,63 @@ function DashboardHome() {
               </div>
 
 
+
+
+              <div style={card}>
+                <h2 style={sectionTitle}>Model Performance Tracking</h2>
+                {!modelPerformance ? (
+                  <p style={muted}>No model performance analytics yet.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    <div style={controlRow}><span>Total Reviewed</span><strong>{modelPerformance.summary.total_reviewed}</strong></div>
+                    <div style={controlRow}><span>Agreement Rate</span><strong>{(modelPerformance.summary.agreement_rate * 100).toFixed(1)}%</strong></div>
+                    <div style={controlRow}><span>Override Rate</span><strong>{(modelPerformance.summary.override_rate * 100).toFixed(1)}%</strong></div>
+
+                    <div style={{ marginTop: "8px" }}>
+                      <strong>Top Vendors by Override Rate</strong>
+                      <div style={{ display: "grid", gap: "8px", marginTop: "8px" }}>
+                        {modelPerformance.by_vendor.slice(0, 5).map((item) => (
+                          <div key={item.label} style={listRow}>
+                            <span>{item.label}</span>
+                            <strong>{(item.override_rate * 100).toFixed(1)}%</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: "8px" }}>
+                      <strong>Top Issues by Override Rate</strong>
+                      <div style={{ display: "grid", gap: "8px", marginTop: "8px" }}>
+                        {modelPerformance.by_issue.slice(0, 5).map((item) => (
+                          <div key={item.label} style={listRow}>
+                            <span>{item.label}</span>
+                            <strong>{(item.override_rate * 100).toFixed(1)}%</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: "8px" }}>
+                      <strong>Reviewer Override Patterns</strong>
+                      <div style={{ display: "grid", gap: "8px", marginTop: "8px" }}>
+                        {modelPerformance.by_reviewer.slice(0, 5).map((item) => (
+                          <div key={item.label} style={listRow}>
+                            <span>{item.label}</span>
+                            <strong>{(item.override_rate * 100).toFixed(1)}%</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                      <a href={`${API_BASE}/model-performance/export.csv`} style={primaryButton}>Export Performance CSV</a>
+                      <a href={`${API_BASE}/model-performance/export.xlsx`} style={primaryButton}>Export Performance Excel</a>
+                      <a href={`${API_BASE}/model-performance/export.json`} style={secondaryButton}>Export Performance JSON</a>
+                      <a href={`${API_BASE}/model-performance/export.bundle.zip`} style={secondaryButton}>Download Performance Bundle</a>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div style={card}>
                 <h2 style={sectionTitle}>Review Analytics</h2>
