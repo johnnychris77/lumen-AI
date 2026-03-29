@@ -73,7 +73,13 @@ app.include_router(model_performance_router, prefix=settings.API_PREFIX)
 
 from app.routes.site_analytics import router as site_analytics_router
 from app.routes.executive_digest import router as executive_digest_router
+from app.routes.board_reporting import router as board_reporting_router
+from app.routes.digest_scheduler import router as digest_scheduler_router
 
 app.include_router(site_analytics_router, prefix=settings.API_PREFIX)
 
 app.include_router(executive_digest_router, prefix=settings.API_PREFIX)
+
+app.include_router(board_reporting_router, prefix=settings.API_PREFIX)
+
+app.include_router(digest_scheduler_router, prefix=settings.API_PREFIX)
