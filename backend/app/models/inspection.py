@@ -30,4 +30,11 @@ class Inspection(Base):
     detected_issue: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
     inference_mode: Mapped[str] = mapped_column(String(50), default="deterministic-fallback", nullable=False)
     risk_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     vendor_name: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+
+    alert_status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
+    alert_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    alert_notes: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    alert_acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    alert_resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

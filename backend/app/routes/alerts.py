@@ -1,5 +1,9 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from io import StringIO, BytesIO
 import csv
@@ -17,6 +21,11 @@ from app.authz import require_roles
 router = APIRouter(tags=["alerts"])
 
 
+class AlertActionPayload(BaseModel):
+    owner: str = ""
+    notes: str = ""
+
+
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -31,6 +40,11 @@ def alert_response(r: models.Inspection) -> dict:
         "risk_score": int(r.risk_score or 0),
         "status": r.status,
         "message": f"Inspection {r.id} flagged for SPD review: {r.detected_issue} on {r.instrument_type}.",
+        "alert_status": r.alert_status,
+        "alert_owner": r.alert_owner,
+        "alert_notes": r.alert_notes,
+        "alert_acknowledged_at": r.alert_acknowledged_at.isoformat() if r.alert_acknowledged_at else None,
+        "alert_resolved_at": r.alert_resolved_at.isoformat() if r.alert_resolved_at else None,
     }
 
 
@@ -189,6 +203,76 @@ def alerts_feed(limit: int = 20, db: Session = Depends(get_db)):
             items.append(alert_response(r))
 
     return {"items": items}
+
+
+@router.get("/alerts/open")
+def alerts_open(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer")),
+):
+    rows = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.alert_status != "resolved")
+        .order_by(models.Inspection.id.desc())
+        .all()
+    )
+    return {"items": [alert_response(r) for r in rows]}
+
+
+@router.post("/alerts/{inspection_id}/acknowledge")
+def acknowledge_alert(
+    inspection_id: int,
+    payload: AlertActionPayload,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    row = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == inspection_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    row.alert_status = "acknowledged"
+    row.alert_owner = payload.owner or getattr(current_user, "email", "unknown")
+    row.alert_notes = payload.notes or row.alert_notes
+    row.alert_acknowledged_at = datetime.now(timezone.utc)
+
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return {"item": alert_response(row)}
+
+
+@router.post("/alerts/{inspection_id}/resolve")
+def resolve_alert(
+    inspection_id: int,
+    payload: AlertActionPayload,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    row = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == inspection_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    row.alert_status = "resolved"
+    row.alert_owner = payload.owner or row.alert_owner or getattr(current_user, "email", "unknown")
+    row.alert_notes = payload.notes or row.alert_notes
+    if row.alert_acknowledged_at is None:
+        row.alert_acknowledged_at = datetime.now(timezone.utc)
+    row.alert_resolved_at = datetime.now(timezone.utc)
+
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return {"item": alert_response(row)}
 
 
 @router.get("/alerts/status")

@@ -96,6 +96,11 @@ type Inspection = {
   inference_mode?: string;
   risk_score?: number;
   vendor_name?: string;
+  alert_status?: string;
+  alert_owner?: string;
+  alert_notes?: string;
+  alert_acknowledged_at?: string | null;
+  alert_resolved_at?: string | null;
 };
 
 type AgentItem = {
@@ -397,6 +402,39 @@ function DashboardHome() {
     }
   }
 
+
+  async function acknowledgeAlert(inspectionId: number) {
+    try {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      const res = await fetch(`${API_BASE}/alerts/${inspectionId}/acknowledge`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ notes: "Acknowledged from dashboard" }),
+      });
+      if (!res.ok) throw new Error(`Acknowledge failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to acknowledge alert");
+    }
+  }
+
+  async function resolveAlert(inspectionId: number) {
+    try {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      const res = await fetch(`${API_BASE}/alerts/${inspectionId}/resolve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ notes: "Resolved from dashboard" }),
+      });
+      if (!res.ok) throw new Error(`Resolve failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to resolve alert");
+    }
+  }
+
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
@@ -623,13 +661,26 @@ function DashboardHome() {
                           <td style={td}>{item.instrument_type || "unknown"}</td>
                           <td style={td}>{item.detected_issue || "unknown"}</td>
                           <td style={td}>{typeof item.risk_score === "number" ? item.risk_score : "—"}</td>
+                          <td style={td}>
+                            <span style={statusPill(item.alert_status || "open")}>
+                              {item.alert_status || "open"}
+                            </span>
+                          </td>
                           <td style={td}>{formatDate(item.created_at)}</td>
                           <td style={td}>
-                            {(item.status || "").toLowerCase() === "completed" ? (
-                              <a href={`${API_BASE}/reports/${item.id}.pdf`} target="_blank" rel="noreferrer" style={secondaryButtonInline}>Open PDF</a>
-                            ) : (
-                              <span style={muted}>Pending</span>
-                            )}
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              {(item.status || "").toLowerCase() === "completed" ? (
+                                <a href={`${API_BASE}/reports/${item.id}.pdf`} target="_blank" rel="noreferrer" style={secondaryButtonInline}>Open PDF</a>
+                              ) : (
+                                <span style={muted}>Pending</span>
+                              )}
+                              {(item.alert_status || "open") === "open" ? (
+                                <button onClick={() => acknowledgeAlert(item.id)} style={buttonStyle}>Acknowledge</button>
+                              ) : null}
+                              {(item.alert_status || "open") !== "resolved" ? (
+                                <button onClick={() => resolveAlert(item.id)} style={buttonStyle}>Resolve</button>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       ))}
