@@ -267,7 +267,6 @@ function DashboardHome() {
   const [qaPending, setQaPending] = useState<QAReviewItem[]>([]);
   const [reviewAnalytics, setReviewAnalytics] = useState<ReviewAnalyticsSummary | null>(null);
   const [modelPerformance, setModelPerformance] = useState<ModelPerformanceSummary | null>(null);
-  const [modelPerformance, setModelPerformance] = useState<ModelPerformanceSummary | null>(null);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [resendingAuditId, setResendingAuditId] = useState<number | null>(null);
@@ -308,7 +307,6 @@ function DashboardHome() {
           qaPendingRes,
           reviewAnalyticsRes,
           modelPerformanceRes,
-          modelPerformanceRes,
         ] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
@@ -348,7 +346,6 @@ function DashboardHome() {
         const channelHealthData = await channelHealthRes.json();
         const qaPendingData = await qaPendingRes.json();
         const reviewAnalyticsData = await reviewAnalyticsRes.json();
-        const modelPerformanceData = await modelPerformanceRes.json();
         const modelPerformanceData = await modelPerformanceRes.json();
 
         let healthStatus = "unavailable";
