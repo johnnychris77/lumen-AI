@@ -38,3 +38,14 @@ class Inspection(Base):
     alert_notes: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
     alert_acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     alert_resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    qa_review_status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    qa_reviewer: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    qa_review_notes: Mapped[str] = mapped_column(String(2000), default="", nullable=False)
+    qa_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    qa_override_stain_detected: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    qa_override_material_type: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    qa_override_instrument_type: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    qa_override_detected_issue: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    qa_override_risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)

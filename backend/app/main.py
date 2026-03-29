@@ -10,6 +10,7 @@ from app.routes.history import router as history_router
 from app.routes.reports import router as reports_router
 from app.routes.inspections import router as inspections_router
 from app.routes.agent import router as agent_router
+from app.routes.qa_review import router as qa_review_router
 from app.routes.stream import router as stream_router
 from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
@@ -60,3 +61,5 @@ app.include_router(stream_router, prefix=settings.API_PREFIX)
 app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
+
+app.include_router(qa_review_router, prefix=settings.API_PREFIX)

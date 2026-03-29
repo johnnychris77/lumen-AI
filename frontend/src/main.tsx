@@ -190,6 +190,30 @@ type ChannelHealthItem = {
   last_success_at: string | null;
 };
 
+type QAReviewItem = {
+  id: number;
+  file_name: string;
+  vendor_name: string;
+  status: string;
+  stain_detected: boolean;
+  confidence: number;
+  material_type: string;
+  instrument_type: string;
+  detected_issue: string;
+  risk_score: number;
+  qa_review_status: string;
+};
+
+type ChannelHealthItem = {
+  channel: string;
+  last_attempt_at: string | null;
+  last_attempt_sent: boolean;
+  last_status_code: string;
+  last_failure_reason: string;
+  last_dispatch_batch_id: string;
+  last_success_at: string | null;
+};
+
 type AlertAuditItem = {
   id: number;
   inspection_id: number;
@@ -214,6 +238,7 @@ function DashboardHome() {
   const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
   const [alertAudit, setAlertAudit] = useState<AlertAuditItem[]>([]);
   const [channelHealth, setChannelHealth] = useState<ChannelHealthItem[]>([]);
+  const [qaPending, setQaPending] = useState<QAReviewItem[]>([]);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [resendingAuditId, setResendingAuditId] = useState<number | null>(null);
@@ -251,6 +276,7 @@ function DashboardHome() {
           alertStatusRes,
           alertAuditRes,
           channelHealthRes,
+          qaPendingRes,
         ] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
@@ -261,6 +287,7 @@ function DashboardHome() {
           fetch(`${API_BASE}/alerts/status`, { headers }),
           fetch(`${API_BASE}/alerts/history?limit=12`, { headers }),
           fetch(`${API_BASE}/alerts/channel-health`, { headers }),
+          fetch(`${API_BASE}/qa-review/pending`, { headers }),
         ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
@@ -271,6 +298,7 @@ function DashboardHome() {
         if (!alertStatusRes.ok) throw new Error(`Alert status request failed (${alertStatusRes.status})`);
         if (!alertAuditRes.ok) throw new Error(`Alert audit request failed (${alertAuditRes.status})`);
         if (!channelHealthRes.ok) throw new Error(`Channel health request failed (${channelHealthRes.status})`);
+        if (!qaPendingRes.ok) throw new Error(`QA pending request failed (${qaPendingRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
@@ -280,6 +308,7 @@ function DashboardHome() {
         const alertStatusData = await alertStatusRes.json();
         const alertAuditData = await alertAuditRes.json();
         const channelHealthData = await channelHealthRes.json();
+        const qaPendingData = await qaPendingRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -300,6 +329,7 @@ function DashboardHome() {
           setAlertStatus(alertStatusData);
           setAlertAudit(Array.isArray(alertAuditData.items) ? alertAuditData.items : []);
           setChannelHealth(Array.isArray(channelHealthData.items) ? channelHealthData.items : []);
+          setQaPending(Array.isArray(qaPendingData.items) ? qaPendingData.items : []);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -432,6 +462,45 @@ function DashboardHome() {
     } catch (err) {
       console.error(err);
       alert("Failed to resolve alert");
+    }
+  }
+
+
+  async function approveQaReview(inspectionId: number) {
+    try {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      const res = await fetch(`${API_BASE}/qa-review/${inspectionId}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ approve_model: true, notes: "Approved by QA from dashboard" }),
+      });
+      if (!res.ok) throw new Error(`QA approve failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to approve QA review");
+    }
+  }
+
+  async function overrideQaReview(inspectionId: number) {
+    try {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      const res = await fetch(`${API_BASE}/qa-review/${inspectionId}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          approve_model: false,
+          notes: "Overridden by QA from dashboard",
+          override_detected_issue: "clean",
+          override_risk_score: 0,
+          override_stain_detected: false,
+        }),
+      });
+      if (!res.ok) throw new Error(`QA override failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to override QA review");
     }
   }
 
@@ -707,6 +776,35 @@ function DashboardHome() {
                   <a href={vendorBundleExportUrl} style={secondaryButton}>Download Vendor Bundle</a>
                   <div style={exportHint}>ZIP package containing CSV, JSON, and XLSX vendor scorecards.</div>
                 </div>
+              </div>
+
+
+              <div style={card}>
+                <h2 style={sectionTitle}>QA Review Queue</h2>
+                {qaPending.length === 0 ? (
+                  <p style={muted}>No pending QA reviews.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {qaPending.slice(0, 8).map((item) => (
+                      <div key={item.id} style={agentCard}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                          <strong>Inspection #{item.id}</strong>
+                          <span style={statusPill(item.qa_review_status || "pending")}>{item.qa_review_status || "pending"}</span>
+                        </div>
+                        <div style={{ marginTop: "8px", fontSize: "14px", color: "#374151" }}>
+                          {item.vendor_name} · {item.instrument_type} · {item.detected_issue}
+                        </div>
+                        <div style={{ marginTop: "8px", fontSize: "12px", color: "#6b7280" }}>
+                          Confidence: {typeof item.confidence === "number" ? item.confidence.toFixed(2) : "—"} · Risk: {item.risk_score ?? "—"}
+                        </div>
+                        <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button onClick={() => approveQaReview(item.id)} style={buttonStyle}>Approve</button>
+                          <button onClick={() => overrideQaReview(item.id)} style={buttonStyle}>Override to Clean</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div style={card}>
