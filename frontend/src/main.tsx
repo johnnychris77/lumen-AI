@@ -190,6 +190,18 @@ type ChannelHealthItem = {
   last_success_at: string | null;
 };
 
+type ReviewAnalyticsSummary = {
+  total_reviewed: number;
+  total_pending: number;
+  total_approved: number;
+  total_overridden: number;
+  agreement_rate: number;
+  override_rate: number;
+  top_override_issues: { label: string; count: number }[];
+  top_override_vendors: { label: string; count: number }[];
+  top_reviewers: { label: string; count: number }[];
+};
+
 type QAReviewItem = {
   id: number;
   file_name: string;
@@ -239,6 +251,7 @@ function DashboardHome() {
   const [alertAudit, setAlertAudit] = useState<AlertAuditItem[]>([]);
   const [channelHealth, setChannelHealth] = useState<ChannelHealthItem[]>([]);
   const [qaPending, setQaPending] = useState<QAReviewItem[]>([]);
+  const [reviewAnalytics, setReviewAnalytics] = useState<ReviewAnalyticsSummary | null>(null);
   const [lastDispatch, setLastDispatch] = useState<DispatchResponse | null>(null);
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [resendingAuditId, setResendingAuditId] = useState<number | null>(null);
@@ -277,6 +290,7 @@ function DashboardHome() {
           alertAuditRes,
           channelHealthRes,
           qaPendingRes,
+          reviewAnalyticsRes,
         ] = await Promise.all([
           fetch(`${API_BASE}/history/summary`, { headers }),
           fetch(`${API_BASE}/history?limit=8`, { headers }),
@@ -288,6 +302,7 @@ function DashboardHome() {
           fetch(`${API_BASE}/alerts/history?limit=12`, { headers }),
           fetch(`${API_BASE}/alerts/channel-health`, { headers }),
           fetch(`${API_BASE}/qa-review/pending`, { headers }),
+          fetch(`${API_BASE}/review-analytics/summary`, { headers }),
         ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
@@ -299,6 +314,7 @@ function DashboardHome() {
         if (!alertAuditRes.ok) throw new Error(`Alert audit request failed (${alertAuditRes.status})`);
         if (!channelHealthRes.ok) throw new Error(`Channel health request failed (${channelHealthRes.status})`);
         if (!qaPendingRes.ok) throw new Error(`QA pending request failed (${qaPendingRes.status})`);
+        if (!reviewAnalyticsRes.ok) throw new Error(`Review analytics request failed (${reviewAnalyticsRes.status})`);
 
         const summaryData = await summaryRes.json();
         const historyData = await historyRes.json();
@@ -309,6 +325,7 @@ function DashboardHome() {
         const alertAuditData = await alertAuditRes.json();
         const channelHealthData = await channelHealthRes.json();
         const qaPendingData = await qaPendingRes.json();
+        const reviewAnalyticsData = await reviewAnalyticsRes.json();
 
         let healthStatus = "unavailable";
         if (healthRes.ok) {
@@ -330,6 +347,7 @@ function DashboardHome() {
           setAlertAudit(Array.isArray(alertAuditData.items) ? alertAuditData.items : []);
           setChannelHealth(Array.isArray(channelHealthData.items) ? channelHealthData.items : []);
           setQaPending(Array.isArray(qaPendingData.items) ? qaPendingData.items : []);
+          setReviewAnalytics(reviewAnalyticsData);
           setHealth(healthStatus);
         }
       } catch (err: any) {
@@ -779,6 +797,41 @@ function DashboardHome() {
               </div>
 
 
+
+              <div style={card}>
+                <h2 style={sectionTitle}>Review Analytics</h2>
+                {!reviewAnalytics ? (
+                  <p style={muted}>No review analytics yet.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    <div style={controlRow}><span>Total Reviewed</span><strong>{reviewAnalytics.total_reviewed}</strong></div>
+                    <div style={controlRow}><span>Pending</span><strong>{reviewAnalytics.total_pending}</strong></div>
+                    <div style={controlRow}><span>Approved</span><strong>{reviewAnalytics.total_approved}</strong></div>
+                    <div style={controlRow}><span>Overridden</span><strong>{reviewAnalytics.total_overridden}</strong></div>
+                    <div style={controlRow}><span>Agreement Rate</span><strong>{(reviewAnalytics.agreement_rate * 100).toFixed(1)}%</strong></div>
+                    <div style={controlRow}><span>Override Rate</span><strong>{(reviewAnalytics.override_rate * 100).toFixed(1)}%</strong></div>
+
+                    <div style={{ marginTop: "8px" }}>
+                      <strong>Top Override Issues</strong>
+                      <div style={{ display: "grid", gap: "8px", marginTop: "8px" }}>
+                        {reviewAnalytics.top_override_issues.slice(0, 5).map((item) => (
+                          <div key={item.label} style={listRow}>
+                            <span>{item.label}</span><strong>{item.count}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                      <a href={`${API_BASE}/review-analytics/feedback-dataset.csv`} style={primaryButton}>Export Feedback CSV</a>
+                      <a href={`${API_BASE}/review-analytics/feedback-dataset.xlsx`} style={primaryButton}>Export Feedback Excel</a>
+                      <a href={`${API_BASE}/review-analytics/feedback-dataset.json`} style={secondaryButton}>Export Feedback JSON</a>
+                      <a href={`${API_BASE}/review-analytics/feedback-dataset.bundle.zip`} style={secondaryButton}>Download Retraining Bundle</a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div style={card}>
                 <h2 style={sectionTitle}>QA Review Queue</h2>
                 {qaPending.length === 0 ? (
@@ -993,6 +1046,14 @@ const subTitle: React.CSSProperties = {
   marginTop: 0,
   marginBottom: "10px",
   fontSize: "15px",
+};
+
+const listRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  padding: "8px 0",
+  borderBottom: "1px solid #f3f4f6",
 };
 
 const controlRow: React.CSSProperties = {
