@@ -8,6 +8,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db import models
+from app.notifications.email_delivery import send_email_with_attachment
+from app.routes.board_reporting import build_board_report_xlsx_bytes
 
 
 def _truthy(v: str | None) -> bool:
@@ -160,12 +162,31 @@ def deliver_digest(
             )
             results.append({"channel": "email", "sent": False, "reason": "Email channel disabled"})
         else:
-            _log_digest_delivery(
-                db, digest_type=digest_type, channel="email", recipients=recipients,
-                sent=False, status_code="NOT_IMPLEMENTED", failure_reason="Email digest delivery scaffolded; operational send can be enabled after mailbox auth is complete",
-                delivery_batch_id=batch_id, payload_summary=message
+            xlsx_bytes = build_board_report_xlsx_bytes(digest_payload)
+            email_result = send_email_with_attachment(
+                subject="LumenAI Weekly Executive Digest",
+                body=message,
+                attachment_bytes=xlsx_bytes,
+                attachment_filename="lumenai_board_ready_weekly.xlsx",
+                mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
-            results.append({"channel": "email", "sent": False, "reason": "Email digest delivery scaffolded; mailbox auth pending"})
+            _log_digest_delivery(
+                db,
+                digest_type=digest_type,
+                channel="email",
+                recipients=email_result.get("recipients", recipients),
+                sent=bool(email_result.get("sent", False)),
+                status_code=str(email_result.get("status_code", "")),
+                failure_reason=str(email_result.get("failure_reason", "")),
+                delivery_batch_id=batch_id,
+                payload_summary=message,
+            )
+            results.append({
+                "channel": "email",
+                "sent": bool(email_result.get("sent", False)),
+                "status_code": email_result.get("status_code", ""),
+                "reason": email_result.get("failure_reason", ""),
+            })
 
     return {
         "enabled": True,
