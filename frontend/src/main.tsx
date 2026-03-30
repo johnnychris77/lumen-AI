@@ -545,6 +545,22 @@ function DashboardHome() {
     }
   }
 
+
+  async function runDigestNow() {
+    try {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${API_BASE}/digest-scheduler/run-now`, {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) throw new Error(`Digest run failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to run digest now");
+    }
+  }
+
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;

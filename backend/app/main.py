@@ -83,3 +83,5 @@ app.include_router(executive_digest_router, prefix=settings.API_PREFIX)
 app.include_router(board_reporting_router, prefix=settings.API_PREFIX)
 
 app.include_router(digest_scheduler_router, prefix=settings.API_PREFIX)
+from app.routes.digest_delivery import router as digest_delivery_router
+app.include_router(digest_delivery_router, prefix=settings.API_PREFIX)
