@@ -561,6 +561,22 @@ function DashboardHome() {
     }
   }
 
+
+  async function toggleDigestSubscription(subscriptionId: number) {
+    try {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${API_BASE}/digest-subscriptions/${subscriptionId}/toggle`, {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) throw new Error(`Toggle subscription failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to toggle digest subscription");
+    }
+  }
+
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
