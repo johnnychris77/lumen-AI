@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.compliance_signing import sign_manifest, verify_manifest
 from app.deps import get_db
 from app.db import models
+from app.retention import compute_retention_metadata
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
 
@@ -90,7 +91,7 @@ def _audit_items(rows: list[models.AuditLog]) -> list[dict]:
     ]
 
 
-def _summary(tenant: dict, inspections: list[dict], audit_logs: list[dict]) -> dict:
+def _summary(tenant: dict, inspections: list[dict], audit_logs: list[dict], retention: dict) -> dict:
     total_inspections = len(inspections)
     total_audit_events = len(audit_logs)
     open_alerts = sum(1 for x in inspections if (x.get("alert_status") or "").lower() != "resolved")
@@ -106,6 +107,7 @@ def _summary(tenant: dict, inspections: list[dict], audit_logs: list[dict]) -> d
         "open_alerts": open_alerts,
         "high_risk_count": high_risk,
         "compliance_flagged_events": compliance_events,
+        "retention": retention,
     }
 
 
@@ -125,7 +127,10 @@ def _xlsx_bytes(summary: dict, inspections: list[dict], audit_logs: list[dict], 
     ws.title = "Summary"
     ws.append(["metric", "value"])
     for k, v in summary.items():
-        ws.append([k, v])
+        if isinstance(v, (dict, list)):
+            ws.append([k, json.dumps(v)])
+        else:
+            ws.append([k, v])
 
     ws_manifest = wb.create_sheet("Manifest")
     ws_manifest.append(["field", "value"])
@@ -179,7 +184,8 @@ def compliance_evidence_pack_json(
 ):
     inspections = _inspection_items(_tenant_inspections(db, tenant["tenant_id"], days))
     audit_logs = _audit_items(_tenant_audit_logs(db, tenant["tenant_id"], days))
-    summary = _summary(tenant, inspections, audit_logs)
+    retention = compute_retention_metadata(db, tenant["tenant_id"], tenant["tenant_name"], "evidence_pack")
+    summary = _summary(tenant, inspections, audit_logs, retention)
     manifest = _manifest(summary, inspections, audit_logs)
 
     return JSONResponse({
@@ -215,7 +221,8 @@ def compliance_evidence_pack_xlsx(
 ):
     inspections = _inspection_items(_tenant_inspections(db, tenant["tenant_id"], days))
     audit_logs = _audit_items(_tenant_audit_logs(db, tenant["tenant_id"], days))
-    summary = _summary(tenant, inspections, audit_logs)
+    retention = compute_retention_metadata(db, tenant["tenant_id"], tenant["tenant_name"], "evidence_pack")
+    summary = _summary(tenant, inspections, audit_logs, retention)
     manifest = _manifest(summary, inspections, audit_logs)
     content = _xlsx_bytes(summary, inspections, audit_logs, manifest)
     return StreamingResponse(
@@ -234,7 +241,8 @@ def compliance_evidence_pack_bundle(
 ):
     inspections = _inspection_items(_tenant_inspections(db, tenant["tenant_id"], days))
     audit_logs = _audit_items(_tenant_audit_logs(db, tenant["tenant_id"], days))
-    summary = _summary(tenant, inspections, audit_logs)
+    retention = compute_retention_metadata(db, tenant["tenant_id"], tenant["tenant_name"], "evidence_pack")
+    summary = _summary(tenant, inspections, audit_logs, retention)
     manifest = _manifest(summary, inspections, audit_logs)
 
     json_payload = {
@@ -278,16 +286,7 @@ def verify_evidence_pack(
     audit_logs = payload.get("audit_logs", [])
 
     verification_payload = {
-        "summary": {
-            "tenant_id": summary.get("tenant_id"),
-            "tenant_name": summary.get("tenant_name"),
-            "generated_at": summary.get("generated_at"),
-            "total_inspections": summary.get("total_inspections"),
-            "total_audit_events": summary.get("total_audit_events"),
-            "open_alerts": summary.get("open_alerts"),
-            "high_risk_count": summary.get("high_risk_count"),
-            "compliance_flagged_events": summary.get("compliance_flagged_events"),
-        },
+        "summary": summary,
         "inspection_count": len(inspections),
         "audit_log_count": len(audit_logs),
     }
