@@ -4,6 +4,7 @@ from app.models.review import Review
 from app.models.digest_delivery import DigestDelivery
 from app.models.digest_subscription import DigestSubscription
 from app.models.tenant_membership import TenantMembership
+from app.models.audit_log import AuditLog
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]

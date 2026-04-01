@@ -101,3 +101,7 @@ from app.routes.tenant_scoped_subscriptions import router as tenant_scoped_subsc
 
 app.include_router(tenant_admin_router, prefix=settings.API_PREFIX)
 app.include_router(tenant_scoped_subscriptions_router, prefix=settings.API_PREFIX)
+
+from app.routes.audit_logs import router as audit_logs_router
+
+app.include_router(audit_logs_router, prefix=settings.API_PREFIX)

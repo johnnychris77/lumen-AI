@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.audit import log_audit_event
 from app.deps import get_db
 from app.db import models
 from app.tenant import resolve_tenant
@@ -38,6 +39,7 @@ def _response(row: models.DigestSubscription) -> dict:
 
 @router.get("/tenant-subscriptions")
 def list_tenant_subscriptions(
+    request: Request,
     tenant: dict = Depends(resolve_tenant),
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
@@ -48,12 +50,27 @@ def list_tenant_subscriptions(
         .order_by(models.DigestSubscription.id.desc())
         .all()
     )
+
+    log_audit_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        actor_email=current_user["user_email"],
+        actor_role=current_user["role_name"],
+        action_type="tenant_subscriptions_list",
+        resource_type="digest_subscription",
+        request=request,
+        details={"count": len(rows)},
+        compliance_flag=True,
+    )
+
     return {"items": [_response(r) for r in rows]}
 
 
 @router.post("/tenant-subscriptions")
 def create_tenant_subscription(
     payload: ScopedSubscriptionPayload,
+    request: Request,
     tenant: dict = Depends(resolve_tenant),
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
@@ -70,12 +87,28 @@ def create_tenant_subscription(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        actor_email=current_user["user_email"],
+        actor_role=current_user["role_name"],
+        action_type="tenant_subscription_create",
+        resource_type="digest_subscription",
+        resource_id=row.id,
+        request=request,
+        details=_response(row),
+        compliance_flag=True,
+    )
+
     return {"item": _response(row)}
 
 
 @router.post("/tenant-subscriptions/{subscription_id}/toggle")
 def toggle_tenant_subscription(
     subscription_id: int,
+    request: Request,
     tenant: dict = Depends(resolve_tenant),
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
@@ -88,4 +121,19 @@ def toggle_tenant_subscription(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        actor_email=current_user["user_email"],
+        actor_role=current_user["role_name"],
+        action_type="tenant_subscription_toggle",
+        resource_type="digest_subscription",
+        resource_id=row.id,
+        request=request,
+        details={"is_enabled": row.is_enabled, "name": row.name},
+        compliance_flag=True,
+    )
+
     return {"item": _response(row)}
