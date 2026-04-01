@@ -4,7 +4,6 @@ from io import BytesIO, StringIO
 from datetime import datetime, timedelta, timezone
 import csv
 import json
-import hashlib
 import zipfile
 
 from fastapi import APIRouter, Depends, Query
@@ -12,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
+from app.compliance_signing import sign_manifest, verify_manifest
 from app.deps import get_db
 from app.db import models
 from app.tenant import resolve_tenant
@@ -118,7 +118,7 @@ def _csv_text(items: list[dict]) -> str:
     return output.getvalue()
 
 
-def _xlsx_bytes(summary: dict, inspections: list[dict], audit_logs: list[dict]) -> bytes:
+def _xlsx_bytes(summary: dict, inspections: list[dict], audit_logs: list[dict], manifest: dict) -> bytes:
     wb = Workbook()
 
     ws = wb.active
@@ -126,6 +126,15 @@ def _xlsx_bytes(summary: dict, inspections: list[dict], audit_logs: list[dict]) 
     ws.append(["metric", "value"])
     for k, v in summary.items():
         ws.append([k, v])
+
+    ws_manifest = wb.create_sheet("Manifest")
+    ws_manifest.append(["field", "value"])
+    for k, v in manifest.items():
+        if k == "integrity":
+            for ik, iv in v.items():
+                ws_manifest.append([f"integrity.{ik}", iv])
+        else:
+            ws_manifest.append([k, json.dumps(v) if isinstance(v, (dict, list)) else v])
 
     ws2 = wb.create_sheet("Inspections")
     if inspections:
@@ -153,15 +162,11 @@ def _manifest(summary: dict, inspections: list[dict], audit_logs: list[dict]) ->
         "inspection_count": len(inspections),
         "audit_log_count": len(audit_logs),
     }
-    canonical = json.dumps(payload, sort_keys=True, indent=2)
-    sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    integrity = sign_manifest(payload)
     return {
         **payload,
-        "integrity": {
-            "algorithm": "sha256",
-            "hash": sha256,
-        },
-        "immutability_note": "This evidence pack is export-time immutable. Verify integrity with the included SHA-256 hash."
+        "integrity": integrity,
+        "immutability_note": "This evidence pack is export-time immutable. Verify integrity with the included hash and signature.",
     }
 
 
@@ -211,7 +216,8 @@ def compliance_evidence_pack_xlsx(
     inspections = _inspection_items(_tenant_inspections(db, tenant["tenant_id"], days))
     audit_logs = _audit_items(_tenant_audit_logs(db, tenant["tenant_id"], days))
     summary = _summary(tenant, inspections, audit_logs)
-    content = _xlsx_bytes(summary, inspections, audit_logs)
+    manifest = _manifest(summary, inspections, audit_logs)
+    content = _xlsx_bytes(summary, inspections, audit_logs, manifest)
     return StreamingResponse(
         iter([content]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -238,7 +244,7 @@ def compliance_evidence_pack_bundle(
         "audit_logs": audit_logs,
     }
 
-    xlsx_content = _xlsx_bytes(summary, inspections, audit_logs)
+    xlsx_content = _xlsx_bytes(summary, inspections, audit_logs, manifest)
     inspections_csv = _csv_text(inspections)
     audits_csv = _csv_text(audit_logs)
     manifest_json = json.dumps(manifest, indent=2)
@@ -258,3 +264,37 @@ def compliance_evidence_pack_bundle(
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename=lumenai_{tenant['tenant_id']}_evidence_pack_bundle.zip"},
     )
+
+
+@router.post("/compliance-exports/verify")
+def verify_evidence_pack(
+    payload: dict,
+    tenant: dict = Depends(resolve_tenant),
+    current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
+):
+    manifest = payload.get("manifest", {})
+    summary = payload.get("summary", {})
+    inspections = payload.get("inspections", [])
+    audit_logs = payload.get("audit_logs", [])
+
+    verification_payload = {
+        "summary": {
+            "tenant_id": summary.get("tenant_id"),
+            "tenant_name": summary.get("tenant_name"),
+            "generated_at": summary.get("generated_at"),
+            "total_inspections": summary.get("total_inspections"),
+            "total_audit_events": summary.get("total_audit_events"),
+            "open_alerts": summary.get("open_alerts"),
+            "high_risk_count": summary.get("high_risk_count"),
+            "compliance_flagged_events": summary.get("compliance_flagged_events"),
+        },
+        "inspection_count": len(inspections),
+        "audit_log_count": len(audit_logs),
+    }
+
+    verification = verify_manifest(verification_payload, {"integrity": manifest.get("integrity", {})})
+    return JSONResponse({
+        "tenant_id": tenant["tenant_id"],
+        "tenant_name": tenant["tenant_name"],
+        "verification": verification,
+    })
