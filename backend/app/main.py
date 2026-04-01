@@ -94,3 +94,10 @@ app.include_router(digest_subscriptions_router, prefix=settings.API_PREFIX)
 from app.routes.tenant_analytics import router as tenant_analytics_router
 
 app.include_router(tenant_analytics_router, prefix=settings.API_PREFIX)
+
+from app.routes.tenant_admin import router as tenant_admin_router
+
+from app.routes.tenant_scoped_subscriptions import router as tenant_scoped_subscriptions_router
+
+app.include_router(tenant_admin_router, prefix=settings.API_PREFIX)
+app.include_router(tenant_scoped_subscriptions_router, prefix=settings.API_PREFIX)
