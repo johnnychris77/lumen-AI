@@ -90,3 +90,7 @@ app.include_router(digest_delivery_router, prefix=settings.API_PREFIX)
 from app.routes.digest_subscriptions import router as digest_subscriptions_router
 
 app.include_router(digest_subscriptions_router, prefix=settings.API_PREFIX)
+
+from app.routes.tenant_analytics import router as tenant_analytics_router
+
+app.include_router(tenant_analytics_router, prefix=settings.API_PREFIX)

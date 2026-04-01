@@ -17,6 +17,9 @@ class Inspection(Base):
     )
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    tenant_name: Mapped[str] = mapped_column(String(255), default="Default Tenant", nullable=False)
+
     stain_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     material_type: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
@@ -32,6 +35,7 @@ class Inspection(Base):
     risk_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     vendor_name: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+    site_name: Mapped[str] = mapped_column(String(100), default="default-site", nullable=False)
 
     alert_status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
     alert_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)

@@ -1,67 +1,56 @@
-from fastapi import APIRouter, Depends, File, UploadFile, Form
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-import os
 
 from app.deps import get_db
 from app.db import models
-
-from redis import Redis
-from rq import Queue
-
 from app.jobs.inspection_job import run_inspection
+from app.tenant import resolve_tenant
 
 router = APIRouter(tags=["inspect"])
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+def inspection_response(row: models.Inspection) -> dict:
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "file_name": row.file_name,
+        "tenant_id": row.tenant_id,
+        "tenant_name": row.tenant_name,
+        "vendor_name": row.vendor_name,
+        "site_name": row.site_name,
+        "status": row.status,
+    }
 
 
-@router.post("/inspect")
-async def inspect_image(
-    file: UploadFile = File(...),
-    vendor_name: str = Form(default="unknown"),
+@router.post("/stream/frame")
+async def stream_frame(
+    frame: UploadFile = File(...),
+    vendor_name: str = Form("unknown"),
+    site_name: str = Form("default-site"),
+    tenant: dict = Depends(resolve_tenant),
     db: Session = Depends(get_db),
 ):
-    contents = await file.read()
-    if not contents:
-        raise ValueError("Empty file uploaded")
+    file_bytes = await frame.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty frame uploaded")
 
     row = models.Inspection(
-        file_name=file.filename or "uploaded-image",
-        stain_detected=False,
-        confidence=0.0,
-        material_type="unknown",
+        file_name=frame.filename or "frame.bin",
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        vendor_name=vendor_name,
+        site_name=site_name,
         status="queued",
-        model_name="lumenai-baseline",
-        model_version="0.1.0",
-        inference_timestamp=None,
-        instrument_type="unknown",
-        detected_issue="unknown",
-        inference_mode="deterministic-fallback",
-        risk_score=0,
-        vendor_name=vendor_name or "unknown",
     )
     db.add(row)
     db.commit()
     db.refresh(row)
 
-    redis = Redis.from_url(REDIS_URL)
-    q = Queue("lumenai", connection=redis)
-    q.enqueue(run_inspection, row.id, contents)
+    run_inspection(row.id, file_bytes)
 
     return {
-        "id": row.id,
-        "created_at": row.created_at.isoformat() if row.created_at else None,
-        "file_name": row.file_name,
-        "stain_detected": row.stain_detected,
-        "confidence": row.confidence,
-        "material_type": row.material_type,
-        "status": row.status,
-        "model_name": row.model_name,
-        "model_version": row.model_version,
-        "inference_timestamp": row.inference_timestamp.isoformat() if row.inference_timestamp else None,
-        "instrument_type": row.instrument_type,
-        "detected_issue": row.detected_issue,
-        "inference_mode": row.inference_mode,
-        "risk_score": row.risk_score,
-        "vendor_name": row.vendor_name,
+        "status": "queued",
+        "inspection": inspection_response(row),
     }
