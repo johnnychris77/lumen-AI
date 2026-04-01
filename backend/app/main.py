@@ -113,3 +113,7 @@ app.include_router(compliance_exports_router, prefix=settings.API_PREFIX)
 from app.routes.retention_admin import router as retention_admin_router
 
 app.include_router(retention_admin_router, prefix=settings.API_PREFIX)
+
+from app.routes.retention_enforcement import router as retention_enforcement_router
+
+app.include_router(retention_enforcement_router, prefix=settings.API_PREFIX)
