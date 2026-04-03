@@ -85,6 +85,7 @@ app.include_router(board_reporting_router, prefix=settings.API_PREFIX)
 app.include_router(digest_scheduler_router, prefix=settings.API_PREFIX)
 from app.routes.digest_delivery import router as digest_delivery_router
 from app.services.digest_scheduler_service import start_digest_scheduler
+from app.services.retention_scheduler_service import start_retention_scheduler
 app.include_router(digest_delivery_router, prefix=settings.API_PREFIX)
 
 from app.routes.digest_subscriptions import router as digest_subscriptions_router
@@ -117,3 +118,7 @@ app.include_router(retention_admin_router, prefix=settings.API_PREFIX)
 from app.routes.retention_enforcement import router as retention_enforcement_router
 
 app.include_router(retention_enforcement_router, prefix=settings.API_PREFIX)
+
+from app.routes.retention_scheduler import router as retention_scheduler_router
+
+app.include_router(retention_scheduler_router, prefix=settings.API_PREFIX)

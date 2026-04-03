@@ -59,6 +59,7 @@ def enforce_retention_once(db: Session) -> dict:
             "audit_logs_deleted": 0,
             "digest_deliveries_deleted": 0,
             "retention_blocks": 0,
+            "failures": 0,
             "events_logged": 0,
         },
     }
@@ -71,6 +72,7 @@ def enforce_retention_once(db: Session) -> dict:
             "audit_logs_deleted": 0,
             "digest_deliveries_deleted": 0,
             "retention_blocks": 0,
+            "failures": 0,
         }
 
         artifact_specs = [
@@ -80,63 +82,98 @@ def enforce_retention_once(db: Session) -> dict:
         ]
 
         for artifact_type, model_cls, created_field in artifact_specs:
-            policy = get_retention_policy(db, tenant_id, tenant_name, artifact_type)
+            try:
+                policy = get_retention_policy(db, tenant_id, tenant_name, artifact_type)
 
-            if policy["legal_hold_enabled"]:
+                if policy["legal_hold_enabled"]:
+                    _log_event(
+                        db,
+                        tenant_id=tenant_id,
+                        tenant_name=tenant_name,
+                        artifact_type=artifact_type,
+                        artifact_id="*",
+                        action="retention_skip",
+                        status="blocked",
+                        reason="Legal hold enabled; deletion blocked",
+                        legal_hold_blocked=True,
+                    )
+                    tenant_result["retention_blocks"] += 1
+                    summary["totals"]["retention_blocks"] += 1
+                    summary["totals"]["events_logged"] += 1
+                    continue
+
+                cutoff_dt = _cutoff(policy["retention_days"])
+                created_col = getattr(model_cls, created_field)
+                tenant_col = getattr(model_cls, "tenant_id", None)
+
+                q = db.query(model_cls).filter(created_col < cutoff_dt)
+                if tenant_col is not None:
+                    q = q.filter(tenant_col == tenant_id)
+
+                rows = q.all()
+
+                deleted_count = 0
+                for row in rows:
+                    artifact_id = getattr(row, "id", "")
+                    try:
+                        db.delete(row)
+                        db.commit()
+                        deleted_count += 1
+                        _log_event(
+                            db,
+                            tenant_id=tenant_id,
+                            tenant_name=tenant_name,
+                            artifact_type=artifact_type,
+                            artifact_id=str(artifact_id),
+                            action="retention_delete",
+                            status="success",
+                            reason=f"Deleted per retention policy ({policy['retention_days']} days)",
+                            legal_hold_blocked=False,
+                        )
+                        summary["totals"]["events_logged"] += 1
+                    except Exception as e:
+                        db.rollback()
+                        _log_event(
+                            db,
+                            tenant_id=tenant_id,
+                            tenant_name=tenant_name,
+                            artifact_type=artifact_type,
+                            artifact_id=str(artifact_id),
+                            action="retention_delete",
+                            status="failed",
+                            reason=str(e),
+                            legal_hold_blocked=False,
+                        )
+                        tenant_result["failures"] += 1
+                        summary["totals"]["failures"] += 1
+                        summary["totals"]["events_logged"] += 1
+
+                if artifact_type == "inspection":
+                    tenant_result["inspections_deleted"] += deleted_count
+                    summary["totals"]["inspections_deleted"] += deleted_count
+                elif artifact_type == "audit_log":
+                    tenant_result["audit_logs_deleted"] += deleted_count
+                    summary["totals"]["audit_logs_deleted"] += deleted_count
+                elif artifact_type == "digest_delivery":
+                    tenant_result["digest_deliveries_deleted"] += deleted_count
+                    summary["totals"]["digest_deliveries_deleted"] += deleted_count
+
+            except Exception as e:
+                db.rollback()
                 _log_event(
                     db,
                     tenant_id=tenant_id,
                     tenant_name=tenant_name,
                     artifact_type=artifact_type,
                     artifact_id="*",
-                    action="retention_skip",
-                    status="blocked",
-                    reason="Legal hold enabled; deletion blocked",
-                    legal_hold_blocked=True,
-                )
-                tenant_result["retention_blocks"] += 1
-                summary["totals"]["retention_blocks"] += 1
-                summary["totals"]["events_logged"] += 1
-                continue
-
-            cutoff_dt = _cutoff(policy["retention_days"])
-            created_col = getattr(model_cls, created_field)
-            tenant_col = getattr(model_cls, "tenant_id", None)
-
-            q = db.query(model_cls).filter(created_col < cutoff_dt)
-            if tenant_col is not None:
-                q = q.filter(tenant_col == tenant_id)
-
-            rows = q.all()
-
-            deleted_count = 0
-            for row in rows:
-                artifact_id = getattr(row, "id", "")
-                db.delete(row)
-                db.commit()
-                deleted_count += 1
-                _log_event(
-                    db,
-                    tenant_id=tenant_id,
-                    tenant_name=tenant_name,
-                    artifact_type=artifact_type,
-                    artifact_id=str(artifact_id),
-                    action="retention_delete",
-                    status="success",
-                    reason=f"Deleted per retention policy ({policy['retention_days']} days)",
+                    action="retention_enforcement",
+                    status="failed",
+                    reason=str(e),
                     legal_hold_blocked=False,
                 )
+                tenant_result["failures"] += 1
+                summary["totals"]["failures"] += 1
                 summary["totals"]["events_logged"] += 1
-
-            if artifact_type == "inspection":
-                tenant_result["inspections_deleted"] += deleted_count
-                summary["totals"]["inspections_deleted"] += deleted_count
-            elif artifact_type == "audit_log":
-                tenant_result["audit_logs_deleted"] += deleted_count
-                summary["totals"]["audit_logs_deleted"] += deleted_count
-            elif artifact_type == "digest_delivery":
-                tenant_result["digest_deliveries_deleted"] += deleted_count
-                summary["totals"]["digest_deliveries_deleted"] += deleted_count
 
         summary["tenants"].append(tenant_result)
 
@@ -148,6 +185,7 @@ def build_retention_exception_report(db: Session, limit: int = 200) -> dict:
         db.query(models.RetentionEvent)
         .filter(
             (models.RetentionEvent.status == "blocked") |
+            (models.RetentionEvent.status == "failed") |
             (models.RetentionEvent.legal_hold_blocked == True)
         )
         .order_by(models.RetentionEvent.id.desc())
@@ -173,7 +211,7 @@ def build_retention_exception_report(db: Session, limit: int = 200) -> dict:
 
     grouped = defaultdict(int)
     for item in items:
-        grouped[f"{item['tenant_id']}::{item['artifact_type']}"] += 1
+        grouped[f"{item['tenant_id']}::{item['artifact_type']}::{item['status']}"] += 1
 
     summary = sorted(
         [{"scope": k, "count": v} for k, v in grouped.items()],
