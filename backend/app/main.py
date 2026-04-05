@@ -130,3 +130,7 @@ from app.routes.legal_hold_admin import router as legal_hold_admin_router
 app.include_router(governance_console_router, prefix=settings.API_PREFIX)
 
 app.include_router(legal_hold_admin_router, prefix=settings.API_PREFIX)
+
+from app.routes.governance_approvals import router as governance_approvals_router
+
+app.include_router(governance_approvals_router, prefix=settings.API_PREFIX)

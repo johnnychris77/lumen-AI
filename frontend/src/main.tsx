@@ -601,6 +601,45 @@ function DashboardHome() {
     }
   }
 
+
+  async function approveGovernanceRequest(id: number) {
+    try {
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Tenant-Id": tenantId, "X-Tenant-Name": tenantName }
+        : { "Content-Type": "application/json", "X-Tenant-Id": tenantId, "X-Tenant-Name": tenantName };
+
+      const res = await fetch(`${API_BASE}/governance-approvals/${id}/approve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ review_notes: "Approved from governance console" }),
+      });
+      if (!res.ok) throw new Error(`Approval failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to approve request");
+    }
+  }
+
+  async function rejectGovernanceRequest(id: number) {
+    try {
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Tenant-Id": tenantId, "X-Tenant-Name": tenantName }
+        : { "Content-Type": "application/json", "X-Tenant-Id": tenantId, "X-Tenant-Name": tenantName };
+
+      const res = await fetch(`${API_BASE}/governance-approvals/${id}/reject`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ review_notes: "Rejected from governance console" }),
+      });
+      if (!res.ok) throw new Error(`Reject failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reject request");
+    }
+  }
+
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
