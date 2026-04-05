@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
+from app.notifications.approval_notifications import notify_approval
 from app.deps import get_db
 from app.db import models
 from app.tenant import resolve_tenant
@@ -87,7 +88,7 @@ def create_governance_approval_request(
         compliance_flag=True,
     )
 
-    return {"item": _response(row)}
+    return {"item": _response(row), "notification": notify_approval(_response(row), mode="new")}
 
 
 @router.get("/governance-approvals/pending")

@@ -86,6 +86,7 @@ app.include_router(digest_scheduler_router, prefix=settings.API_PREFIX)
 from app.routes.digest_delivery import router as digest_delivery_router
 from app.services.digest_scheduler_service import start_digest_scheduler
 from app.services.retention_scheduler_service import start_retention_scheduler
+from app.services.approval_escalation_service import start_approval_escalation_scheduler
 app.include_router(digest_delivery_router, prefix=settings.API_PREFIX)
 
 from app.routes.digest_subscriptions import router as digest_subscriptions_router
@@ -134,3 +135,7 @@ app.include_router(legal_hold_admin_router, prefix=settings.API_PREFIX)
 from app.routes.governance_approvals import router as governance_approvals_router
 
 app.include_router(governance_approvals_router, prefix=settings.API_PREFIX)
+
+from app.routes.approval_notifications import router as approval_notifications_router
+
+app.include_router(approval_notifications_router, prefix=settings.API_PREFIX)
