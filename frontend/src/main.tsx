@@ -577,6 +577,30 @@ function DashboardHome() {
     }
   }
 
+
+  async function setLegalHold(artifactType: string, enabled: boolean) {
+    try {
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Tenant-Id": tenantId, "X-Tenant-Name": tenantName }
+        : { "Content-Type": "application/json", "X-Tenant-Id": tenantId, "X-Tenant-Name": tenantName };
+
+      const res = await fetch(`${API_BASE}/legal-hold`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          artifact_type: artifactType,
+          legal_hold_enabled: enabled,
+          notes: enabled ? "Enabled from governance console" : "Disabled from governance console",
+        }),
+      });
+      if (!res.ok) throw new Error(`Legal hold update failed (${res.status})`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update legal hold");
+    }
+  }
+
   const csvExportUrl = `${API_BASE}/history/export.csv`;
   const jsonExportUrl = `${API_BASE}/history/export.json`;
   const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
