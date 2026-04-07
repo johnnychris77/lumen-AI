@@ -139,3 +139,7 @@ app.include_router(governance_approvals_router, prefix=settings.API_PREFIX)
 from app.routes.approval_notifications import router as approval_notifications_router
 
 app.include_router(approval_notifications_router, prefix=settings.API_PREFIX)
+
+from app.routes.governance_reconciliation import router as governance_reconciliation_router
+
+app.include_router(governance_reconciliation_router, prefix=settings.API_PREFIX)

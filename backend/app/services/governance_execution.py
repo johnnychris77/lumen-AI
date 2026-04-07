@@ -6,10 +6,37 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.db import models
+from app.services.governance_reconciliation import record_rollback_entry
 
 
 def _now():
     return datetime.now(timezone.utc)
+
+
+def _policy_state(row: models.RetentionPolicy | None) -> dict:
+    if not row:
+        return {}
+    return {
+        "id": row.id,
+        "artifact_type": row.artifact_type,
+        "retention_days": row.retention_days,
+        "legal_hold_enabled": row.legal_hold_enabled,
+        "notes": row.notes,
+        "is_enabled": row.is_enabled,
+    }
+
+
+def _membership_state(row: models.TenantMembership | None) -> dict:
+    if not row:
+        return {}
+    return {
+        "id": row.id,
+        "user_email": row.user_email,
+        "tenant_id": row.tenant_id,
+        "tenant_name": row.tenant_name,
+        "role_name": row.role_name,
+        "is_enabled": row.is_enabled,
+    }
 
 
 def execute_approved_change(db: Session, approval: models.GovernanceApproval) -> dict:
@@ -33,6 +60,8 @@ def execute_approved_change(db: Session, approval: models.GovernanceApproval) ->
             .first()
         )
 
+        before_state = _policy_state(row)
+
         if row:
             row.legal_hold_enabled = legal_hold_enabled
             row.notes = notes
@@ -53,9 +82,13 @@ def execute_approved_change(db: Session, approval: models.GovernanceApproval) ->
             db.commit()
             db.refresh(row)
 
+        after_state = _policy_state(row)
+        rollback = record_rollback_entry(db, approval=approval, before_state=before_state, after_state=after_state)
+
         return {
             "resource_type": "retention_policy",
             "resource_id": row.id,
+            "rollback_id": rollback.id,
             "message": f"Legal hold updated for {artifact_type}",
         }
 
@@ -73,6 +106,8 @@ def execute_approved_change(db: Session, approval: models.GovernanceApproval) ->
             .order_by(models.RetentionPolicy.id.desc())
             .first()
         )
+
+        before_state = _policy_state(row)
 
         if row:
             row.retention_days = retention_days
@@ -94,9 +129,13 @@ def execute_approved_change(db: Session, approval: models.GovernanceApproval) ->
             db.commit()
             db.refresh(row)
 
+        after_state = _policy_state(row)
+        rollback = record_rollback_entry(db, approval=approval, before_state=before_state, after_state=after_state)
+
         return {
             "resource_type": "retention_policy",
             "resource_id": row.id,
+            "rollback_id": rollback.id,
             "message": f"Retention updated for {artifact_type}",
         }
 
@@ -117,6 +156,8 @@ def execute_approved_change(db: Session, approval: models.GovernanceApproval) ->
             .first()
         )
 
+        before_state = _membership_state(row)
+
         if row:
             row.role_name = role_name
             row.is_enabled = True
@@ -135,9 +176,13 @@ def execute_approved_change(db: Session, approval: models.GovernanceApproval) ->
             db.commit()
             db.refresh(row)
 
+        after_state = _membership_state(row)
+        rollback = record_rollback_entry(db, approval=approval, before_state=before_state, after_state=after_state)
+
         return {
             "resource_type": "tenant_membership",
             "resource_id": row.id,
+            "rollback_id": rollback.id,
             "message": f"Tenant role updated for {user_email}",
         }
 
