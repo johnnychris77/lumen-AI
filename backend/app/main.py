@@ -143,3 +143,11 @@ app.include_router(approval_notifications_router, prefix=settings.API_PREFIX)
 from app.routes.governance_reconciliation import router as governance_reconciliation_router
 
 app.include_router(governance_reconciliation_router, prefix=settings.API_PREFIX)
+
+from app.routes.trust_center import router as trust_center_router
+
+from app.routes.trust_center_exports import router as trust_center_exports_router
+
+app.include_router(trust_center_router, prefix=settings.API_PREFIX)
+
+app.include_router(trust_center_exports_router, prefix=settings.API_PREFIX)
