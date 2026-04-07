@@ -21,6 +21,9 @@ class GovernanceApproval(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False, index=True)
     reviewed_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     review_notes: Mapped[str] = mapped_column(String(2000), default="", nullable=False)
+    execution_status: Mapped[str] = mapped_column(String(50), default="not_started", nullable=False)
+    execution_notes: Mapped[str] = mapped_column(String(2000), default="", nullable=False)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

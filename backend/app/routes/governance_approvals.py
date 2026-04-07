@@ -8,9 +8,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
-from app.notifications.approval_notifications import notify_approval
 from app.deps import get_db
 from app.db import models
+from app.notifications.approval_notifications import notify_approval
+from app.services.governance_execution import execute_approved_change, mark_execution_result
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
 
@@ -43,8 +44,11 @@ def _response(row: models.GovernanceApproval) -> dict:
         "status": row.status,
         "reviewed_by": row.reviewed_by,
         "review_notes": row.review_notes,
+        "execution_status": row.execution_status,
+        "execution_notes": row.execution_notes,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
+        "executed_at": row.executed_at.isoformat() if row.executed_at else None,
     }
 
 
@@ -69,6 +73,7 @@ def create_governance_approval_request(
             "justification": payload.justification,
         })[:4000],
         status="pending",
+        execution_status="not_started",
     )
     db.add(row)
     db.commit()
@@ -109,6 +114,22 @@ def list_pending_governance_approvals(
     return {"items": [_response(r) for r in rows]}
 
 
+@router.get("/governance-approvals/history")
+def list_governance_approvals_history(
+    tenant: dict = Depends(resolve_tenant),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
+):
+    rows = (
+        db.query(models.GovernanceApproval)
+        .filter(models.GovernanceApproval.tenant_id == tenant["tenant_id"])
+        .order_by(models.GovernanceApproval.id.desc())
+        .limit(200)
+        .all()
+    )
+    return {"items": [_response(r) for r in rows]}
+
+
 @router.post("/governance-approvals/{approval_id}/approve")
 def approve_governance_request(
     approval_id: int,
@@ -144,6 +165,13 @@ def approve_governance_request(
     db.commit()
     db.refresh(row)
 
+    execution_result = None
+    try:
+        execution_result = execute_approved_change(db, row)
+        row = mark_execution_result(db, row, status="executed", notes=execution_result["message"])
+    except Exception as e:
+        row = mark_execution_result(db, row, status="failed", notes=str(e))
+
     log_audit_event(
         db,
         tenant_id=tenant["tenant_id"],
@@ -154,11 +182,11 @@ def approve_governance_request(
         resource_type="governance_approval",
         resource_id=row.id,
         request=request,
-        details=_response(row),
+        details={"approval": _response(row), "execution_result": execution_result},
         compliance_flag=True,
     )
 
-    return {"item": _response(row)}
+    return {"item": _response(row), "execution_result": execution_result}
 
 
 @router.post("/governance-approvals/{approval_id}/reject")
@@ -191,6 +219,7 @@ def reject_governance_request(
     row.reviewed_by = current_user["user_email"]
     row.review_notes = payload.review_notes
     row.reviewed_at = datetime.now(timezone.utc)
+    row.execution_status = "not_applicable"
 
     db.add(row)
     db.commit()
