@@ -151,3 +151,11 @@ from app.routes.trust_center_exports import router as trust_center_exports_route
 app.include_router(trust_center_router, prefix=settings.API_PREFIX)
 
 app.include_router(trust_center_exports_router, prefix=settings.API_PREFIX)
+
+from app.routes.tenant_onboarding import router as tenant_onboarding_router
+
+from app.routes.tenant_setup import router as tenant_setup_router
+
+app.include_router(tenant_onboarding_router, prefix=settings.API_PREFIX)
+
+app.include_router(tenant_setup_router, prefix=settings.API_PREFIX)
