@@ -159,3 +159,7 @@ from app.routes.tenant_setup import router as tenant_setup_router
 app.include_router(tenant_onboarding_router, prefix=settings.API_PREFIX)
 
 app.include_router(tenant_setup_router, prefix=settings.API_PREFIX)
+
+from app.routes.usage_metering import router as usage_metering_router
+
+app.include_router(usage_metering_router, prefix=settings.API_PREFIX)

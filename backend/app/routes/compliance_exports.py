@@ -15,6 +15,7 @@ from app.compliance_signing import sign_manifest, verify_manifest
 from app.deps import get_db
 from app.db import models
 from app.retention import compute_retention_metadata
+from app.metering import record_usage_event, check_quota
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
 
@@ -182,6 +183,10 @@ def compliance_evidence_pack_json(
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
 ):
+    quota_state = check_quota(db, tenant_id=tenant["tenant_id"], tenant_name=tenant["tenant_name"], metric_key="evidence_pack_exported")
+    if not quota_state["allowed"]:
+        return JSONResponse({"detail": f'Quota exceeded for evidence_pack_exported. Used {quota_state["used"]} of {quota_state["limit"]}.'}, status_code=429)
+    record_usage_event(db, tenant_id=tenant["tenant_id"], tenant_name=tenant["tenant_name"], event_type="evidence_pack_exported", quantity=1, notes="compliance export")
     inspections = _inspection_items(_tenant_inspections(db, tenant["tenant_id"], days))
     audit_logs = _audit_items(_tenant_audit_logs(db, tenant["tenant_id"], days))
     retention = compute_retention_metadata(db, tenant["tenant_id"], tenant["tenant_name"], "evidence_pack")

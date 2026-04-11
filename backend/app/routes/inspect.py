@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.deps import get_db
 from app.db import models
 from app.jobs.inspection_job import run_inspection
+from app.metering import record_usage_event, check_quota
 from app.tenant import resolve_tenant
 
 router = APIRouter(tags=["inspect"])
@@ -36,6 +37,10 @@ async def stream_frame(
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty frame uploaded")
 
+    quota_state = check_quota(db, tenant_id=tenant["tenant_id"], tenant_name=tenant["tenant_name"], metric_key="inspection_submitted")
+    if not quota_state["allowed"]:
+        raise HTTPException(status_code=429, detail=f'Quota exceeded for inspection_submitted. Used {quota_state["used"]} of {quota_state["limit"]}.')
+
     row = models.Inspection(
         file_name=frame.filename or "frame.bin",
         tenant_id=tenant["tenant_id"],
@@ -47,6 +52,16 @@ async def stream_frame(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    record_usage_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        event_type="inspection_submitted",
+        quantity=1,
+        resource_id=row.id,
+        notes=row.file_name,
+    )
 
     run_inspection(row.id, file_bytes)
 

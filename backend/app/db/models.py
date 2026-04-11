@@ -10,6 +10,8 @@ from app.models.retention_event import RetentionEvent
 from app.models.governance_approval import GovernanceApproval
 from app.models.governance_rollback import GovernanceRollback
 from app.models.tenant_onboarding import TenantOnboarding
+from app.models.usage_event import UsageEvent
+from app.models.tenant_quota import TenantQuota
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
