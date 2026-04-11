@@ -27,6 +27,9 @@ class TenantSubscription(Base):
     )
     current_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_payment_status: Mapped[str] = mapped_column(String(50), nullable=False, default="current")
+    dunning_status: Mapped[str] = mapped_column(String(50), nullable=False, default="none")
+    suspension_status: Mapped[str] = mapped_column(String(50), nullable=False, default="active")
     notes: Mapped[str] = mapped_column(String(2000), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

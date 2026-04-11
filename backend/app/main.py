@@ -171,3 +171,7 @@ app.include_router(billing_router, prefix=settings.API_PREFIX)
 from app.routes.subscription_lifecycle import router as subscription_lifecycle_router
 
 app.include_router(subscription_lifecycle_router, prefix=settings.API_PREFIX)
+
+from app.routes.dunning import router as dunning_router
+
+app.include_router(dunning_router, prefix=settings.API_PREFIX)

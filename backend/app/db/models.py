@@ -16,6 +16,7 @@ from app.models.tenant_plan import TenantPlan
 from app.models.invoice_line_item import InvoiceLineItem
 from app.models.tenant_subscription import TenantSubscription
 from app.models.subscription_change_event import SubscriptionChangeEvent
+from app.models.payment_event import PaymentEvent
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
