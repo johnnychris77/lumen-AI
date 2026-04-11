@@ -180,3 +180,11 @@ app.include_router(dunning_router, prefix=settings.API_PREFIX)
 from app.routes.dunning_automation import router as dunning_automation_router
 
 app.include_router(dunning_automation_router, prefix=settings.API_PREFIX)
+
+from app.routes.finance_console import router as finance_console_router
+
+from app.routes.finance_exports import router as finance_exports_router
+
+app.include_router(finance_console_router, prefix=settings.API_PREFIX)
+
+app.include_router(finance_exports_router, prefix=settings.API_PREFIX)
