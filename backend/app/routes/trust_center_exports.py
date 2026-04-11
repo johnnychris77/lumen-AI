@@ -12,6 +12,7 @@ from app.deps import get_db
 from app.db import models
 from app.retention import compute_retention_metadata
 from app.metering import record_usage_event, check_quota
+from app.entitlements import is_feature_enabled
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
 
@@ -69,6 +70,9 @@ def trust_center_attestations_bundle(
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
 ):
+    feature_state = is_feature_enabled(db, tenant["tenant_id"], tenant["tenant_name"], "trust_center_bundle")
+    if not feature_state["enabled"]:
+        return JSONResponse({"detail": "Feature not enabled for current plan: trust_center_bundle"}, status_code=403)
     payload = {
         "tenant_id": tenant["tenant_id"],
         "tenant_name": tenant["tenant_name"],

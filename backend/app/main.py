@@ -188,3 +188,7 @@ from app.routes.finance_exports import router as finance_exports_router
 app.include_router(finance_console_router, prefix=settings.API_PREFIX)
 
 app.include_router(finance_exports_router, prefix=settings.API_PREFIX)
+
+from app.routes.entitlements import router as entitlements_router
+
+app.include_router(entitlements_router, prefix=settings.API_PREFIX)

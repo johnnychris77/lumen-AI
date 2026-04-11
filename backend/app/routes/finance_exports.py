@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from openpyxl import Workbook
 
 from app.billing import build_invoice_preview
+from app.entitlements import is_feature_enabled
 from app.deps import get_db
 from app.db import models
 from app.tenant import resolve_tenant
@@ -90,6 +91,9 @@ def finance_invoice_preview_bundle(
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
 ):
+    feature_state = is_feature_enabled(db, tenant["tenant_id"], tenant["tenant_name"], "finance_bundle_export")
+    if not feature_state["enabled"]:
+        return JSONResponse({"detail": "Feature not enabled for current plan: finance_bundle_export"}, status_code=403)
     preview = build_invoice_preview(db, tenant["tenant_id"], tenant["tenant_name"])
 
     invoice_rows = (
