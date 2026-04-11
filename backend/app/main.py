@@ -87,6 +87,7 @@ from app.routes.digest_delivery import router as digest_delivery_router
 from app.services.digest_scheduler_service import start_digest_scheduler
 from app.services.retention_scheduler_service import start_retention_scheduler
 from app.services.approval_escalation_service import start_approval_escalation_scheduler
+from app.services.dunning_automation import start_dunning_scheduler
 app.include_router(digest_delivery_router, prefix=settings.API_PREFIX)
 
 from app.routes.digest_subscriptions import router as digest_subscriptions_router
@@ -175,3 +176,7 @@ app.include_router(subscription_lifecycle_router, prefix=settings.API_PREFIX)
 from app.routes.dunning import router as dunning_router
 
 app.include_router(dunning_router, prefix=settings.API_PREFIX)
+
+from app.routes.dunning_automation import router as dunning_automation_router
+
+app.include_router(dunning_automation_router, prefix=settings.API_PREFIX)
