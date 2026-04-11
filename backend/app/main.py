@@ -163,3 +163,7 @@ app.include_router(tenant_setup_router, prefix=settings.API_PREFIX)
 from app.routes.usage_metering import router as usage_metering_router
 
 app.include_router(usage_metering_router, prefix=settings.API_PREFIX)
+
+from app.routes.billing import router as billing_router
+
+app.include_router(billing_router, prefix=settings.API_PREFIX)

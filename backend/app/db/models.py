@@ -12,6 +12,8 @@ from app.models.governance_rollback import GovernanceRollback
 from app.models.tenant_onboarding import TenantOnboarding
 from app.models.usage_event import UsageEvent
 from app.models.tenant_quota import TenantQuota
+from app.models.tenant_plan import TenantPlan
+from app.models.invoice_line_item import InvoiceLineItem
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
