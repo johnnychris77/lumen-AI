@@ -167,3 +167,7 @@ app.include_router(usage_metering_router, prefix=settings.API_PREFIX)
 from app.routes.billing import router as billing_router
 
 app.include_router(billing_router, prefix=settings.API_PREFIX)
+
+from app.routes.subscription_lifecycle import router as subscription_lifecycle_router
+
+app.include_router(subscription_lifecycle_router, prefix=settings.API_PREFIX)
