@@ -26,6 +26,7 @@ from app.models.automation_run import AutomationRun
 from app.models.saved_report import SavedReport
 from app.models.report_run import ReportRun
 from app.models.executive_scorecard import ExecutiveScorecard
+from app.models.generated_briefing import GeneratedBriefing
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]

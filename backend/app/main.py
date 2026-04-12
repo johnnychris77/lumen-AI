@@ -208,3 +208,7 @@ app.include_router(automation_studio_router, prefix=settings.API_PREFIX)
 from app.routes.executive_scorecards import router as executive_scorecards_router
 
 app.include_router(executive_scorecards_router, prefix=settings.API_PREFIX)
+
+from app.routes.briefings import router as briefings_router
+
+app.include_router(briefings_router, prefix=settings.API_PREFIX)
