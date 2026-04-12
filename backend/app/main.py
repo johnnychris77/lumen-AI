@@ -196,3 +196,7 @@ app.include_router(entitlements_router, prefix=settings.API_PREFIX)
 from app.routes.branding import router as branding_router
 
 app.include_router(branding_router, prefix=settings.API_PREFIX)
+
+from app.routes.notification_templates import router as notification_templates_router
+
+app.include_router(notification_templates_router, prefix=settings.API_PREFIX)
