@@ -204,3 +204,7 @@ app.include_router(notification_templates_router, prefix=settings.API_PREFIX)
 from app.routes.automation_studio import router as automation_studio_router
 
 app.include_router(automation_studio_router, prefix=settings.API_PREFIX)
+
+from app.routes.executive_scorecards import router as executive_scorecards_router
+
+app.include_router(executive_scorecards_router, prefix=settings.API_PREFIX)
