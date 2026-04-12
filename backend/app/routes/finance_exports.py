@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from openpyxl import Workbook
 
 from app.billing import build_invoice_preview
+from app.branding import get_branding
 from app.entitlements import is_feature_enabled
 from app.deps import get_db
 from app.db import models
@@ -76,12 +77,13 @@ def finance_invoice_preview_csv(
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
 ):
+    branding = get_branding(db, tenant["tenant_id"], tenant["tenant_name"])
     preview = build_invoice_preview(db, tenant["tenant_id"], tenant["tenant_name"])
     items = preview["line_items"]
     return StreamingResponse(
         iter([_csv_text(items)]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=lumenai_{tenant['tenant_id']}_invoice_preview.csv"},
+        headers={"Content-Disposition": f"attachment; filename={branding["export_prefix"]}_invoice_preview.csv"},
     )
 
 
@@ -140,15 +142,15 @@ def finance_invoice_preview_bundle(
     xlsx = _xlsx_bytes(preview, payments, invoices)
     bio = BytesIO()
     with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"lumenai_{tenant['tenant_id']}_invoice_preview.json", json.dumps(preview, indent=2))
-        zf.writestr(f"lumenai_{tenant['tenant_id']}_invoice_preview.csv", _csv_text(preview["line_items"]))
-        zf.writestr(f"lumenai_{tenant['tenant_id']}_payments.json", json.dumps(payments, indent=2))
-        zf.writestr(f"lumenai_{tenant['tenant_id']}_invoices.json", json.dumps(invoices, indent=2))
-        zf.writestr(f"lumenai_{tenant['tenant_id']}_finance_console.xlsx", xlsx)
+        zf.writestr(f"{branding["export_prefix"]}_invoice_preview.json", json.dumps(preview, indent=2))
+        zf.writestr(f"{branding["export_prefix"]}_invoice_preview.csv", _csv_text(preview["line_items"]))
+        zf.writestr(f"{branding["export_prefix"]}_payments.json", json.dumps(payments, indent=2))
+        zf.writestr(f"{branding["export_prefix"]}_invoices.json", json.dumps(invoices, indent=2))
+        zf.writestr(f"{branding["export_prefix"]}_finance_console.xlsx", xlsx)
 
     bio.seek(0)
     return StreamingResponse(
         bio,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename=lumenai_{tenant['tenant_id']}_finance_console_bundle.zip"},
+        headers={"Content-Disposition": f"attachment; filename={branding["export_prefix"]}_finance_console_bundle.zip"},
     )

@@ -192,3 +192,7 @@ app.include_router(finance_exports_router, prefix=settings.API_PREFIX)
 from app.routes.entitlements import router as entitlements_router
 
 app.include_router(entitlements_router, prefix=settings.API_PREFIX)
+
+from app.routes.branding import router as branding_router
+
+app.include_router(branding_router, prefix=settings.API_PREFIX)

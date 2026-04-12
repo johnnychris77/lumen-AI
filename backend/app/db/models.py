@@ -19,6 +19,7 @@ from app.models.subscription_change_event import SubscriptionChangeEvent
 from app.models.payment_event import PaymentEvent
 from app.models.tenant_entitlement import TenantEntitlement
 from app.models.feature_flag import FeatureFlag
+from app.models.tenant_branding import TenantBranding
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
