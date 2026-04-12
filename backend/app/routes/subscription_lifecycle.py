@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.deps import get_db
 from app.db import models
+from app.event_dispatcher import dispatch_event
 from app.subscription_lifecycle import (
     activate_subscription,
     change_subscription_plan,
@@ -73,6 +74,14 @@ def activate_subscription_route(
         compliance_flag=True,
     )
 
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="subscription_activated",
+        payload=result,
+    )
+
     return result
 
 
@@ -105,6 +114,14 @@ def upgrade_subscription_route(
         request=request,
         details=result,
         compliance_flag=True,
+    )
+
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="subscription_upgraded",
+        payload=result,
     )
 
     return result
@@ -141,6 +158,14 @@ def downgrade_subscription_route(
         compliance_flag=True,
     )
 
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="subscription_downgraded",
+        payload=result,
+    )
+
     return result
 
 
@@ -169,6 +194,14 @@ def renew_subscription_route(
         request=request,
         details=result,
         compliance_flag=True,
+    )
+
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="subscription_renewed",
+        payload=result,
     )
 
     return result

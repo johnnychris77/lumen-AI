@@ -14,6 +14,7 @@ from app.dunning import (
     suspend_if_past_due,
 )
 from app.billing import build_invoice_preview, billing_month
+from app.event_dispatcher import dispatch_event
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
 
@@ -59,6 +60,18 @@ def payment_failed(
         compliance_flag=True,
     )
 
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="payment_failed",
+        payload={
+            **result,
+            "billing_month": preview["billing_month"],
+            "amount_cents": preview["total_cents"],
+        },
+    )
+
     return result
 
 
@@ -95,6 +108,18 @@ def payment_succeeded(
         request=request,
         details=result,
         compliance_flag=True,
+    )
+
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="payment_succeeded",
+        payload={
+            **result,
+            "billing_month": preview["billing_month"],
+            "amount_cents": preview["total_cents"],
+        },
     )
 
     return result

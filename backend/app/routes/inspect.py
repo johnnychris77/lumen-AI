@@ -7,6 +7,7 @@ from app.deps import get_db
 from app.db import models
 from app.jobs.inspection_job import run_inspection
 from app.metering import record_usage_event, check_quota
+from app.event_dispatcher import dispatch_event
 from app.tenant import resolve_tenant
 
 router = APIRouter(tags=["inspect"])
@@ -64,6 +65,20 @@ async def stream_frame(
     )
 
     run_inspection(row.id, file_bytes)
+
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="inspection_submitted",
+        payload={
+            "inspection_id": row.id,
+            "file_name": row.file_name,
+            "vendor_name": row.vendor_name,
+            "site_name": row.site_name,
+            "status": row.status,
+        },
+    )
 
     return {
         "status": "queued",

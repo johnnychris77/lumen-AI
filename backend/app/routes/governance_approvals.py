@@ -11,6 +11,7 @@ from app.audit import log_audit_event
 from app.deps import get_db
 from app.db import models
 from app.notifications.approval_notifications import notify_approval
+from app.event_dispatcher import dispatch_event
 from app.services.governance_execution import execute_approved_change, mark_execution_result
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
@@ -91,6 +92,23 @@ def create_governance_approval_request(
         request=request,
         details=_response(row),
         compliance_flag=True,
+    )
+
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="approval_requested",
+        payload={
+            "approval_id": row.id,
+            "request_type": row.request_type,
+            "target_resource": row.target_resource,
+            "target_resource_id": row.target_resource_id,
+            "requested_by": row.requested_by,
+            "status": row.status,
+            "requested_payload": row.requested_payload,
+            "created_at": row.created_at.isoformat() if row.created_at else "",
+        },
     )
 
     return {"item": _response(row), "notification": notify_approval(_response(row), mode="new")}

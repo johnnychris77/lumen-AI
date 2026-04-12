@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.billing import build_invoice_preview, get_plan, persist_invoice_preview
+from app.event_dispatcher import dispatch_event
 from app.deps import get_db
 from app.db import models
 from app.tenant import resolve_tenant
@@ -122,6 +123,18 @@ def persist_invoice(
         request=request,
         details=result,
         compliance_flag=True,
+    )
+
+    dispatch_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        trigger_type="invoice_persisted",
+        payload={
+            "billing_month": result["billing_month"],
+            "item_count": len(result["items"]),
+            "total_cents": result["total_cents"],
+        },
     )
 
     return result
