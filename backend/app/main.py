@@ -212,3 +212,7 @@ app.include_router(executive_scorecards_router, prefix=settings.API_PREFIX)
 from app.routes.briefings import router as briefings_router
 
 app.include_router(briefings_router, prefix=settings.API_PREFIX)
+
+from app.routes.leadership_packets import router as leadership_packets_router
+
+app.include_router(leadership_packets_router, prefix=settings.API_PREFIX)
