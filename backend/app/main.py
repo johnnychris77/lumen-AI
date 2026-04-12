@@ -200,3 +200,7 @@ app.include_router(branding_router, prefix=settings.API_PREFIX)
 from app.routes.notification_templates import router as notification_templates_router
 
 app.include_router(notification_templates_router, prefix=settings.API_PREFIX)
+
+from app.routes.automation_studio import router as automation_studio_router
+
+app.include_router(automation_studio_router, prefix=settings.API_PREFIX)
