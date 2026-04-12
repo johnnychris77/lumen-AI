@@ -23,6 +23,8 @@ from app.models.tenant_branding import TenantBranding
 from app.models.notification_template import NotificationTemplate
 from app.models.automation_rule import AutomationRule
 from app.models.automation_run import AutomationRun
+from app.models.saved_report import SavedReport
+from app.models.report_run import ReportRun
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
