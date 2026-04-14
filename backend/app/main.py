@@ -216,3 +216,7 @@ app.include_router(briefings_router, prefix=settings.API_PREFIX)
 from app.routes.leadership_packets import router as leadership_packets_router
 
 app.include_router(leadership_packets_router, prefix=settings.API_PREFIX)
+
+from app.routes.scheduled_leadership_packets import router as scheduled_leadership_packets_router
+
+app.include_router(scheduled_leadership_packets_router, prefix=settings.API_PREFIX)
