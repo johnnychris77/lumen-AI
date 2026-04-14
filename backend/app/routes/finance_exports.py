@@ -79,11 +79,11 @@ def finance_invoice_preview_csv(
 ):
     branding = get_branding(db, tenant["tenant_id"], tenant["tenant_name"])
     preview = build_invoice_preview(db, tenant["tenant_id"], tenant["tenant_name"])
-    items = preview["line_items"]
+    items = preview['line_items']
     return StreamingResponse(
         iter([_csv_text(items)]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={branding["export_prefix"]}_invoice_preview.csv"},
+        headers={"Content-Disposition": f"attachment; filename={branding['export_prefix']}_invoice_preview.csv"},
     )
 
 
@@ -142,15 +142,15 @@ def finance_invoice_preview_bundle(
     xlsx = _xlsx_bytes(preview, payments, invoices)
     bio = BytesIO()
     with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"{branding["export_prefix"]}_invoice_preview.json", json.dumps(preview, indent=2))
-        zf.writestr(f"{branding["export_prefix"]}_invoice_preview.csv", _csv_text(preview["line_items"]))
-        zf.writestr(f"{branding["export_prefix"]}_payments.json", json.dumps(payments, indent=2))
-        zf.writestr(f"{branding["export_prefix"]}_invoices.json", json.dumps(invoices, indent=2))
-        zf.writestr(f"{branding["export_prefix"]}_finance_console.xlsx", xlsx)
+        zf.writestr(f"{branding['export_prefix']}_invoice_preview.json", json.dumps(preview, indent=2))
+        zf.writestr(f"{branding['export_prefix']}_invoice_preview.csv", _csv_text(preview['line_items']))
+        zf.writestr(f"{branding['export_prefix']}_payments.json", json.dumps(payments, indent=2))
+        zf.writestr(f"{branding['export_prefix']}_invoices.json", json.dumps(invoices, indent=2))
+        zf.writestr(f"{branding['export_prefix']}_finance_console.xlsx", xlsx)
 
     bio.seek(0)
     return StreamingResponse(
         bio,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={branding["export_prefix"]}_finance_console_bundle.zip"},
+        headers={"Content-Disposition": f"attachment; filename={branding['export_prefix']}_finance_console_bundle.zip"},
     )

@@ -155,7 +155,7 @@ def _csv_text(site_benchmark: list[dict]) -> str:
     return output.getvalue()
 
 
-def _xlsx_bytes(report: dict) -> bytes:
+def build_board_report_xlsx_bytes(report: dict) -> bytes:
     wb = Workbook()
 
     ws = wb.active
@@ -221,7 +221,7 @@ def board_reporting_weekly_xlsx(
 ):
     rows = _rows_for_window(db, days)
     report = _build_board_report(rows)
-    content = _xlsx_bytes(report)
+    content = build_board_report_xlsx_bytes(report)
     return StreamingResponse(
         iter([content]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -242,7 +242,7 @@ def board_reporting_weekly_bundle(
     with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("lumenai_board_ready_weekly.json", json.dumps(report, indent=2))
         zf.writestr("lumenai_board_ready_weekly.csv", _csv_text(report["site_benchmark"]))
-        zf.writestr("lumenai_board_ready_weekly.xlsx", _xlsx_bytes(report))
+        zf.writestr("lumenai_board_ready_weekly.xlsx", build_board_report_xlsx_bytes(report))
     bio.seek(0)
 
     return StreamingResponse(

@@ -110,11 +110,11 @@ def trust_center_attestations_bundle(
 
     bio = BytesIO()
     with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"{branding["export_prefix"]}_trust_center_attestations.json", json.dumps(payload, indent=2))
+        zf.writestr(f"{branding['export_prefix']}_trust_center_attestations.json", json.dumps(payload, indent=2))
     bio.seek(0)
 
     return StreamingResponse(
         bio,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={branding["export_prefix"]}_trust_center_attestations.zip"},
+        headers={"Content-Disposition": f"attachment; filename={branding['export_prefix']}_trust_center_attestations.zip"},
     )
