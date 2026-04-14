@@ -224,3 +224,7 @@ app.include_router(scheduled_leadership_packets_router, prefix=settings.API_PREF
 from app.routes.distribution_lists import router as distribution_lists_router
 
 app.include_router(distribution_lists_router, prefix=settings.API_PREFIX)
+
+from app.routes.packet_releases import router as packet_releases_router
+
+app.include_router(packet_releases_router, prefix=settings.API_PREFIX)
