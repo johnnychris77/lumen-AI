@@ -24,6 +24,7 @@ class ScheduledPacketPayload(BaseModel):
     schedule_cron: str = "0 8 * * 1"
     delivery_channel: str = "email"
     delivery_target: str = ""
+    distribution_list_id: int = 0
     include_docx: bool = True
     include_pptx: bool = True
     include_pdf: bool = True
@@ -43,6 +44,7 @@ def _schedule_row(row: models.ScheduledLeadershipPacket) -> dict:
         "schedule_cron": row.schedule_cron,
         "delivery_channel": row.delivery_channel,
         "delivery_target": row.delivery_target,
+        "distribution_list_id": getattr(row, "distribution_list_id", 0),
         "include_docx": row.include_docx,
         "include_pptx": row.include_pptx,
         "include_pdf": row.include_pdf,
@@ -62,6 +64,7 @@ def _delivery_row(row: models.LeadershipPacketDelivery) -> dict:
         "packet_id": row.packet_id,
         "delivery_channel": row.delivery_channel,
         "delivery_target": row.delivery_target,
+        "distribution_list_id": getattr(row, "distribution_list_id", 0),
         "delivery_status": row.delivery_status,
         "result_json": row.result_json,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -86,6 +89,7 @@ def create_schedule(
         schedule_cron=payload.schedule_cron,
         delivery_channel=payload.delivery_channel,
         delivery_target=payload.delivery_target,
+        distribution_list_id=payload.distribution_list_id,
         include_docx=payload.include_docx,
         include_pptx=payload.include_pptx,
         include_pdf=payload.include_pdf,
@@ -180,3 +184,61 @@ def list_deliveries(
         .all()
     )
     return {"items": [_delivery_row(r) for r in rows]}
+
+
+class AssignDistributionListPayload(BaseModel):
+    distribution_list_id: int
+
+
+@router.post("/scheduled-leadership-packets/{schedule_id}/assign-distribution-list")
+def assign_distribution_list(
+    schedule_id: int,
+    payload: AssignDistributionListPayload,
+    request: Request,
+    tenant: dict = Depends(resolve_tenant),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_tenant_roles("tenant_admin")),
+):
+    row = (
+        db.query(models.ScheduledLeadershipPacket)
+        .filter(
+            models.ScheduledLeadershipPacket.id == schedule_id,
+            models.ScheduledLeadershipPacket.tenant_id == tenant["tenant_id"],
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Scheduled leadership packet not found")
+
+    dl = (
+        db.query(models.DistributionList)
+        .filter(
+            models.DistributionList.id == payload.distribution_list_id,
+            models.DistributionList.tenant_id == tenant["tenant_id"],
+        )
+        .first()
+    )
+    if not dl:
+        raise HTTPException(status_code=404, detail="Distribution list not found")
+
+    row.distribution_list_id = payload.distribution_list_id
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    result = _schedule_row(row)
+    log_audit_event(
+        db,
+        tenant_id=tenant["tenant_id"],
+        tenant_name=tenant["tenant_name"],
+        actor_email=current_user["user_email"],
+        actor_role=current_user["role_name"],
+        action_type="scheduled_packet_distribution_list_assign",
+        resource_type="scheduled_leadership_packet",
+        resource_id=row.id,
+        request=request,
+        details=result,
+        compliance_flag=True,
+    )
+
+    return {"item": result}

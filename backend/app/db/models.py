@@ -30,6 +30,8 @@ from app.models.generated_briefing import GeneratedBriefing
 from app.models.leadership_packet import LeadershipPacket
 from app.models.scheduled_leadership_packet import ScheduledLeadershipPacket
 from app.models.leadership_packet_delivery import LeadershipPacketDelivery
+from app.models.distribution_list import DistributionList
+from app.models.distribution_recipient import DistributionRecipient
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]

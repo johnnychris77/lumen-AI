@@ -220,3 +220,7 @@ app.include_router(leadership_packets_router, prefix=settings.API_PREFIX)
 from app.routes.scheduled_leadership_packets import router as scheduled_leadership_packets_router
 
 app.include_router(scheduled_leadership_packets_router, prefix=settings.API_PREFIX)
+
+from app.routes.distribution_lists import router as distribution_lists_router
+
+app.include_router(distribution_lists_router, prefix=settings.API_PREFIX)

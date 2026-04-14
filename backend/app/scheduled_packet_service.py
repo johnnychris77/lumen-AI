@@ -10,6 +10,7 @@ from app.briefing_generator import generate_briefing
 from app.db import models
 from app.leadership_packet_exports import build_leadership_packet
 from app.report_delivery import deliver_report
+from app.distribution_governance import resolve_delivery_target
 
 
 def _compact(value: Any) -> str:
@@ -50,8 +51,26 @@ def run_scheduled_packet_once(db: Session, schedule: models.ScheduledLeadershipP
         "pdf_path": packet.pdf_path if schedule.include_pdf else "",
     }
 
-    delivery = deliver_report(schedule.delivery_channel, schedule.delivery_target, delivery_payload)
-    status = "sent" if delivery.get("sent") else "failed"
+    resolved_target = resolve_delivery_target(
+        db,
+        schedule.tenant_id,
+        schedule.delivery_target,
+        getattr(schedule, "distribution_list_id", 0) or 0,
+    )
+
+    if not resolved_target["allowed"]:
+        delivery = {
+            "sent": False,
+            "channel": schedule.delivery_channel,
+            "target": resolved_target.get("target", ""),
+            "governance": resolved_target,
+            "reason": resolved_target.get("reason", "Delivery blocked by governance"),
+        }
+        status = "blocked"
+    else:
+        delivery = deliver_report(schedule.delivery_channel, resolved_target["target"], delivery_payload)
+        delivery["governance"] = resolved_target
+        status = "sent" if delivery.get("sent") else "failed"
 
     row = models.LeadershipPacketDelivery(
         tenant_id=schedule.tenant_id,
