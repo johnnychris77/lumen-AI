@@ -258,3 +258,7 @@ app.include_router(implementation_readiness_router, prefix=settings.API_PREFIX)
 from app.routes.customer_health import router as customer_health_router
 
 app.include_router(customer_health_router, prefix=settings.API_PREFIX)
+
+from app.routes.customer_success import router as customer_success_router
+
+app.include_router(customer_success_router, prefix=settings.API_PREFIX)

@@ -41,6 +41,8 @@ from app.models.governance_sla_event import GovernanceSlaEvent
 from app.models.implementation_readiness_item import ImplementationReadinessItem
 from app.models.go_live_checkpoint import GoLiveCheckpoint
 from app.models.customer_health_snapshot import CustomerHealthSnapshot
+from app.models.customer_success_playbook import CustomerSuccessPlaybook
+from app.models.renewal_risk_case import RenewalRiskCase
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
