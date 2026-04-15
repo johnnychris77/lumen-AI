@@ -250,3 +250,7 @@ app.include_router(governance_sla_scanner_router, prefix=settings.API_PREFIX)
 from app.routes.governance_command_center import router as governance_command_center_router
 
 app.include_router(governance_command_center_router, prefix=settings.API_PREFIX)
+
+from app.routes.implementation_readiness import router as implementation_readiness_router
+
+app.include_router(implementation_readiness_router, prefix=settings.API_PREFIX)
