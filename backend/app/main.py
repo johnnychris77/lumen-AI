@@ -254,3 +254,7 @@ app.include_router(governance_command_center_router, prefix=settings.API_PREFIX)
 from app.routes.implementation_readiness import router as implementation_readiness_router
 
 app.include_router(implementation_readiness_router, prefix=settings.API_PREFIX)
+
+from app.routes.customer_health import router as customer_health_router
+
+app.include_router(customer_health_router, prefix=settings.API_PREFIX)

@@ -40,6 +40,7 @@ from app.models.governance_sla_policy import GovernanceSlaPolicy
 from app.models.governance_sla_event import GovernanceSlaEvent
 from app.models.implementation_readiness_item import ImplementationReadinessItem
 from app.models.go_live_checkpoint import GoLiveCheckpoint
+from app.models.customer_health_snapshot import CustomerHealthSnapshot
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
