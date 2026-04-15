@@ -36,6 +36,8 @@ from app.models.packet_release import PacketRelease
 from app.models.packet_release_history import PacketReleaseHistory
 from app.models.packet_release_hold import PacketReleaseHold
 from app.models.packet_release_override import PacketReleaseOverride
+from app.models.governance_sla_policy import GovernanceSlaPolicy
+from app.models.governance_sla_event import GovernanceSlaEvent
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]

@@ -236,3 +236,7 @@ app.include_router(packet_release_holds_router, prefix=settings.API_PREFIX)
 from app.routes.release_governance_dashboard import router as release_governance_dashboard_router
 
 app.include_router(release_governance_dashboard_router, prefix=settings.API_PREFIX)
+
+from app.routes.governance_sla import router as governance_sla_router
+
+app.include_router(governance_sla_router, prefix=settings.API_PREFIX)
