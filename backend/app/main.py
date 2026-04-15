@@ -240,3 +240,9 @@ app.include_router(release_governance_dashboard_router, prefix=settings.API_PREF
 from app.routes.governance_sla import router as governance_sla_router
 
 app.include_router(governance_sla_router, prefix=settings.API_PREFIX)
+
+from app.routes.governance_sla_scanner import router as governance_sla_scanner_router
+
+from app.governance_sla_scanner import start_governance_sla_scanner
+
+app.include_router(governance_sla_scanner_router, prefix=settings.API_PREFIX)
