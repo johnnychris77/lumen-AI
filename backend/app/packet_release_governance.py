@@ -216,3 +216,96 @@ def reject_packet_release(
         details={"approval_notes": approval_notes},
     )
     return row
+
+
+def active_holds_for_packet(db: Session, tenant_id: str, packet_id: int):
+    return (
+        db.query(models.PacketReleaseHold)
+        .filter(
+            models.PacketReleaseHold.tenant_id == tenant_id,
+            models.PacketReleaseHold.packet_id == packet_id,
+            models.PacketReleaseHold.is_active == True,
+        )
+        .order_by(models.PacketReleaseHold.id.desc())
+        .all()
+    )
+
+
+def active_override_for_packet(db: Session, tenant_id: str, packet_id: int):
+    return (
+        db.query(models.PacketReleaseOverride)
+        .filter(
+            models.PacketReleaseOverride.tenant_id == tenant_id,
+            models.PacketReleaseOverride.packet_id == packet_id,
+            models.PacketReleaseOverride.status == "active",
+        )
+        .order_by(models.PacketReleaseOverride.id.desc())
+        .first()
+    )
+
+
+def release_governance_status(db: Session, tenant_id: str, packet_id: int) -> dict:
+    release_state = release_allows_delivery(db, tenant_id, packet_id)
+    holds = active_holds_for_packet(db, tenant_id, packet_id)
+    override = active_override_for_packet(db, tenant_id, packet_id)
+
+    hold_items = [
+        {
+            "id": h.id,
+            "hold_type": h.hold_type,
+            "reason": h.reason,
+            "placed_by": h.placed_by,
+            "placed_role": h.placed_role,
+            "created_at": h.created_at.isoformat() if h.created_at else None,
+        }
+        for h in holds
+    ]
+
+    override_item = None
+    if override:
+        override_item = {
+            "id": override.id,
+            "override_type": override.override_type,
+            "justification": override.justification,
+            "approved_by": override.approved_by,
+            "approved_role": override.approved_role,
+            "created_at": override.created_at.isoformat() if override.created_at else None,
+        }
+
+    if holds and not override:
+        return {
+            "allowed": False,
+            "reason": "Packet has active release holds",
+            "release": release_state,
+            "holds": hold_items,
+            "override": override_item,
+        }
+
+    if override:
+        return {
+            "allowed": True,
+            "reason": "Emergency override active",
+            "release": release_state,
+            "holds": hold_items,
+            "override": override_item,
+        }
+
+    return {
+        "allowed": bool(release_state.get("allowed")),
+        "reason": release_state.get("reason", ""),
+        "release": release_state,
+        "holds": hold_items,
+        "override": override_item,
+    }
+
+
+def release_allows_delivery(db: Session, tenant_id: str, packet_id: int) -> dict:
+    status = release_governance_status(db, tenant_id, packet_id)
+    return {
+        "allowed": status["allowed"],
+        "reason": status["reason"],
+        "status": status.get("release", {}).get("status", "unknown"),
+        "release_id": status.get("release", {}).get("release_id"),
+        "holds": status.get("holds", []),
+        "override": status.get("override"),
+    }

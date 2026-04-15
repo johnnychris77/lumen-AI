@@ -228,3 +228,7 @@ app.include_router(distribution_lists_router, prefix=settings.API_PREFIX)
 from app.routes.packet_releases import router as packet_releases_router
 
 app.include_router(packet_releases_router, prefix=settings.API_PREFIX)
+
+from app.routes.packet_release_holds import router as packet_release_holds_router
+
+app.include_router(packet_release_holds_router, prefix=settings.API_PREFIX)
