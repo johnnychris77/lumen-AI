@@ -266,3 +266,7 @@ app.include_router(customer_success_router, prefix=settings.API_PREFIX)
 from app.routes.customer_operations_hub import router as customer_operations_hub_router
 
 app.include_router(customer_operations_hub_router, prefix=settings.API_PREFIX)
+
+from app.routes.account_review_exports import router as account_review_exports_router
+
+app.include_router(account_review_exports_router, prefix=settings.API_PREFIX)
