@@ -274,3 +274,7 @@ app.include_router(account_review_exports_router, prefix=settings.API_PREFIX)
 from app.routes.scheduled_account_reviews import router as scheduled_account_reviews_router
 
 app.include_router(scheduled_account_reviews_router, prefix=settings.API_PREFIX)
+
+from app.routes.portfolio_dashboard import router as portfolio_dashboard_router
+
+app.include_router(portfolio_dashboard_router, prefix=settings.API_PREFIX)
