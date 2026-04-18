@@ -47,6 +47,7 @@ from app.models.account_review_packet import AccountReviewPacket
 from app.models.account_review_export import AccountReviewExport
 from app.models.scheduled_account_review import ScheduledAccountReview
 from app.models.account_review_delivery import AccountReviewDelivery
+from app.models.portfolio_briefing import PortfolioBriefing
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
