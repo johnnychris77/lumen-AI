@@ -282,3 +282,19 @@ app.include_router(portfolio_dashboard_router, prefix=settings.API_PREFIX)
 from app.routes.portfolio_briefings import router as portfolio_briefings_router
 
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
+
+from fastapi.openapi.utils import get_openapi
+
+def custom_openapi():
+    if app.openapi_schema is not None:
+        return app.openapi_schema
+    app.openapi_schema = get_openapi(
+        title=app.title,
+        version=getattr(app, "version", "0.1.0"),
+        description=getattr(app, "description", None),
+        routes=app.routes,
+    )
+    return app.openapi_schema
+
+app.openapi_schema = None
+app.openapi = custom_openapi
