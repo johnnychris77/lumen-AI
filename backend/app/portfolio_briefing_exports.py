@@ -1,0 +1,456 @@
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from docx import Document
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+
+EXPORT_ROOT = Path(os.getenv("PORTFOLIO_BRIEFING_EXPORT_DIR", "generated_portfolio_briefings"))
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _safe(value: Any, fallback: str = "") -> str:
+    if value is None:
+        return fallback
+    return str(value)
+
+
+def _ensure_tables(db: Session) -> None:
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS portfolio_briefing_exports (
+                id SERIAL PRIMARY KEY,
+                briefing_id INTEGER NOT NULL,
+                export_title VARCHAR(255) NOT NULL,
+                format_bundle VARCHAR(50) NOT NULL DEFAULT 'docx_pptx_pdf',
+                docx_path TEXT NOT NULL DEFAULT '',
+                pptx_path TEXT NOT NULL DEFAULT '',
+                pdf_path TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+    )
+
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS portfolio_briefing_deliveries (
+                id SERIAL PRIMARY KEY,
+                briefing_id INTEGER NOT NULL,
+                export_id INTEGER,
+                delivery_channel VARCHAR(50) NOT NULL,
+                delivery_target TEXT NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+    )
+    db.commit()
+
+
+def _get_briefing(db: Session, briefing_id: int) -> dict[str, Any]:
+    _ensure_tables(db)
+
+    row = (
+        db.execute(
+            text(
+                """
+                SELECT *
+                FROM portfolio_briefings
+                WHERE id = :briefing_id
+                """
+            ),
+            {"briefing_id": briefing_id},
+        )
+        .mappings()
+        .first()
+    )
+
+    if not row:
+        raise ValueError(f"Portfolio briefing {briefing_id} was not found")
+
+    return dict(row)
+
+
+def _briefing_dir(briefing_id: int) -> Path:
+    path = EXPORT_ROOT / f"briefing_{briefing_id}"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _next_steps(briefing: dict[str, Any]) -> list[str]:
+    raw = briefing.get("next_steps_json") or "[]"
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    except Exception:
+        pass
+    return []
+
+
+def _top_risks(briefing: dict[str, Any]) -> list[str]:
+    raw = briefing.get("top_risks_json") or "[]"
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            results = []
+            for item in parsed:
+                if isinstance(item, dict):
+                    results.append(json.dumps(item, default=str))
+                else:
+                    results.append(str(item))
+            return results
+    except Exception:
+        pass
+    return []
+
+
+def _summary(briefing: dict[str, Any]) -> dict[str, Any]:
+    raw = briefing.get("summary_json") or "{}"
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    return {}
+
+
+def _write_docx(briefing: dict[str, Any], path: Path) -> None:
+    doc = Document()
+
+    doc.add_heading("LumenAI Portfolio Board Briefing", level=0)
+    doc.add_paragraph(_safe(briefing.get("title"), "Portfolio Board Briefing"))
+
+    doc.add_heading("Executive Summary", level=1)
+    doc.add_paragraph(_safe(briefing.get("executive_summary")))
+
+    doc.add_heading("Board Narrative", level=1)
+    doc.add_paragraph(_safe(briefing.get("board_narrative")))
+
+    summary = _summary(briefing)
+    doc.add_heading("Portfolio Metrics", level=1)
+    table = doc.add_table(rows=1, cols=2)
+    table.style = "Table Grid"
+    hdr = table.rows[0].cells
+    hdr[0].text = "Metric"
+    hdr[1].text = "Value"
+
+    for key, value in summary.items():
+        cells = table.add_row().cells
+        cells[0].text = str(key)
+        cells[1].text = json.dumps(value, default=str) if isinstance(value, (dict, list)) else str(value)
+
+    risks = _top_risks(briefing)
+    doc.add_heading("Top Risks", level=1)
+    if risks:
+        for risk in risks:
+            doc.add_paragraph(risk, style="List Bullet")
+    else:
+        doc.add_paragraph("No top-risk accounts identified.")
+
+    doc.add_heading("Recommended Next Steps", level=1)
+    for step in _next_steps(briefing):
+        doc.add_paragraph(step, style="List Number")
+
+    doc.add_paragraph(f"Generated by LumenAI on {_now_iso()}")
+    doc.save(path)
+
+
+def _write_pptx(briefing: dict[str, Any], path: Path) -> None:
+    prs = Presentation()
+
+    title_slide = prs.slides.add_slide(prs.slide_layouts[0])
+    title_slide.shapes.title.text = "LumenAI Portfolio Board Briefing"
+    title_slide.placeholders[1].text = _safe(briefing.get("period_label"), "Portfolio Review")
+
+    def add_bullet_slide(title: str, bullets: list[str]) -> None:
+        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        slide.shapes.title.text = title
+        body = slide.placeholders[1]
+        text_frame = body.text_frame
+        text_frame.clear()
+        for idx, bullet in enumerate(bullets):
+            p = text_frame.paragraphs[0] if idx == 0 else text_frame.add_paragraph()
+            p.text = bullet
+            p.font.size = Pt(18)
+
+    add_bullet_slide(
+        "Executive Summary",
+        [_safe(briefing.get("executive_summary"), "No executive summary available.")],
+    )
+
+    summary = _summary(briefing)
+    add_bullet_slide(
+        "Portfolio Metrics",
+        [f"{key}: {value}" for key, value in summary.items()] or ["No portfolio metrics available."],
+    )
+
+    add_bullet_slide(
+        "Top Risks",
+        _top_risks(briefing) or ["No top-risk accounts identified."],
+    )
+
+    add_bullet_slide(
+        "Recommended Next Steps",
+        _next_steps(briefing) or ["No next steps available."],
+    )
+
+    final_slide = prs.slides.add_slide(prs.slide_layouts[5])
+    final_slide.shapes.title.text = "Board Narrative"
+    tx_box = final_slide.shapes.add_textbox(Inches(0.8), Inches(1.4), Inches(8.5), Inches(4.8))
+    tf = tx_box.text_frame
+    tf.text = _safe(briefing.get("board_narrative"), "No board narrative available.")
+
+    prs.save(path)
+
+
+def _write_pdf(briefing: dict[str, Any], path: Path) -> None:
+    c = canvas.Canvas(str(path), pagesize=letter)
+    width, height = letter
+
+    y = height - 60
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, y, "LumenAI Portfolio Board Briefing")
+
+    y -= 30
+    c.setFont("Helvetica", 10)
+    c.drawString(50, y, _safe(briefing.get("title"), "Portfolio Board Briefing"))
+
+    def draw_section(title: str, lines: list[str]) -> None:
+        nonlocal y
+        y -= 35
+        if y < 80:
+            c.showPage()
+            y = height - 60
+
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, title)
+        y -= 18
+
+        c.setFont("Helvetica", 9)
+        for line in lines:
+            words = line.split()
+            current = ""
+            for word in words:
+                candidate = f"{current} {word}".strip()
+                if len(candidate) > 95:
+                    c.drawString(60, y, current)
+                    y -= 13
+                    current = word
+                    if y < 60:
+                        c.showPage()
+                        y = height - 60
+                        c.setFont("Helvetica", 9)
+                else:
+                    current = candidate
+            if current:
+                c.drawString(60, y, current)
+                y -= 13
+            y -= 4
+
+    draw_section("Executive Summary", [_safe(briefing.get("executive_summary"))])
+    draw_section("Board Narrative", _safe(briefing.get("board_narrative")).splitlines())
+
+    summary = _summary(briefing)
+    draw_section("Portfolio Metrics", [f"{key}: {value}" for key, value in summary.items()] or ["No metrics available."])
+    draw_section("Top Risks", _top_risks(briefing) or ["No top-risk accounts identified."])
+    draw_section("Recommended Next Steps", _next_steps(briefing) or ["No next steps available."])
+
+    y -= 20
+    if y < 60:
+        c.showPage()
+        y = height - 60
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(50, y, f"Generated by LumenAI on {_now_iso()}")
+
+    c.save()
+
+
+def build_portfolio_briefing_export(db: Session, briefing_id: int) -> dict[str, Any]:
+    briefing = _get_briefing(db, briefing_id)
+    export_dir = _briefing_dir(briefing_id)
+
+    base_name = f"portfolio_briefing_{briefing_id}"
+    docx_path = export_dir / f"{base_name}.docx"
+    pptx_path = export_dir / f"{base_name}.pptx"
+    pdf_path = export_dir / f"{base_name}.pdf"
+
+    _write_docx(briefing, docx_path)
+    _write_pptx(briefing, pptx_path)
+    _write_pdf(briefing, pdf_path)
+
+    export_title = f"Portfolio Briefing Export — {_safe(briefing.get('period_label'), 'Portfolio Review')}"
+
+    row = (
+        db.execute(
+            text(
+                """
+                INSERT INTO portfolio_briefing_exports (
+                    briefing_id,
+                    export_title,
+                    format_bundle,
+                    docx_path,
+                    pptx_path,
+                    pdf_path
+                )
+                VALUES (
+                    :briefing_id,
+                    :export_title,
+                    'docx_pptx_pdf',
+                    :docx_path,
+                    :pptx_path,
+                    :pdf_path
+                )
+                RETURNING *
+                """
+            ),
+            {
+                "briefing_id": briefing_id,
+                "export_title": export_title,
+                "docx_path": str(docx_path),
+                "pptx_path": str(pptx_path),
+                "pdf_path": str(pdf_path),
+            },
+        )
+        .mappings()
+        .first()
+    )
+    db.commit()
+    return dict(row)
+
+
+def list_portfolio_briefing_exports(db: Session, briefing_id: int) -> list[dict[str, Any]]:
+    _ensure_tables(db)
+    rows = (
+        db.execute(
+            text(
+                """
+                SELECT *
+                FROM portfolio_briefing_exports
+                WHERE briefing_id = :briefing_id
+                ORDER BY created_at DESC, id DESC
+                """
+            ),
+            {"briefing_id": briefing_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [dict(row) for row in rows]
+
+
+def get_portfolio_briefing_export(db: Session, export_id: int) -> dict[str, Any] | None:
+    _ensure_tables(db)
+    row = (
+        db.execute(
+            text(
+                """
+                SELECT *
+                FROM portfolio_briefing_exports
+                WHERE id = :export_id
+                """
+            ),
+            {"export_id": export_id},
+        )
+        .mappings()
+        .first()
+    )
+    return dict(row) if row else None
+
+
+def distribute_portfolio_briefing(
+    db: Session,
+    briefing_id: int,
+    export_id: int | None,
+    delivery_channel: str,
+    delivery_target: str,
+    message: str,
+) -> dict[str, Any]:
+    _ensure_tables(db)
+
+    payload = {
+        "briefing_id": briefing_id,
+        "export_id": export_id,
+        "delivery_channel": delivery_channel,
+        "delivery_target": delivery_target,
+        "message": message,
+        "sent_at": _now_iso(),
+        "note": "Development-mode delivery audit. External email/webhook transport can be attached later.",
+    }
+
+    row = (
+        db.execute(
+            text(
+                """
+                INSERT INTO portfolio_briefing_deliveries (
+                    briefing_id,
+                    export_id,
+                    delivery_channel,
+                    delivery_target,
+                    status,
+                    payload_json
+                )
+                VALUES (
+                    :briefing_id,
+                    :export_id,
+                    :delivery_channel,
+                    :delivery_target,
+                    :status,
+                    :payload_json
+                )
+                RETURNING *
+                """
+            ),
+            {
+                "briefing_id": briefing_id,
+                "export_id": export_id,
+                "delivery_channel": delivery_channel,
+                "delivery_target": delivery_target,
+                "status": "sent",
+                "payload_json": json.dumps(payload),
+            },
+        )
+        .mappings()
+        .first()
+    )
+    db.commit()
+    return dict(row)
+
+
+def list_portfolio_briefing_deliveries(db: Session, briefing_id: int) -> list[dict[str, Any]]:
+    _ensure_tables(db)
+    rows = (
+        db.execute(
+            text(
+                """
+                SELECT *
+                FROM portfolio_briefing_deliveries
+                WHERE briefing_id = :briefing_id
+                ORDER BY created_at DESC, id DESC
+                """
+            ),
+            {"briefing_id": briefing_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [dict(row) for row in rows]

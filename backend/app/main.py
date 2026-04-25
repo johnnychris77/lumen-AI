@@ -280,8 +280,10 @@ from app.routes.portfolio_dashboard import router as portfolio_dashboard_router
 app.include_router(portfolio_dashboard_router, prefix=settings.API_PREFIX)
 
 from app.routes.portfolio_briefings import router as portfolio_briefings_router
+from app.routes.portfolio_briefing_exports import router as portfolio_briefing_exports_router
 
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
+app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
 
 from fastapi.openapi.utils import get_openapi
 
