@@ -1,0 +1,62 @@
+name: Enterprise Quality Gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  enterprise-quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare artifact folders
+        run: |
+          mkdir -p generated_portfolio_briefings
+          mkdir -p generated_governance_packets
+          mkdir -p reports
+
+      - name: Build stack
+        run: |
+          docker compose -f docker-compose.prod.yml down --remove-orphans || true
+          docker compose -f docker-compose.prod.yml up -d --build
+
+      - name: Wait for API
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18011/api/health; then
+              exit 0
+            fi
+            echo "waiting for API..."
+            sleep 2
+          done
+          docker compose -f docker-compose.prod.yml ps
+          docker logs --tail=200 lumen-ai-api-1 || true
+          exit 1
+
+      - name: Run enterprise smoke test
+        run: |
+          BASE_URL=http://127.0.0.1:18011 TOKEN=dev-token backend/scripts/enterprise-smoke-test.sh
+
+      - name: Show container logs on success
+        if: success()
+        run: |
+          docker compose -f docker-compose.prod.yml ps
+          docker logs --tail=100 lumen-ai-api-1 || true
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.prod.yml ps || true
+          docker logs --tail=300 lumen-ai-api-1 || true
+          docker logs --tail=200 lumen-ai-db-1 || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.prod.yml down --remove-orphans -v
