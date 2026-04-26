@@ -235,6 +235,11 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Tenant Executive Insights</h2>
+      <div id="tenantInsights"></div>
+    </section>
+
+    <section>
       <h2>Executive Automation Summary</h2>
       <div class="grid" id="metrics"></div>
     </section>
@@ -613,6 +618,29 @@ async function loadDashboard() {
       { key: "next_qbr_date", label: "Next QBR", render: r => esc(r.next_qbr_date || "") },
       { key: "customer_success_owner", label: "CS Owner" },
     ]);
+
+    const insightRollup = data.tenant_insights || {};
+    const insightRows = data.top_tenant_insights || [];
+
+    document.getElementById("tenantInsights").innerHTML = `
+      <div class="grid">
+        ${metricCard("Board Attention", insightRollup.board_attention_count || 0, "risk-panel")}
+        ${metricCard("Critical Insights", insightRollup.critical_count || 0, "risk-panel")}
+        ${metricCard("High/Moderate Risk", insightRollup.high_or_moderate_count || 0, "risk-panel")}
+        ${metricCard("Insight Count", insightRollup.tenant_insight_count || 0)}
+      </div>
+      <div class="card" style="margin-bottom: 16px;">
+        <strong>Executive Focus:</strong>
+        <div style="margin-top:8px;">${esc(insightRollup.executive_focus_summary || "")}</div>
+      </div>
+      ${table(insightRows, [
+        { key: "tenant_name", label: "Tenant" },
+        { key: "risk_level", label: "Risk Level", render: r => statusBadge(r.risk_level === "high" ? "at_risk" : r.risk_level) },
+        { key: "board_attention_required", label: "Board Attention", render: r => boolBadge(r.board_attention_required) },
+        { key: "executive_summary", label: "Executive Summary", render: r => esc(r.executive_summary).slice(0, 220) },
+        { key: "recommended_actions", label: "Recommended Actions", render: r => esc((r.recommended_actions || []).join("; ")).slice(0, 260) },
+      ])}
+    `;
 
     document.getElementById("metrics").innerHTML = [
       metricCard("Schedules", counts.schedules || 0),

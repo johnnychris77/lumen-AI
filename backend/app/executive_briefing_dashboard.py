@@ -124,4 +124,20 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         '''
     )
 
+
+    try:
+        from app.tenant_insights import portfolio_insight_rollup, get_top_risk_tenant_insights
+        summary["tenant_insights"] = portfolio_insight_rollup(db)
+        summary["top_tenant_insights"] = get_top_risk_tenant_insights(db, limit=10)
+    except Exception:
+        summary["tenant_insights"] = {
+            "tenant_insight_count": 0,
+            "board_attention_count": 0,
+            "critical_count": 0,
+            "high_or_moderate_count": 0,
+            "top_board_attention_items": [],
+            "executive_focus_summary": "Tenant insights unavailable."
+        }
+        summary["top_tenant_insights"] = []
+
     return summary

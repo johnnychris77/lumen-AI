@@ -40,6 +40,11 @@ if not _has_route("/api/portfolio-tenants"):
     from app.routes.portfolio_tenants import router as portfolio_tenants_router
     app.include_router(portfolio_tenants_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/tenant-insights/top-risks"):
+    from app.routes.tenant_insights import router as tenant_insights_router
+    app.include_router(tenant_insights_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

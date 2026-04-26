@@ -373,8 +373,21 @@ def generate_board_briefing_from_portfolio_tenants(
 
     top_risks = rollup["top_risks"]
 
+    try:
+        from app.tenant_insights import get_top_risk_tenant_insights
+        top_insights = get_top_risk_tenant_insights(db, limit=5)
+    except Exception:
+        top_insights = []
+
     risk_names = [risk["tenant_name"] for risk in top_risks if risk["health_status"] in {"at_risk", "critical", "watch"}]
     risk_sentence = ", ".join(risk_names) if risk_names else "No top-risk accounts identified"
+
+    insight_lines = [
+        f"{item['tenant_name']}: {item['executive_summary']}"
+        for item in top_insights
+        if item.get("board_attention_required")
+    ]
+    insight_narrative = "\n".join(insight_lines) if insight_lines else "No tenant insight narratives require board attention."
 
     summary = {
         "tenant_count": rollup["tenant_count"],
@@ -414,6 +427,7 @@ def generate_board_briefing_from_portfolio_tenants(
         f"Governance exceptions: {rollup['governance_exception_total']}.\n"
         f"QBR overdue accounts: {rollup['qbr_overdue_count']}.\n\n"
         f"Top-risk account posture:\n{risk_sentence}.\n\n"
+        f"Tenant insight narrative:\n{insight_narrative}\n\n"
         "Board focus should remain on customer health stabilization, QBR operating cadence, "
         "go-live readiness, governance exception closure, and renewal-risk mitigation."
     )
