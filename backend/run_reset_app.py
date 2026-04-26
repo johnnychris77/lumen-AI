@@ -65,6 +65,11 @@ if not _has_route("/api/executive-kpi-snapshots/capture"):
     from app.routes.executive_kpi_snapshots import router as executive_kpi_snapshots_router
     app.include_router(executive_kpi_snapshots_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/executive-kpi-scheduler/status"):
+    from app.routes.executive_kpi_scheduler import router as executive_kpi_scheduler_router
+    app.include_router(executive_kpi_scheduler_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 
@@ -82,4 +87,21 @@ def _start_portfolio_briefing_recurring_scheduler():
 @app.on_event("shutdown")
 def _stop_portfolio_briefing_recurring_scheduler():
     shutdown_recurring_portfolio_briefing_scheduler()
+
+
+
+from app.executive_kpi_scheduler import (
+    start_executive_kpi_scheduler,
+    shutdown_executive_kpi_scheduler,
+)
+
+
+@app.on_event("startup")
+def _start_executive_kpi_scheduler():
+    start_executive_kpi_scheduler()
+
+
+@app.on_event("shutdown")
+def _stop_executive_kpi_scheduler():
+    shutdown_executive_kpi_scheduler()
 

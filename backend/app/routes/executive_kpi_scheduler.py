@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.db import session as db_session
-from app.executive_kpi_scheduler import generate_executive_kpi_trend_narrative
-from app.executive_kpi_snapshots import (
-    capture_executive_kpi_snapshot,
-    executive_kpi_trends,
-    get_latest_executive_kpi_snapshot,
-    list_executive_kpi_snapshots,
+from app.executive_kpi_scheduler import (
+    executive_kpi_scheduler_status,
+    generate_executive_kpi_trend_narrative,
+    run_kpi_snapshot_now,
+    start_executive_kpi_scheduler,
 )
 
 
@@ -35,52 +33,35 @@ def get_db():
     raise RuntimeError("No database session provider found in app.db.session")
 
 
-router = APIRouter(prefix="/executive-kpi-snapshots", tags=["executive-kpi-snapshots"])
+router = APIRouter(prefix="/executive-kpi-scheduler", tags=["executive-kpi-scheduler"])
 
 
-class ExecutiveKpiSnapshotCapturePayload(BaseModel):
-    snapshot_label: str = Field(default="Executive Operating Metrics Snapshot")
-
-
-@router.post("/capture")
-def capture_snapshot(
-    payload: ExecutiveKpiSnapshotCapturePayload,
+@router.get("/status")
+def scheduler_status(
     authorization: str | None = Header(default=None, alias="Authorization"),
-    db: Session = Depends(get_db),
 ):
     get_current_user(authorization)
-    return capture_executive_kpi_snapshot(db, snapshot_label=payload.snapshot_label)
+    return executive_kpi_scheduler_status()
 
 
-@router.get("")
-def list_snapshots(
+@router.post("/start")
+def start_scheduler(
     authorization: str | None = Header(default=None, alias="Authorization"),
-    db: Session = Depends(get_db),
 ):
     get_current_user(authorization)
-    return list_executive_kpi_snapshots(db)
+    return start_executive_kpi_scheduler()
 
 
-@router.get("/latest")
-def latest_snapshot(
+@router.post("/run-now")
+def run_now(
     authorization: str | None = Header(default=None, alias="Authorization"),
-    db: Session = Depends(get_db),
 ):
     get_current_user(authorization)
-    return get_latest_executive_kpi_snapshot(db) or {}
-
-
-@router.get("/trends")
-def trends(
-    authorization: str | None = Header(default=None, alias="Authorization"),
-    db: Session = Depends(get_db),
-):
-    get_current_user(authorization)
-    return executive_kpi_trends(db)
+    return run_kpi_snapshot_now()
 
 
 @router.get("/narrative")
-def narrative(
+def trend_narrative(
     authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):

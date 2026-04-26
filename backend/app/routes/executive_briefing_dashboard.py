@@ -240,6 +240,17 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Automated KPI Snapshot Scheduler + Board Trend Narrative</h2>
+      <div class="toolbar-actions" style="margin-bottom: 16px;">
+        <button class="secondary" onclick="startKpiScheduler()">Start KPI Scheduler</button>
+        <button class="green" onclick="runKpiSchedulerNow()">Run KPI Snapshot Now</button>
+        <button onclick="loadKpiNarrative()">Refresh Trend Narrative</button>
+      </div>
+      <div id="kpiSchedulerStatus" class="card muted">Loading KPI scheduler status...</div>
+      <div id="kpiTrendNarrative" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Executive Operating Metrics + KPI Trends</h2>
       <div class="toolbar-actions" style="margin-bottom: 16px;">
         <button class="green" onclick="captureKpiSnapshot()">Capture KPI Snapshot</button>
@@ -572,6 +583,78 @@ async function setRemediationStatus(id, status) {
 
 
 
+
+
+
+async function loadKpiSchedulerStatus() {
+  try {
+    const status = await apiFetch("/api/executive-kpi-scheduler/status");
+    const jobs = status.jobs || [];
+    const last = status.last_run_summary || {};
+    document.getElementById("kpiSchedulerStatus").innerHTML = `
+      <div><strong>Running:</strong> ${status.running ? "Yes" : "No"}</div>
+      <div style="margin-top: 8px;"><strong>Jobs:</strong> ${jobs.length}</div>
+      <div class="muted" style="margin-top: 8px;">Next run: ${jobs.map(j => formatDate(j.next_run_time)).join(", ") || "None"}</div>
+      <div class="muted" style="margin-top: 8px;">Last run: ${formatDate(last.checked_at)}</div>
+      <div class="muted">Last snapshot ID: ${last.snapshot_id || "None"}; status: ${last.status || "not_started"}</div>
+      ${last.error ? `<div style="color:#b91c1c;margin-top:8px;">Error: ${esc(last.error)}</div>` : ""}
+    `;
+  } catch (err) {
+    document.getElementById("kpiSchedulerStatus").innerHTML = `<span style="color:#b91c1c;">Failed to load KPI scheduler status: ${esc(err.message)}</span>`;
+  }
+}
+
+async function startKpiScheduler() {
+  clearMessages();
+  try {
+    await apiFetch("/api/executive-kpi-scheduler/start", { method: "POST" });
+    showSuccess("KPI scheduler started.");
+    await loadKpiSchedulerStatus();
+  } catch (err) {
+    showError(`Start KPI scheduler failed: ${err.message}`);
+  }
+}
+
+async function runKpiSchedulerNow() {
+  clearMessages();
+  try {
+    const result = await apiFetch("/api/executive-kpi-scheduler/run-now", { method: "POST" });
+    showSuccess(`KPI scheduler run completed. Snapshot ID: ${result.snapshot?.id || "unknown"}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Run KPI scheduler now failed: ${err.message}`);
+  }
+}
+
+async function loadKpiNarrative() {
+  try {
+    const narrative = await apiFetch("/api/executive-kpi-scheduler/narrative");
+    const movements = narrative.movement_narratives || [];
+    const actions = narrative.recommended_actions || [];
+
+    document.getElementById("kpiTrendNarrative").innerHTML = `
+      <div class="card">
+        <h3>Executive Trend Narrative</h3>
+        <p><strong>Status:</strong> ${esc(narrative.status)}</p>
+        <p><strong>Executive Summary:</strong> ${esc(narrative.executive_summary || "")}</p>
+        <h4>Board Narrative</h4>
+        <p>${esc(narrative.board_narrative || "")}</p>
+        <h4>Recommended Actions</h4>
+        <ul>${actions.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+        <h4>Movement Interpretation</h4>
+        ${table(movements, [
+          { key: "label", label: "Metric" },
+          { key: "previous", label: "Previous" },
+          { key: "latest", label: "Latest" },
+          { key: "delta", label: "Delta", render: r => movementBadge(r.delta) },
+          { key: "narrative", label: "Narrative", render: r => esc(r.narrative).slice(0, 240) },
+        ])}
+      </div>
+    `;
+  } catch (err) {
+    document.getElementById("kpiTrendNarrative").innerHTML = `<div class="card" style="color:#b91c1c;">Failed to load KPI trend narrative: ${esc(err.message)}</div>`;
+  }
+}
 
 
 async function captureKpiSnapshot() {

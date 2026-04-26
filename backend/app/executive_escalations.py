@@ -410,10 +410,19 @@ def generate_governance_packet(db: Session) -> dict[str, Any]:
         "Document decisions from governance cadence and track closure by next review.",
     ]
 
+    try:
+        from app.executive_kpi_scheduler import generate_executive_kpi_trend_narrative
+        kpi_narrative = generate_executive_kpi_trend_narrative(db)
+        kpi_board_narrative = kpi_narrative.get("board_narrative", "")
+    except Exception:
+        kpi_narrative = {}
+        kpi_board_narrative = ""
+
     narrative = (
         "Executive governance packet generated from active escalations. "
         f"There are {rollup['open']} open escalation(s), {rollup['critical']} critical item(s), "
-        f"and {rollup['leadership_decision_required']} item(s) requiring leadership decision."
+        f"and {rollup['leadership_decision_required']} item(s) requiring leadership decision. "
+        + (f" Operating metrics trend: {kpi_board_narrative}" if kpi_board_narrative else "")
     )
 
     return {
@@ -425,4 +434,5 @@ def generate_governance_packet(db: Session) -> dict[str, Any]:
         "acknowledged_escalations": acknowledged,
         "top_governance_items": top_lines,
         "recommended_leadership_decisions": recommended_decisions,
+        "kpi_trend_narrative": kpi_narrative,
     }
