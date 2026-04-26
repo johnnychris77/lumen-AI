@@ -261,6 +261,14 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Enterprise RBAC + Policy Guardrails</h2>
+      <div class="grid" id="enterpriseAccessMetrics"></div>
+      <div id="enterpriseAccessNarrative" style="margin-top: 16px;"></div>
+      <div id="recentAccessDecisions" style="margin-top: 16px;"></div>
+      <div id="accessPolicyMatrix" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Enterprise Audit Trail + Access Governance</h2>
       <div class="grid" id="enterpriseAuditMetrics"></div>
       <div id="enterpriseAuditNarrative" style="margin-top: 16px;"></div>
@@ -1040,6 +1048,56 @@ async function loadDashboard() {
     `;
 
 
+
+
+
+    const access = data.enterprise_access || {};
+    const accessNarrative = data.enterprise_access_narrative || {};
+
+    document.getElementById("enterpriseAccessMetrics").innerHTML = [
+      metricCard("Access Decisions", access.total || 0),
+      metricCard("Allowed", access.allowed || 0),
+      metricCard("Denied", access.denied || 0, access.denied > 0 ? "risk-panel" : ""),
+      metricCard("Admin Events", access.admin_events || 0),
+      metricCard("Executive Events", access.executive_events || 0),
+      metricCard("Operator Events", access.operator_events || 0),
+      metricCard("Viewer Events", access.viewer_events || 0),
+      metricCard("Policy Guardrails", "Active"),
+    ].join("");
+
+    document.getElementById("enterpriseAccessNarrative").innerHTML = `
+      <div class="card">
+        <h3>Access Governance Narrative</h3>
+        <p>${esc(accessNarrative.executive_summary || "")}</p>
+        <h4>Recommended Actions</h4>
+        <ul>${(accessNarrative.recommended_actions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+      </div>
+    `;
+
+    document.getElementById("recentAccessDecisions").innerHTML = `
+      <h3>Recent Access Decisions</h3>
+      ${table(data.recent_access_decisions || [], [
+        { key: "id", label: "ID" },
+        { key: "actor", label: "Actor" },
+        { key: "actor_role", label: "Role" },
+        { key: "resource_type", label: "Resource" },
+        { key: "action", label: "Action" },
+        { key: "method", label: "Method" },
+        { key: "path", label: "Path", render: r => esc(r.path).slice(0, 90) },
+        { key: "allowed", label: "Allowed", render: r => boolBadge(r.allowed) },
+        { key: "reason", label: "Reason", render: r => esc(r.reason).slice(0, 120) },
+        { key: "created_at", label: "Time", render: r => formatDate(r.created_at) },
+      ])}
+    `;
+
+    document.getElementById("accessPolicyMatrix").innerHTML = `
+      <h3>Policy Matrix</h3>
+      ${table(data.access_policy_matrix || [], [
+        { key: "resource_type", label: "Resource" },
+        { key: "action", label: "Action" },
+        { key: "required_role", label: "Required Role" },
+      ])}
+    `;
 
 
     const audit = data.enterprise_audit || {};

@@ -80,6 +80,11 @@ if not _has_route("/api/enterprise-audit-events"):
     from app.routes.enterprise_audit import router as enterprise_audit_router
     app.include_router(enterprise_audit_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/enterprise-access-control/decisions"):
+    from app.routes.enterprise_access_control import router as enterprise_access_control_router
+    app.include_router(enterprise_access_control_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 
@@ -166,4 +171,67 @@ async def _enterprise_audit_middleware(request: Request, call_next):
                     db.close()
         except Exception:
             pass
+
+
+
+from starlette.responses import JSONResponse
+from app.enterprise_access_control import (
+    evaluate_access as enterprise_evaluate_access,
+    infer_action as enterprise_infer_action,
+    infer_actor_and_role as enterprise_infer_actor_and_role,
+    infer_resource_type as enterprise_infer_resource_type,
+    record_access_decision as enterprise_record_access_decision,
+)
+
+
+@app.middleware("http")
+async def _enterprise_access_control_middleware(request, call_next):
+    path = request.url.path
+
+    if not path.startswith("/api") or path in {"/api/health"}:
+        return await call_next(request)
+
+    # Keep public API docs readable during local development.
+    if path in {"/openapi.json", "/api/openapi.json"} or path.endswith("/view"):
+        return await call_next(request)
+
+    method = request.method.upper()
+    headers = {k.lower(): v for k, v in request.headers.items()}
+
+    actor, actor_role = enterprise_infer_actor_and_role(headers)
+    resource_type = enterprise_infer_resource_type(path)
+    action = enterprise_infer_action(method, path)
+
+    decision = enterprise_evaluate_access(actor_role, resource_type, action)
+
+    try:
+        db = audit_db_session.SessionLocal()
+        try:
+            enterprise_record_access_decision(
+                db=db,
+                actor=actor,
+                actor_role=actor_role,
+                resource_type=resource_type,
+                action=action,
+                method=method,
+                path=path,
+                allowed=bool(decision["allowed"]),
+                reason=str(decision["reason"]),
+                policy=decision,
+            )
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    if not decision["allowed"]:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "Access denied by enterprise policy",
+                "policy": decision,
+            },
+        )
+
+    return await call_next(request)
 

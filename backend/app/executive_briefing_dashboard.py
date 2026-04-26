@@ -278,4 +278,31 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         }
         summary["recent_audit_events"] = []
 
+
+    try:
+        from app.enterprise_access_control import access_rollup, access_governance_narrative, list_access_decisions, policy_matrix
+        summary["enterprise_access"] = access_rollup(db)
+        summary["enterprise_access_narrative"] = access_governance_narrative(db)
+        summary["recent_access_decisions"] = list_access_decisions(db, limit=25)
+        summary["access_policy_matrix"] = policy_matrix()
+    except Exception:
+        summary["enterprise_access"] = {
+            "total": 0,
+            "allowed": 0,
+            "denied": 0,
+            "admin_events": 0,
+            "executive_events": 0,
+            "operator_events": 0,
+            "viewer_events": 0,
+            "by_role": [],
+            "by_resource": [],
+        }
+        summary["enterprise_access_narrative"] = {
+            "status": "unavailable",
+            "executive_summary": "Enterprise access control data unavailable.",
+            "recommended_actions": [],
+        }
+        summary["recent_access_decisions"] = []
+        summary["access_policy_matrix"] = []
+
     return summary
