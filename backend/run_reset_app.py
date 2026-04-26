@@ -50,6 +50,11 @@ if not _has_route("/api/tenant-remediations"):
     from app.routes.tenant_remediations import router as tenant_remediations_router
     app.include_router(tenant_remediations_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/executive-escalations/run"):
+    from app.routes.executive_escalations import router as executive_escalations_router
+    app.include_router(executive_escalations_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

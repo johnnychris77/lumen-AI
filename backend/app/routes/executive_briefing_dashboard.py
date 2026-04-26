@@ -240,6 +240,17 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Executive Escalation & Governance Cadence</h2>
+      <div class="toolbar-actions" style="margin-bottom: 16px;">
+        <button class="danger" onclick="runExecutiveEscalationScan()">Run Escalation Scan</button>
+        <button class="green" onclick="generateGovernancePacket()">Generate Governance Packet</button>
+      </div>
+      <div class="grid" id="executiveEscalationMetrics"></div>
+      <div id="openExecutiveEscalations" style="margin-top: 16px;"></div>
+      <div id="governancePacket" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Tenant Remediation Workflow</h2>
       <div class="grid" id="remediationMetrics"></div>
       <div style="margin-top: 16px;" id="openRemediations"></div>
@@ -540,6 +551,72 @@ async function setRemediationStatus(id, status) {
 }
 
 
+
+async function runExecutiveEscalationScan() {
+  clearMessages();
+  try {
+    const result = await apiFetch("/api/executive-escalations/run", { method: "POST" });
+    showSuccess(`Escalation scan completed. Created: ${result.created_count || 0}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Escalation scan failed: ${err.message}`);
+  }
+}
+
+async function acknowledgeExecutiveEscalation(id) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/executive-escalations/${id}/acknowledge`, { method: "POST" });
+    showSuccess(`Escalation ${id} acknowledged.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Acknowledge escalation failed: ${err.message}`);
+  }
+}
+
+async function closeExecutiveEscalation(id) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/executive-escalations/${id}/close`, { method: "POST" });
+    showSuccess(`Escalation ${id} closed.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Close escalation failed: ${err.message}`);
+  }
+}
+
+async function generateGovernancePacket() {
+  clearMessages();
+  try {
+    const packet = await apiFetch("/api/executive-escalations/generate-governance-packet", { method: "POST" });
+    showSuccess("Governance packet generated.");
+
+    const items = packet.top_governance_items || [];
+    const decisions = packet.recommended_leadership_decisions || [];
+
+    document.getElementById("governancePacket").innerHTML = `
+      <div class="card">
+        <h3>Governance Packet</h3>
+        <p><strong>Executive Summary:</strong> ${esc(packet.executive_summary || "")}</p>
+        <h4>Recommended Leadership Decisions</h4>
+        <ul>${decisions.map(d => `<li>${esc(d)}</li>`).join("")}</ul>
+        <h4>Top Governance Items</h4>
+        ${table(items, [
+          { key: "tenant", label: "Tenant" },
+          { key: "priority", label: "Priority", render: r => statusBadge(r.priority === "critical" ? "critical" : "at_risk") },
+          { key: "type", label: "Type" },
+          { key: "owner", label: "Owner" },
+          { key: "summary", label: "Summary", render: r => esc(r.summary).slice(0, 220) },
+          { key: "leadership_decision_required", label: "Decision Required", render: r => boolBadge(r.leadership_decision_required) },
+        ])}
+      </div>
+    `;
+  } catch (err) {
+    showError(`Governance packet generation failed: ${err.message}`);
+  }
+}
+
+
 async function retryDelivery(id) {
   clearMessages();
   try {
@@ -685,6 +762,37 @@ async function loadDashboard() {
         { key: "executive_summary", label: "Executive Summary", render: r => esc(r.executive_summary).slice(0, 220) },
         { key: "recommended_actions", label: "Recommended Actions", render: r => esc((r.recommended_actions || []).join("; ")).slice(0, 260) },
         { key: "tenant_id", label: "Action", render: r => `<button class="secondary small-button" onclick="createRemediationsFromInsight(${r.tenant_id})">Create Actions</button>` },
+      ])}
+    `;
+
+
+
+    const escalation = data.executive_escalations || {};
+    document.getElementById("executiveEscalationMetrics").innerHTML = [
+      metricCard("Total Escalations", escalation.total || 0),
+      metricCard("Open", escalation.open || 0, "risk-panel"),
+      metricCard("Acknowledged", escalation.acknowledged || 0),
+      metricCard("Closed", escalation.closed || 0),
+      metricCard("Critical", escalation.critical || 0, "risk-panel"),
+      metricCard("High", escalation.high || 0, "risk-panel"),
+      metricCard("Leadership Decisions", escalation.leadership_decision_required || 0, "risk-panel"),
+      metricCard("Governance Cadence", "Active"),
+    ].join("");
+
+    document.getElementById("openExecutiveEscalations").innerHTML = `
+      <h3>Open Executive Escalations</h3>
+      ${table(data.open_executive_escalations || [], [
+        { key: "id", label: "ID" },
+        { key: "tenant_name", label: "Tenant" },
+        { key: "escalation_type", label: "Type" },
+        { key: "priority", label: "Priority", render: r => statusBadge(r.priority === "critical" ? "critical" : "at_risk") },
+        { key: "owner", label: "Owner" },
+        { key: "escalation_summary", label: "Summary", render: r => esc(r.escalation_summary).slice(0, 220) },
+        { key: "leadership_decision_required", label: "Decision", render: r => boolBadge(r.leadership_decision_required) },
+        { key: "id", label: "Actions", render: r => `
+          <button class="secondary small-button" onclick="acknowledgeExecutiveEscalation(${r.id})">Acknowledge</button>
+          <button class="green small-button" onclick="closeExecutiveEscalation(${r.id})">Close</button>
+        ` },
       ])}
     `;
 

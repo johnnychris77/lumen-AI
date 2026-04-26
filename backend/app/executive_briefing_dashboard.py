@@ -161,4 +161,21 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         summary["open_remediations"] = []
         summary["overdue_remediations"] = []
 
+
+    try:
+        from app.executive_escalations import executive_escalation_rollup, list_executive_escalations
+        summary["executive_escalations"] = executive_escalation_rollup(db)
+        summary["open_executive_escalations"] = list_executive_escalations(db, status="open", limit=15)
+    except Exception:
+        summary["executive_escalations"] = {
+            "total": 0,
+            "open": 0,
+            "acknowledged": 0,
+            "closed": 0,
+            "critical": 0,
+            "high": 0,
+            "leadership_decision_required": 0,
+        }
+        summary["open_executive_escalations"] = []
+
     return summary
