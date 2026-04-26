@@ -35,6 +35,11 @@ if not _has_route("/api/executive-briefing-dashboard/summary"):
     from app.routes.executive_briefing_dashboard import router as executive_briefing_dashboard_router
     app.include_router(executive_briefing_dashboard_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/portfolio-tenants"):
+    from app.routes.portfolio_tenants import router as portfolio_tenants_router
+    app.include_router(portfolio_tenants_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

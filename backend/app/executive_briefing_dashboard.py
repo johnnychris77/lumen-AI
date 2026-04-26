@@ -101,4 +101,27 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         "artifacts": _artifact_stats(),
     }
 
+
+    summary["portfolio_tenants"] = {
+        "total": _count(db, "SELECT COUNT(*) FROM portfolio_tenants"),
+        "healthy": _count(db, "SELECT COUNT(*) FROM portfolio_tenants WHERE health_status = 'healthy'"),
+        "watch": _count(db, "SELECT COUNT(*) FROM portfolio_tenants WHERE health_status = 'watch'"),
+        "at_risk": _count(db, "SELECT COUNT(*) FROM portfolio_tenants WHERE health_status = 'at_risk'"),
+        "critical": _count(db, "SELECT COUNT(*) FROM portfolio_tenants WHERE health_status = 'critical'"),
+        "qbr_overdue": _count(db, "SELECT COUNT(*) FROM portfolio_tenants WHERE next_qbr_date IS NOT NULL AND next_qbr_date < CURRENT_DATE"),
+        "governance_exceptions": _count(db, "SELECT COALESCE(SUM(governance_exception_count), 0) FROM portfolio_tenants"),
+    }
+
+    summary["top_risk_tenants"] = _rows(
+        db,
+        '''
+        SELECT id, tenant_name, health_status, health_score, renewal_risk,
+               implementation_risk, governance_exception_count, next_qbr_date,
+               executive_owner, customer_success_owner
+        FROM portfolio_tenants
+        ORDER BY health_score ASC, governance_exception_count DESC, id DESC
+        LIMIT 10
+        '''
+    )
+
     return summary
