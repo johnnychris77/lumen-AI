@@ -221,4 +221,35 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
             "series": [],
         }
 
+
+    try:
+        from app.executive_decisions import executive_decision_rollup, list_executive_decisions, governance_decision_narrative
+        summary["executive_decisions"] = executive_decision_rollup(db)
+        summary["open_executive_decisions"] = [
+            item for item in list_executive_decisions(db, limit=25)
+            if item.get("status") != "completed"
+        ]
+        summary["overdue_executive_decisions"] = list_executive_decisions(db, overdue_only=True, limit=15)
+        summary["executive_decision_narrative"] = governance_decision_narrative(db)
+    except Exception:
+        summary["executive_decisions"] = {
+            "total": 0,
+            "proposed": 0,
+            "approved": 0,
+            "in_progress": 0,
+            "blocked": 0,
+            "completed": 0,
+            "overdue": 0,
+            "leadership_required": 0,
+            "critical": 0,
+            "high": 0,
+        }
+        summary["open_executive_decisions"] = []
+        summary["overdue_executive_decisions"] = []
+        summary["executive_decision_narrative"] = {
+            "status": "unavailable",
+            "executive_summary": "Executive decisions unavailable.",
+            "recommended_actions": [],
+        }
+
     return summary

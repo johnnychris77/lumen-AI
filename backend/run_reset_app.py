@@ -70,6 +70,11 @@ if not _has_route("/api/executive-kpi-scheduler/status"):
     from app.routes.executive_kpi_scheduler import router as executive_kpi_scheduler_router
     app.include_router(executive_kpi_scheduler_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/executive-decisions"):
+    from app.routes.executive_decisions import router as executive_decisions_router
+    app.include_router(executive_decisions_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

@@ -411,6 +411,17 @@ def generate_governance_packet(db: Session) -> dict[str, Any]:
     ]
 
     try:
+        from app.executive_decisions import governance_decision_narrative, list_executive_decisions
+        decision_narrative = governance_decision_narrative(db)
+        open_decisions = [
+            item for item in list_executive_decisions(db, limit=25)
+            if item.get("status") != "completed"
+        ]
+    except Exception:
+        decision_narrative = {}
+        open_decisions = []
+
+    try:
         from app.executive_kpi_scheduler import generate_executive_kpi_trend_narrative
         kpi_narrative = generate_executive_kpi_trend_narrative(db)
         kpi_board_narrative = kpi_narrative.get("board_narrative", "")
@@ -435,4 +446,6 @@ def generate_governance_packet(db: Session) -> dict[str, Any]:
         "top_governance_items": top_lines,
         "recommended_leadership_decisions": recommended_decisions,
         "kpi_trend_narrative": kpi_narrative,
+        "executive_decision_narrative": decision_narrative,
+        "open_executive_decisions": open_decisions,
     }

@@ -261,6 +261,14 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Executive Decision Log + Governance Action Register</h2>
+      <div class="grid" id="executiveDecisionMetrics"></div>
+      <div id="executiveDecisionNarrative" style="margin-top: 16px;"></div>
+      <div id="openExecutiveDecisions" style="margin-top: 16px;"></div>
+      <div id="overdueExecutiveDecisions" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Governance Packet Exports & Board Delivery</h2>
       <div class="toolbar-actions" style="margin-bottom: 16px;">
         <button class="green" onclick="generateGovernancePacketArtifact()">Generate + Export + Deliver Governance Packet</button>
@@ -724,6 +732,41 @@ async function generateGovernancePacketArtifact() {
 }
 
 
+
+async function createDecisionFromEscalation(escalationId) {
+  clearMessages();
+  try {
+    const decision = await apiFetch(`/api/executive-decisions/from-escalation/${escalationId}`, { method: "POST" });
+    showSuccess(`Executive decision created. Decision ID: ${decision.id}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Create decision failed: ${err.message}`);
+  }
+}
+
+async function approveDecision(decisionId) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/executive-decisions/${decisionId}/approve`, { method: "POST" });
+    showSuccess(`Decision ${decisionId} approved.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Approve decision failed: ${err.message}`);
+  }
+}
+
+async function completeDecision(decisionId) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/executive-decisions/${decisionId}/complete`, { method: "POST" });
+    showSuccess(`Decision ${decisionId} completed.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Complete decision failed: ${err.message}`);
+  }
+}
+
+
 async function runExecutiveEscalationScan() {
   clearMessages();
   try {
@@ -990,6 +1033,61 @@ async function loadDashboard() {
     `;
 
 
+
+    const decisions = data.executive_decisions || {};
+    const decisionNarrative = data.executive_decision_narrative || {};
+
+    document.getElementById("executiveDecisionMetrics").innerHTML = [
+      metricCard("Total Decisions", decisions.total || 0),
+      metricCard("Proposed", decisions.proposed || 0, "risk-panel"),
+      metricCard("Approved", decisions.approved || 0),
+      metricCard("In Progress", decisions.in_progress || 0),
+      metricCard("Blocked", decisions.blocked || 0, "risk-panel"),
+      metricCard("Overdue", decisions.overdue || 0, "risk-panel"),
+      metricCard("Leadership Required", decisions.leadership_required || 0, "risk-panel"),
+      metricCard("Completed", decisions.completed || 0),
+    ].join("");
+
+    document.getElementById("executiveDecisionNarrative").innerHTML = `
+      <div class="card">
+        <h3>Decision Register Narrative</h3>
+        <p>${esc(decisionNarrative.executive_summary || "")}</p>
+        <h4>Recommended Actions</h4>
+        <ul>${(decisionNarrative.recommended_actions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+      </div>
+    `;
+
+    document.getElementById("openExecutiveDecisions").innerHTML = `
+      <h3>Open Executive Decisions</h3>
+      ${table(data.open_executive_decisions || [], [
+        { key: "id", label: "ID" },
+        { key: "tenant_name", label: "Tenant" },
+        { key: "decision_title", label: "Decision", render: r => esc(r.decision_title).slice(0, 150) },
+        { key: "decision_owner", label: "Owner" },
+        { key: "due_date", label: "Due" },
+        { key: "priority", label: "Priority", render: r => statusBadge(r.priority === "critical" ? "critical" : (r.priority === "high" ? "at_risk" : "watch")) },
+        { key: "status", label: "Status", render: r => statusBadge(r.status === "proposed" ? "watch" : r.status) },
+        { key: "id", label: "Actions", render: r => `
+          <button class="secondary small-button" onclick="approveDecision(${r.id})">Approve</button>
+          <button class="green small-button" onclick="completeDecision(${r.id})">Complete</button>
+        ` },
+      ])}
+    `;
+
+    document.getElementById("overdueExecutiveDecisions").innerHTML = `
+      <h3>Overdue Executive Decisions</h3>
+      ${table(data.overdue_executive_decisions || [], [
+        { key: "id", label: "ID" },
+        { key: "tenant_name", label: "Tenant" },
+        { key: "decision_title", label: "Decision", render: r => esc(r.decision_title).slice(0, 160) },
+        { key: "decision_owner", label: "Owner" },
+        { key: "due_date", label: "Due" },
+        { key: "priority", label: "Priority" },
+        { key: "status", label: "Status" },
+      ])}
+    `;
+
+
     const governancePackets = data.governance_packets || {};
     document.getElementById("governancePacketMetrics").innerHTML = [
       metricCard("Packets", governancePackets.total || 0),
@@ -1046,6 +1144,7 @@ async function loadDashboard() {
         { key: "id", label: "Actions", render: r => `
           <button class="secondary small-button" onclick="acknowledgeExecutiveEscalation(${r.id})">Acknowledge</button>
           <button class="green small-button" onclick="closeExecutiveEscalation(${r.id})">Close</button>
+          <button class="danger small-button" onclick="createDecisionFromEscalation(${r.id})">Create Decision</button>
         ` },
       ])}
     `;
