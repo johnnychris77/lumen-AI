@@ -15,4 +15,9 @@ if not _has_route("/api/portfolio-briefings/{briefing_id}/exports"):
     from app.routes.portfolio_briefing_exports import router as portfolio_briefing_exports_router
     app.include_router(portfolio_briefing_exports_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/portfolio-briefing-schedules"):
+    from app.routes.portfolio_briefing_schedules import router as portfolio_briefing_schedules_router
+    app.include_router(portfolio_briefing_schedules_router, prefix=API_PREFIX)
+
 app.openapi_schema = None

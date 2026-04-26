@@ -37,6 +37,7 @@ services:
       - "18011:8000"
     volumes:
       - ./reports:/app/reports
+      - ./generated_portfolio_briefings:/app/generated_portfolio_briefings
     restart: unless-stopped
 
   worker:
