@@ -161,7 +161,8 @@ def _insert_scheduled_briefing(db: Session, schedule: dict[str, Any]) -> dict[st
                 board_narrative,
                 summary_json,
                 top_risks_json,
-                next_steps_json
+                next_steps_json,
+                created_at
             )
             VALUES (
                 :briefing_type,
@@ -172,7 +173,8 @@ def _insert_scheduled_briefing(db: Session, schedule: dict[str, Any]) -> dict[st
                 :board_narrative,
                 :summary_json,
                 :top_risks_json,
-                :next_steps_json
+                :next_steps_json,
+                NOW()
             )
             RETURNING *
             """
