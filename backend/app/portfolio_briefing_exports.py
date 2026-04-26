@@ -433,7 +433,12 @@ def distribute_portfolio_briefing(
         .first()
     )
     db.commit()
-    return dict(row)
+
+    try:
+        from app.portfolio_briefing_delivery_transport import execute_delivery_transport
+        return execute_delivery_transport(db, int(row["id"]))
+    except Exception:
+        return dict(row)
 
 
 def list_portfolio_briefing_deliveries(db: Session, briefing_id: int) -> list[dict[str, Any]]:

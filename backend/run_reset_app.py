@@ -25,6 +25,11 @@ if not _has_route("/api/portfolio-briefing-scheduler/status"):
     from app.routes.portfolio_briefing_recurring_scheduler import router as portfolio_briefing_recurring_scheduler_router
     app.include_router(portfolio_briefing_recurring_scheduler_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/portfolio-briefing-deliveries"):
+    from app.routes.portfolio_briefing_deliveries import router as portfolio_briefing_deliveries_router
+    app.include_router(portfolio_briefing_deliveries_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 
