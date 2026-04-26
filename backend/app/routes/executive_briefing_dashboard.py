@@ -44,6 +44,7 @@ def executive_dashboard_summary(
     return get_executive_briefing_dashboard_summary(db)
 
 
+
 @router.get("/view", response_class=HTMLResponse)
 def executive_dashboard_view():
     return """
@@ -54,211 +55,57 @@ def executive_dashboard_view():
   <title>LumenAI Executive Briefing Dashboard</title>
   <style>
     * { box-sizing: border-box; }
-    body {
-      font-family: Arial, sans-serif;
-      background: #f6f7fb;
-      margin: 0;
-      color: #0f172a;
-    }
-    header {
-      background: #111827;
-      color: white;
-      padding: 24px 32px;
-    }
-    h1 {
-      margin: 0;
-      font-size: 28px;
-      font-weight: 800;
-    }
-    h2 {
-      margin-top: 0;
-      font-size: 24px;
-    }
-    .subtitle {
-      margin-top: 8px;
-      color: #d1d5db;
-      font-size: 16px;
-    }
-    main {
-      padding: 24px 32px 48px 32px;
-      max-width: 1800px;
-      margin: 0 auto;
-    }
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    .toolbar-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+    body { font-family: Arial, sans-serif; background: #f6f7fb; margin: 0; color: #0f172a; }
+    header { background: #111827; color: white; padding: 24px 32px; }
+    h1 { margin: 0; font-size: 28px; font-weight: 800; }
+    h2 { margin-top: 0; font-size: 22px; }
+    .subtitle { margin-top: 8px; color: #d1d5db; font-size: 16px; }
+    main { padding: 24px 32px 48px 32px; max-width: 1900px; margin: 0 auto; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     button, .button-link {
-      background: #111827;
-      color: white;
-      border: 0;
-      padding: 10px 14px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-      text-decoration: none;
-      display: inline-block;
-      font-size: 14px;
+      background: #111827; color: white; border: 0; padding: 10px 14px;
+      border-radius: 10px; cursor: pointer; font-weight: 700; text-decoration: none;
+      display: inline-block; font-size: 14px;
     }
-    button:hover, .button-link:hover {
-      background: #374151;
-    }
-    .secondary {
-      background: #2563eb;
-    }
-    .secondary:hover {
-      background: #1d4ed8;
-    }
-    .danger {
-      background: #b45309;
-    }
-    .danger:hover {
-      background: #92400e;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    .card {
-      background: white;
-      border-radius: 14px;
-      padding: 18px;
-      box-shadow: 0 8px 18px rgba(15,23,42,0.08);
-    }
-    .metric {
-      font-size: 32px;
-      font-weight: 800;
-      margin-top: 8px;
-    }
-    .label {
-      color: #64748b;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    section {
-      margin-bottom: 28px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 14px;
-      overflow: hidden;
-      box-shadow: 0 8px 18px rgba(15,23,42,0.08);
-    }
-    th, td {
-      padding: 12px 14px;
-      border-bottom: 1px solid #e5e7eb;
-      text-align: left;
-      font-size: 14px;
-      vertical-align: top;
-    }
-    th {
-      background: #f3f4f6;
-      color: #374151;
-      font-weight: 800;
-    }
-    tr:hover td {
-      background: #fafafa;
-    }
-    .muted {
-      color: #64748b;
-      font-size: 13px;
-    }
-    .status {
-      display: inline-block;
-      padding: 5px 9px;
-      border-radius: 999px;
-      font-weight: 800;
-      font-size: 12px;
-    }
-    .status-sent {
-      background: #dcfce7;
-      color: #047857;
-    }
-    .status-retry_pending {
-      background: #fef3c7;
-      color: #b45309;
-    }
-    .status-failed {
-      background: #fee2e2;
-      color: #b91c1c;
-    }
-    .status-enabled {
-      background: #dcfce7;
-      color: #047857;
-    }
-    .status-disabled {
-      background: #fee2e2;
-      color: #b91c1c;
-    }
-    a {
-      color: #2563eb;
-      text-decoration: none;
-      font-weight: 700;
-    }
-    .download-links {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .download-links a {
-      background: #eff6ff;
-      padding: 6px 9px;
-      border-radius: 8px;
-    }
-    .error {
-      background: #fff1f2;
-      color: #991b1b;
-      padding: 14px;
-      border-radius: 12px;
-      margin-bottom: 16px;
-      display: none;
-    }
-    .success {
-      background: #ecfdf5;
-      color: #047857;
-      padding: 14px;
-      border-radius: 12px;
-      margin-bottom: 16px;
-      display: none;
-    }
-    .two-column {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    .small-button {
-      padding: 8px 11px;
-      font-size: 13px;
-    }
-    @media (max-width: 1200px) {
-      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .two-column { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 640px) {
-      .grid { grid-template-columns: 1fr; }
-      main { padding: 18px; }
-      header { padding: 20px; }
-      .toolbar { flex-direction: column; align-items: flex-start; }
-    }
+    button:hover, .button-link:hover { background: #374151; }
+    .secondary { background: #2563eb; }
+    .secondary:hover { background: #1d4ed8; }
+    .danger { background: #b45309; }
+    .danger:hover { background: #92400e; }
+    .green { background: #047857; }
+    .green:hover { background: #065f46; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: white; border-radius: 14px; padding: 18px; box-shadow: 0 8px 18px rgba(15,23,42,0.08); }
+    .metric { font-size: 32px; font-weight: 800; margin-top: 8px; }
+    .label { color: #64748b; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+    section { margin-bottom: 28px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 8px 18px rgba(15,23,42,0.08); }
+    th, td { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; vertical-align: top; }
+    th { background: #f3f4f6; color: #374151; font-weight: 800; }
+    tr:hover td { background: #fafafa; }
+    .muted { color: #64748b; font-size: 13px; }
+    .status { display: inline-block; padding: 5px 9px; border-radius: 999px; font-weight: 800; font-size: 12px; }
+    .status-sent, .status-healthy, .status-enabled { background: #dcfce7; color: #047857; }
+    .status-watch, .status-retry_pending { background: #fef3c7; color: #b45309; }
+    .status-at_risk { background: #ffedd5; color: #c2410c; }
+    .status-critical, .status-failed, .status-disabled { background: #fee2e2; color: #b91c1c; }
+    a { color: #2563eb; text-decoration: none; font-weight: 700; }
+    .download-links { display: flex; gap: 10px; flex-wrap: wrap; }
+    .download-links a { background: #eff6ff; padding: 6px 9px; border-radius: 8px; }
+    .error { background: #fff1f2; color: #991b1b; padding: 14px; border-radius: 12px; margin-bottom: 16px; display: none; }
+    .success { background: #ecfdf5; color: #047857; padding: 14px; border-radius: 12px; margin-bottom: 16px; display: none; }
+    .small-button { padding: 8px 11px; font-size: 13px; }
+    .tenant-panel { border-left: 6px solid #2563eb; }
+    .risk-panel { border-left: 6px solid #b45309; }
+    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } main { padding: 18px; } header { padding: 20px; } .toolbar { flex-direction: column; align-items: flex-start; } }
   </style>
 </head>
 <body>
   <header>
     <h1>LumenAI Executive Briefing Dashboard</h1>
-    <div class="subtitle">Board briefing schedules, generated packages, exports, and delivery status</div>
+    <div class="subtitle">Portfolio intelligence, board briefing automation, exports, schedules, and delivery status</div>
   </header>
 
   <main>
@@ -272,6 +119,7 @@ def executive_dashboard_view():
         <button onclick="loadDashboard()">Refresh Dashboard</button>
         <button class="secondary" onclick="runDueNow()">Run Due Now</button>
         <button class="secondary" onclick="startScheduler()">Start Scheduler</button>
+        <button class="green" onclick="generateTenantBoardBriefing()">Generate Tenant Board Briefing</button>
       </div>
     </div>
 
@@ -279,7 +127,17 @@ def executive_dashboard_view():
     <div id="success" class="success"></div>
 
     <section>
-      <h2>Executive Summary</h2>
+      <h2>Portfolio Intelligence Summary</h2>
+      <div class="grid" id="tenantMetrics"></div>
+    </section>
+
+    <section>
+      <h2>Top-Risk Tenants</h2>
+      <div id="topRiskTenants"></div>
+    </section>
+
+    <section>
+      <h2>Executive Automation Summary</h2>
       <div class="grid" id="metrics"></div>
     </section>
 
@@ -336,6 +194,11 @@ function formatDate(value) {
   return date.toLocaleString();
 }
 
+function clearMessages() {
+  document.getElementById("error").style.display = "none";
+  document.getElementById("success").style.display = "none";
+}
+
 function showError(message) {
   const box = document.getElementById("error");
   box.textContent = message;
@@ -349,22 +212,20 @@ function showSuccess(message) {
   setTimeout(() => { box.style.display = "none"; }, 5000);
 }
 
-function clearMessages() {
-  document.getElementById("error").style.display = "none";
-  document.getElementById("success").style.display = "none";
-}
-
-function metricCard(label, value) {
-  return `<div class="card"><div class="label">${esc(label)}</div><div class="metric">${esc(value)}</div></div>`;
+function metricCard(label, value, extraClass = "") {
+  return `<div class="card ${extraClass}"><div class="label">${esc(label)}</div><div class="metric">${esc(value)}</div></div>`;
 }
 
 function statusBadge(status) {
   return `<span class="status status-${esc(status)}">${esc(status)}</span>`;
 }
 
+function boolBadge(value) {
+  return value ? statusBadge("critical").replace("critical", "yes") : statusBadge("healthy").replace("healthy", "no");
+}
+
 function table(rows, columns) {
   if (!rows || rows.length === 0) return `<div class="card muted">No records found.</div>`;
-
   return `
     <table>
       <thead>
@@ -401,6 +262,7 @@ async function apiFetch(path, options = {}) {
     headers: {
       ...(options.headers || {}),
       "Authorization": `Bearer ${token}`,
+      "Content-Type": options.body ? "application/json" : (options.headers || {})["Content-Type"],
     }
   });
 
@@ -456,17 +318,47 @@ async function startScheduler() {
   }
 }
 
+async function generateTenantBoardBriefing() {
+  clearMessages();
+  try {
+    const briefing = await apiFetch("/api/portfolio-tenants/generate-board-briefing", {
+      method: "POST",
+      body: JSON.stringify({
+        period_label: "Customer Portfolio Board Review - Dashboard Generated",
+        audience: "board"
+      })
+    });
+
+    const exportRecord = await apiFetch(`/api/portfolio-briefings/${briefing.id}/exports`, { method: "POST" });
+
+    await apiFetch(`/api/portfolio-briefings/${briefing.id}/distribute`, {
+      method: "POST",
+      body: JSON.stringify({
+        export_id: exportRecord.id,
+        delivery_channel: "internal",
+        delivery_target: "executive-board",
+        message: "Customer portfolio board briefing generated from dashboard tenant rollup."
+      })
+    });
+
+    showSuccess(`Tenant board briefing generated, exported, and delivered. Briefing ID: ${briefing.id}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Tenant board briefing generation failed: ${err.message}`);
+  }
+}
+
 async function loadSchedulerStatus() {
   try {
     const status = await apiFetch("/api/portfolio-briefing-scheduler/status");
     const jobs = status.jobs || [];
     const last = status.last_run_summary || {};
     document.getElementById("schedulerStatus").innerHTML = `
-      <div><strong>Running:</strong> ${status.running ? statusBadge("sent").replace("sent", "running") : statusBadge("failed").replace("failed", "stopped")}</div>
+      <div><strong>Running:</strong> ${status.running ? "Yes" : "No"}</div>
       <div style="margin-top: 8px;"><strong>Jobs:</strong> ${jobs.length}</div>
       <div class="muted" style="margin-top: 8px;">Next run: ${jobs.map(j => formatDate(j.next_run_time)).join(", ") || "None"}</div>
       <div class="muted" style="margin-top: 8px;">Last check: ${formatDate(last.checked_at)}</div>
-      <div class="muted">Last run due count: ${last.due_count ?? 0}; run count: ${last.run_count ?? 0}; errors: ${(last.errors || []).length}</div>
+      <div class="muted">Last due count: ${last.due_count ?? 0}; run count: ${last.run_count ?? 0}; errors: ${(last.errors || []).length}</div>
     `;
   } catch (err) {
     document.getElementById("schedulerStatus").innerHTML = `<span style="color:#b91c1c;">Failed to load scheduler status: ${esc(err.message)}</span>`;
@@ -479,8 +371,32 @@ async function loadDashboard() {
   try {
     const data = await apiFetch("/api/executive-briefing-dashboard/summary");
     const counts = data.counts || {};
+    const tenants = data.portfolio_tenants || {};
 
     document.getElementById("lastRefreshed").textContent = `Last refreshed: ${new Date().toLocaleString()}`;
+
+    document.getElementById("tenantMetrics").innerHTML = [
+      metricCard("Total Tenants", tenants.total || 0, "tenant-panel"),
+      metricCard("Healthy", tenants.healthy || 0),
+      metricCard("Watch", tenants.watch || 0),
+      metricCard("At Risk", tenants.at_risk || 0, "risk-panel"),
+      metricCard("Critical", tenants.critical || 0, "risk-panel"),
+      metricCard("QBR Overdue", tenants.qbr_overdue || 0, "risk-panel"),
+      metricCard("Governance Exceptions", tenants.governance_exceptions || 0, "risk-panel"),
+      metricCard("Top Risk Tenants", (data.top_risk_tenants || []).length),
+    ].join("");
+
+    document.getElementById("topRiskTenants").innerHTML = table(data.top_risk_tenants, [
+      { key: "id", label: "ID" },
+      { key: "tenant_name", label: "Tenant" },
+      { key: "health_status", label: "Health", render: r => statusBadge(r.health_status) },
+      { key: "health_score", label: "Score" },
+      { key: "renewal_risk", label: "Renewal Risk", render: r => boolBadge(r.renewal_risk) },
+      { key: "implementation_risk", label: "Implementation Risk", render: r => boolBadge(r.implementation_risk) },
+      { key: "governance_exception_count", label: "Gov Exceptions" },
+      { key: "next_qbr_date", label: "Next QBR", render: r => esc(r.next_qbr_date || "") },
+      { key: "customer_success_owner", label: "CS Owner" },
+    ]);
 
     document.getElementById("metrics").innerHTML = [
       metricCard("Schedules", counts.schedules || 0),
@@ -560,3 +476,4 @@ loadDashboard();
 </body>
 </html>
     """
+
