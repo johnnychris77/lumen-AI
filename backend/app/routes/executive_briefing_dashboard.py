@@ -53,30 +53,206 @@ def executive_dashboard_view():
   <meta charset="utf-8" />
   <title>LumenAI Executive Briefing Dashboard</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f6f7fb; margin: 0; color: #1f2937; }
-    header { background: #111827; color: white; padding: 24px 32px; }
-    h1 { margin: 0; font-size: 26px; }
-    .subtitle { margin-top: 8px; color: #d1d5db; }
-    main { padding: 24px 32px; }
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .card { background: white; border-radius: 14px; padding: 18px; box-shadow: 0 8px 18px rgba(15,23,42,0.08); }
-    .metric { font-size: 30px; font-weight: 700; margin-top: 8px; }
-    .label { color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
-    section { margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 8px 18px rgba(15,23,42,0.08); }
-    th, td { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; vertical-align: top; }
-    th { background: #f3f4f6; color: #374151; }
-    .status-sent { color: #047857; font-weight: 700; }
-    .status-retry_pending { color: #b45309; font-weight: 700; }
-    .status-failed { color: #b91c1c; font-weight: 700; }
-    button { background: #111827; color: white; border: 0; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
-    button:hover { background: #374151; }
-    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-    .muted { color: #6b7280; font-size: 13px; }
-    a { color: #2563eb; text-decoration: none; }
-    .error { background: #fff1f2; color: #991b1b; padding: 14px; border-radius: 12px; margin-bottom: 16px; display: none; }
-    @media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } main { padding: 18px; } }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f7fb;
+      margin: 0;
+      color: #0f172a;
+    }
+    header {
+      background: #111827;
+      color: white;
+      padding: 24px 32px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 24px;
+    }
+    .subtitle {
+      margin-top: 8px;
+      color: #d1d5db;
+      font-size: 16px;
+    }
+    main {
+      padding: 24px 32px 48px 32px;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .toolbar-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button, .button-link {
+      background: #111827;
+      color: white;
+      border: 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+    }
+    button:hover, .button-link:hover {
+      background: #374151;
+    }
+    .secondary {
+      background: #2563eb;
+    }
+    .secondary:hover {
+      background: #1d4ed8;
+    }
+    .danger {
+      background: #b45309;
+    }
+    .danger:hover {
+      background: #92400e;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 18px rgba(15,23,42,0.08);
+    }
+    .metric {
+      font-size: 32px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+    .label {
+      color: #64748b;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    section {
+      margin-bottom: 28px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 18px rgba(15,23,42,0.08);
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      font-size: 14px;
+      vertical-align: top;
+    }
+    th {
+      background: #f3f4f6;
+      color: #374151;
+      font-weight: 800;
+    }
+    tr:hover td {
+      background: #fafafa;
+    }
+    .muted {
+      color: #64748b;
+      font-size: 13px;
+    }
+    .status {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .status-sent {
+      background: #dcfce7;
+      color: #047857;
+    }
+    .status-retry_pending {
+      background: #fef3c7;
+      color: #b45309;
+    }
+    .status-failed {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .status-enabled {
+      background: #dcfce7;
+      color: #047857;
+    }
+    .status-disabled {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .download-links {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .download-links a {
+      background: #eff6ff;
+      padding: 6px 9px;
+      border-radius: 8px;
+    }
+    .error {
+      background: #fff1f2;
+      color: #991b1b;
+      padding: 14px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .success {
+      background: #ecfdf5;
+      color: #047857;
+      padding: 14px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .two-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .small-button {
+      padding: 8px 11px;
+      font-size: 13px;
+    }
+    @media (max-width: 1200px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .two-column { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+      main { padding: 18px; }
+      header { padding: 20px; }
+      .toolbar { flex-direction: column; align-items: flex-start; }
+    }
   </style>
 </head>
 <body>
@@ -90,22 +266,36 @@ def executive_dashboard_view():
       <div>
         <strong>Environment:</strong> local API
         <div class="muted">Using Authorization: Bearer dev-token</div>
+        <div class="muted" id="lastRefreshed">Last refreshed: not loaded</div>
       </div>
-      <button onclick="loadDashboard()">Refresh Dashboard</button>
+      <div class="toolbar-actions">
+        <button onclick="loadDashboard()">Refresh Dashboard</button>
+        <button class="secondary" onclick="runDueNow()">Run Due Now</button>
+        <button class="secondary" onclick="startScheduler()">Start Scheduler</button>
+      </div>
     </div>
 
     <div id="error" class="error"></div>
-
-    <div class="grid" id="metrics"></div>
+    <div id="success" class="success"></div>
 
     <section>
-      <h2>Recent Deliveries</h2>
-      <div id="deliveries"></div>
+      <h2>Executive Summary</h2>
+      <div class="grid" id="metrics"></div>
+    </section>
+
+    <section>
+      <h2>Scheduler Status</h2>
+      <div id="schedulerStatus" class="card muted">Loading scheduler status...</div>
     </section>
 
     <section>
       <h2>Retry Pending Deliveries</h2>
       <div id="retryPending"></div>
+    </section>
+
+    <section>
+      <h2>Recent Deliveries</h2>
+      <div id="deliveries"></div>
     </section>
 
     <section>
@@ -139,8 +329,37 @@ function esc(value) {
   }[s]));
 }
 
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return esc(value);
+  return date.toLocaleString();
+}
+
+function showError(message) {
+  const box = document.getElementById("error");
+  box.textContent = message;
+  box.style.display = "block";
+}
+
+function showSuccess(message) {
+  const box = document.getElementById("success");
+  box.textContent = message;
+  box.style.display = "block";
+  setTimeout(() => { box.style.display = "none"; }, 5000);
+}
+
+function clearMessages() {
+  document.getElementById("error").style.display = "none";
+  document.getElementById("success").style.display = "none";
+}
+
 function metricCard(label, value) {
   return `<div class="card"><div class="label">${esc(label)}</div><div class="metric">${esc(value)}</div></div>`;
+}
+
+function statusBadge(status) {
+  return `<span class="status status-${esc(status)}">${esc(status)}</span>`;
 }
 
 function table(rows, columns) {
@@ -155,7 +374,7 @@ function table(rows, columns) {
         ${rows.map(row => `
           <tr>
             ${columns.map(c => {
-              let value = c.render ? c.render(row) : row[c.key];
+              let value = c.render ? c.render(row) : esc(row[c.key]);
               return `<td>${value}</td>`;
             }).join("")}
           </tr>
@@ -168,40 +387,100 @@ function table(rows, columns) {
 function artifactLinks(row) {
   const id = row.id;
   return `
-    <a href="/api/portfolio-briefings/exports/${id}/docx" target="_blank">DOCX</a> |
-    <a href="/api/portfolio-briefings/exports/${id}/pptx" target="_blank">PPTX</a> |
-    <a href="/api/portfolio-briefings/exports/${id}/pdf" target="_blank">PDF</a>
+    <div class="download-links">
+      <a href="/api/portfolio-briefings/exports/${id}/docx" target="_blank">DOCX</a>
+      <a href="/api/portfolio-briefings/exports/${id}/pptx" target="_blank">PPTX</a>
+      <a href="/api/portfolio-briefings/exports/${id}/pdf" target="_blank">PDF</a>
+    </div>
   `;
 }
 
-async function retryDelivery(id) {
-  const response = await fetch(`/api/portfolio-briefing-deliveries/${id}/retry`, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${token}` }
+async function apiFetch(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      "Authorization": `Bearer ${token}`,
+    }
   });
 
   if (!response.ok) {
-    alert(`Retry failed: ${response.status}`);
-    return;
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text.slice(0, 300)}`);
   }
 
-  await loadDashboard();
+  return response.json();
+}
+
+async function retryDelivery(id) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/portfolio-briefing-deliveries/${id}/retry`, { method: "POST" });
+    showSuccess(`Delivery ${id} retried successfully.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Retry failed: ${err.message}`);
+  }
+}
+
+async function runScheduleNow(id) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/portfolio-briefing-schedules/${id}/run-now`, { method: "POST" });
+    showSuccess(`Schedule ${id} ran successfully.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Run schedule failed: ${err.message}`);
+  }
+}
+
+async function runDueNow() {
+  clearMessages();
+  try {
+    const result = await apiFetch("/api/portfolio-briefing-scheduler/run-due", { method: "POST" });
+    showSuccess(`Run due completed. Due: ${result.due_count || 0}, Ran: ${result.run_count || 0}, Errors: ${(result.errors || []).length}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Run due failed: ${err.message}`);
+  }
+}
+
+async function startScheduler() {
+  clearMessages();
+  try {
+    await apiFetch("/api/portfolio-briefing-scheduler/start", { method: "POST" });
+    showSuccess("Scheduler started.");
+    await loadDashboard();
+  } catch (err) {
+    showError(`Start scheduler failed: ${err.message}`);
+  }
+}
+
+async function loadSchedulerStatus() {
+  try {
+    const status = await apiFetch("/api/portfolio-briefing-scheduler/status");
+    const jobs = status.jobs || [];
+    const last = status.last_run_summary || {};
+    document.getElementById("schedulerStatus").innerHTML = `
+      <div><strong>Running:</strong> ${status.running ? statusBadge("sent").replace("sent", "running") : statusBadge("failed").replace("failed", "stopped")}</div>
+      <div style="margin-top: 8px;"><strong>Jobs:</strong> ${jobs.length}</div>
+      <div class="muted" style="margin-top: 8px;">Next run: ${jobs.map(j => formatDate(j.next_run_time)).join(", ") || "None"}</div>
+      <div class="muted" style="margin-top: 8px;">Last check: ${formatDate(last.checked_at)}</div>
+      <div class="muted">Last run due count: ${last.due_count ?? 0}; run count: ${last.run_count ?? 0}; errors: ${(last.errors || []).length}</div>
+    `;
+  } catch (err) {
+    document.getElementById("schedulerStatus").innerHTML = `<span style="color:#b91c1c;">Failed to load scheduler status: ${esc(err.message)}</span>`;
+  }
 }
 
 async function loadDashboard() {
-  const errorBox = document.getElementById("error");
-  errorBox.style.display = "none";
-  errorBox.textContent = "";
+  clearMessages();
 
   try {
-    const response = await fetch("/api/executive-briefing-dashboard/summary", {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
+    const data = await apiFetch("/api/executive-briefing-dashboard/summary");
     const counts = data.counts || {};
+
+    document.getElementById("lastRefreshed").textContent = `Last refreshed: ${new Date().toLocaleString()}`;
 
     document.getElementById("metrics").innerHTML = [
       metricCard("Schedules", counts.schedules || 0),
@@ -214,25 +493,27 @@ async function loadDashboard() {
       metricCard("Artifacts", data.artifacts?.file_count || 0),
     ].join("");
 
+    document.getElementById("retryPending").innerHTML = table(data.retry_pending_deliveries, [
+      { key: "id", label: "ID" },
+      { key: "briefing_id", label: "Briefing" },
+      { key: "export_id", label: "Export" },
+      { key: "delivery_channel", label: "Channel" },
+      { key: "delivery_target", label: "Target", render: r => esc(r.delivery_target).slice(0, 90) },
+      { key: "error_message", label: "Error", render: r => esc(r.error_message).slice(0, 160) },
+      { key: "attempt_count", label: "Attempts" },
+      { key: "id", label: "Action", render: r => `<button class="danger small-button" onclick="retryDelivery(${r.id})">Retry</button>` },
+    ]);
+
     document.getElementById("deliveries").innerHTML = table(data.recent_deliveries, [
       { key: "id", label: "ID" },
       { key: "briefing_id", label: "Briefing" },
       { key: "export_id", label: "Export" },
       { key: "delivery_channel", label: "Channel" },
-      { key: "delivery_target", label: "Target", render: r => esc(r.delivery_target).slice(0, 70) },
-      { key: "status", label: "Status", render: r => `<span class="status-${esc(r.status)}">${esc(r.status)}</span>` },
-      { key: "attempt_count", label: "Attempts" },
-      { key: "last_attempt_at", label: "Last Attempt" },
-      { key: "id", label: "Action", render: r => `<button onclick="retryDelivery(${r.id})">Retry</button>` },
-    ]);
-
-    document.getElementById("retryPending").innerHTML = table(data.retry_pending_deliveries, [
-      { key: "id", label: "ID" },
-      { key: "briefing_id", label: "Briefing" },
-      { key: "delivery_channel", label: "Channel" },
       { key: "delivery_target", label: "Target", render: r => esc(r.delivery_target).slice(0, 80) },
-      { key: "error_message", label: "Error", render: r => esc(r.error_message).slice(0, 120) },
-      { key: "id", label: "Action", render: r => `<button onclick="retryDelivery(${r.id})">Retry</button>` },
+      { key: "status", label: "Status", render: r => statusBadge(r.status) },
+      { key: "attempt_count", label: "Attempts" },
+      { key: "last_attempt_at", label: "Last Attempt", render: r => formatDate(r.last_attempt_at) },
+      { key: "id", label: "Action", render: r => `<button class="small-button" onclick="retryDelivery(${r.id})">${r.status === "sent" ? "Resend" : "Retry"}</button>` },
     ]);
 
     document.getElementById("exports").innerHTML = table(data.recent_exports, [
@@ -240,16 +521,17 @@ async function loadDashboard() {
       { key: "briefing_id", label: "Briefing" },
       { key: "export_title", label: "Title" },
       { key: "id", label: "Downloads", render: artifactLinks },
-      { key: "created_at", label: "Created" },
+      { key: "created_at", label: "Created", render: r => formatDate(r.created_at) },
     ]);
 
     document.getElementById("schedules").innerHTML = table(data.recent_schedules, [
       { key: "id", label: "ID" },
       { key: "schedule_name", label: "Name" },
       { key: "period_label", label: "Period" },
-      { key: "is_enabled", label: "Enabled" },
+      { key: "is_enabled", label: "Enabled", render: r => r.is_enabled ? statusBadge("enabled") : statusBadge("disabled") },
       { key: "run_count", label: "Runs" },
-      { key: "last_run_at", label: "Last Run" },
+      { key: "last_run_at", label: "Last Run", render: r => formatDate(r.last_run_at) },
+      { key: "id", label: "Action", render: r => `<button class="secondary small-button" onclick="runScheduleNow(${r.id})">Run Now</button>` },
     ]);
 
     document.getElementById("briefings").innerHTML = table(data.recent_briefings, [
@@ -258,7 +540,7 @@ async function loadDashboard() {
       { key: "audience", label: "Audience" },
       { key: "period_label", label: "Period" },
       { key: "title", label: "Title" },
-      { key: "created_at", label: "Created" },
+      { key: "created_at", label: "Created", render: r => formatDate(r.created_at) },
     ]);
 
     const files = data.artifacts?.recent_files || [];
@@ -266,9 +548,10 @@ async function loadDashboard() {
       ? `<div class="card">${files.map(f => `<div>${esc(f)}</div>`).join("")}</div>`
       : `<div class="card muted">No artifact files found.</div>`;
 
+    await loadSchedulerStatus();
+
   } catch (err) {
-    errorBox.textContent = `Dashboard load failed: ${err.message}`;
-    errorBox.style.display = "block";
+    showError(`Dashboard load failed: ${err.message}`);
   }
 }
 
