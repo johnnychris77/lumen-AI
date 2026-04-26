@@ -240,6 +240,13 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Tenant Remediation Workflow</h2>
+      <div class="grid" id="remediationMetrics"></div>
+      <div style="margin-top: 16px;" id="openRemediations"></div>
+      <div style="margin-top: 16px;" id="overdueRemediations"></div>
+    </section>
+
+    <section>
       <h2>Executive Automation Summary</h2>
       <div class="grid" id="metrics"></div>
     </section>
@@ -495,6 +502,44 @@ async function loadTenants() {
   }
 }
 
+
+async function createRemediationsFromInsight(tenantId) {
+  clearMessages();
+  try {
+    const result = await apiFetch(`/api/tenant-remediations/from-insight/${tenantId}`, { method: "POST" });
+    showSuccess(`Created ${result.length || 0} remediation action(s) from tenant insight.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Create remediation from insight failed: ${err.message}`);
+  }
+}
+
+async function closeRemediation(id) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/tenant-remediations/${id}/close`, { method: "POST" });
+    showSuccess(`Remediation ${id} closed.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Close remediation failed: ${err.message}`);
+  }
+}
+
+async function setRemediationStatus(id, status) {
+  clearMessages();
+  try {
+    await apiFetch(`/api/tenant-remediations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    showSuccess(`Remediation ${id} updated to ${status}.`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Update remediation failed: ${err.message}`);
+  }
+}
+
+
 async function retryDelivery(id) {
   clearMessages();
   try {
@@ -639,8 +684,54 @@ async function loadDashboard() {
         { key: "board_attention_required", label: "Board Attention", render: r => boolBadge(r.board_attention_required) },
         { key: "executive_summary", label: "Executive Summary", render: r => esc(r.executive_summary).slice(0, 220) },
         { key: "recommended_actions", label: "Recommended Actions", render: r => esc((r.recommended_actions || []).join("; ")).slice(0, 260) },
+        { key: "tenant_id", label: "Action", render: r => `<button class="secondary small-button" onclick="createRemediationsFromInsight(${r.tenant_id})">Create Actions</button>` },
       ])}
     `;
+
+
+    const remediation = data.tenant_remediations || {};
+    document.getElementById("remediationMetrics").innerHTML = [
+      metricCard("Total Actions", remediation.total || 0),
+      metricCard("Open", remediation.open || 0, "risk-panel"),
+      metricCard("In Progress", remediation.in_progress || 0),
+      metricCard("Blocked", remediation.blocked || 0, "risk-panel"),
+      metricCard("Escalated", remediation.escalated || 0, "risk-panel"),
+      metricCard("Overdue", remediation.overdue || 0, "risk-panel"),
+      metricCard("Critical Priority", remediation.critical_priority || 0, "risk-panel"),
+      metricCard("Closed", remediation.closed || 0),
+    ].join("");
+
+    document.getElementById("openRemediations").innerHTML = `
+      <h3>Open Remediation Actions</h3>
+      ${table(data.open_remediations || [], [
+        { key: "id", label: "ID" },
+        { key: "tenant_name", label: "Tenant" },
+        { key: "action_title", label: "Action", render: r => esc(r.action_title).slice(0, 120) },
+        { key: "owner", label: "Owner" },
+        { key: "due_date", label: "Due" },
+        { key: "priority", label: "Priority", render: r => statusBadge(r.priority === "critical" ? "critical" : (r.priority === "high" ? "at_risk" : "watch")) },
+        { key: "status", label: "Status", render: r => statusBadge(r.status === "open" ? "watch" : r.status) },
+        { key: "id", label: "Actions", render: r => `
+          <button class="small-button" onclick="setRemediationStatus(${r.id}, 'in_progress')">Start</button>
+          <button class="danger small-button" onclick="setRemediationStatus(${r.id}, 'escalated')">Escalate</button>
+          <button class="green small-button" onclick="closeRemediation(${r.id})">Close</button>
+        ` },
+      ])}
+    `;
+
+    document.getElementById("overdueRemediations").innerHTML = `
+      <h3>Overdue Remediation Actions</h3>
+      ${table(data.overdue_remediations || [], [
+        { key: "id", label: "ID" },
+        { key: "tenant_name", label: "Tenant" },
+        { key: "action_title", label: "Action", render: r => esc(r.action_title).slice(0, 140) },
+        { key: "owner", label: "Owner" },
+        { key: "due_date", label: "Due" },
+        { key: "priority", label: "Priority" },
+        { key: "status", label: "Status" },
+      ])}
+    `;
+
 
     document.getElementById("metrics").innerHTML = [
       metricCard("Schedules", counts.schedules || 0),

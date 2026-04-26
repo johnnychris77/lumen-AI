@@ -45,6 +45,11 @@ if not _has_route("/api/tenant-insights/top-risks"):
     from app.routes.tenant_insights import router as tenant_insights_router
     app.include_router(tenant_insights_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/tenant-remediations"):
+    from app.routes.tenant_remediations import router as tenant_remediations_router
+    app.include_router(tenant_remediations_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

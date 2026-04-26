@@ -417,6 +417,20 @@ def generate_board_briefing_from_portfolio_tenants(
         f"QBR overdue accounts total {rollup['qbr_overdue_count']}."
     )
 
+
+    try:
+        from app.tenant_remediations import list_tenant_remediations
+        remediation_items = list_tenant_remediations(db, limit=5)
+        open_remediation_lines = [
+            f"{item.get('tenant_name', 'Tenant')} — {item.get('action_title')} "
+            f"(owner: {item.get('owner') or 'Unassigned'}, due: {item.get('due_date') or 'not set'}, priority: {item.get('priority')})"
+            for item in remediation_items
+            if item.get("status") != "closed"
+        ]
+        remediation_narrative = "\n".join(open_remediation_lines) if open_remediation_lines else "No open remediation priorities."
+    except Exception:
+        remediation_narrative = "Remediation priorities unavailable."
+
     board_narrative = (
         f"Board-level customer portfolio briefing for {period_label}.\n\n"
         f"Total tenants: {rollup['tenant_count']}.\n"
@@ -428,6 +442,7 @@ def generate_board_briefing_from_portfolio_tenants(
         f"QBR overdue accounts: {rollup['qbr_overdue_count']}.\n\n"
         f"Top-risk account posture:\n{risk_sentence}.\n\n"
         f"Tenant insight narrative:\n{insight_narrative}\n\n"
+        f"Top remediation priorities:\n{remediation_narrative}\n\n"
         "Board focus should remain on customer health stabilization, QBR operating cadence, "
         "go-live readiness, governance exception closure, and renewal-risk mitigation."
     )

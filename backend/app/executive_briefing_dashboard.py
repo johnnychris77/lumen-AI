@@ -140,4 +140,25 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         }
         summary["top_tenant_insights"] = []
 
+
+    try:
+        from app.tenant_remediations import remediation_rollup, list_tenant_remediations
+        summary["tenant_remediations"] = remediation_rollup(db)
+        summary["open_remediations"] = list_tenant_remediations(db, status="open", limit=15)
+        summary["overdue_remediations"] = list_tenant_remediations(db, overdue_only=True, limit=15)
+    except Exception:
+        summary["tenant_remediations"] = {
+            "total": 0,
+            "open": 0,
+            "in_progress": 0,
+            "blocked": 0,
+            "escalated": 0,
+            "closed": 0,
+            "overdue": 0,
+            "critical_priority": 0,
+            "high_priority": 0,
+        }
+        summary["open_remediations"] = []
+        summary["overdue_remediations"] = []
+
     return summary
