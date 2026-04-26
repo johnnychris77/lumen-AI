@@ -240,6 +240,16 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Governance Packet Exports & Board Delivery</h2>
+      <div class="toolbar-actions" style="margin-bottom: 16px;">
+        <button class="green" onclick="generateGovernancePacketArtifact()">Generate + Export + Deliver Governance Packet</button>
+      </div>
+      <div class="grid" id="governancePacketMetrics"></div>
+      <div id="recentGovernancePackets" style="margin-top: 16px;"></div>
+      <div id="recentGovernancePacketExports" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Executive Escalation & Governance Cadence</h2>
       <div class="toolbar-actions" style="margin-bottom: 16px;">
         <button class="danger" onclick="runExecutiveEscalationScan()">Run Escalation Scan</button>
@@ -552,6 +562,50 @@ async function setRemediationStatus(id, status) {
 
 
 
+
+function governanceArtifactLinks(row) {
+  const id = row.id;
+  return `
+    <div class="download-links">
+      <a href="/api/governance-packets/exports/${id}/docx" target="_blank">DOCX</a>
+      <a href="/api/governance-packets/exports/${id}/pptx" target="_blank">PPTX</a>
+      <a href="/api/governance-packets/exports/${id}/pdf" target="_blank">PDF</a>
+    </div>
+  `;
+}
+
+async function generateGovernancePacketArtifact() {
+  clearMessages();
+  try {
+    const packet = await apiFetch("/api/governance-packets", {
+      method: "POST",
+      body: JSON.stringify({
+        packet_title: "Executive Governance Packet - Dashboard Generated"
+      })
+    });
+
+    const exportRecord = await apiFetch(`/api/governance-packets/${packet.id}/exports`, {
+      method: "POST"
+    });
+
+    await apiFetch(`/api/governance-packets/${packet.id}/deliver`, {
+      method: "POST",
+      body: JSON.stringify({
+        export_id: exportRecord.id,
+        delivery_channel: "internal",
+        delivery_target: "executive-governance-council",
+        message: "Executive governance packet generated from open escalation cadence."
+      })
+    });
+
+    showSuccess(`Governance packet generated, exported, and delivered. Packet ID: ${packet.id}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`Governance packet artifact workflow failed: ${err.message}`);
+  }
+}
+
+
 async function runExecutiveEscalationScan() {
   clearMessages();
   try {
@@ -765,6 +819,38 @@ async function loadDashboard() {
       ])}
     `;
 
+
+
+
+    const governancePackets = data.governance_packets || {};
+    document.getElementById("governancePacketMetrics").innerHTML = [
+      metricCard("Packets", governancePackets.total || 0),
+      metricCard("Packet Exports", governancePackets.exports || 0),
+      metricCard("Packet Deliveries", governancePackets.deliveries || 0),
+      metricCard("Board Artifact Workflow", "Active"),
+    ].join("");
+
+    document.getElementById("recentGovernancePackets").innerHTML = `
+      <h3>Recent Governance Packets</h3>
+      ${table(data.recent_governance_packets || [], [
+        { key: "id", label: "Packet ID" },
+        { key: "packet_title", label: "Title" },
+        { key: "status", label: "Status", render: r => statusBadge(r.status || "sent") },
+        { key: "executive_summary", label: "Summary", render: r => esc(r.executive_summary || "").slice(0, 240) },
+        { key: "created_at", label: "Created", render: r => formatDate(r.created_at) },
+      ])}
+    `;
+
+    document.getElementById("recentGovernancePacketExports").innerHTML = `
+      <h3>Recent Governance Packet Exports</h3>
+      ${table(data.recent_governance_packet_exports || [], [
+        { key: "id", label: "Export ID" },
+        { key: "packet_id", label: "Packet" },
+        { key: "export_title", label: "Title" },
+        { key: "id", label: "Downloads", render: governanceArtifactLinks },
+        { key: "created_at", label: "Created", render: r => formatDate(r.created_at) },
+      ])}
+    `;
 
 
     const escalation = data.executive_escalations || {};

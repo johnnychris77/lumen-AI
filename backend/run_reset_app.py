@@ -55,6 +55,11 @@ if not _has_route("/api/executive-escalations/run"):
     from app.routes.executive_escalations import router as executive_escalations_router
     app.include_router(executive_escalations_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/governance-packets"):
+    from app.routes.governance_packet_exports import router as governance_packet_exports_router
+    app.include_router(governance_packet_exports_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

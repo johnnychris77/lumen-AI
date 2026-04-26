@@ -178,4 +178,31 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         }
         summary["open_executive_escalations"] = []
 
+
+    summary["governance_packets"] = {
+        "total": _count(db, "SELECT COUNT(*) FROM executive_governance_packets"),
+        "exports": _count(db, "SELECT COUNT(*) FROM executive_governance_packet_exports"),
+        "deliveries": _count(db, "SELECT COUNT(*) FROM executive_governance_packet_deliveries"),
+    }
+
+    summary["recent_governance_packets"] = _rows(
+        db,
+        '''
+        SELECT id, packet_title, executive_summary, status, created_at
+        FROM executive_governance_packets
+        ORDER BY created_at DESC, id DESC
+        LIMIT 10
+        '''
+    )
+
+    summary["recent_governance_packet_exports"] = _rows(
+        db,
+        '''
+        SELECT id, packet_id, export_title, docx_path, pptx_path, pdf_path, created_at
+        FROM executive_governance_packet_exports
+        ORDER BY created_at DESC, id DESC
+        LIMIT 10
+        '''
+    )
+
     return summary

@@ -38,6 +38,7 @@ services:
     volumes:
       - ./reports:/app/reports
       - ./generated_portfolio_briefings:/app/generated_portfolio_briefings
+      - ./generated_governance_packets:/app/generated_governance_packets
     restart: unless-stopped
 
   worker:
