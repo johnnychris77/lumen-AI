@@ -86,9 +86,11 @@ def get_schedule(
     db: Session = Depends(get_db),
 ):
     get_current_user(authorization)
+
     schedule = get_portfolio_briefing_schedule(db, schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail="Portfolio briefing schedule not found")
+
     return schedule
 
 
@@ -99,6 +101,7 @@ def run_schedule_now(
     db: Session = Depends(get_db),
 ):
     get_current_user(authorization)
+
     try:
         return run_portfolio_briefing_schedule_now(db, schedule_id)
     except ValueError as exc:

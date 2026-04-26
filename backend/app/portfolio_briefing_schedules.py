@@ -17,7 +17,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _ensure_schedule_table(db: Session) -> None:
+def ensure_portfolio_briefing_schedule_table(db: Session) -> None:
     db.execute(
         text(
             """
@@ -52,93 +52,86 @@ def create_portfolio_briefing_schedule(
     message: str,
     is_enabled: bool = True,
 ) -> dict[str, Any]:
-    _ensure_schedule_table(db)
+    ensure_portfolio_briefing_schedule_table(db)
 
-    row = (
-        db.execute(
-            text(
-                """
-                INSERT INTO portfolio_briefing_schedules (
-                    schedule_name,
-                    briefing_type,
-                    audience,
-                    period_label,
-                    delivery_channel,
-                    delivery_target,
-                    message,
-                    is_enabled
-                )
-                VALUES (
-                    :schedule_name,
-                    :briefing_type,
-                    :audience,
-                    :period_label,
-                    :delivery_channel,
-                    :delivery_target,
-                    :message,
-                    :is_enabled
-                )
-                RETURNING *
-                """
-            ),
-            {
-                "schedule_name": schedule_name,
-                "briefing_type": briefing_type,
-                "audience": audience,
-                "period_label": period_label,
-                "delivery_channel": delivery_channel,
-                "delivery_target": delivery_target,
-                "message": message,
-                "is_enabled": is_enabled,
-            },
-        )
-        .mappings()
-        .first()
-    )
+    row = db.execute(
+        text(
+            """
+            INSERT INTO portfolio_briefing_schedules (
+                schedule_name,
+                briefing_type,
+                audience,
+                period_label,
+                delivery_channel,
+                delivery_target,
+                message,
+                is_enabled
+            )
+            VALUES (
+                :schedule_name,
+                :briefing_type,
+                :audience,
+                :period_label,
+                :delivery_channel,
+                :delivery_target,
+                :message,
+                :is_enabled
+            )
+            RETURNING *
+            """
+        ),
+        {
+            "schedule_name": schedule_name,
+            "briefing_type": briefing_type,
+            "audience": audience,
+            "period_label": period_label,
+            "delivery_channel": delivery_channel,
+            "delivery_target": delivery_target,
+            "message": message,
+            "is_enabled": is_enabled,
+        },
+    ).mappings().first()
+
     db.commit()
     return dict(row)
 
 
 def list_portfolio_briefing_schedules(db: Session) -> list[dict[str, Any]]:
-    _ensure_schedule_table(db)
+    ensure_portfolio_briefing_schedule_table(db)
 
-    rows = (
-        db.execute(
-            text(
-                """
-                SELECT *
-                FROM portfolio_briefing_schedules
-                ORDER BY created_at DESC, id DESC
-                """
-            )
+    rows = db.execute(
+        text(
+            """
+            SELECT *
+            FROM portfolio_briefing_schedules
+            ORDER BY created_at DESC, id DESC
+            """
         )
-        .mappings()
-        .all()
-    )
+    ).mappings().all()
+
     return [dict(row) for row in rows]
 
 
 def get_portfolio_briefing_schedule(db: Session, schedule_id: int) -> dict[str, Any] | None:
-    _ensure_schedule_table(db)
+    ensure_portfolio_briefing_schedule_table(db)
 
-    row = (
-        db.execute(
-            text(
-                """
-                SELECT *
-                FROM portfolio_briefing_schedules
-                WHERE id = :schedule_id
-                """
-            ),
-            {"schedule_id": schedule_id},
-        )
-        .mappings()
-        .first()
-    )
+    row = db.execute(
+        text(
+            """
+            SELECT *
+            FROM portfolio_briefing_schedules
+            WHERE id = :schedule_id
+            """
+        ),
+        {"schedule_id": schedule_id},
+    ).mappings().first()
+
     return dict(row) if row else None
 
 
-def _insert_briefing_from_schedule(db: Session, schedule: dict[str, Any]) -> dict[str, Any]:
+def _insert_scheduled_briefing(db: Session, schedule: dict[str, Any]) -> dict[str, Any]:
+    period_label = schedule["period_label"]
+
     summary = {
         "tenant_count": 0,
         "status_counts": {},
@@ -156,86 +149,75 @@ def _insert_briefing_from_schedule(db: Session, schedule: dict[str, Any]) -> dic
         "Use portfolio rollups to prioritize customer success intervention.",
     ]
 
-    period_label = schedule["period_label"]
-    title = f"Scheduled Portfolio Board Briefing — {period_label}"
-
-    executive_summary = (
-        f"Scheduled portfolio review for {period_label}. "
-        "The portfolio currently includes 0 customer tenants. "
-        "Status mix includes 0 healthy, 0 watch, and 0 at-risk accounts. "
-        "This scheduled package was generated through the LumenAI executive briefing automation workflow."
-    )
-
-    board_narrative = (
-        f"Scheduled board-level portfolio briefing for {period_label}.\n\n"
-        "Total tenants: 0.\n"
-        "QBR review count: 0.\n"
-        "QBR export count: 0.\n"
-        "Scheduled QBR jobs: 1.\n"
-        "QBR deliveries: 0.\n\n"
-        "Top-risk account posture:\n"
-        "No top-risk accounts identified.\n\n"
-        "Board focus should remain on customer health stabilization, go-live readiness, "
-        "governance exception closure, and QBR operating cadence across the portfolio."
-    )
-
-    row = (
-        db.execute(
-            text(
-                """
-                INSERT INTO portfolio_briefings (
-                    briefing_type,
-                    audience,
-                    period_label,
-                    title,
-                    executive_summary,
-                    board_narrative,
-                    summary_json,
-                    top_risks_json,
-                    next_steps_json
-                )
-                VALUES (
-                    :briefing_type,
-                    :audience,
-                    :period_label,
-                    :title,
-                    :executive_summary,
-                    :board_narrative,
-                    :summary_json,
-                    :top_risks_json,
-                    :next_steps_json
-                )
-                RETURNING *
-                """
+    row = db.execute(
+        text(
+            """
+            INSERT INTO portfolio_briefings (
+                briefing_type,
+                audience,
+                period_label,
+                title,
+                executive_summary,
+                board_narrative,
+                summary_json,
+                top_risks_json,
+                next_steps_json
+            )
+            VALUES (
+                :briefing_type,
+                :audience,
+                :period_label,
+                :title,
+                :executive_summary,
+                :board_narrative,
+                :summary_json,
+                :top_risks_json,
+                :next_steps_json
+            )
+            RETURNING *
+            """
+        ),
+        {
+            "briefing_type": schedule["briefing_type"],
+            "audience": schedule["audience"],
+            "period_label": period_label,
+            "title": f"Scheduled Portfolio Board Briefing — {period_label}",
+            "executive_summary": (
+                f"Scheduled portfolio review for {period_label}. "
+                "This package was generated through the LumenAI executive briefing automation workflow."
             ),
-            {
-                "briefing_type": schedule["briefing_type"],
-                "audience": schedule["audience"],
-                "period_label": period_label,
-                "title": title,
-                "executive_summary": executive_summary,
-                "board_narrative": board_narrative,
-                "summary_json": json.dumps(summary),
-                "top_risks_json": json.dumps([]),
-                "next_steps_json": json.dumps(next_steps),
-            },
-        )
-        .mappings()
-        .first()
-    )
+            "board_narrative": (
+                f"Scheduled board-level portfolio briefing for {period_label}.\n\n"
+                "Total tenants: 0.\n"
+                "QBR review count: 0.\n"
+                "QBR export count: 0.\n"
+                "Scheduled QBR jobs: 1.\n"
+                "QBR deliveries: 0.\n\n"
+                "Top-risk account posture:\n"
+                "No top-risk accounts identified.\n\n"
+                "Board focus should remain on customer health stabilization, go-live readiness, "
+                "governance exception closure, and QBR operating cadence across the portfolio."
+            ),
+            "summary_json": json.dumps(summary),
+            "top_risks_json": json.dumps([]),
+            "next_steps_json": json.dumps(next_steps),
+        },
+    ).mappings().first()
+
     db.commit()
     return dict(row)
 
 
 def run_portfolio_briefing_schedule_now(db: Session, schedule_id: int) -> dict[str, Any]:
     schedule = get_portfolio_briefing_schedule(db, schedule_id)
+
     if not schedule:
         raise ValueError(f"Portfolio briefing schedule {schedule_id} was not found")
 
     if not schedule.get("is_enabled", True):
         raise ValueError(f"Portfolio briefing schedule {schedule_id} is disabled")
 
-    briefing = _insert_briefing_from_schedule(db, schedule)
+    briefing = _insert_scheduled_briefing(db, schedule)
     export = build_portfolio_briefing_export(db, int(briefing["id"]))
 
     delivery = distribute_portfolio_briefing(
