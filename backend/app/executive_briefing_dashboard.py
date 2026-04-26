@@ -252,4 +252,30 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
             "recommended_actions": [],
         }
 
+
+    try:
+        from app.enterprise_audit import audit_rollup, compliance_narrative, list_audit_events
+        summary["enterprise_audit"] = audit_rollup(db)
+        summary["enterprise_audit_narrative"] = compliance_narrative(db)
+        summary["recent_audit_events"] = list_audit_events(db, limit=25)
+    except Exception:
+        summary["enterprise_audit"] = {
+            "total": 0,
+            "success": 0,
+            "failed": 0,
+            "writes": 0,
+            "reads": 0,
+            "dashboard_views": 0,
+            "decision_events": 0,
+            "governance_events": 0,
+            "by_resource": [],
+            "by_action": [],
+        }
+        summary["enterprise_audit_narrative"] = {
+            "status": "unavailable",
+            "executive_summary": "Enterprise audit data unavailable.",
+            "recommended_actions": [],
+        }
+        summary["recent_audit_events"] = []
+
     return summary

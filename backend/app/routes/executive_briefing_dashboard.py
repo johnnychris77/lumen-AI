@@ -261,6 +261,13 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Enterprise Audit Trail + Access Governance</h2>
+      <div class="grid" id="enterpriseAuditMetrics"></div>
+      <div id="enterpriseAuditNarrative" style="margin-top: 16px;"></div>
+      <div id="recentAuditEvents" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Executive Decision Log + Governance Action Register</h2>
       <div class="grid" id="executiveDecisionMetrics"></div>
       <div id="executiveDecisionNarrative" style="margin-top: 16px;"></div>
@@ -1032,6 +1039,47 @@ async function loadDashboard() {
       ])}
     `;
 
+
+
+
+    const audit = data.enterprise_audit || {};
+    const auditNarrative = data.enterprise_audit_narrative || {};
+
+    document.getElementById("enterpriseAuditMetrics").innerHTML = [
+      metricCard("Audit Events", audit.total || 0),
+      metricCard("Successful", audit.success || 0),
+      metricCard("Failed", audit.failed || 0, audit.failed > 0 ? "risk-panel" : ""),
+      metricCard("Write/Execute", audit.writes || 0, "risk-panel"),
+      metricCard("Reads", audit.reads || 0),
+      metricCard("Dashboard Views", audit.dashboard_views || 0),
+      metricCard("Decision Events", audit.decision_events || 0),
+      metricCard("Governance Events", audit.governance_events || 0),
+    ].join("");
+
+    document.getElementById("enterpriseAuditNarrative").innerHTML = `
+      <div class="card">
+        <h3>Audit Compliance Narrative</h3>
+        <p>${esc(auditNarrative.executive_summary || "")}</p>
+        <h4>Recommended Actions</h4>
+        <ul>${(auditNarrative.recommended_actions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+      </div>
+    `;
+
+    document.getElementById("recentAuditEvents").innerHTML = `
+      <h3>Recent Audit Events</h3>
+      ${table(data.recent_audit_events || [], [
+        { key: "id", label: "ID" },
+        { key: "actor", label: "Actor" },
+        { key: "actor_role", label: "Role" },
+        { key: "resource_type", label: "Resource" },
+        { key: "action", label: "Action" },
+        { key: "method", label: "Method" },
+        { key: "path", label: "Path", render: r => esc(r.path).slice(0, 90) },
+        { key: "status_code", label: "Status" },
+        { key: "success", label: "Success", render: r => boolBadge(r.success) },
+        { key: "created_at", label: "Time", render: r => formatDate(r.created_at) },
+      ])}
+    `;
 
 
     const decisions = data.executive_decisions || {};

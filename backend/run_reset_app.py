@@ -75,6 +75,11 @@ if not _has_route("/api/executive-decisions"):
     from app.routes.executive_decisions import router as executive_decisions_router
     app.include_router(executive_decisions_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/enterprise-audit-events"):
+    from app.routes.enterprise_audit import router as enterprise_audit_router
+    app.include_router(enterprise_audit_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 
@@ -109,4 +114,56 @@ def _start_executive_kpi_scheduler():
 @app.on_event("shutdown")
 def _stop_executive_kpi_scheduler():
     shutdown_executive_kpi_scheduler()
+
+
+
+from starlette.requests import Request
+from app.db import session as audit_db_session
+from app.enterprise_audit import (
+    create_audit_event,
+    infer_action,
+    infer_resource_type,
+)
+
+
+@app.middleware("http")
+async def _enterprise_audit_middleware(request: Request, call_next):
+    response = None
+    status_code = 500
+    path = request.url.path
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        try:
+            if path.startswith("/api") and not any(skip in path for skip in ["/api/health"]):
+                db = audit_db_session.SessionLocal()
+                try:
+                    authorization = request.headers.get("authorization", "")
+                    actor = "dev-user" if "dev-token" in authorization else "unknown"
+                    actor_role = "admin" if "dev-token" in authorization else "unknown"
+
+                    create_audit_event(
+                        db=db,
+                        actor=actor,
+                        actor_role=actor_role,
+                        event_type="api_request",
+                        resource_type=infer_resource_type(path),
+                        action=infer_action(request.method, path),
+                        method=request.method,
+                        path=path,
+                        status_code=status_code,
+                        success=200 <= status_code < 400,
+                        client_host=request.client.host if request.client else "",
+                        user_agent=request.headers.get("user-agent", ""),
+                        event_payload={
+                            "query": str(request.url.query or ""),
+                        },
+                    )
+                finally:
+                    db.close()
+        except Exception:
+            pass
 
