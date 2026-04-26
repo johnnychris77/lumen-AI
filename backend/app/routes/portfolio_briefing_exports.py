@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
-from app.db.session import get_db
+from app.db import session as db_session
 from app.portfolio_briefing_exports import (
     build_portfolio_briefing_export,
     distribute_portfolio_briefing,
@@ -17,6 +17,26 @@ from app.portfolio_briefing_exports import (
     list_portfolio_briefing_deliveries,
     list_portfolio_briefing_exports,
 )
+
+
+def get_db():
+    if hasattr(db_session, "get_db"):
+        yield from db_session.get_db()
+        return
+
+    if hasattr(db_session, "get_session"):
+        yield from db_session.get_session()
+        return
+
+    if hasattr(db_session, "SessionLocal"):
+        db = db_session.SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+        return
+
+    raise RuntimeError("No database session provider found in app.db.session")
 
 
 router = APIRouter(prefix="/portfolio-briefings", tags=["portfolio-briefing-exports"])
