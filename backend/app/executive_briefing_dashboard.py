@@ -205,4 +205,20 @@ def get_executive_briefing_dashboard_summary(db: Session) -> dict[str, Any]:
         '''
     )
 
+
+    try:
+        from app.executive_kpi_snapshots import executive_kpi_trends, get_latest_executive_kpi_snapshot
+        summary["executive_kpi_latest"] = get_latest_executive_kpi_snapshot(db)
+        summary["executive_kpi_trends"] = executive_kpi_trends(db, limit=12)
+    except Exception:
+        summary["executive_kpi_latest"] = None
+        summary["executive_kpi_trends"] = {
+            "status": "unavailable",
+            "snapshot_count": 0,
+            "latest": None,
+            "previous": None,
+            "movement": {},
+            "series": [],
+        }
+
     return summary

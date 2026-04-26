@@ -60,6 +60,11 @@ if not _has_route("/api/governance-packets"):
     from app.routes.governance_packet_exports import router as governance_packet_exports_router
     app.include_router(governance_packet_exports_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/executive-kpi-snapshots/capture"):
+    from app.routes.executive_kpi_snapshots import router as executive_kpi_snapshots_router
+    app.include_router(executive_kpi_snapshots_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 

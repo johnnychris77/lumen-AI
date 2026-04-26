@@ -240,6 +240,16 @@ def executive_dashboard_view():
     </section>
 
     <section>
+      <h2>Executive Operating Metrics + KPI Trends</h2>
+      <div class="toolbar-actions" style="margin-bottom: 16px;">
+        <button class="green" onclick="captureKpiSnapshot()">Capture KPI Snapshot</button>
+      </div>
+      <div class="grid" id="kpiTrendMetrics"></div>
+      <div id="kpiMovement" style="margin-top: 16px;"></div>
+      <div id="kpiSnapshotHistory" style="margin-top: 16px;"></div>
+    </section>
+
+    <section>
       <h2>Governance Packet Exports & Board Delivery</h2>
       <div class="toolbar-actions" style="margin-bottom: 16px;">
         <button class="green" onclick="generateGovernancePacketArtifact()">Generate + Export + Deliver Governance Packet</button>
@@ -563,6 +573,31 @@ async function setRemediationStatus(id, status) {
 
 
 
+
+async function captureKpiSnapshot() {
+  clearMessages();
+  try {
+    const snapshot = await apiFetch("/api/executive-kpi-snapshots/capture", {
+      method: "POST",
+      body: JSON.stringify({
+        snapshot_label: "Dashboard Captured Executive KPI Snapshot"
+      })
+    });
+    showSuccess(`KPI snapshot captured. Snapshot ID: ${snapshot.id}`);
+    await loadDashboard();
+  } catch (err) {
+    showError(`KPI snapshot capture failed: ${err.message}`);
+  }
+}
+
+function movementBadge(delta) {
+  const value = Number(delta || 0);
+  if (value > 0) return `<span class="status status-at_risk">+${value}</span>`;
+  if (value < 0) return `<span class="status status-healthy">${value}</span>`;
+  return `<span class="status status-watch">0</span>`;
+}
+
+
 function governanceArtifactLinks(row) {
   const id = row.id;
   return `
@@ -820,6 +855,56 @@ async function loadDashboard() {
     `;
 
 
+
+
+
+    const kpi = data.executive_kpi_trends || {};
+    const latestKpi = kpi.latest || {};
+    const movement = kpi.movement || {};
+    const series = kpi.series || [];
+
+    document.getElementById("kpiTrendMetrics").innerHTML = [
+      metricCard("Snapshots", kpi.snapshot_count || 0),
+      metricCard("Critical Tenants", latestKpi.tenant_critical || 0, "risk-panel"),
+      metricCard("Open Remediations", latestKpi.remediation_open || 0, "risk-panel"),
+      metricCard("Overdue Remediations", latestKpi.remediation_overdue || 0, "risk-panel"),
+      metricCard("Open Escalations", latestKpi.escalation_open || 0, "risk-panel"),
+      metricCard("Leadership Decisions", latestKpi.leadership_decisions_required || 0, "risk-panel"),
+      metricCard("Retry Deliveries", latestKpi.delivery_retry_pending || 0, "risk-panel"),
+      metricCard("Artifacts", latestKpi.artifact_count || 0),
+    ].join("");
+
+    document.getElementById("kpiMovement").innerHTML = `
+      <h3>Current vs Previous Snapshot Movement</h3>
+      ${table(Object.keys(movement).map(key => ({
+        metric: key,
+        latest: movement[key].latest,
+        previous: movement[key].previous,
+        delta: movement[key].delta,
+      })), [
+        { key: "metric", label: "Metric" },
+        { key: "previous", label: "Previous" },
+        { key: "latest", label: "Latest" },
+        { key: "delta", label: "Delta", render: r => movementBadge(r.delta) },
+      ])}
+    `;
+
+    document.getElementById("kpiSnapshotHistory").innerHTML = `
+      <h3>KPI Snapshot History</h3>
+      ${table(series, [
+        { key: "id", label: "ID" },
+        { key: "snapshot_date", label: "Date" },
+        { key: "tenant_critical", label: "Critical Tenants" },
+        { key: "qbr_overdue", label: "QBR Overdue" },
+        { key: "remediation_open", label: "Open Remediations" },
+        { key: "remediation_overdue", label: "Overdue Remediations" },
+        { key: "escalation_open", label: "Open Escalations" },
+        { key: "leadership_decisions_required", label: "Leadership Decisions" },
+        { key: "delivery_retry_pending", label: "Retry Deliveries" },
+        { key: "artifact_count", label: "Artifacts" },
+        { key: "created_at", label: "Captured", render: r => formatDate(r.created_at) },
+      ])}
+    `;
 
 
     const governancePackets = data.governance_packets || {};
