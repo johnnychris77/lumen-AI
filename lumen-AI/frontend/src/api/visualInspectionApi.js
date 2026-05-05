@@ -1,6 +1,6 @@
 const API_HOST = window.location.hostname;
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || `http://${API_HOST}:18121`;
+  import.meta.env.VITE_API_BASE_URL || `http://${API_HOST}:18122`;
 
 async function handleResponse(response, label) {
   if (!response.ok) {
