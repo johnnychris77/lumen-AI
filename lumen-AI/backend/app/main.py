@@ -1,44 +1,77 @@
+from importlib import import_module
+
 from fastapi import FastAPI
-from backend.app.db.session import engine
-from backend.app.db.base import Base
-from backend.app.models import user, review  # ensure models are registered
-from backend.app.routers import auth as auth_router
-from backend.app.routers import users as users_router
-from backend.app.routers import reviews as reviews_router
-from backend.app.routes import capa
 from fastapi.middleware.cors import CORSMiddleware
+
+
 app = FastAPI(title="LumenAI API")
-app = FastAPI(title="LumenAI API")
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|172\.27\.41\.109|10\.255\.255\.254):\d+",
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|172\.27\.\d+\.\d+|10\.255\.255\.254):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"status": "ok", "service": "LumenAI API"}
 
-@app.on_event("startup")
-def on_startup():
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        print("DB init warning:", e)
 
-app.include_router(auth_router.router)
-app.include_router(users_router.router)
-app.include_router(reviews_router.router)
-<<<<<<< Updated upstream
+def include_router_from_candidates(candidate_modules, label):
+    for module_path in candidate_modules:
+        try:
+            module = import_module(module_path)
+            router = getattr(module, "router", None)
 
-from backend.app.routers.uploads import router as uploads_router
-app.include_router(uploads_router, prefix='/uploads', tags=['uploads'])
+            if router is not None:
+                app.include_router(router)
+                print(f"Loaded router: {label} from {module_path}")
+                return
 
-=======
-app.include_router(auth_router.router)
-app.include_router(users_router.router)
-app.include_router(reviews_router.router)
-app.include_router(capa.router)
->>>>>>> Stashed changes
+        except Exception as error:
+            last_error = error
+
+    print(f"Router not loaded: {label}. Last error: {last_error}")
+
+
+include_router_from_candidates(
+    [
+        "backend.app.routes.auth",
+        "backend.app.routers.auth",
+    ],
+    "auth",
+)
+
+include_router_from_candidates(
+    [
+        "backend.app.routes.users",
+        "backend.app.routers.users",
+    ],
+    "users",
+)
+
+include_router_from_candidates(
+    [
+        "backend.app.routes.reviews",
+        "backend.app.routers.reviews",
+    ],
+    "reviews",
+)
+
+include_router_from_candidates(
+    [
+        "backend.app.routes.capa",
+    ],
+    "capa",
+)
+
+include_router_from_candidates(
+    [
+        "backend.app.routes.inspections",
+    ],
+    "inspections",
+)
