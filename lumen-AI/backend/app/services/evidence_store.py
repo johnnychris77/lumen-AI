@@ -48,12 +48,46 @@ def init_evidence_db():
                 linked_capa_id TEXT,
                 ai_review_status TEXT,
                 human_review_status TEXT,
+                suspected_debris_type TEXT,
+                suspected_material_type TEXT,
+                quality_issue_type TEXT,
+                image_quality_score INTEGER,
+                ai_confidence_score INTEGER,
+                severity_score INTEGER,
+                recommended_action TEXT,
+                human_confirmed_classification TEXT,
+                human_override_reason TEXT,
+                final_classification TEXT,
                 created_at TEXT,
                 updated_at TEXT,
                 metadata_json TEXT
             )
             """
         )
+
+        existing_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(evidence)").fetchall()
+        }
+
+        new_columns = {
+            "suspected_debris_type": "TEXT",
+            "suspected_material_type": "TEXT",
+            "quality_issue_type": "TEXT",
+            "image_quality_score": "INTEGER",
+            "ai_confidence_score": "INTEGER",
+            "severity_score": "INTEGER",
+            "recommended_action": "TEXT",
+            "human_confirmed_classification": "TEXT",
+            "human_override_reason": "TEXT",
+            "final_classification": "TEXT",
+        }
+
+        for column_name, column_type in new_columns.items():
+            if column_name not in existing_columns:
+                connection.execute(
+                    f"ALTER TABLE evidence ADD COLUMN {column_name} {column_type}"
+                )
+
         connection.commit()
 
 
@@ -84,6 +118,16 @@ def row_to_evidence(row) -> Optional[Dict]:
         "linked_capa_id": row["linked_capa_id"] or "",
         "ai_review_status": row["ai_review_status"],
         "human_review_status": row["human_review_status"],
+        "suspected_debris_type": row["suspected_debris_type"] if "suspected_debris_type" in row.keys() else "",
+        "suspected_material_type": row["suspected_material_type"] if "suspected_material_type" in row.keys() else "",
+        "quality_issue_type": row["quality_issue_type"] if "quality_issue_type" in row.keys() else "",
+        "image_quality_score": row["image_quality_score"] if "image_quality_score" in row.keys() else None,
+        "ai_confidence_score": row["ai_confidence_score"] if "ai_confidence_score" in row.keys() else None,
+        "severity_score": row["severity_score"] if "severity_score" in row.keys() else None,
+        "recommended_action": row["recommended_action"] if "recommended_action" in row.keys() else "",
+        "human_confirmed_classification": row["human_confirmed_classification"] if "human_confirmed_classification" in row.keys() else "",
+        "human_override_reason": row["human_override_reason"] if "human_override_reason" in row.keys() else "",
+        "final_classification": row["final_classification"] if "final_classification" in row.keys() else "",
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "metadata": metadata,
@@ -101,6 +145,10 @@ def save_evidence(record: Dict) -> Dict:
                 mime_type, evidence_type, facility, instrument_name, vendor,
                 finding_category, linked_visual_review_id, linked_inspection_id,
                 linked_capa_id, ai_review_status, human_review_status,
+                suspected_debris_type, suspected_material_type, quality_issue_type,
+                image_quality_score, ai_confidence_score, severity_score,
+                recommended_action, human_confirmed_classification,
+                human_override_reason, final_classification,
                 created_at, updated_at, metadata_json
             )
             VALUES (
@@ -108,6 +156,10 @@ def save_evidence(record: Dict) -> Dict:
                 :mime_type, :evidence_type, :facility, :instrument_name, :vendor,
                 :finding_category, :linked_visual_review_id, :linked_inspection_id,
                 :linked_capa_id, :ai_review_status, :human_review_status,
+                :suspected_debris_type, :suspected_material_type, :quality_issue_type,
+                :image_quality_score, :ai_confidence_score, :severity_score,
+                :recommended_action, :human_confirmed_classification,
+                :human_override_reason, :final_classification,
                 :created_at, :updated_at, :metadata_json
             )
             ON CONFLICT(evidence_id) DO UPDATE SET
@@ -126,6 +178,16 @@ def save_evidence(record: Dict) -> Dict:
                 linked_capa_id = excluded.linked_capa_id,
                 ai_review_status = excluded.ai_review_status,
                 human_review_status = excluded.human_review_status,
+                suspected_debris_type = excluded.suspected_debris_type,
+                suspected_material_type = excluded.suspected_material_type,
+                quality_issue_type = excluded.quality_issue_type,
+                image_quality_score = excluded.image_quality_score,
+                ai_confidence_score = excluded.ai_confidence_score,
+                severity_score = excluded.severity_score,
+                recommended_action = excluded.recommended_action,
+                human_confirmed_classification = excluded.human_confirmed_classification,
+                human_override_reason = excluded.human_override_reason,
+                final_classification = excluded.final_classification,
                 updated_at = excluded.updated_at,
                 metadata_json = excluded.metadata_json
             """,
@@ -200,6 +262,16 @@ def create_evidence_record(
         "linked_capa_id": "",
         "ai_review_status": "Not Reviewed",
         "human_review_status": "Pending Review",
+        "suspected_debris_type": "",
+        "suspected_material_type": "",
+        "quality_issue_type": "",
+        "image_quality_score": None,
+        "ai_confidence_score": None,
+        "severity_score": None,
+        "recommended_action": "",
+        "human_confirmed_classification": "",
+        "human_override_reason": "",
+        "final_classification": "",
         "created_at": now,
         "updated_at": now,
         "metadata": {

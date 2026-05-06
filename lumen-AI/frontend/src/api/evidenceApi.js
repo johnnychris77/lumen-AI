@@ -118,3 +118,45 @@ export async function linkEvidenceToCapa(evidenceId, capaId) {
 
   return handleResponse(response, "Failed to link evidence to CAPA");
 }
+
+export async function classifyEvidence(evidenceId, payload = {}) {
+  const response = await fetch(`${API_BASE_URL}/api/evidence/${evidenceId}/classify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer dev-token",
+      "X-Tenant-Id": "bonsecours",
+      "X-Tenant-Name": "Bon Secours",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(response, "Failed to classify evidence");
+}
+
+export async function humanReviewEvidence(evidenceId, payload) {
+  const response = await fetch(`${API_BASE_URL}/api/evidence/${evidenceId}/human-review`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer dev-token",
+      "X-Tenant-Id": "bonsecours",
+      "X-Tenant-Name": "Bon Secours",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(response, "Failed to complete human evidence review");
+}
+
+export async function fetchEvidenceClassificationSummary() {
+  const response = await fetch(`${API_BASE_URL}/api/evidence/classification/summary`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-Tenant-Id": "bonsecours",
+      "X-Tenant-Name": "Bon Secours",
+    },
+  });
+
+  return handleResponse(response, "Failed to fetch evidence classification summary");
+}

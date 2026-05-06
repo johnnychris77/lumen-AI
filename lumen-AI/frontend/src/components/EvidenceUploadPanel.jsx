@@ -6,6 +6,9 @@ import {
   linkEvidenceToVisualReview,
   linkEvidenceToInspection,
   linkEvidenceToCapa,
+  classifyEvidence,
+  humanReviewEvidence,
+  fetchEvidenceClassificationSummary,
 } from "../api/evidenceApi.js";
 
 const initialForm = {
@@ -29,6 +32,17 @@ export default function EvidenceUploadPanel() {
   });
   const [uploading, setUploading] = useState(false);
   const [linking, setLinking] = useState("");
+  const [classifying, setClassifying] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [classificationSummary, setClassificationSummary] = useState(null);
+  const [classificationForm, setClassificationForm] = useState({
+    suspected_debris_type: "Suspected blood residue",
+    suspected_material_type: "Possible organic material",
+    quality_issue_type: "Bioburden / retained debris",
+    image_quality_score: 88,
+    human_confirmed_classification: "Bioburden / retained debris",
+    human_override_reason: "",
+  });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -37,8 +51,14 @@ export default function EvidenceUploadPanel() {
     setEvidenceItems(data.items || []);
   }
 
+  async function loadClassificationSummary() {
+    const data = await fetchEvidenceClassificationSummary();
+    setClassificationSummary(data);
+  }
+
   useEffect(() => {
     loadEvidence().catch((err) => setError(err.message));
+    loadClassificationSummary().catch((err) => setError(err.message));
   }, []);
 
   function updateField(field, value) {
@@ -47,6 +67,13 @@ export default function EvidenceUploadPanel() {
 
   function updateLinkTarget(field, value) {
     setLinkTargets((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateClassificationField(field, value) {
+    setClassificationForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
   }
 
   function handleFileChange(event) {
@@ -122,6 +149,64 @@ export default function EvidenceUploadPanel() {
     }
   }
 
+
+  async function handleClassifyEvidence() {
+    if (!selectedEvidence?.evidence_id) {
+      setError("Select or upload evidence before classification.");
+      return;
+    }
+
+    try {
+      setClassifying(true);
+      setError("");
+      setMessage("");
+
+      const result = await classifyEvidence(selectedEvidence.evidence_id, {
+        suspected_debris_type: classificationForm.suspected_debris_type,
+        suspected_material_type: classificationForm.suspected_material_type,
+        quality_issue_type: classificationForm.quality_issue_type,
+        image_quality_score: Number(classificationForm.image_quality_score),
+      });
+
+      setSelectedEvidence(result.evidence);
+      setMessage("Evidence classified and ready for human confirmation.");
+      await loadEvidence();
+      await loadClassificationSummary();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setClassifying(false);
+    }
+  }
+
+  async function handleHumanReviewEvidence() {
+    if (!selectedEvidence?.evidence_id) {
+      setError("Select or upload evidence before human review.");
+      return;
+    }
+
+    try {
+      setReviewing(true);
+      setError("");
+      setMessage("");
+
+      const result = await humanReviewEvidence(selectedEvidence.evidence_id, {
+        human_confirmed_classification: classificationForm.human_confirmed_classification,
+        human_override_reason: classificationForm.human_override_reason,
+        reviewer: "Dashboard User",
+      });
+
+      setSelectedEvidence(result.evidence);
+      setMessage("Human evidence review completed.");
+      await loadEvidence();
+      await loadClassificationSummary();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setReviewing(false);
+    }
+  }
+
   return (
     <section style={sectionWrapper}>
       <div style={{ marginBottom: "18px" }}>
@@ -133,6 +218,8 @@ export default function EvidenceUploadPanel() {
 
       {message && <div style={successStyle}>{message}</div>}
       {error && <div style={errorStyle}>{error}</div>}
+
+      <ClassificationSummaryCard summary={classificationSummary} />
 
       <div style={layoutStyle}>
         <form onSubmit={handleUpload} style={cardStyle}>
@@ -186,6 +273,12 @@ export default function EvidenceUploadPanel() {
           updateLinkTarget={updateLinkTarget}
           onLinkEvidence={handleLinkEvidence}
           linking={linking}
+          classificationForm={classificationForm}
+          updateClassificationField={updateClassificationField}
+          onClassifyEvidence={handleClassifyEvidence}
+          onHumanReviewEvidence={handleHumanReviewEvidence}
+          classifying={classifying}
+          reviewing={reviewing}
         />
       </div>
 
@@ -210,6 +303,12 @@ function EvidencePreviewCard({
   updateLinkTarget,
   onLinkEvidence,
   linking,
+  classificationForm,
+  updateClassificationField,
+  onClassifyEvidence,
+  onHumanReviewEvidence,
+  classifying,
+  reviewing,
 }) {
   const evidenceFileUrl = evidence?.file_url ? buildEvidenceFileUrl(evidence.file_url) : "";
   const displayUrl = previewUrl || evidenceFileUrl;
@@ -262,10 +361,155 @@ function EvidencePreviewCard({
                 onLinkEvidence={onLinkEvidence}
                 linking={linking}
               />
+
+              <EvidenceClassificationPanel
+                evidence={evidence}
+                classificationForm={classificationForm}
+                updateClassificationField={updateClassificationField}
+                onClassifyEvidence={onClassifyEvidence}
+                onHumanReviewEvidence={onHumanReviewEvidence}
+                classifying={classifying}
+                reviewing={reviewing}
+              />
             </>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+function ClassificationSummaryCard({ summary }) {
+  if (!summary) return null;
+
+  return (
+    <div style={summaryGridStyle}>
+      <SummaryTile label="Total Evidence" value={summary.total_evidence} />
+      <SummaryTile label="AI Reviewed" value={summary.ai_reviewed} />
+      <SummaryTile label="Human Confirmed" value={summary.human_confirmed} />
+      <SummaryTile label="High Severity" value={summary.high_severity} />
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }) {
+  return (
+    <div style={summaryTileStyle}>
+      <div style={{ color: "#6b7280", fontSize: "12px", fontWeight: 900 }}>
+        {label}
+      </div>
+      <div style={{ color: "#111827", fontSize: "28px", fontWeight: 950 }}>
+        {value ?? 0}
+      </div>
+    </div>
+  );
+}
+
+function EvidenceClassificationPanel({
+  evidence,
+  classificationForm,
+  updateClassificationField,
+  onClassifyEvidence,
+  onHumanReviewEvidence,
+  classifying,
+  reviewing,
+}) {
+  return (
+    <div style={classificationBoxStyle}>
+      <h4 style={{ marginTop: 0, fontSize: "16px", fontWeight: 900 }}>
+        AI-Ready Evidence Classification
+      </h4>
+
+      <div style={statusGridStyle}>
+        <StatusPill label="AI Review" value={evidence.ai_review_status || "Not Reviewed"} />
+        <StatusPill label="Human Review" value={evidence.human_review_status || "Pending Review"} />
+      </div>
+
+      <Input
+        label="Suspected Debris Type"
+        value={classificationForm.suspected_debris_type}
+        onChange={(value) => updateClassificationField("suspected_debris_type", value)}
+      />
+
+      <Input
+        label="Suspected Material Type"
+        value={classificationForm.suspected_material_type}
+        onChange={(value) => updateClassificationField("suspected_material_type", value)}
+      />
+
+      <Input
+        label="Quality Issue Type"
+        value={classificationForm.quality_issue_type}
+        onChange={(value) => updateClassificationField("quality_issue_type", value)}
+      />
+
+      <Input
+        label="Image Quality Score"
+        value={classificationForm.image_quality_score}
+        onChange={(value) => updateClassificationField("image_quality_score", value)}
+      />
+
+      <button
+        type="button"
+        onClick={onClassifyEvidence}
+        disabled={classifying}
+        style={{ ...smallActionButtonStyle, background: "#2563eb", borderColor: "#2563eb" }}
+      >
+        {classifying ? "Classifying..." : "Classify Evidence"}
+      </button>
+
+      <div style={metaBoxStyle}>
+        <strong>AI Classification:</strong> {evidence.final_classification || "Not classified"}
+        <br />
+        <strong>Debris:</strong> {evidence.suspected_debris_type || "Not classified"}
+        <br />
+        <strong>Material:</strong> {evidence.suspected_material_type || "Not classified"}
+        <br />
+        <strong>Issue:</strong> {evidence.quality_issue_type || "Not classified"}
+        <br />
+        <strong>Image Quality:</strong> {evidence.image_quality_score ?? "N/A"}
+        <br />
+        <strong>AI Confidence:</strong> {evidence.ai_confidence_score ?? "N/A"}
+        <br />
+        <strong>Severity:</strong> {evidence.severity_score ?? "N/A"}
+        <br />
+        <strong>Recommended Action:</strong> {evidence.recommended_action || "N/A"}
+      </div>
+
+      <Input
+        label="Human Confirmed Classification"
+        value={classificationForm.human_confirmed_classification}
+        onChange={(value) => updateClassificationField("human_confirmed_classification", value)}
+      />
+
+      <Input
+        label="Human Override Reason"
+        value={classificationForm.human_override_reason}
+        onChange={(value) => updateClassificationField("human_override_reason", value)}
+      />
+
+      <button
+        type="button"
+        onClick={onHumanReviewEvidence}
+        disabled={reviewing}
+        style={{ ...smallActionButtonStyle, background: "#0f766e", borderColor: "#0f766e" }}
+      >
+        {reviewing ? "Saving Review..." : "Confirm Human Review"}
+      </button>
+    </div>
+  );
+}
+
+function StatusPill({ label, value }) {
+  return (
+    <div style={statusPillStyle}>
+      <div style={{ fontSize: "11px", color: "#6b7280", fontWeight: 900 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "13px", color: "#111827", fontWeight: 900 }}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -439,4 +683,42 @@ const galleryGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fi
 const galleryCardStyle = { border: "2px solid #e5e7eb", borderRadius: "16px", padding: "12px", cursor: "pointer", textAlign: "left" };
 const thumbnailFrameStyle = { background: "#f8fafc", borderRadius: "12px", overflow: "hidden" };
 const filePlaceholderStyle = { height: "130px", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", color: "#6b7280", fontWeight: 900 };
+
+const summaryGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: "12px",
+  marginBottom: "16px",
+};
+
+const summaryTileStyle = {
+  border: "1px solid #bae6fd",
+  background: "#ffffff",
+  borderRadius: "14px",
+  padding: "14px",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+};
+
+const classificationBoxStyle = {
+  marginTop: "14px",
+  border: "1px solid #bfdbfe",
+  background: "#eff6ff",
+  borderRadius: "14px",
+  padding: "14px",
+};
+
+const statusGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "10px",
+  marginBottom: "12px",
+};
+
+const statusPillStyle = {
+  border: "1px solid #dbeafe",
+  background: "#ffffff",
+  borderRadius: "12px",
+  padding: "10px",
+};
+
 const smallMutedStyle = { color: "#6b7280", fontSize: "12px", marginTop: "4px" };

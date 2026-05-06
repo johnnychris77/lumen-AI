@@ -4,6 +4,11 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from backend.app.services.evidence_classification_service import (
+    classify_evidence,
+    apply_human_review,
+)
+
 from backend.app.services.evidence_store import (
     create_evidence_record,
     get_evidence,
@@ -103,6 +108,86 @@ def get_evidence_file(evidence_id: str):
         media_type=record.get("mime_type") or "application/octet-stream",
         filename=record.get("original_filename") or file_path.name,
     )
+
+
+
+
+@router.post("/{evidence_id}/classify")
+def classify_uploaded_evidence(evidence_id: str, payload: dict = {}):
+    record = get_evidence(evidence_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Evidence not found.")
+
+    classification = classify_evidence(record, payload)
+
+    for key, value in classification.items():
+        if key not in ["classified_at", "classification_method"]:
+            record[key] = value
+
+    record["updated_at"] = utc_now_iso()
+    metadata = record.get("metadata") or {}
+    metadata["classified_at"] = classification["classified_at"]
+    metadata["classification_method"] = classification["classification_method"]
+    record["metadata"] = metadata
+
+    save_evidence(record)
+
+    return {
+        "message": "Evidence classified.",
+        "classification": classification,
+        "evidence": record,
+    }
+
+
+@router.post("/{evidence_id}/human-review")
+def human_review_evidence(evidence_id: str, payload: dict):
+    record = get_evidence(evidence_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Evidence not found.")
+
+    try:
+        updated = apply_human_review(record, payload)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    save_evidence(updated)
+
+    return {
+        "message": "Human evidence review completed.",
+        "evidence": updated,
+    }
+
+
+@router.get("/classification/summary")
+def evidence_classification_summary():
+    items = list_evidence()
+
+    reviewed = [item for item in items if item.get("ai_review_status") == "Reviewed"]
+    human_confirmed = [
+        item for item in items
+        if item.get("human_review_status") == "Human Confirmed"
+    ]
+
+    by_classification = {}
+    for item in items:
+        key = item.get("final_classification") or "Unclassified"
+        by_classification[key] = by_classification.get(key, 0) + 1
+
+    high_severity = [
+        item for item in items
+        if item.get("severity_score") is not None and item.get("severity_score") >= 70
+    ]
+
+    return {
+        "total_evidence": len(items),
+        "ai_reviewed": len(reviewed),
+        "human_confirmed": len(human_confirmed),
+        "high_severity": len(high_severity),
+        "by_classification": by_classification,
+        "items": items[:10],
+    }
 
 
 @router.post("/{evidence_id}/link-to-visual-review/{review_id}")
