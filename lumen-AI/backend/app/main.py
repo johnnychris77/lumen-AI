@@ -83,3 +83,11 @@ include_router_from_candidates(
     ],
     "inspection_review",
 )
+
+
+include_router_from_candidates(
+    [
+        "backend.app.routes.evidence",
+    ],
+    "evidence",
+)
