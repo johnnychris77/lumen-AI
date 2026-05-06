@@ -1,4 +1,5 @@
 import React from "react";
+import EvidenceUploadPanel from "./components/EvidenceUploadPanel.jsx";
 import VisualInspectionIntelligencePanel from "./components/VisualInspectionIntelligencePanel.jsx";
 import InspectionIntakeModule from "./components/InspectionIntakeModule.jsx";
 import CapaDashboardCards from "./components/CapaDashboardCards.jsx";
@@ -15,6 +16,8 @@ export default function App() {
             Inspection intake, CAPA, Infection Prevention review, vendor escalation, and quality action tracking.
           </p>
         </header>
+
+        <EvidenceUploadPanel />
 
         <VisualInspectionIntelligencePanel />
 

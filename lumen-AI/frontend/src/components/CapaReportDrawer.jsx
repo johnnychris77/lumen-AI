@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { fetchCapaReport } from "../api/capaApi.js";
 
+const REPORT_API_HOST = window.location.hostname;
+const REPORT_API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || `http://${REPORT_API_HOST}:18122`;
+
+function buildReportFileUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  return `${REPORT_API_BASE_URL}${url}`;
+}
+
 export default function CapaReportDrawer({ capaId, onClose, setError }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
