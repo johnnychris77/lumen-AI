@@ -10,11 +10,11 @@ docs/public-demo/
 
 ## Local Preview
 
-python -m http.server 9090 -d docs/public-demo
+python -m http.server 9091 -d docs/public-demo
 
 Open:
 
-http://127.0.0.1:9090
+http://127.0.0.1:9091
 
 ## Note
 

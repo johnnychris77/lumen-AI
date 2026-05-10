@@ -26,7 +26,7 @@ backend/scripts/seed-demo-data.sh
 
 ## Static Landing Page Port 9090 Fails
 
-If port 9090 is already in use, either open the existing page or use another port:
+If port 9090 is already in use, use another port:
 
 python -m http.server 9091 -d docs/public-demo
 
