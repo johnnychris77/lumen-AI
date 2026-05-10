@@ -16,16 +16,14 @@ It confirms:
 
 ## Required Inputs
 
-Set:
+Set these only after you have a real hosted backend URL:
 
-export HOSTED_BASE_URL=https://your-lumenai-api-url
+export HOSTED_BASE_URL=https://your-real-hosted-api-url
 export TOKEN=your-demo-token
 
 ## Seed Hosted Demo
 
 scripts/seed-hosted-demo.sh
-
-This runs the existing demo seed script against the hosted API.
 
 ## Validate Hosted Demo
 
@@ -39,13 +37,13 @@ HOSTED DEMO VALIDATION COMPLETE
 
 After the backend is hosted, update the public demo links:
 
-HOSTED_BASE_URL=https://your-lumenai-api-url scripts/update-public-demo-links.sh
+HOSTED_BASE_URL=https://your-real-hosted-api-url scripts/update-public-demo-links.sh
 
-Then commit and push.
+## Local Validation Instead
 
-## Public Dashboard URL
+For local testing, use:
 
-https://your-lumenai-api-url/api/executive-briefing-dashboard/view
+HOSTED_BASE_URL=http://127.0.0.1:18011 TOKEN=dev-token scripts/check-hosted-demo.sh
 
 ## Validation Checklist
 
