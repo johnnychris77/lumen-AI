@@ -2,19 +2,11 @@
 
 Demo Mode loads realistic sample data so the executive dashboard opens with meaningful portfolio activity instead of empty metrics.
 
-## Run Demo Mode
-
-Start the stack:
+## Run
 
 docker compose -f docker-compose.prod.yml up -d --build
 
-Run:
-
 backend/scripts/seed-demo-data.sh
-
-Expected:
-
-DEMO DATA SEED COMPLETE
 
 Open:
 
