@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LumenAI | Enterprise Executive Intelligence</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel2: #020617;
+      --text: #e5e7eb;
+      --muted: #cbd5e1;
+      --line: #334155;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 56px 24px;
+    }
+
+    .hero {
+      padding: 56px 0 42px;
+    }
+
+    .badge {
+      color: #93c5fd;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: clamp(42px, 6vw, 72px);
+      line-height: 1.04;
+      margin: 16px 0;
+      max-width: 1000px;
+    }
+
+    h2 {
+      font-size: 34px;
+      margin-top: 56px;
+      margin-bottom: 18px;
+    }
+
+    h3 {
+      margin-top: 0;
+      color: #fff;
+    }
+
+    p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    a {
+      color: #bfdbfe;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .cta {
+      display: inline-block;
+      background: var(--blue);
+      color: white;
+      text-decoration: none;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+    }
+
+    .cta.secondary {
+      background: #1f2937;
+      border: 1px solid #475569;
+    }
+
+    .cta.green {
+      background: var(--green);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+    }
+
+    .flow {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      font-size: 18px;
+      line-height: 1.8;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .shot {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .shot img {
+      width: 100%;
+      display: block;
+      background: #0b1220;
+      min-height: 190px;
+      object-fit: cover;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .shot .body {
+      padding: 18px;
+    }
+
+    .shot .body p {
+      font-size: 15px;
+      margin-bottom: 0;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .metric {
+      padding: 18px;
+      border-radius: 16px;
+      background: #020617;
+      border: 1px solid #1e293b;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      color: white;
+    }
+
+    .metric span {
+      color: #94a3b8;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .note {
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.4);
+      padding: 18px;
+      border-radius: 16px;
+      color: var(--muted);
+    }
+
+    footer {
+      color: #94a3b8;
+      padding: 40px 0 20px;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="badge">LumenAI</div>
+      <h1>Enterprise Executive Intelligence for Regulated Operations</h1>
+      <p>
+        LumenAI converts operational risk into executive insight, accountable remediation,
+        governance escalation, KPI trends, board-ready packets, audit trails, and RBAC policy guardrails.
+      </p>
+
+      <div class="cta-row">
+        <a class="cta green" href="http://127.0.0.1:18011/api/executive-briefing-dashboard/view" target="_blank">Open Live Dashboard</a>
+        <a class="cta" href="https://github.com/johnnychris77/lumen-AI" target="_blank">View GitHub Repo</a>
+        <a class="cta secondary" href="../../README.md">View README</a>
+        <a class="cta secondary" href="../../DEMO_SCRIPT.md">Demo Script</a>
+        <a class="cta secondary" href="../../PITCH_DECK.md">Pitch Deck</a>
+      </div>
+    </section>
+
+    <section>
+      <h2>The Executive Workflow</h2>
+      <div class="flow">
+        Risk detection → Insight narrative → Remediation ownership → Executive escalation →
+        Governance packet → Decision log → KPI trend → Audit and RBAC governance
+      </div>
+    </section>
+
+    <section>
+      <h2>Demo Proof Points</h2>
+      <div class="metric-strip">
+        <div class="metric"><strong>403</strong><span>Viewer write denied</span></div>
+        <div class="metric"><strong>200</strong><span>Operator write allowed</span></div>
+        <div class="metric"><strong>3</strong><span>Artifact formats</span></div>
+        <div class="metric"><strong>Passed</strong><span>Enterprise smoke test</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Product Capabilities</h2>
+      <div class="grid">
+        <div class="card"><h3>Tenant Intelligence</h3><p>Risk drivers, board attention flags, and executive-ready narratives.</p></div>
+        <div class="card"><h3>Remediation Workflow</h3><p>Owners, due dates, escalation levels, and closure tracking.</p></div>
+        <div class="card"><h3>Governance Packets</h3><p>DOCX, PPTX, and PDF board-ready exports with delivery audit history.</p></div>
+        <div class="card"><h3>KPI Trends</h3><p>Snapshots, movement tracking, and executive trend narratives.</p></div>
+        <div class="card"><h3>Decision Register</h3><p>Leadership decisions, approvals, completion tracking, and accountability.</p></div>
+        <div class="card"><h3>Enterprise Controls</h3><p>Audit logs, access decisions, role policies, and production readiness checks.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Screenshot Gallery</h2>
+      <p>Add live screenshots to <code>docs/public-demo/assets/screenshots/</code> using the filenames below.</p>
+
+      <div class="gallery">
+        <div class="shot">
+          <img src="assets/screenshots/executive-dashboard-overview.png" alt="Executive dashboard overview" onerror="this.style.display='none'">
+          <div class="body">
+            <h3>Executive Dashboard</h3>
+            <p>Portfolio intelligence, tenant management, automation, exports, audit, and RBAC in one operating view.</p>
+          </div>
+        </div>
+
+        <div class="shot">
+          <img src="assets/screenshots/tenant-management.png" alt="Tenant management" onerror="this.style.display='none'">
+          <div class="body">
+            <h3>Tenant Management</h3>
+            <p>Create and manage tenant records that drive risk scoring and executive workflows.</p>
+          </div>
+        </div>
+
+        <div class="shot">
+          <img src="assets/screenshots/remediation-workflow.png" alt="Remediation workflow" onerror="this.style.display='none'">
+          <div class="body">
+            <h3>Remediation Workflow</h3>
+            <p>Turn insights into assigned actions with status, due dates, escalation, and closure tracking.</p>
+          </div>
+        </div>
+
+        <div class="shot">
+          <img src="assets/screenshots/governance-packet-exports.png" alt="Governance packet exports" onerror="this.style.display='none'">
+          <div class="body">
+            <h3>Governance Packet Exports</h3>
+            <p>Generate board-ready DOCX, PPTX, and PDF packets with delivery audit history.</p>
+          </div>
+        </div>
+
+        <div class="shot">
+          <img src="assets/screenshots/rbac-policy-guardrails.png" alt="RBAC policy guardrails" onerror="this.style.display='none'">
+          <div class="body">
+            <h3>RBAC Policy Guardrails</h3>
+            <p>Viewer write denied, operator write allowed, and access decisions logged for governance review.</p>
+          </div>
+        </div>
+
+        <div class="shot">
+          <img src="assets/screenshots/quality-gate-passed.png" alt="Quality gate passed" onerror="this.style.display='none'">
+          <div class="body">
+            <h3>Quality Gate Passed</h3>
+            <p>Enterprise smoke test validates the full operating chain from tenant creation to packet delivery.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Live Demo Links</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Executive Dashboard</h3>
+          <p><a href="http://127.0.0.1:18011/api/executive-briefing-dashboard/view" target="_blank">Open local dashboard</a></p>
+        </div>
+        <div class="card">
+          <h3>Production Readiness</h3>
+          <p><code>/api/production-readiness/config</code></p>
+        </div>
+        <div class="card">
+          <h3>GitHub Repository</h3>
+          <p><a href="https://github.com/johnnychris77/lumen-AI" target="_blank">github.com/johnnychris77/lumen-AI</a></p>
+        </div>
+        <div class="card">
+          <h3>Pitch Deck</h3>
+          <p><a href="../../PITCH_DECK.md">Open pitch deck markdown</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Why It Matters</h2>
+      <div class="note">
+        Most dashboards show status. LumenAI demonstrates the next operating model:
+        risk becomes action, action becomes governance, and governance becomes board-ready evidence.
+      </div>
+    </section>
+
+    <footer>
+      Built as a portfolio-grade enterprise healthcare AI/product systems project.
+    </footer>
+  </main>
+</body>
+</html>
