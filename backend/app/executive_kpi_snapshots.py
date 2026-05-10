@@ -54,6 +54,12 @@ def _count(db: Session, sql: str) -> int:
     try:
         return int(db.execute(text(sql)).scalar() or 0)
     except Exception:
+        # Missing optional workflow tables should not break KPI snapshot capture.
+        # Postgres marks the transaction as failed after a SQL error, so rollback is required.
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return 0
 
 

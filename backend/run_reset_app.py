@@ -85,6 +85,11 @@ if not _has_route("/api/enterprise-access-control/decisions"):
     from app.routes.enterprise_access_control import router as enterprise_access_control_router
     app.include_router(enterprise_access_control_router, prefix=API_PREFIX)
 
+
+if not _has_route("/api/production-readiness/config"):
+    from app.routes.production_readiness import router as production_readiness_router
+    app.include_router(production_readiness_router, prefix=API_PREFIX)
+
 app.openapi_schema = None
 
 
@@ -234,4 +239,19 @@ async def _enterprise_access_control_middleware(request, call_next):
         )
 
     return await call_next(request)
+
+
+
+from app.config import ensure_runtime_directories, get_settings
+
+
+@app.on_event("startup")
+def _production_readiness_startup():
+    ensure_runtime_directories()
+    settings = get_settings()
+    issues = settings.validate()
+    if issues:
+        print("Production readiness warnings:")
+        for issue in issues:
+            print(f" - {issue}")
 

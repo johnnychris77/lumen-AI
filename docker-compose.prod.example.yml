@@ -1,0 +1,23 @@
+# Production override example.
+# Copy to docker-compose.prod.override.yml and adjust values for your environment.
+# Do not commit real secrets.
+
+services:
+  api:
+    environment:
+      APP_ENV: production
+      ENABLE_DEV_AUTH: "false"
+      DEV_AUTH_TOKEN: "replace-with-secret-token-or-real-auth"
+      PUBLIC_BASE_URL: "https://your-lumenai-domain.example.com"
+      ALLOWED_ORIGINS: "https://your-lumenai-domain.example.com"
+      DATABASE_URL: "postgresql+psycopg2://lumen:replace-password@db:5432/lumenai"
+      PORTFOLIO_BRIEFING_SCHEDULER_SECONDS: "3600"
+      EXECUTIVE_KPI_SCHEDULER_HOURS: "24"
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM: ""
+      SMTP_USE_TLS: "true"
+      ENABLE_ENTERPRISE_AUDIT: "true"
+      ENABLE_ENTERPRISE_RBAC: "true"
