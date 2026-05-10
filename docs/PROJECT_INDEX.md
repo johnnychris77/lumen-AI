@@ -29,3 +29,10 @@
 
 - backend/scripts/enterprise-smoke-test.sh
 - backend/scripts/local-quality-gate.sh
+
+## GitHub Pages Automation
+
+- .github/workflows/github-pages-demo.yml
+- docs/github-pages/README.md
+- docs/index.html
+- docs/public-demo/index.html
