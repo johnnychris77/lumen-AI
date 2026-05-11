@@ -22,3 +22,13 @@
 7. Verify dashboard.
 8. Capture screenshots.
 9. Update public landing page links.
+
+## Render Deployment Readiness Guard
+
+Run before attempting Render deployment:
+
+scripts/render-readiness-check.sh
+
+Guide:
+
+docs/deployment/RENDER_DEPLOYMENT_READINESS.md

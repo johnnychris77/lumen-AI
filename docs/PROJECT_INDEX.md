@@ -53,3 +53,8 @@
 - docs/portfolio-evidence/EVIDENCE_SUMMARY.md
 - scripts/capture-demo-proof.sh
 - scripts/generate-portfolio-evidence-summary.sh
+
+## Render Deployment Readiness Guard
+
+- scripts/render-readiness-check.sh
+- docs/deployment/RENDER_DEPLOYMENT_READINESS.md
