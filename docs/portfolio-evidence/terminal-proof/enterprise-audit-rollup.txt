@@ -1,0 +1,68 @@
+# Audit Governance Proof
+
+{
+    "total": 112,
+    "success": 112,
+    "failed": 0,
+    "writes": 49,
+    "reads": 63,
+    "dashboard_views": 24,
+    "decision_events": 4,
+    "governance_events": 6,
+    "by_resource": [
+        {
+            "resource_type": "portfolio_tenant",
+            "count": 27
+        },
+        {
+            "resource_type": "api",
+            "count": 26
+        },
+        {
+            "resource_type": "executive_dashboard",
+            "count": 24
+        },
+        {
+            "resource_type": "tenant_remediation",
+            "count": 10
+        },
+        {
+            "resource_type": "executive_kpi",
+            "count": 7
+        },
+        {
+            "resource_type": "governance_packet",
+            "count": 6
+        },
+        {
+            "resource_type": "executive_decision",
+            "count": 4
+        },
+        {
+            "resource_type": "portfolio_briefing",
+            "count": 4
+        },
+        {
+            "resource_type": "executive_escalation",
+            "count": 4
+        }
+    ],
+    "by_action": [
+        {
+            "action": "read",
+            "count": 63
+        },
+        {
+            "action": "create",
+            "count": 31
+        },
+        {
+            "action": "execute",
+            "count": 14
+        },
+        {
+            "action": "update",
+            "count": 4
+        }
+    ]
+}

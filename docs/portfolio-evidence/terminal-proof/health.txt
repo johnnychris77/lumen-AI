@@ -1,0 +1,3 @@
+# Health Proof
+
+{"status":"ok"}

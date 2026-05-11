@@ -1,0 +1,20 @@
+# Production Readiness Proof
+
+{
+    "status": "ready",
+    "app_env": "development",
+    "is_production": false,
+    "public_base_url": "http://127.0.0.1:18011",
+    "api_prefix": "/api",
+    "enterprise_audit_enabled": true,
+    "enterprise_rbac_enabled": true,
+    "portfolio_briefing_scheduler_seconds": 60,
+    "executive_kpi_scheduler_hours": 24,
+    "smtp_configured": false,
+    "webhook_default_configured": false,
+    "allowed_origins": [
+        "http://127.0.0.1:18011",
+        "http://localhost:18011"
+    ],
+    "issues": []
+}

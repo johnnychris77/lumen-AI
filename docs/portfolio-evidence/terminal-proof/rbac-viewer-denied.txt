@@ -1,0 +1,9 @@
+# RBAC Viewer Denied Proof
+
+HTTP/1.1 403 Forbidden
+date: Mon, 11 May 2026 02:36:06 GMT
+server: uvicorn
+content-length: 249
+content-type: application/json
+
+{"detail":"Access denied by enterprise policy","policy":{"allowed":false,"actor_role":"viewer","required_role":"operator","resource_type":"portfolio_tenant","action":"create","reason":"Denied: role 'viewer' does not meet required role 'operator'."}}

@@ -1,0 +1,75 @@
+# Access Governance Proof
+
+{
+    "total": 109,
+    "allowed": 106,
+    "denied": 3,
+    "admin_events": 63,
+    "executive_events": 22,
+    "operator_events": 21,
+    "viewer_events": 3,
+    "by_role": [
+        {
+            "actor_role": "admin",
+            "count": 63
+        },
+        {
+            "actor_role": "executive",
+            "count": 22
+        },
+        {
+            "actor_role": "operator",
+            "count": 21
+        },
+        {
+            "actor_role": "viewer",
+            "count": 3
+        }
+    ],
+    "by_resource": [
+        {
+            "resource_type": "portfolio_tenant",
+            "count": 30
+        },
+        {
+            "resource_type": "api",
+            "count": 21
+        },
+        {
+            "resource_type": "executive_dashboard",
+            "count": 18
+        },
+        {
+            "resource_type": "tenant_remediation",
+            "count": 10
+        },
+        {
+            "resource_type": "executive_kpi",
+            "count": 7
+        },
+        {
+            "resource_type": "governance_packet",
+            "count": 6
+        },
+        {
+            "resource_type": "executive_decision",
+            "count": 4
+        },
+        {
+            "resource_type": "portfolio_briefing",
+            "count": 4
+        },
+        {
+            "resource_type": "executive_escalation",
+            "count": 4
+        },
+        {
+            "resource_type": "enterprise_access",
+            "count": 3
+        },
+        {
+            "resource_type": "enterprise_audit",
+            "count": 2
+        }
+    ]
+}

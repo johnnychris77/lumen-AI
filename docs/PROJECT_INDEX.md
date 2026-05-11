@@ -44,3 +44,12 @@
 - docs/public-demo/PUBLIC_DEMO_GO_LIVE_CHECKLIST.md
 - docs/public-demo/HOSTED_DASHBOARD_VALIDATION.md
 - docs/public-demo/GO_LIVE_LINKS.md
+
+## Portfolio Evidence Bundle
+
+- docs/portfolio-evidence/README.md
+- docs/portfolio-evidence/SCREENSHOT_CAPTURE_CHECKLIST.md
+- docs/portfolio-evidence/EVIDENCE_RUNBOOK.md
+- docs/portfolio-evidence/EVIDENCE_SUMMARY.md
+- scripts/capture-demo-proof.sh
+- scripts/generate-portfolio-evidence-summary.sh
