@@ -1,0 +1,75 @@
+services:
+  - type: web
+    name: lumen-ai-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile.api
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: API_PREFIX
+        value: /api
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lumen-ai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: lumen-ai-redis
+          property: connectionString
+      - key: ENABLE_DEV_AUTH
+        value: "false"
+      - key: DEV_AUTH_TOKEN
+        generateValue: true
+      - key: LUMENAI_JWT_SECRET
+        generateValue: true
+      - key: ENABLE_ENTERPRISE_AUDIT
+        value: "true"
+      - key: ENABLE_ENTERPRISE_RBAC
+        value: "true"
+      - key: PORTFOLIO_BRIEFING_SCHEDULER_SECONDS
+        value: "3600"
+      - key: EXECUTIVE_KPI_SCHEDULER_HOURS
+        value: "24"
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: worker
+    name: lumen-ai-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile.api
+    dockerContext: ./backend
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lumen-ai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: lumen-ai-redis
+          property: connectionString
+      - key: LUMENAI_JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: lumen-ai-db
+    plan: starter
+    databaseName: lumenai
+    user: lumen
+
+services:
+  - type: redis
+    name: lumen-ai-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
