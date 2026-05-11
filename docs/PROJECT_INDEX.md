@@ -36,3 +36,11 @@
 - docs/github-pages/README.md
 - docs/index.html
 - docs/public-demo/index.html
+
+## Public Demo Link Switch + Hosted Dashboard Go-Live
+
+- scripts/public-demo-go-live.sh
+- scripts/public-demo-rollback-local.sh
+- docs/public-demo/PUBLIC_DEMO_GO_LIVE_CHECKLIST.md
+- docs/public-demo/HOSTED_DASHBOARD_VALIDATION.md
+- docs/public-demo/GO_LIVE_LINKS.md
