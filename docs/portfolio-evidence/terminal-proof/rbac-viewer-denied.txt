@@ -1,7 +1,7 @@
 # RBAC Viewer Denied Proof
 
 HTTP/1.1 403 Forbidden
-date: Mon, 11 May 2026 02:36:06 GMT
+date: Mon, 11 May 2026 03:23:05 GMT
 server: uvicorn
 content-length: 249
 content-type: application/json

@@ -1,68 +1,68 @@
 # Audit Governance Proof
 
 {
-    "total": 112,
-    "success": 112,
+    "total": 150,
+    "success": 150,
     "failed": 0,
-    "writes": 49,
-    "reads": 63,
-    "dashboard_views": 24,
-    "decision_events": 4,
-    "governance_events": 6,
+    "writes": 68,
+    "reads": 82,
+    "dashboard_views": 30,
+    "decision_events": 6,
+    "governance_events": 9,
     "by_resource": [
         {
-            "resource_type": "portfolio_tenant",
-            "count": 27
+            "resource_type": "api",
+            "count": 36
         },
         {
-            "resource_type": "api",
-            "count": 26
+            "resource_type": "portfolio_tenant",
+            "count": 35
         },
         {
             "resource_type": "executive_dashboard",
-            "count": 24
+            "count": 30
         },
         {
             "resource_type": "tenant_remediation",
-            "count": 10
-        },
-        {
-            "resource_type": "executive_kpi",
-            "count": 7
+            "count": 15
         },
         {
             "resource_type": "governance_packet",
-            "count": 6
+            "count": 9
+        },
+        {
+            "resource_type": "executive_kpi",
+            "count": 9
         },
         {
             "resource_type": "executive_decision",
-            "count": 4
-        },
-        {
-            "resource_type": "portfolio_briefing",
-            "count": 4
+            "count": 6
         },
         {
             "resource_type": "executive_escalation",
+            "count": 6
+        },
+        {
+            "resource_type": "portfolio_briefing",
             "count": 4
         }
     ],
     "by_action": [
         {
             "action": "read",
-            "count": 63
+            "count": 82
         },
         {
             "action": "create",
-            "count": 31
+            "count": 45
         },
         {
             "action": "execute",
-            "count": 14
+            "count": 17
         },
         {
             "action": "update",
-            "count": 4
+            "count": 6
         }
     ]
 }

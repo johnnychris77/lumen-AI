@@ -29,6 +29,13 @@ LumenAI demonstrates:
 ## Terminal Proof Evidence
 
 - docs/portfolio-evidence/terminal-proof/.gitkeep
+- docs/portfolio-evidence/terminal-proof/dashboard-summary.txt
+- docs/portfolio-evidence/terminal-proof/enterprise-access-rollup.txt
+- docs/portfolio-evidence/terminal-proof/enterprise-audit-rollup.txt
+- docs/portfolio-evidence/terminal-proof/health.txt
+- docs/portfolio-evidence/terminal-proof/production-readiness-ready.txt
+- docs/portfolio-evidence/terminal-proof/rbac-operator-allowed.txt
+- docs/portfolio-evidence/terminal-proof/rbac-viewer-denied.txt
 
 ## Interview Talking Point
 

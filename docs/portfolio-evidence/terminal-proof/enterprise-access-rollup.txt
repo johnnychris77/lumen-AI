@@ -1,75 +1,75 @@
 # Access Governance Proof
 
 {
-    "total": 109,
-    "allowed": 106,
-    "denied": 3,
-    "admin_events": 63,
-    "executive_events": 22,
-    "operator_events": 21,
-    "viewer_events": 3,
+    "total": 147,
+    "allowed": 142,
+    "denied": 5,
+    "admin_events": 77,
+    "executive_events": 33,
+    "operator_events": 32,
+    "viewer_events": 5,
     "by_role": [
         {
             "actor_role": "admin",
-            "count": 63
+            "count": 77
         },
         {
             "actor_role": "executive",
-            "count": 22
+            "count": 33
         },
         {
             "actor_role": "operator",
-            "count": 21
+            "count": 32
         },
         {
             "actor_role": "viewer",
-            "count": 3
+            "count": 5
         }
     ],
     "by_resource": [
         {
             "resource_type": "portfolio_tenant",
-            "count": 30
+            "count": 40
         },
         {
             "resource_type": "api",
-            "count": 21
+            "count": 27
         },
         {
             "resource_type": "executive_dashboard",
-            "count": 18
+            "count": 22
         },
         {
             "resource_type": "tenant_remediation",
-            "count": 10
+            "count": 15
         },
         {
             "resource_type": "executive_kpi",
-            "count": 7
+            "count": 9
         },
         {
             "resource_type": "governance_packet",
+            "count": 9
+        },
+        {
+            "resource_type": "executive_escalation",
             "count": 6
         },
         {
             "resource_type": "executive_decision",
+            "count": 6
+        },
+        {
+            "resource_type": "enterprise_access",
+            "count": 5
+        },
+        {
+            "resource_type": "enterprise_audit",
             "count": 4
         },
         {
             "resource_type": "portfolio_briefing",
             "count": 4
-        },
-        {
-            "resource_type": "executive_escalation",
-            "count": 4
-        },
-        {
-            "resource_type": "enterprise_access",
-            "count": 3
-        },
-        {
-            "resource_type": "enterprise_audit",
-            "count": 2
         }
     ]
 }

@@ -1,7 +1,7 @@
 # RBAC Operator Allowed Proof
 
 {
-    "id": 11,
+    "id": 17,
     "tenant_name": "Portfolio Evidence Operator Allow Test",
     "industry": "healthcare",
     "go_live_status": "not_started",
@@ -15,6 +15,6 @@
     "executive_owner": "",
     "customer_success_owner": "",
     "notes": "",
-    "created_at": "2026-05-11T02:36:07.284880+00:00",
-    "updated_at": "2026-05-11T02:36:07.284880+00:00"
+    "created_at": "2026-05-11T03:23:06.191183+00:00",
+    "updated_at": "2026-05-11T03:23:06.191183+00:00"
 }
