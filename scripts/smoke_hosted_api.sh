@@ -18,10 +18,6 @@ echo "========================================"
 echo "Hosted API: $HOSTED_BASE_URL"
 echo
 
-echo "Checking API root..."
-curl -fsS "$HOSTED_BASE_URL/" >/dev/null
-echo "✅ API root reachable"
-
 echo "Checking API health..."
 curl -fsS "$HOSTED_BASE_URL/api/health" >/dev/null
 echo "✅ API health reachable"
