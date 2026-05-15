@@ -6,11 +6,9 @@ HOSTED_BASE_URL="${HOSTED_BASE_URL:-}"
 if [[ -z "$HOSTED_BASE_URL" ]]; then
   echo "ERROR: HOSTED_BASE_URL is required."
   echo "Example:"
-  echo "HOSTED_BASE_URL=https://lumen-ai-api.onrender.com ./scripts/smoke_hosted_api.sh"
+  echo "HOSTED_BASE_URL=https://lumen-ai-53u4.onrender.com ./scripts/smoke_hosted_api.sh"
   exit 1
 fi
-
-HOSTED_BASE_URL="${HOSTED_BASE_URL%/}"
 
 echo "========================================"
 echo "LumenAI Hosted API Smoke Test"
@@ -26,11 +24,19 @@ echo "Checking OpenAPI..."
 curl -fsS "$HOSTED_BASE_URL/openapi.json" >/dev/null
 echo "✅ OpenAPI reachable"
 
-echo "Checking executive briefing dashboard..."
-curl -fsS "$HOSTED_BASE_URL/api/executive-briefing-dashboard/view" >/dev/null
-echo "✅ Executive briefing dashboard reachable"
+echo "Checking docs..."
+curl -fsS "$HOSTED_BASE_URL/docs" >/dev/null
+echo "✅ Docs reachable"
+
+echo "Checking reviews queue..."
+curl -fsS "$HOSTED_BASE_URL/api/reviews/queue" >/dev/null
+echo "✅ Reviews queue reachable"
+
+echo "Checking authenticated executive digest..."
+curl -fsS \
+  -H "Authorization: Bearer dev-token" \
+  "$HOSTED_BASE_URL/api/executive-digest/weekly" >/dev/null
+echo "✅ Executive digest reachable"
 
 echo
-echo "========================================"
-echo "✅ LumenAI hosted API smoke test PASSED"
-echo "========================================"
+echo "✅ Hosted API smoke test passed"

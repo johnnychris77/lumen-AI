@@ -277,7 +277,7 @@ function DashboardHome() {
   const token = useMemo(() => localStorage.getItem("token") || "", []);
 
   async function refreshAudit(headers: HeadersInit = {}) {
-    const auditRes = await fetch(`${API_BASE}/alerts/history?limit=12`, { headers });
+    const auditRes = await fetch(`${API_BASE}/api/alerts/api/history?limit=12`, { headers });
     if (auditRes.ok) {
       const auditData = await auditRes.json();
       setAlertAudit(Array.isArray(auditData.items) ? auditData.items : []);
@@ -308,19 +308,19 @@ function DashboardHome() {
           reviewAnalyticsRes,
           modelPerformanceRes,
         ] = await Promise.all([
-          fetch(`${API_BASE}/history/summary`, { headers }),
-          fetch(`${API_BASE}/history?limit=8`, { headers }),
-          fetch(`${API_BASE}/health`),
-          fetch(`${API_BASE}/agent/feed?limit=8`, { headers }),
-          fetch(`${API_BASE}/analytics/vendors`, { headers }),
-          fetch(`${API_BASE}/alerts/feed`, { headers }),
-          fetch(`${API_BASE}/alerts/status`, { headers }),
-          fetch(`${API_BASE}/alerts/history?limit=12`, { headers }),
-          fetch(`${API_BASE}/alerts/channel-health`, { headers }),
-          fetch(`${API_BASE}/qa-review/pending`, { headers }),
-          fetch(`${API_BASE}/review-analytics/summary`, { headers }),
-          fetch(`${API_BASE}/model-performance/summary`, { headers }),
-          fetch(`${API_BASE}/model-performance/summary`, { headers }),
+          fetch(`${API_BASE}/api/history/summary`, { headers }),
+          fetch(`${API_BASE}/api/history?limit=8`, { headers }),
+          fetch(`${API_BASE}/api/health`),
+          fetch(`${API_BASE}/api/agent/feed?limit=8`, { headers }),
+          fetch(`${API_BASE}/api/analytics/vendors`, { headers }),
+          fetch(`${API_BASE}/api/alerts/feed`, { headers }),
+          fetch(`${API_BASE}/api/alerts/status`, { headers }),
+          fetch(`${API_BASE}/api/alerts/api/history?limit=12`, { headers }),
+          fetch(`${API_BASE}/api/alerts/channel-health`, { headers }),
+          fetch(`${API_BASE}/api/qa-review/pending`, { headers }),
+          fetch(`${API_BASE}/api/review-analytics/summary`, { headers }),
+          fetch(`${API_BASE}/api/model-performance/summary`, { headers }),
+          fetch(`${API_BASE}/api/model-performance/summary`, { headers }),
         ]);
 
         if (!summaryRes.ok) throw new Error(`Summary request failed (${summaryRes.status})`);
@@ -394,7 +394,7 @@ function DashboardHome() {
     try {
       setDispatchingId(inspectionId);
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`${API_BASE}/alerts/send/${inspectionId}`, {
+      const res = await fetch(`${API_BASE}/api/alerts/send/${inspectionId}`, {
         method: "POST",
         headers,
       });
@@ -435,7 +435,7 @@ function DashboardHome() {
     try {
       setResendingAuditId(alertEventId);
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`${API_BASE}/alerts/resend/${alertEventId}`, {
+      const res = await fetch(`${API_BASE}/api/alerts/resend/${alertEventId}`, {
         method: "POST",
         headers,
       });
@@ -477,7 +477,7 @@ function DashboardHome() {
   async function acknowledgeAlert(inspectionId: number) {
     try {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-      const res = await fetch(`${API_BASE}/alerts/${inspectionId}/acknowledge`, {
+      const res = await fetch(`${API_BASE}/api/alerts/${inspectionId}/acknowledge`, {
         method: "POST",
         headers,
         body: JSON.stringify({ notes: "Acknowledged from dashboard" }),
@@ -493,7 +493,7 @@ function DashboardHome() {
   async function resolveAlert(inspectionId: number) {
     try {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-      const res = await fetch(`${API_BASE}/alerts/${inspectionId}/resolve`, {
+      const res = await fetch(`${API_BASE}/api/alerts/${inspectionId}/resolve`, {
         method: "POST",
         headers,
         body: JSON.stringify({ notes: "Resolved from dashboard" }),
@@ -510,7 +510,7 @@ function DashboardHome() {
   async function approveQaReview(inspectionId: number) {
     try {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-      const res = await fetch(`${API_BASE}/qa-review/${inspectionId}`, {
+      const res = await fetch(`${API_BASE}/api/qa-review/${inspectionId}`, {
         method: "POST",
         headers,
         body: JSON.stringify({ approve_model: true, notes: "Approved by QA from dashboard" }),
@@ -526,7 +526,7 @@ function DashboardHome() {
   async function overrideQaReview(inspectionId: number) {
     try {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-      const res = await fetch(`${API_BASE}/qa-review/${inspectionId}`, {
+      const res = await fetch(`${API_BASE}/api/qa-review/${inspectionId}`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -640,20 +640,20 @@ function DashboardHome() {
     }
   }
 
-  const csvExportUrl = `${API_BASE}/history/export.csv`;
-  const jsonExportUrl = `${API_BASE}/history/export.json`;
-  const xlsxExportUrl = `${API_BASE}/history/export.xlsx`;
-  const bundleExportUrl = `${API_BASE}/history/export.bundle.zip`;
+  const csvExportUrl = `${API_BASE}/api/history/export.csv`;
+  const jsonExportUrl = `${API_BASE}/api/history/export.json`;
+  const xlsxExportUrl = `${API_BASE}/api/history/export.xlsx`;
+  const bundleExportUrl = `${API_BASE}/api/history/export.bundle.zip`;
 
-  const vendorCsvExportUrl = `${API_BASE}/analytics/vendors/export.csv`;
-  const vendorJsonExportUrl = `${API_BASE}/analytics/vendors/export.json`;
-  const vendorXlsxExportUrl = `${API_BASE}/analytics/vendors/export.xlsx`;
-  const vendorBundleExportUrl = `${API_BASE}/analytics/vendors/export.bundle.zip`;
+  const vendorCsvExportUrl = `${API_BASE}/api/analytics/vendors/export.csv`;
+  const vendorJsonExportUrl = `${API_BASE}/api/analytics/vendors/export.json`;
+  const vendorXlsxExportUrl = `${API_BASE}/api/analytics/vendors/export.xlsx`;
+  const vendorBundleExportUrl = `${API_BASE}/api/analytics/vendors/export.bundle.zip`;
 
-  const alertAuditCsvExportUrl = `${API_BASE}/alerts/history/export.csv`;
-  const alertAuditJsonExportUrl = `${API_BASE}/alerts/history/export.json`;
-  const alertAuditXlsxExportUrl = `${API_BASE}/alerts/history/export.xlsx`;
-  const alertAuditBundleExportUrl = `${API_BASE}/alerts/history/export.bundle.zip`;
+  const alertAuditCsvExportUrl = `${API_BASE}/api/alerts/api/history/export.csv`;
+  const alertAuditJsonExportUrl = `${API_BASE}/api/alerts/api/history/export.json`;
+  const alertAuditXlsxExportUrl = `${API_BASE}/api/alerts/api/history/export.xlsx`;
+  const alertAuditBundleExportUrl = `${API_BASE}/api/alerts/api/history/export.bundle.zip`;
 
   const criticalCount = agentFeed.filter((x) => x.priority === "critical").length;
   const highCount = agentFeed.filter((x) => x.priority === "high").length;
@@ -677,8 +677,8 @@ function DashboardHome() {
       </div>
 
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
-        <Link to="/history" style={secondaryButton}>Open Full History</Link>
-        <a href={`${API_BASE}/health`} target="_blank" rel="noreferrer" style={secondaryButton}>API Health</a>
+        <Link to="/api/history" style={secondaryButton}>Open Full History</Link>
+        <a href={`${API_BASE}/api/health`} target="_blank" rel="noreferrer" style={secondaryButton}>API Health</a>
       </div>
 
       {loading && <p>Loading Phase 2 dashboard...</p>}
@@ -801,7 +801,7 @@ function DashboardHome() {
                           <td style={td}>{vendor.top_issues[0]?.label || "—"}</td>
                           <td style={td}>
                             <a
-                              href={`${API_BASE}/analytics/vendors/${encodeURIComponent(vendor.vendor_name)}/scorecard.pdf`}
+                              href={`${API_BASE}/api/analytics/vendors/${encodeURIComponent(vendor.vendor_name)}/scorecard.pdf`}
                               target="_blank"
                               rel="noreferrer"
                               style={secondaryButtonInline}
@@ -845,7 +845,7 @@ function DashboardHome() {
             <div style={card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
                 <h2 style={sectionTitle}>Recent Live Stream Activity & Reports</h2>
-                <Link to="/history" style={{ textDecoration: "none" }}>View all</Link>
+                <Link to="/api/history" style={{ textDecoration: "none" }}>View all</Link>
               </div>
 
               {recent.length === 0 ? (
@@ -964,10 +964,10 @@ function DashboardHome() {
                     </div>
 
                     <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                      <a href={`${API_BASE}/model-performance/export.csv`} style={primaryButton}>Export Performance CSV</a>
-                      <a href={`${API_BASE}/model-performance/export.xlsx`} style={primaryButton}>Export Performance Excel</a>
-                      <a href={`${API_BASE}/model-performance/export.json`} style={secondaryButton}>Export Performance JSON</a>
-                      <a href={`${API_BASE}/model-performance/export.bundle.zip`} style={secondaryButton}>Download Performance Bundle</a>
+                      <a href={`${API_BASE}/api/model-performance/export.csv`} style={primaryButton}>Export Performance CSV</a>
+                      <a href={`${API_BASE}/api/model-performance/export.xlsx`} style={primaryButton}>Export Performance Excel</a>
+                      <a href={`${API_BASE}/api/model-performance/export.json`} style={secondaryButton}>Export Performance JSON</a>
+                      <a href={`${API_BASE}/api/model-performance/export.bundle.zip`} style={secondaryButton}>Download Performance Bundle</a>
                     </div>
                   </div>
                 )}
@@ -1021,10 +1021,10 @@ function DashboardHome() {
                     </div>
 
                     <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                      <a href={`${API_BASE}/model-performance/export.csv`} style={primaryButton}>Export Performance CSV</a>
-                      <a href={`${API_BASE}/model-performance/export.xlsx`} style={primaryButton}>Export Performance Excel</a>
-                      <a href={`${API_BASE}/model-performance/export.json`} style={secondaryButton}>Export Performance JSON</a>
-                      <a href={`${API_BASE}/model-performance/export.bundle.zip`} style={secondaryButton}>Download Performance Bundle</a>
+                      <a href={`${API_BASE}/api/model-performance/export.csv`} style={primaryButton}>Export Performance CSV</a>
+                      <a href={`${API_BASE}/api/model-performance/export.xlsx`} style={primaryButton}>Export Performance Excel</a>
+                      <a href={`${API_BASE}/api/model-performance/export.json`} style={secondaryButton}>Export Performance JSON</a>
+                      <a href={`${API_BASE}/api/model-performance/export.bundle.zip`} style={secondaryButton}>Download Performance Bundle</a>
                     </div>
                   </div>
                 )}
@@ -1055,10 +1055,10 @@ function DashboardHome() {
                     </div>
 
                     <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                      <a href={`${API_BASE}/review-analytics/feedback-dataset.csv`} style={primaryButton}>Export Feedback CSV</a>
-                      <a href={`${API_BASE}/review-analytics/feedback-dataset.xlsx`} style={primaryButton}>Export Feedback Excel</a>
-                      <a href={`${API_BASE}/review-analytics/feedback-dataset.json`} style={secondaryButton}>Export Feedback JSON</a>
-                      <a href={`${API_BASE}/review-analytics/feedback-dataset.bundle.zip`} style={secondaryButton}>Download Retraining Bundle</a>
+                      <a href={`${API_BASE}/api/review-analytics/feedback-dataset.csv`} style={primaryButton}>Export Feedback CSV</a>
+                      <a href={`${API_BASE}/api/review-analytics/feedback-dataset.xlsx`} style={primaryButton}>Export Feedback Excel</a>
+                      <a href={`${API_BASE}/api/review-analytics/feedback-dataset.json`} style={secondaryButton}>Export Feedback JSON</a>
+                      <a href={`${API_BASE}/api/review-analytics/feedback-dataset.bundle.zip`} style={secondaryButton}>Download Retraining Bundle</a>
                     </div>
                   </div>
                 )}
@@ -1218,13 +1218,13 @@ function Layout() {
       <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
         <div style={{ maxWidth: "1360px", margin: "0 auto", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
           <Link to="/" style={{ fontWeight: 700, textDecoration: "none", color: "#111827" }}>LumenAI</Link>
-          <Link to="/history">History</Link>
+          <Link to="/api/history">History</Link>
         </div>
       </div>
 
       <Routes>
         <Route path="/" element={<DashboardHome />} />
-        <Route path="/history" element={<InspectionHistory />} />
+        <Route path="/api/history" element={<InspectionHistory />} />
       </Routes>
     </BrowserRouter>
   );

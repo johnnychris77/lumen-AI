@@ -82,7 +82,7 @@ export default function InspectionHistory() {
       setError("");
 
       try {
-        const res = await fetch(`${API_BASE}/history?limit=100`, {
+        const res = await fetch(`${API_BASE}/api/history?limit=100`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
