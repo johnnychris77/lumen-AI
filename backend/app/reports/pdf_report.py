@@ -4,7 +4,10 @@ from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-REPORT_DIR = Path("/app/reports")
+import os
+from pathlib import Path
+
+REPORT_DIR = Path(os.getenv("REPORT_DIR", "./reports"))
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 
