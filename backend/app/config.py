@@ -82,7 +82,7 @@ class Settings:
 def get_settings() -> Settings:
     allowed_origins = [
         item.strip()
-        for item in os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:18011,http://localhost:18011").split(",")
+        for item in os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:18011,http://localhost:18011,http://localhost:5173,http://127.0.0.1:5173,http://localhost:9092,http://127.0.0.1:9092,https://lumen-ai-53u4.onrender.com").split(",")
         if item.strip()
     ]
 
