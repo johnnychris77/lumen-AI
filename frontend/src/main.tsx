@@ -285,7 +285,7 @@ function DashboardHome() {
   const token = useMemo(() => localStorage.getItem("token") || "", []);
 
   async function refreshAudit(headers: HeadersInit = {}) {
-    const auditRes = await fetch(`${API_BASE}/api/alerts/api/history?limit=12`, { headers });
+    const auditRes = await fetch(`${API_BASE}/api/alerts/history?limit=12`, { headers });
     if (auditRes.ok) {
       const auditData = await auditRes.json();
       setAlertAudit(Array.isArray(auditData.items) ? auditData.items : []);
@@ -300,7 +300,11 @@ function DashboardHome() {
       setError("");
 
       try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const headers = {
+          Authorization: `Bearer ${token || AUTH_TOKEN}`,
+          "X-Tenant-Id": "bonsecours",
+          "X-Tenant-Name": "Bon Secours",
+        };
 
         const [
           summaryRes,
@@ -323,7 +327,7 @@ function DashboardHome() {
           fetch(`${API_BASE}/api/analytics/vendors`, { headers }),
           fetch(`${API_BASE}/api/alerts/feed`, { headers }),
           fetch(`${API_BASE}/api/alerts/status`, { headers }),
-          fetch(`${API_BASE}/api/alerts/api/history?limit=12`, { headers }),
+          fetch(`${API_BASE}/api/alerts/history?limit=12`, { headers }),
           fetch(`${API_BASE}/api/alerts/channel-health`, { headers }),
           fetch(`${API_BASE}/api/qa-review/pending`, { headers }),
           fetch(`${API_BASE}/api/review-analytics/summary`, { headers }),
@@ -401,7 +405,11 @@ function DashboardHome() {
   async function sendTestAlert(inspectionId: number) {
     try {
       setDispatchingId(inspectionId);
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers = {
+          Authorization: `Bearer ${token || AUTH_TOKEN}`,
+          "X-Tenant-Id": "bonsecours",
+          "X-Tenant-Name": "Bon Secours",
+        };
       const res = await fetch(`${API_BASE}/api/alerts/send/${inspectionId}`, {
         method: "POST",
         headers,
@@ -442,7 +450,11 @@ function DashboardHome() {
   async function resendAuditEvent(alertEventId: number) {
     try {
       setResendingAuditId(alertEventId);
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers = {
+          Authorization: `Bearer ${token || AUTH_TOKEN}`,
+          "X-Tenant-Id": "bonsecours",
+          "X-Tenant-Name": "Bon Secours",
+        };
       const res = await fetch(`${API_BASE}/api/alerts/resend/${alertEventId}`, {
         method: "POST",
         headers,
