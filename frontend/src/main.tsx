@@ -4,7 +4,15 @@ import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import InspectionHistory from "./pages/InspectionHistory";
 
 const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+
+const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
+
+const headers = {
+  Authorization: `Bearer ${AUTH_TOKEN}`,
+  "X-Tenant-Id": "bonsecours",
+  "X-Tenant-Name": "Bon Secours",
+};
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
