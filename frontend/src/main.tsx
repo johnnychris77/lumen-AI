@@ -531,7 +531,6 @@ function DashboardHome() {
           setQaPending(useStoryFallback(Array.isArray(qaPendingData.items) ? qaPendingData.items : [], demoAlerts));
           setReviewAnalytics(reviewAnalyticsData);
           setModelPerformance(useStoryFallback(modelPerformanceData, demoModelPerformance));
-          setModelPerformance(useStoryFallback(modelPerformanceData, demoModelPerformance));
           setHealth(healthStatus);
         }
       } catch (err: any) {
