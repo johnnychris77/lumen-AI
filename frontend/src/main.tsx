@@ -14,6 +14,155 @@ const headers = {
   "X-Tenant-Name": "Bon Secours",
 };
 
+
+const STORY_MODE_ENABLED =
+  (import.meta.env.VITE_STORY_MODE || "true").toLowerCase() !== "false";
+
+const demoSummary = {
+  total_inspections: 12,
+  completed: 8,
+  queued: 3,
+  running: 1,
+  failed: 0,
+  top_issues: [
+    ["Bioburden / retained debris", 5],
+    ["Instrument damage", 3],
+    ["Vendor tray concern", 2],
+  ],
+  top_instruments: [
+    ["Frazier suction", 4],
+    ["Cannulated reamer", 3],
+    ["Laparoscopic grasper", 2],
+  ],
+};
+
+const demoHistory = [
+  {
+    inspection_id: "DEMO-INSP-001",
+    facility: "St. Mary’s Hospital",
+    instrument_name: "Frazier suction",
+    vendor: "Medtronic",
+    issue_type: "Bioburden / retained debris",
+    status: "Queued",
+    severity: "Critical",
+    created_at: new Date().toISOString(),
+  },
+  {
+    inspection_id: "DEMO-INSP-002",
+    facility: "Memorial Regional Medical Center",
+    instrument_name: "Cannulated reamer",
+    vendor: "DePuy Synthes",
+    issue_type: "Suspected retained bone/tissue",
+    status: "Running",
+    severity: "High",
+    created_at: new Date().toISOString(),
+  },
+  {
+    inspection_id: "DEMO-INSP-003",
+    facility: "St. Francis Medical Center",
+    instrument_name: "Laparoscopic grasper",
+    vendor: "Stryker",
+    issue_type: "Insulation damage suspected",
+    status: "Completed",
+    severity: "High",
+    created_at: new Date().toISOString(),
+  },
+];
+
+const demoAlerts = [
+  {
+    inspection_id: "DEMO-INSP-001",
+    alert_type: "Critical visual inspection finding",
+    status: "Open",
+    severity: "Critical",
+    message: "Frazier suction quarantined pending second inspection and leadership review.",
+    created_at: new Date().toISOString(),
+  },
+  {
+    inspection_id: "DEMO-INSP-002",
+    alert_type: "Reclean and second inspection required",
+    status: "Open",
+    severity: "High",
+    message: "Cannulated reamer requires reclean, second inspection, and vendor trend review.",
+    created_at: new Date().toISOString(),
+  },
+];
+
+const demoVendors = [
+  {
+    vendor_name: "Medtronic",
+    total_findings: 5,
+    high_risk_findings: 2,
+    top_issue: "Bioburden / retained debris",
+    risk_score: 86,
+  },
+  {
+    vendor_name: "DePuy Synthes",
+    total_findings: 3,
+    high_risk_findings: 1,
+    top_issue: "Suspected retained bone/tissue",
+    risk_score: 74,
+  },
+  {
+    vendor_name: "Stryker",
+    total_findings: 2,
+    high_risk_findings: 1,
+    top_issue: "Instrument damage",
+    risk_score: 68,
+  },
+];
+
+const demoModelPerformance = {
+  summary: {
+    total_reviewed: 24,
+    total_approved: 21,
+    total_overridden: 3,
+    agreement_rate: 87.5,
+    override_rate: 12.5,
+  },
+  by_vendor: demoVendors,
+  by_issue: [
+    { issue_type: "Bioburden / retained debris", count: 5, agreement_rate: 90 },
+    { issue_type: "Instrument damage", count: 3, agreement_rate: 85 },
+    { issue_type: "Vendor tray concern", count: 2, agreement_rate: 80 },
+  ],
+  by_reviewer: [
+    { reviewer: "SPD Leadership", reviewed: 12, agreement_rate: 88 },
+    { reviewer: "Infection Prevention", reviewed: 8, agreement_rate: 92 },
+    { reviewer: "Quality", reviewed: 4, agreement_rate: 75 },
+  ],
+  timeseries: [],
+};
+
+function useStoryFallback<T>(value: T, fallback: T): T {
+  if (!STORY_MODE_ENABLED) return value;
+
+  if (Array.isArray(value) && value.length === 0) {
+    return fallback;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "total_inspections" in value &&
+    Number((value as any).total_inspections || 0) === 0
+  ) {
+    return fallback;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "summary" in value &&
+    Number((value as any).summary?.total_reviewed || 0) === 0
+  ) {
+    return fallback;
+  }
+
+  return value;
+}
+
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
   try {
