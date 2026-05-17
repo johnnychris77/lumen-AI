@@ -300,3 +300,15 @@ def custom_openapi():
 
 app.openapi_schema = None
 app.openapi = custom_openapi
+\n
+@app.get("/")
+def root():
+    return {
+        "service": "LumenAI API",
+        "status": "running",
+        "frontend": "https://lumen-ai-1.onrender.com",
+        "health": "/api/health",
+        "openapi": "/openapi.json",
+        "docs": "/docs"
+    }
+\n
