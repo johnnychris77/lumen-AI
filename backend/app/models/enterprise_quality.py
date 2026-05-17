@@ -1,0 +1,157 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+class EnterpriseFacility(Base):
+    __tablename__ = "enterprise_facilities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    facility_type: Mapped[str] = mapped_column(String(100), default="hospital", nullable=False)
+    region: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseDepartment(Base):
+    __tablename__ = "enterprise_departments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    facility_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    department_type: Mapped[str] = mapped_column(String(100), default="spd", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseVendor(Base):
+    __tablename__ = "enterprise_vendors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    vendor_type: Mapped[str] = mapped_column(String(100), default="medical_device", nullable=False)
+    contact_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    contact_email: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    risk_tier: Mapped[str] = mapped_column(String(50), default="unassigned", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseInstrument(Base):
+    __tablename__ = "enterprise_instruments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    vendor_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    instrument_type: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+    category: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
+    model_number: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    serial_number: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    risk_class: Mapped[str] = mapped_column(String(50), default="unassigned", nullable=False)
+    ifu_reference: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseEvidence(Base):
+    __tablename__ = "enterprise_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    evidence_type: Mapped[str] = mapped_column(String(100), default="inspection_photo", nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_url: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    uploaded_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseFinding(Base):
+    __tablename__ = "enterprise_findings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    instrument_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    vendor_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    finding_category: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+    finding_description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    severity: Mapped[str] = mapped_column(String(50), default="unassigned", nullable=False, index=True)
+    confidence_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    human_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseRiskScore(Base):
+    __tablename__ = "enterprise_risk_scores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    finding_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    patient_safety_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    regulatory_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    operational_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    vendor_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    overall_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    risk_tier: Mapped[str] = mapped_column(String(50), default="low", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseDisposition(Base):
+    __tablename__ = "enterprise_dispositions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    finding_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    recommended_action: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    final_action: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="recommended", nullable=False)
+    approved_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseCapa(Base):
+    __tablename__ = "enterprise_capas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    finding_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    vendor_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    capa_number: Mapped[str] = mapped_column(String(100), default="", nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseGovernancePacket(Base):
+    __tablename__ = "enterprise_governance_packets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(100), default="default-tenant", nullable=False, index=True)
+    inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    packet_type: Mapped[str] = mapped_column(String(100), default="executive_summary", nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    file_url: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    generated_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

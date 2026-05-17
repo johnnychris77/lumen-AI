@@ -51,3 +51,17 @@ from app.models.portfolio_briefing import PortfolioBriefing
 from app.models.alert_event import AlertEvent
 
 __all__ = ["Inspection", "User", "Review", "AlertEvent"]
+
+from app.models.enterprise_quality import (
+    EnterpriseFacility,
+    EnterpriseDepartment,
+    EnterpriseVendor,
+    EnterpriseInstrument,
+    EnterpriseEvidence,
+    EnterpriseFinding,
+    EnterpriseRiskScore,
+    EnterpriseDisposition,
+    EnterpriseCapa,
+    EnterpriseGovernancePacket,
+)
+
