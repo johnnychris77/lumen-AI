@@ -690,6 +690,70 @@ function DashboardHome() {
     <div style={{ padding: "24px", maxWidth: "1360px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
         <h1 style={{ marginBottom: "8px" }}>LumenAI Phase 2 Command Dashboard</h1>
+
+        <section
+          style={{
+            margin: "20px 0",
+            padding: "20px",
+            borderRadius: "18px",
+            border: "1px solid #bfdbfe",
+            background: "linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)",
+            boxShadow: "0 12px 28px rgba(15, 23, 42, 0.08)",
+          }}
+        >
+          <div style={{ fontSize: "13px", fontWeight: 800, color: "#1d4ed8", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Executive Demo Scenario
+          </div>
+
+          <h2 style={{ margin: "8px 0 10px", color: "#0f172a" }}>
+            Evidence-to-Action Workflow: Frazier Suction Bioburden Concern
+          </h2>
+
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.65 }}>
+            A sterile processing technician identifies suspected retained debris inside a Frazier suction during borescope inspection.
+            LumenAI converts the frontline finding into structured quality intelligence, recommended disposition, alert workflow visibility,
+            vendor accountability, and executive governance readiness.
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "12px",
+              marginTop: "18px",
+            }}
+          >
+            <div style={{ padding: "12px", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>Facility</div>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>St. Mary’s Hospital</div>
+            </div>
+
+            <div style={{ padding: "12px", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>Instrument</div>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>Frazier suction</div>
+            </div>
+
+            <div style={{ padding: "12px", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>Issue</div>
+              <div style={{ fontWeight: 800, color: "#991b1b" }}>Suspected bioburden</div>
+            </div>
+
+            <div style={{ padding: "12px", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>Disposition</div>
+              <div style={{ fontWeight: 800, color: "#92400e" }}>Quarantine + Reclean</div>
+            </div>
+
+            <div style={{ padding: "12px", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>Vendor</div>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>Medtronic</div>
+            </div>
+
+            <div style={{ padding: "12px", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>Governance Value</div>
+              <div style={{ fontWeight: 800, color: "#166534" }}>Evidence-to-action trail</div>
+            </div>
+          </div>
+        </section>
         <p style={{ color: "#4b5563", margin: 0 }}>
           Real-time surgical instrument quality intelligence for SPD teams,
           surgical vendors, and device manufacturers.
