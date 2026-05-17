@@ -520,18 +520,18 @@ function DashboardHome() {
         }
 
         if (!ignore) {
-          setSummary(summaryData);
+          setSummary(useStoryFallback(summaryData, demoSummary));
           setRecent(Array.isArray(historyData.items) ? historyData.items : []);
           setAgentFeed(Array.isArray(agentData.items) ? agentData.items : []);
-          setVendors(Array.isArray(vendorData.items) ? vendorData.items : []);
-          setAlerts(Array.isArray(alertsData.items) ? alertsData.items : []);
+          setVendors(useStoryFallback(Array.isArray(vendorData.items) ? vendorData.items : [], demoVendors));
+          setAlerts(useStoryFallback(Array.isArray(alertsData.items) ? alertsData.items : [], demoAlerts));
           setAlertStatus(alertStatusData);
-          setAlertAudit(Array.isArray(alertAuditData.items) ? alertAuditData.items : []);
+          setAlertAudit(useStoryFallback(Array.isArray(alertAuditData.items) ? alertAuditData.items : [], demoAlerts));
           setChannelHealth(Array.isArray(channelHealthData.items) ? channelHealthData.items : []);
-          setQaPending(Array.isArray(qaPendingData.items) ? qaPendingData.items : []);
+          setQaPending(useStoryFallback(Array.isArray(qaPendingData.items) ? qaPendingData.items : [], demoAlerts));
           setReviewAnalytics(reviewAnalyticsData);
-          setModelPerformance(modelPerformanceData);
-          setModelPerformance(modelPerformanceData);
+          setModelPerformance(useStoryFallback(modelPerformanceData, demoModelPerformance));
+          setModelPerformance(useStoryFallback(modelPerformanceData, demoModelPerformance));
           setHealth(healthStatus);
         }
       } catch (err: any) {
