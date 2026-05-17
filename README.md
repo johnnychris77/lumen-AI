@@ -72,3 +72,24 @@ Expected:
 ## Portfolio Value
 
 This project demonstrates enterprise workflow automation, healthcare operations intelligence, API design, Docker deployment, PostgreSQL-backed workflow state, AI-ready narrative generation, board packet automation, audit governance, RBAC, and regression validation.
+
+---
+
+## Visual Proof
+
+### Executive Demo Scenario
+
+![LumenAI Executive Story Panel](docs/assets/screenshots/lumenai-executive-story-panel.png)
+
+### Hosted Dashboard Overview
+
+![LumenAI Dashboard Overview](docs/assets/screenshots/lumenai-dashboard-overview.png)
+
+### Alert Control Center
+
+![LumenAI Alert Control Center](docs/assets/screenshots/lumenai-alert-control-center.png)
+
+### Vendor Intelligence and Model Performance
+
+![LumenAI Vendor Intelligence and Model Performance](docs/assets/screenshots/lumenai-vendor-model-performance.png)
+
