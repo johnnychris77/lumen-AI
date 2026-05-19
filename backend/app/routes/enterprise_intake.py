@@ -15,6 +15,8 @@ from app.models.enterprise_quality import (
 from app.schemas.enterprise_intake import (
     EnterpriseInspectionIntakeRequest,
     EnterpriseInspectionIntakeResponse,
+    EnterpriseIntakeHistoryItem,
+    EnterpriseIntakeHistoryResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -158,3 +160,65 @@ def create_enterprise_intake(
         disposition_id=disposition.id,
         workflow_status="created_pending_human_review",
     )
+
+
+@router.get("/intake/history", response_model=EnterpriseIntakeHistoryResponse)
+def list_enterprise_intake_history(
+    limit: int = 25,
+    db: Session = Depends(get_db),
+):
+    limit = max(1, min(limit, 100))
+
+    findings = (
+        db.query(EnterpriseFinding)
+        .order_by(EnterpriseFinding.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    items: list[EnterpriseIntakeHistoryItem] = []
+
+    for finding in findings:
+        vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+        instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+        risk_score = (
+            db.query(EnterpriseRiskScore)
+            .filter(EnterpriseRiskScore.finding_id == finding.id)
+            .order_by(EnterpriseRiskScore.id.desc())
+            .first()
+        )
+
+        disposition = (
+            db.query(EnterpriseDisposition)
+            .filter(EnterpriseDisposition.finding_id == finding.id)
+            .order_by(EnterpriseDisposition.id.desc())
+            .first()
+        )
+
+        items.append(
+            EnterpriseIntakeHistoryItem(
+                finding_id=finding.id,
+                vendor_id=finding.vendor_id,
+                instrument_id=finding.instrument_id,
+                risk_score_id=risk_score.id if risk_score else None,
+                disposition_id=disposition.id if disposition else None,
+                vendor_name=vendor.name if vendor else "",
+                instrument_name=instrument.name if instrument else "",
+                instrument_category=instrument.category if instrument else "",
+                finding_category=finding.finding_category,
+                finding_description=finding.finding_description,
+                severity=finding.severity,
+                confidence_score=finding.confidence_score,
+                risk_tier=risk_score.risk_tier if risk_score else "",
+                overall_score=risk_score.overall_score if risk_score else 0,
+                recommended_action=disposition.recommended_action if disposition else "",
+                final_action=disposition.final_action if disposition else "",
+                disposition_status=disposition.status if disposition else "",
+                workflow_status="created_pending_human_review",
+                created_at=finding.created_at.isoformat() if finding.created_at else "",
+            )
+        )
+
+    return EnterpriseIntakeHistoryResponse(items=items)
+

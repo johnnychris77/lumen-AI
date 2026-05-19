@@ -31,3 +31,29 @@ class EnterpriseInspectionIntakeResponse(BaseModel):
     risk_score_id: int
     disposition_id: int
     workflow_status: str
+
+
+class EnterpriseIntakeHistoryItem(BaseModel):
+    finding_id: int
+    vendor_id: int | None = None
+    instrument_id: int | None = None
+    risk_score_id: int | None = None
+    disposition_id: int | None = None
+    vendor_name: str = ""
+    instrument_name: str = ""
+    instrument_category: str = ""
+    finding_category: str = ""
+    finding_description: str = ""
+    severity: str = ""
+    confidence_score: float = 0.0
+    risk_tier: str = ""
+    overall_score: int = 0
+    recommended_action: str = ""
+    final_action: str = ""
+    disposition_status: str = ""
+    workflow_status: str = "created_pending_human_review"
+    created_at: str = ""
+
+
+class EnterpriseIntakeHistoryResponse(BaseModel):
+    items: list[EnterpriseIntakeHistoryItem]
