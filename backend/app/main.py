@@ -281,9 +281,11 @@ app.include_router(portfolio_dashboard_router, prefix=settings.API_PREFIX)
 
 from app.routes.portfolio_briefings import router as portfolio_briefings_router
 from app.routes.portfolio_briefing_exports import router as portfolio_briefing_exports_router
+from app.routes.enterprise_intake import router as enterprise_intake_router
 
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
+app.include_router(enterprise_intake_router)
 
 from fastapi.openapi.utils import get_openapi
 
