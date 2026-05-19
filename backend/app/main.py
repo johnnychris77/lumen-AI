@@ -20,6 +20,14 @@ from app.db import Base, engine
 
 app = FastAPI(title="LumenAI API")
 
+@app.on_event("startup")
+def bootstrap_enterprise_tables():
+    # Safe startup bootstrap for hosted demo / enterprise workflow tables.
+    # SQLAlchemy create_all only creates missing tables.
+    # It does not drop existing tables or delete existing data.
+    importlib.import_module("app.db.models")
+    Base.metadata.create_all(bind=engine)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -288,6 +296,9 @@ app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX
 app.include_router(enterprise_intake_router)
 
 from fastapi.openapi.utils import get_openapi
+import importlib
+from app.db.base import Base
+from app.db.session import engine
 
 def custom_openapi():
     if app.openapi_schema is not None:
