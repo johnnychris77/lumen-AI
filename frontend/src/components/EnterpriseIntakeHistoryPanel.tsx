@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 
 type IntakeHistoryItem = {
   finding_id: number;
@@ -29,6 +30,7 @@ const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
 
 export default function EnterpriseIntakeHistoryPanel() {
   const [items, setItems] = useState<IntakeHistoryItem[]>([]);
+  const [selected, setSelected] = useState<IntakeHistoryItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,7 +58,12 @@ export default function EnterpriseIntakeHistoryPanel() {
         throw new Error(data?.detail || `History request failed (${response.status})`);
       }
 
-      setItems(Array.isArray(data.items) ? data.items : []);
+      const nextItems = Array.isArray(data.items) ? data.items : [];
+      setItems(nextItems);
+
+      if (!selected && nextItems.length > 0) {
+        setSelected(nextItems[0]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown history error");
     } finally {
@@ -66,110 +73,40 @@ export default function EnterpriseIntakeHistoryPanel() {
 
   useEffect(() => {
     loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <section
-      style={{
-        margin: "20px 0",
-        padding: "20px",
-        borderRadius: "18px",
-        border: "1px solid #c7d2fe",
-        background: "linear-gradient(135deg, #eef2ff 0%, #ffffff 100%)",
-        boxShadow: "0 12px 28px rgba(15, 23, 42, 0.08)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "13px",
-          fontWeight: 800,
-          color: "#4338ca",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-        }}
-      >
-        Enterprise Workflow Trace
-      </div>
+    <section style={panelStyle}>
+      <div style={eyebrowStyle}>Enterprise Workflow Trace</div>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "12px",
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={headerRowStyle}>
         <div>
           <h2 style={{ margin: "8px 0 8px", color: "#0f172a" }}>
             Recent Enterprise Intake Records
           </h2>
           <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
             Displays recent enterprise records created through the intake workflow.
+            Select any record to preview the governance packet.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={loadHistory}
-          disabled={loading}
-          style={{
-            border: "0",
-            borderRadius: "12px",
-            padding: "10px 14px",
-            fontWeight: 800,
-            cursor: loading ? "not-allowed" : "pointer",
-            background: loading ? "#94a3b8" : "#4f46e5",
-            color: "#ffffff",
-          }}
-        >
+        <button type="button" onClick={loadHistory} disabled={loading} style={refreshButtonStyle(loading)}>
           {loading ? "Refreshing..." : "Refresh History"}
         </button>
       </div>
 
-      {error ? (
-        <div
-          style={{
-            marginTop: "14px",
-            padding: "12px",
-            borderRadius: "12px",
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            fontWeight: 700,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+      {error ? <div style={errorStyle}>{error}</div> : null}
 
       {!error && items.length === 0 ? (
-        <div
-          style={{
-            marginTop: "14px",
-            padding: "12px",
-            borderRadius: "12px",
-            background: "#ffffff",
-            border: "1px solid #e0e7ff",
-            color: "#475569",
-          }}
-        >
+        <div style={emptyStyle}>
           No enterprise intake records found yet. Use the Create Enterprise Intake button above, then refresh this panel.
         </div>
       ) : null}
 
       {items.length > 0 ? (
         <div style={{ overflowX: "auto", marginTop: "16px" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              background: "#ffffff",
-              borderRadius: "14px",
-              overflow: "hidden",
-              fontSize: "14px",
-            }}
-          >
+          <table style={tableStyle}>
             <thead>
               <tr style={{ background: "#eef2ff", color: "#312e81" }}>
                 <th style={th}>Finding</th>
@@ -183,43 +120,325 @@ export default function EnterpriseIntakeHistoryPanel() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.finding_id} style={{ borderTop: "1px solid #e5e7eb" }}>
-                  <td style={td}>#{item.finding_id}</td>
-                  <td style={td}>{item.vendor_name || "—"}</td>
-                  <td style={td}>{item.instrument_name || "—"}</td>
-                  <td style={td}>{item.finding_category || "—"}</td>
-                  <td style={td}>
-                    <strong style={{ color: severityColor(item.severity) }}>
-                      {item.severity || "—"}
-                    </strong>
-                  </td>
-                  <td style={td}>
-                    {item.risk_tier || "—"} / {item.overall_score ?? 0}
-                  </td>
-                  <td style={td}>{item.recommended_action || "—"}</td>
-                  <td style={td}>{item.workflow_status || "pending"}</td>
-                </tr>
-              ))}
+              {items.map((item) => {
+                const isSelected = selected?.finding_id === item.finding_id;
+
+                return (
+                  <tr
+                    key={item.finding_id}
+                    onClick={() => setSelected(item)}
+                    style={{
+                      borderTop: "1px solid #e5e7eb",
+                      cursor: "pointer",
+                      background: isSelected ? "#f5f3ff" : "#ffffff",
+                    }}
+                  >
+                    <td style={td}>#{item.finding_id}</td>
+                    <td style={td}>{item.vendor_name || "—"}</td>
+                    <td style={td}>{item.instrument_name || "—"}</td>
+                    <td style={td}>{item.finding_category || "—"}</td>
+                    <td style={td}>
+                      <strong style={{ color: severityColor(item.severity) }}>
+                        {item.severity || "—"}
+                      </strong>
+                    </td>
+                    <td style={td}>
+                      {item.risk_tier || "—"} / {item.overall_score ?? 0}
+                    </td>
+                    <td style={td}>{item.recommended_action || "—"}</td>
+                    <td style={td}>{item.workflow_status || "pending"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+      ) : null}
+
+      {selected ? (
+        <GovernancePacketPreview item={selected} onClose={() => setSelected(null)} />
       ) : null}
     </section>
   );
 }
 
-const th: React.CSSProperties = {
+function GovernancePacketPreview({
+  item,
+  onClose,
+}: {
+  item: IntakeHistoryItem;
+  onClose: () => void;
+}) {
+  return (
+    <div style={detailPanelStyle}>
+      <div style={detailHeaderStyle}>
+        <div>
+          <div style={eyebrowStyle}>Governance Packet Preview</div>
+          <h3 style={{ margin: "6px 0 0", color: "#0f172a" }}>
+            Finding #{item.finding_id}: {item.instrument_name || "Instrument"} Review
+          </h3>
+        </div>
+
+        <button type="button" onClick={onClose} style={closeButtonStyle}>
+          Close Preview
+        </button>
+      </div>
+
+      <div style={summaryGridStyle}>
+        <InfoCard label="Vendor" value={item.vendor_name || "—"} />
+        <InfoCard label="Instrument" value={item.instrument_name || "—"} />
+        <InfoCard label="Category" value={item.instrument_category || "—"} />
+        <InfoCard label="Finding" value={item.finding_category || "—"} />
+        <InfoCard label="Severity" value={item.severity || "—"} emphasisColor={severityColor(item.severity)} />
+        <InfoCard label="Risk Score" value={`${item.risk_tier || "—"} / ${item.overall_score ?? 0}`} />
+        <InfoCard label="Disposition" value={item.disposition_status || "recommended"} />
+        <InfoCard label="Workflow" value={item.workflow_status || "pending"} />
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Case Summary</h4>
+        <p style={packetTextStyle}>
+          LumenAI recorded a <strong>{item.severity || "risk"}</strong> finding for{" "}
+          <strong>{item.instrument_name || "the instrument"}</strong> associated with{" "}
+          <strong>{item.vendor_name || "the vendor"}</strong>. The issue was classified as{" "}
+          <strong>{item.finding_category || "a quality concern"}</strong>.
+        </p>
+
+        {item.finding_description ? (
+          <p style={packetTextStyle}>{item.finding_description}</p>
+        ) : null}
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Recommended Action</h4>
+        <p style={packetTextStyle}>{item.recommended_action || "Pending recommended action."}</p>
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Evidence-to-Action Chain</h4>
+        <ol style={chainListStyle}>
+          <li>Enterprise intake record created</li>
+          <li>Vendor and instrument context linked</li>
+          <li>Finding classified and severity assigned</li>
+          <li>Risk score generated</li>
+          <li>Disposition recommended</li>
+          <li>Workflow placed in pending human review status</li>
+        </ol>
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Audit Readiness Preview</h4>
+        <div style={auditGridStyle}>
+          <InfoCard label="Finding ID" value={`#${item.finding_id}`} />
+          <InfoCard label="Vendor ID" value={String(item.vendor_id ?? "—")} />
+          <InfoCard label="Instrument ID" value={String(item.instrument_id ?? "—")} />
+          <InfoCard label="Risk Score ID" value={String(item.risk_score_id ?? "—")} />
+          <InfoCard label="Disposition ID" value={String(item.disposition_id ?? "—")} />
+          <InfoCard label="Created" value={formatDate(item.created_at)} />
+        </div>
+      </div>
+
+      <div style={packetFooterStyle}>
+        Next enterprise milestone: generate this preview as a downloadable governance packet.
+      </div>
+    </div>
+  );
+}
+
+function InfoCard({
+  label,
+  value,
+  emphasisColor,
+}: {
+  label: string;
+  value: string;
+  emphasisColor?: string;
+}) {
+  return (
+    <div style={infoCardStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={{ ...infoValueStyle, color: emphasisColor || "#0f172a" }}>{value}</div>
+    </div>
+  );
+}
+
+function formatDate(value?: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString();
+}
+
+const panelStyle: CSSProperties = {
+  margin: "20px 0",
+  padding: "20px",
+  borderRadius: "18px",
+  border: "1px solid #c7d2fe",
+  background: "linear-gradient(135deg, #eef2ff 0%, #ffffff 100%)",
+  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.08)",
+};
+
+const eyebrowStyle: CSSProperties = {
+  fontSize: "13px",
+  fontWeight: 800,
+  color: "#4338ca",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+};
+
+const headerRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+function refreshButtonStyle(loading: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "10px 14px",
+    fontWeight: 800,
+    cursor: loading ? "not-allowed" : "pointer",
+    background: loading ? "#94a3b8" : "#4f46e5",
+    color: "#ffffff",
+  };
+}
+
+const errorStyle: CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 700,
+};
+
+const emptyStyle: CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "12px",
+  background: "#ffffff",
+  border: "1px solid #e0e7ff",
+  color: "#475569",
+};
+
+const tableStyle: CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  background: "#ffffff",
+  borderRadius: "14px",
+  overflow: "hidden",
+  fontSize: "14px",
+};
+
+const th: CSSProperties = {
   textAlign: "left",
   padding: "12px",
   fontWeight: 900,
   whiteSpace: "nowrap",
 };
 
-const td: React.CSSProperties = {
+const td: CSSProperties = {
   padding: "12px",
   color: "#334155",
   verticalAlign: "top",
+};
+
+const detailPanelStyle: CSSProperties = {
+  marginTop: "18px",
+  padding: "18px",
+  borderRadius: "18px",
+  border: "1px solid #a5b4fc",
+  background: "#ffffff",
+  boxShadow: "0 16px 32px rgba(79, 70, 229, 0.12)",
+};
+
+const detailHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+};
+
+const closeButtonStyle: CSSProperties = {
+  border: "1px solid #c7d2fe",
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#eef2ff",
+  color: "#312e81",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const summaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "10px",
+  marginTop: "16px",
+};
+
+const infoCardStyle: CSSProperties = {
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
+const infoLabelStyle: CSSProperties = {
+  fontSize: "12px",
+  color: "#64748b",
+  fontWeight: 800,
+};
+
+const infoValueStyle: CSSProperties = {
+  marginTop: "3px",
+  fontWeight: 900,
+};
+
+const packetSectionStyle: CSSProperties = {
+  marginTop: "16px",
+  paddingTop: "12px",
+  borderTop: "1px solid #e5e7eb",
+};
+
+const packetHeadingStyle: CSSProperties = {
+  margin: "0 0 8px",
+  color: "#111827",
+};
+
+const packetTextStyle: CSSProperties = {
+  margin: 0,
+  color: "#475569",
+  lineHeight: 1.65,
+};
+
+const chainListStyle: CSSProperties = {
+  margin: 0,
+  paddingLeft: "20px",
+  color: "#475569",
+  lineHeight: 1.7,
+};
+
+const auditGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: "10px",
+};
+
+const packetFooterStyle: CSSProperties = {
+  marginTop: "16px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#f0fdf4",
+  color: "#166534",
+  fontWeight: 800,
+  border: "1px solid #bbf7d0",
 };
 
 function severityColor(severity?: string) {
