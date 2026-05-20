@@ -169,6 +169,25 @@ function GovernancePacketPreview({
   item: IntakeHistoryItem;
   onClose: () => void;
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportSuccess, setExportSuccess] = useState("");
+
+  async function handleExportPacket() {
+    setExporting(true);
+    setExportError("");
+    setExportSuccess("");
+
+    try {
+      const packet = await exportGovernancePacket(item.finding_id);
+      setExportSuccess(`Governance packet exported: ${packet.title}`);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Unknown packet export error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div style={detailPanelStyle}>
       <div style={detailHeaderStyle}>
@@ -239,7 +258,27 @@ function GovernancePacketPreview({
       </div>
 
       <div style={packetFooterStyle}>
-        Next enterprise milestone: generate this preview as a downloadable governance packet.
+        <div>
+          Export this case as a structured governance packet for executive review,
+          quality committee discussion, vendor escalation, or survey readiness.
+        </div>
+
+        <button
+          type="button"
+          onClick={handleExportPacket}
+          disabled={exporting}
+          style={exportButtonStyle(exporting)}
+        >
+          {exporting ? "Exporting Packet..." : "Export Governance Packet JSON"}
+        </button>
+
+        {exportSuccess ? (
+          <div style={exportSuccessStyle}>{exportSuccess}</div>
+        ) : null}
+
+        {exportError ? (
+          <div style={exportErrorStyle}>{exportError}</div>
+        ) : null}
       </div>
     </div>
   );
@@ -440,6 +479,78 @@ const packetFooterStyle: CSSProperties = {
   fontWeight: 800,
   border: "1px solid #bbf7d0",
 };
+
+
+async function exportGovernancePacket(findingId: number) {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet`,
+    {
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "viewer",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Packet export failed (${response.status})`);
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `lumenai-governance-packet-finding-${findingId}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  return data;
+}
+
+
+
+function exportButtonStyle(exporting: boolean): CSSProperties {
+  return {
+    marginTop: "12px",
+    border: "0",
+    borderRadius: "12px",
+    padding: "11px 14px",
+    background: exporting ? "#94a3b8" : "#166534",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: exporting ? "not-allowed" : "pointer",
+    boxShadow: "0 10px 18px rgba(22, 101, 52, 0.20)",
+  };
+}
+
+const exportSuccessStyle: CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#dcfce7",
+  color: "#166534",
+  fontWeight: 800,
+};
+
+const exportErrorStyle: CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
 
 function severityColor(severity?: string) {
   const s = (severity || "").toLowerCase();
