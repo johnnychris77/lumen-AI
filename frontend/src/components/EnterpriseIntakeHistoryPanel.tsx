@@ -170,6 +170,7 @@ function GovernancePacketPreview({
   onClose: () => void;
 }) {
   const [exporting, setExporting] = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   const [exportSuccess, setExportSuccess] = useState("");
 
@@ -185,6 +186,21 @@ function GovernancePacketPreview({
       setExportError(err instanceof Error ? err.message : "Unknown packet export error");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    setPdfExporting(true);
+    setExportError("");
+    setExportSuccess("");
+
+    try {
+      await downloadGovernancePacketPdf(item.finding_id);
+      setExportSuccess(`Governance packet PDF downloaded for finding #${item.finding_id}`);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Unknown PDF download error");
+    } finally {
+      setPdfExporting(false);
     }
   }
 
@@ -263,14 +279,25 @@ function GovernancePacketPreview({
           quality committee discussion, vendor escalation, or survey readiness.
         </div>
 
-        <button
-          type="button"
-          onClick={handleExportPacket}
-          disabled={exporting}
-          style={exportButtonStyle(exporting)}
-        >
-          {exporting ? "Exporting Packet..." : "Export Governance Packet JSON"}
-        </button>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+          <button
+            type="button"
+            onClick={handleExportPacket}
+            disabled={exporting}
+            style={exportButtonStyle(exporting)}
+          >
+            {exporting ? "Exporting JSON..." : "Export Governance Packet JSON"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfExporting}
+            style={pdfButtonStyle(pdfExporting)}
+          >
+            {pdfExporting ? "Downloading PDF..." : "Download Governance Packet PDF"}
+          </button>
+        </div>
 
         {exportSuccess ? (
           <div style={exportSuccessStyle}>{exportSuccess}</div>
@@ -519,6 +546,20 @@ async function exportGovernancePacket(findingId: number) {
 
 
 
+
+function pdfButtonStyle(exporting: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "11px 14px",
+    background: exporting ? "#94a3b8" : "#1d4ed8",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: exporting ? "not-allowed" : "pointer",
+    boxShadow: "0 10px 18px rgba(29, 78, 216, 0.20)",
+  };
+}
+
 function exportButtonStyle(exporting: boolean): CSSProperties {
   return {
     marginTop: "12px",
@@ -550,6 +591,44 @@ const exportErrorStyle: CSSProperties = {
   color: "#991b1b",
   fontWeight: 800,
 };
+
+
+
+async function downloadGovernancePacketPdf(findingId: number) {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet.pdf`,
+    {
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "viewer",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    let message = `PDF download failed (${response.status})`;
+    try {
+      const data = await response.json();
+      message = data?.detail || message;
+    } catch {
+      // PDF route may not return JSON on failure.
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `lumenai-governance-packet-finding-${findingId}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 
 function severityColor(severity?: string) {
