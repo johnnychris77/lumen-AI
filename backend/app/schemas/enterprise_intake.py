@@ -52,6 +52,8 @@ class EnterpriseIntakeHistoryItem(BaseModel):
     final_action: str = ""
     disposition_status: str = ""
     workflow_status: str = "created_pending_human_review"
+    human_review_status: str = ""
+    human_confirmed: bool = False
     created_at: str = ""
 
 
@@ -76,6 +78,8 @@ class EnterpriseGovernancePacketResponse(BaseModel):
     recommended_action: str = ""
     final_action: str = ""
     workflow_status: str = "created_pending_human_review"
+    human_review_status: str = ""
+    human_confirmed: bool = False
     evidence_to_action_chain: list[str]
     audit_readiness: dict[str, str | int | None]
 

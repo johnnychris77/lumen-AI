@@ -20,6 +20,8 @@ type IntakeHistoryItem = {
   final_action?: string;
   disposition_status?: string;
   workflow_status?: string;
+  human_review_status?: string;
+  human_confirmed?: boolean;
   created_at?: string;
 };
 
@@ -247,6 +249,8 @@ function GovernancePacketPreview({
         <InfoCard label="Risk Score" value={`${item.risk_tier || "—"} / ${item.overall_score ?? 0}`} />
         <InfoCard label="Disposition" value={item.disposition_status || "recommended"} />
         <InfoCard label="Workflow" value={item.workflow_status || "pending"} />
+        <InfoCard label="Human Review" value={item.human_review_status || "Pending"} />
+        <InfoCard label="Human Confirmed" value={item.human_confirmed ? "Yes" : "No"} />
       </div>
 
       <div style={packetSectionStyle}>
@@ -261,6 +265,12 @@ function GovernancePacketPreview({
         {item.finding_description ? (
           <p style={packetTextStyle}>{item.finding_description}</p>
         ) : null}
+
+        <p style={{ ...packetTextStyle, marginTop: "10px" }}>
+          <strong>Human review status:</strong>{" "}
+          {item.human_review_status || "Pending human review"} |{" "}
+          <strong>Human confirmed:</strong> {item.human_confirmed ? "Yes" : "No"}
+        </p>
       </div>
 
       <div style={packetSectionStyle}>

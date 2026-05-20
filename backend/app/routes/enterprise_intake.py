@@ -290,7 +290,9 @@ def list_enterprise_intake_history(
                 recommended_action=disposition.recommended_action if disposition else "",
                 final_action=disposition.final_action if disposition else "",
                 disposition_status=disposition.status if disposition else "",
-                workflow_status="created_pending_human_review",
+                workflow_status=disposition.status if disposition else "created_pending_human_review",
+                human_review_status=disposition.status if disposition else "",
+                human_confirmed=bool(finding.human_confirmed),
                 created_at=finding.created_at.isoformat() if finding.created_at else "",
             )
         )
@@ -336,6 +338,7 @@ def get_enterprise_governance_packet(
     overall_score = risk_score.overall_score if risk_score else 0
     recommended_action = disposition.recommended_action if disposition else "Pending recommended action"
     final_action = disposition.final_action if disposition else "Pending human review"
+    workflow_status = disposition.status if disposition else "created_pending_human_review"
 
     title = f"Governance Packet: Finding #{finding.id} - {instrument_name or 'Instrument Review'}"
 
@@ -383,7 +386,9 @@ def get_enterprise_governance_packet(
         overall_score=overall_score,
         recommended_action=recommended_action,
         final_action=final_action,
-        workflow_status="created_pending_human_review",
+        workflow_status=workflow_status,
+        human_review_status=workflow_status,
+        human_confirmed=bool(finding.human_confirmed),
         evidence_to_action_chain=[
             "Enterprise intake record created",
             "Vendor and instrument context linked",
@@ -448,6 +453,7 @@ def get_enterprise_governance_packet_pdf(
     overall_score = risk_score.overall_score if risk_score else 0
     recommended_action = disposition.recommended_action if disposition else "Pending recommended action"
     final_action = disposition.final_action if disposition else "Pending human review"
+    workflow_status = disposition.status if disposition else "created_pending_human_review"
 
     buffer = BytesIO()
 
@@ -499,7 +505,8 @@ def get_enterprise_governance_packet_pdf(
         ["Overall Risk Score", str(overall_score)],
         ["Recommended Action", recommended_action],
         ["Final Action", final_action],
-        ["Workflow Status", "created_pending_human_review"],
+        ["Human Confirmed", "Yes" if finding.human_confirmed else "No"],
+        ["Workflow Status", workflow_status],
     ]
 
     table = Table(case_data, colWidths=[160, 340])
