@@ -171,8 +171,10 @@ function GovernancePacketPreview({
 }) {
   const [exporting, setExporting] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
+  const [reviewing, setReviewing] = useState("");
   const [exportError, setExportError] = useState("");
   const [exportSuccess, setExportSuccess] = useState("");
+  const [reviewSuccess, setReviewSuccess] = useState("");
 
   async function handleExportPacket() {
     setExporting(true);
@@ -201,6 +203,23 @@ function GovernancePacketPreview({
       setExportError(err instanceof Error ? err.message : "Unknown PDF download error");
     } finally {
       setPdfExporting(false);
+    }
+  }
+
+  async function handleHumanReview(decision: string, notes: string) {
+    setReviewing(decision);
+    setExportError("");
+    setReviewSuccess("");
+
+    try {
+      const result = await submitHumanReview(item.finding_id, decision, notes);
+      setReviewSuccess(
+        `Human review saved: ${result.workflow_status || result.decision}`
+      );
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Unknown human review error");
+    } finally {
+      setReviewing("");
     }
   }
 
@@ -259,6 +278,76 @@ function GovernancePacketPreview({
           <li>Disposition recommended</li>
           <li>Workflow placed in pending human review status</li>
         </ol>
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Human Review Actions</h4>
+        <p style={packetTextStyle}>
+          Record a human-in-the-loop decision before final governance review.
+          These actions create an auditable reviewer decision in the enterprise workflow.
+        </p>
+
+        <div style={reviewButtonRowStyle}>
+          <button
+            type="button"
+            onClick={() =>
+              handleHumanReview(
+                "approve",
+                "Finding reviewed and approved for documented disposition."
+              )
+            }
+            disabled={Boolean(reviewing)}
+            style={reviewButtonStyle("#166534", reviewing === "approve")}
+          >
+            {reviewing === "approve" ? "Saving..." : "Approve"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              handleHumanReview(
+                "escalate_to_ip",
+                "Finding confirmed. Escalate to Infection Prevention for risk review."
+              )
+            }
+            disabled={Boolean(reviewing)}
+            style={reviewButtonStyle("#7c2d12", reviewing === "escalate_to_ip")}
+          >
+            {reviewing === "escalate_to_ip" ? "Saving..." : "Escalate to IP"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              handleHumanReview(
+                "request_more_evidence",
+                "Additional image evidence or reviewer clarification requested."
+              )
+            }
+            disabled={Boolean(reviewing)}
+            style={reviewButtonStyle("#1d4ed8", reviewing === "request_more_evidence")}
+          >
+            {reviewing === "request_more_evidence" ? "Saving..." : "Request More Evidence"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              handleHumanReview(
+                "open_capa",
+                "CAPA recommended due to severity and repeat-risk potential."
+              )
+            }
+            disabled={Boolean(reviewing)}
+            style={reviewButtonStyle("#7e22ce", reviewing === "open_capa")}
+          >
+            {reviewing === "open_capa" ? "Saving..." : "Open CAPA"}
+          </button>
+        </div>
+
+        {reviewSuccess ? (
+          <div style={reviewSuccessStyle}>{reviewSuccess}</div>
+        ) : null}
       </div>
 
       <div style={packetSectionStyle}>
@@ -497,6 +586,37 @@ const auditGridStyle: CSSProperties = {
   gap: "10px",
 };
 
+
+const reviewButtonRowStyle: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "12px",
+};
+
+function reviewButtonStyle(background: string, active: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "10px 13px",
+    background: active ? "#94a3b8" : background,
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: active ? "not-allowed" : "pointer",
+    boxShadow: "0 10px 18px rgba(15, 23, 42, 0.12)",
+  };
+}
+
+const reviewSuccessStyle: CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#dcfce7",
+  color: "#166534",
+  fontWeight: 800,
+};
+
+
 const packetFooterStyle: CSSProperties = {
   marginTop: "16px",
   padding: "12px",
@@ -506,6 +626,44 @@ const packetFooterStyle: CSSProperties = {
   fontWeight: 800,
   border: "1px solid #bbf7d0",
 };
+
+
+
+async function submitHumanReview(
+  findingId: number,
+  decision: string,
+  reviewNotes: string
+) {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/review`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "operator",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+      body: JSON.stringify({
+        reviewer_name: "Quality Reviewer",
+        reviewer_role: "quality_reviewer",
+        decision,
+        review_notes: reviewNotes,
+        human_confirmed: true,
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Human review failed (${response.status})`);
+  }
+
+  return data;
+}
 
 
 async function exportGovernancePacket(findingId: number) {
