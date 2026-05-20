@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
@@ -306,5 +307,181 @@ def get_enterprise_governance_packet(
             "disposition_id": disposition.id if disposition else None,
             "created_at": finding.created_at.isoformat() if finding.created_at else "",
         },
+    )
+
+
+@router.get("/intake/{finding_id}/governance-packet.pdf")
+def get_enterprise_governance_packet_pdf(
+    finding_id: int,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+
+    from fastapi import HTTPException
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+    risk_score = (
+        db.query(EnterpriseRiskScore)
+        .filter(EnterpriseRiskScore.finding_id == finding.id)
+        .order_by(EnterpriseRiskScore.id.desc())
+        .first()
+    )
+
+    disposition = (
+        db.query(EnterpriseDisposition)
+        .filter(EnterpriseDisposition.finding_id == finding.id)
+        .order_by(EnterpriseDisposition.id.desc())
+        .first()
+    )
+
+    vendor_name = vendor.name if vendor else ""
+    instrument_name = instrument.name if instrument else ""
+    instrument_category = instrument.category if instrument else ""
+    severity = finding.severity or "unassigned"
+    risk_tier = risk_score.risk_tier if risk_score else "unassigned"
+    overall_score = risk_score.overall_score if risk_score else 0
+    recommended_action = disposition.recommended_action if disposition else "Pending recommended action"
+    final_action = disposition.final_action if disposition else "Pending human review"
+
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40,
+        title=f"LumenAI Governance Packet Finding {finding.id}",
+    )
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Governance Packet", styles["Title"]))
+    story.append(Spacer(1, 12))
+
+    story.append(
+        Paragraph(
+            f"Finding #{finding.id}: {instrument_name or 'Instrument Review'}",
+            styles["Heading2"],
+        )
+    )
+
+    story.append(Spacer(1, 10))
+
+    summary = (
+        f"LumenAI recorded a <b>{severity}</b> enterprise quality finding for "
+        f"<b>{instrument_name or 'an instrument'}</b> associated with "
+        f"<b>{vendor_name or 'an identified vendor'}</b>. The finding was classified as "
+        f"<b>{finding.finding_category}</b>. The current recommended action is: "
+        f"<b>{recommended_action}</b>."
+    )
+
+    story.append(Paragraph(summary, styles["BodyText"]))
+    story.append(Spacer(1, 16))
+
+    case_data = [
+        ["Field", "Value"],
+        ["Vendor", vendor_name or "—"],
+        ["Instrument", instrument_name or "—"],
+        ["Instrument Category", instrument_category or "—"],
+        ["Finding Category", finding.finding_category or "—"],
+        ["Severity", severity],
+        ["Confidence Score", str(finding.confidence_score)],
+        ["Risk Tier", risk_tier],
+        ["Overall Risk Score", str(overall_score)],
+        ["Recommended Action", recommended_action],
+        ["Final Action", final_action],
+        ["Workflow Status", "created_pending_human_review"],
+    ]
+
+    table = Table(case_data, colWidths=[160, 340])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E0E7FF")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1E1B4B")),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+            ]
+        )
+    )
+
+    story.append(table)
+    story.append(Spacer(1, 18))
+
+    story.append(Paragraph("Evidence-to-Action Chain", styles["Heading3"]))
+    chain = [
+        "Enterprise intake record created",
+        "Vendor and instrument context linked",
+        "Finding classified and severity assigned",
+        "Risk score generated",
+        "Disposition recommended",
+        "Workflow placed in pending human review status",
+        "Governance packet generated for review",
+    ]
+
+    for step in chain:
+        story.append(Paragraph(f"• {step}", styles["BodyText"]))
+
+    story.append(Spacer(1, 18))
+
+    story.append(Paragraph("Audit Readiness", styles["Heading3"]))
+
+    audit_data = [
+        ["Finding ID", str(finding.id)],
+        ["Vendor ID", str(finding.vendor_id or "—")],
+        ["Instrument ID", str(finding.instrument_id or "—")],
+        ["Risk Score ID", str(risk_score.id if risk_score else "—")],
+        ["Disposition ID", str(disposition.id if disposition else "—")],
+        ["Created At", finding.created_at.isoformat() if finding.created_at else "—"],
+    ]
+
+    audit_table = Table(audit_data, colWidths=[160, 340])
+    audit_table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F1F5F9")),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+
+    story.append(audit_table)
+    story.append(Spacer(1, 18))
+
+    story.append(
+        Paragraph(
+            "Generated by LumenAI for executive governance, quality review, vendor escalation, and survey readiness.",
+            styles["Italic"],
+        )
+    )
+
+    doc.build(story)
+
+    buffer.seek(0)
+
+    filename = f"lumenai-governance-packet-finding-{finding.id}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
