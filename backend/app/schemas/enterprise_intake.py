@@ -57,3 +57,24 @@ class EnterpriseIntakeHistoryItem(BaseModel):
 
 class EnterpriseIntakeHistoryResponse(BaseModel):
     items: list[EnterpriseIntakeHistoryItem]
+
+
+class EnterpriseGovernancePacketResponse(BaseModel):
+    packet_type: str
+    title: str
+    summary: str
+    finding_id: int
+    vendor_name: str = ""
+    instrument_name: str = ""
+    instrument_category: str = ""
+    finding_category: str = ""
+    finding_description: str = ""
+    severity: str = ""
+    confidence_score: float = 0.0
+    risk_tier: str = ""
+    overall_score: int = 0
+    recommended_action: str = ""
+    final_action: str = ""
+    workflow_status: str = "created_pending_human_review"
+    evidence_to_action_chain: list[str]
+    audit_readiness: dict[str, str | int | None]

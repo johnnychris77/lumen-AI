@@ -17,6 +17,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseInspectionIntakeResponse,
     EnterpriseIntakeHistoryItem,
     EnterpriseIntakeHistoryResponse,
+    EnterpriseGovernancePacketResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -221,4 +222,89 @@ def list_enterprise_intake_history(
         )
 
     return EnterpriseIntakeHistoryResponse(items=items)
+
+
+@router.get("/intake/{finding_id}/governance-packet", response_model=EnterpriseGovernancePacketResponse)
+def get_enterprise_governance_packet(
+    finding_id: int,
+    db: Session = Depends(get_db),
+):
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+    risk_score = (
+        db.query(EnterpriseRiskScore)
+        .filter(EnterpriseRiskScore.finding_id == finding.id)
+        .order_by(EnterpriseRiskScore.id.desc())
+        .first()
+    )
+
+    disposition = (
+        db.query(EnterpriseDisposition)
+        .filter(EnterpriseDisposition.finding_id == finding.id)
+        .order_by(EnterpriseDisposition.id.desc())
+        .first()
+    )
+
+    vendor_name = vendor.name if vendor else ""
+    instrument_name = instrument.name if instrument else ""
+    instrument_category = instrument.category if instrument else ""
+
+    severity = finding.severity or "unassigned"
+    risk_tier = risk_score.risk_tier if risk_score else "unassigned"
+    overall_score = risk_score.overall_score if risk_score else 0
+    recommended_action = disposition.recommended_action if disposition else "Pending recommended action"
+    final_action = disposition.final_action if disposition else "Pending human review"
+
+    title = f"Governance Packet: Finding #{finding.id} - {instrument_name or 'Instrument Review'}"
+
+    summary = (
+        f"LumenAI recorded a {severity} enterprise quality finding for "
+        f"{instrument_name or 'an instrument'} associated with "
+        f"{vendor_name or 'an identified vendor'}. The finding was classified as "
+        f"{finding.finding_category}. The current recommended action is: "
+        f"{recommended_action}."
+    )
+
+    return EnterpriseGovernancePacketResponse(
+        packet_type="enterprise_intake_governance_packet",
+        title=title,
+        summary=summary,
+        finding_id=finding.id,
+        vendor_name=vendor_name,
+        instrument_name=instrument_name,
+        instrument_category=instrument_category,
+        finding_category=finding.finding_category,
+        finding_description=finding.finding_description,
+        severity=severity,
+        confidence_score=finding.confidence_score,
+        risk_tier=risk_tier,
+        overall_score=overall_score,
+        recommended_action=recommended_action,
+        final_action=final_action,
+        workflow_status="created_pending_human_review",
+        evidence_to_action_chain=[
+            "Enterprise intake record created",
+            "Vendor and instrument context linked",
+            "Finding classified and severity assigned",
+            "Risk score generated",
+            "Disposition recommended",
+            "Workflow placed in pending human review status",
+            "Governance packet generated for review",
+        ],
+        audit_readiness={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "risk_score_id": risk_score.id if risk_score else None,
+            "disposition_id": disposition.id if disposition else None,
+            "created_at": finding.created_at.isoformat() if finding.created_at else "",
+        },
+    )
 
