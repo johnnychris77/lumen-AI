@@ -23,6 +23,8 @@ from app.schemas.enterprise_intake import (
     EnterpriseGovernancePacketResponse,
     EnterpriseAuditTrailItem,
     EnterpriseAuditTrailResponse,
+    EnterpriseHumanReviewRequest,
+    EnterpriseHumanReviewResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -642,5 +644,84 @@ def list_enterprise_audit_trail(
             )
             for row in rows
         ]
+    )
+
+
+@router.post("/intake/{finding_id}/review", response_model=EnterpriseHumanReviewResponse)
+def review_enterprise_finding(
+    finding_id: int,
+    payload: EnterpriseHumanReviewRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    allowed_decisions = {
+        "approve",
+        "request_more_evidence",
+        "escalate_to_ip",
+        "escalate_to_vendor",
+        "open_capa",
+        "reject",
+    }
+
+    decision = (payload.decision or "").strip().lower()
+
+    if decision not in allowed_decisions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid review decision. Allowed: {sorted(allowed_decisions)}",
+        )
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    finding.human_confirmed = payload.human_confirmed
+
+    disposition = (
+        db.query(EnterpriseDisposition)
+        .filter(EnterpriseDisposition.finding_id == finding.id)
+        .order_by(EnterpriseDisposition.id.desc())
+        .first()
+    )
+
+    if disposition:
+        disposition.status = f"human_review_{decision}"
+        disposition.final_action = payload.review_notes or decision.replace("_", " ")
+
+    workflow_status = f"human_review_{decision}"
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="enterprise_human_review_completed",
+        resource_type="enterprise_finding",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "decision": decision,
+            "reviewer_name": payload.reviewer_name,
+            "reviewer_role": payload.reviewer_role,
+            "human_confirmed": payload.human_confirmed,
+            "review_notes": payload.review_notes,
+            "workflow_status": workflow_status,
+        },
+    )
+
+    db.commit()
+
+    return EnterpriseHumanReviewResponse(
+        status="success",
+        message="Enterprise finding human review completed.",
+        finding_id=finding.id,
+        decision=decision,
+        reviewer_name=payload.reviewer_name,
+        reviewer_role=payload.reviewer_role,
+        human_confirmed=finding.human_confirmed,
+        workflow_status=workflow_status,
     )
 

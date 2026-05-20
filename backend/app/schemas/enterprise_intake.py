@@ -98,3 +98,22 @@ class EnterpriseAuditTrailItem(BaseModel):
 
 class EnterpriseAuditTrailResponse(BaseModel):
     items: list[EnterpriseAuditTrailItem]
+
+
+class EnterpriseHumanReviewRequest(BaseModel):
+    reviewer_name: str = Field(default="Demo Reviewer")
+    reviewer_role: str = Field(default="quality_reviewer")
+    decision: str = Field(default="approve")
+    review_notes: str = Field(default="")
+    human_confirmed: bool = Field(default=True)
+
+
+class EnterpriseHumanReviewResponse(BaseModel):
+    status: str
+    message: str
+    finding_id: int
+    decision: str
+    reviewer_name: str
+    reviewer_role: str
+    human_confirmed: bool
+    workflow_status: str
