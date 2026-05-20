@@ -4,6 +4,7 @@ import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import InspectionHistory from "./pages/InspectionHistory";
 import EnterpriseIntakePanel from "./components/EnterpriseIntakePanel";
 import EnterpriseIntakeHistoryPanel from "./components/EnterpriseIntakeHistoryPanel";
+import EnterpriseAuditTrailPanel from "./components/EnterpriseAuditTrailPanel";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -760,6 +761,8 @@ function DashboardHome() {
         <EnterpriseIntakePanel />
 
         <EnterpriseIntakeHistoryPanel />
+
+        <EnterpriseAuditTrailPanel />
         <p style={{ color: "#4b5563", margin: 0 }}>
           Real-time surgical instrument quality intelligence for SPD teams,
           surgical vendors, and device manufacturers.
