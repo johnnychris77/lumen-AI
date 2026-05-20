@@ -78,3 +78,23 @@ class EnterpriseGovernancePacketResponse(BaseModel):
     workflow_status: str = "created_pending_human_review"
     evidence_to_action_chain: list[str]
     audit_readiness: dict[str, str | int | None]
+
+
+class EnterpriseAuditTrailItem(BaseModel):
+    id: int
+    tenant_id: str
+    actor_email: str
+    actor_role: str
+    action_type: str
+    resource_type: str
+    resource_id: str
+    status: str
+    request_method: str
+    request_path: str
+    details: str
+    compliance_flag: bool
+    created_at: str
+
+
+class EnterpriseAuditTrailResponse(BaseModel):
+    items: list[EnterpriseAuditTrailItem]

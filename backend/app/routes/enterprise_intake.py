@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends
+import json
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.models.audit_log import AuditLog
 from app.models.enterprise_quality import (
     EnterpriseDepartment,
     EnterpriseDisposition,
@@ -19,9 +21,52 @@ from app.schemas.enterprise_intake import (
     EnterpriseIntakeHistoryItem,
     EnterpriseIntakeHistoryResponse,
     EnterpriseGovernancePacketResponse,
+    EnterpriseAuditTrailItem,
+    EnterpriseAuditTrailResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
+
+
+def _audit_actor_from_request(request: Request) -> tuple[str, str]:
+    actor = request.headers.get("x-lumenai-actor", "unknown")
+    role = request.headers.get("x-lumenai-role", "viewer")
+    return actor, role
+
+
+def _record_enterprise_audit(
+    db: Session,
+    request: Request,
+    *,
+    tenant_id: str,
+    tenant_name: str,
+    action_type: str,
+    resource_type: str,
+    resource_id: str,
+    details: dict,
+    status: str = "success",
+    compliance_flag: bool = True,
+) -> None:
+    actor, role = _audit_actor_from_request(request)
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            tenant_name=tenant_name,
+            actor_email=actor,
+            actor_role=role,
+            action_type=action_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            status=status,
+            request_method=request.method,
+            request_path=str(request.url.path),
+            client_ip=request.client.host if request.client else "",
+            details=json.dumps(details, default=str),
+            compliance_flag=compliance_flag,
+        )
+    )
+
 
 
 def _risk_scores_for_severity(severity: str) -> tuple[int, int, int, int, int, str]:
@@ -42,6 +87,7 @@ def _risk_scores_for_severity(severity: str) -> tuple[int, int, int, int, int, s
 @router.post("/intake", response_model=EnterpriseInspectionIntakeResponse)
 def create_enterprise_intake(
     payload: EnterpriseInspectionIntakeRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     facility = EnterpriseFacility(
@@ -145,6 +191,31 @@ def create_enterprise_intake(
         status="recommended",
     )
     db.add(disposition)
+    db.flush()
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=payload.tenant_id,
+        tenant_name=payload.tenant_name,
+        action_type="enterprise_intake_created",
+        resource_type="enterprise_finding",
+        resource_id=str(finding.id),
+        details={
+            "facility_id": facility.id,
+            "department_id": department.id,
+            "vendor_id": vendor.id,
+            "instrument_id": instrument.id,
+            "evidence_id": evidence.id if evidence else None,
+            "finding_id": finding.id,
+            "risk_score_id": risk_score.id,
+            "disposition_id": disposition.id,
+            "severity": payload.severity,
+            "finding_category": payload.finding_category,
+            "recommended_action": payload.recommended_action,
+            "workflow_status": "created_pending_human_review",
+        },
+    )
 
     db.commit()
 
@@ -228,6 +299,7 @@ def list_enterprise_intake_history(
 @router.get("/intake/{finding_id}/governance-packet", response_model=EnterpriseGovernancePacketResponse)
 def get_enterprise_governance_packet(
     finding_id: int,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     finding = db.get(EnterpriseFinding, finding_id)
@@ -273,6 +345,26 @@ def get_enterprise_governance_packet(
         f"{recommended_action}."
     )
 
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="governance_packet_exported_json",
+        resource_type="enterprise_governance_packet",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "risk_score_id": risk_score.id if risk_score else None,
+            "disposition_id": disposition.id if disposition else None,
+            "packet_type": "enterprise_intake_governance_packet",
+            "export_format": "json",
+        },
+    )
+    db.commit()
+
     return EnterpriseGovernancePacketResponse(
         packet_type="enterprise_intake_governance_packet",
         title=title,
@@ -313,6 +405,7 @@ def get_enterprise_governance_packet(
 @router.get("/intake/{finding_id}/governance-packet.pdf")
 def get_enterprise_governance_packet_pdf(
     finding_id: int,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     from io import BytesIO
@@ -479,9 +572,75 @@ def get_enterprise_governance_packet_pdf(
 
     filename = f"lumenai-governance-packet-finding-{finding.id}.pdf"
 
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="governance_packet_exported_pdf",
+        resource_type="enterprise_governance_packet",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "risk_score_id": risk_score.id if risk_score else None,
+            "disposition_id": disposition.id if disposition else None,
+            "packet_type": "enterprise_intake_governance_packet",
+            "export_format": "pdf",
+            "filename": filename,
+        },
+    )
+    db.commit()
+
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/audit-trail", response_model=EnterpriseAuditTrailResponse)
+def list_enterprise_audit_trail(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    limit = max(1, min(limit, 100))
+
+    rows = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.action_type.in_(
+                [
+                    "enterprise_intake_created",
+                    "governance_packet_exported_json",
+                    "governance_packet_exported_pdf",
+                ]
+            )
+        )
+        .order_by(AuditLog.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return EnterpriseAuditTrailResponse(
+        items=[
+            EnterpriseAuditTrailItem(
+                id=row.id,
+                tenant_id=row.tenant_id,
+                actor_email=row.actor_email,
+                actor_role=row.actor_role,
+                action_type=row.action_type,
+                resource_type=row.resource_type,
+                resource_id=row.resource_id,
+                status=row.status,
+                request_method=row.request_method,
+                request_path=row.request_path,
+                details=row.details,
+                compliance_flag=row.compliance_flag,
+                created_at=row.created_at.isoformat() if row.created_at else "",
+            )
+            for row in rows
+        ]
     )
 
