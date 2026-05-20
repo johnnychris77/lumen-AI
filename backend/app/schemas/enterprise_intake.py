@@ -156,3 +156,38 @@ class EnterpriseCapaListItem(BaseModel):
 
 class EnterpriseCapaListResponse(BaseModel):
     items: list[EnterpriseCapaListItem]
+
+
+class EnterpriseCapaCreateRequest(BaseModel):
+    title: str = Field(default="CAPA for enterprise quality finding")
+    description: str = Field(default="")
+    owner_id: int | None = Field(default=None)
+    due_date: str = Field(default="")
+    status: str = Field(default="open")
+
+
+class EnterpriseCapaCreateResponse(BaseModel):
+    status: str
+    message: str
+    finding_id: int
+    capa_id: int
+    capa_number: str
+    capa_status: str
+    workflow_status: str
+
+
+class EnterpriseCapaListItem(BaseModel):
+    capa_id: int
+    finding_id: int | None = None
+    vendor_id: int | None = None
+    capa_number: str
+    title: str
+    description: str
+    status: str
+    due_date: str = ""
+    closed_at: str = ""
+    created_at: str = ""
+
+
+class EnterpriseCapaListResponse(BaseModel):
+    items: list[EnterpriseCapaListItem]
