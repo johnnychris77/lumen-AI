@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -8,6 +9,7 @@ from app.models.audit_log import AuditLog
 from app.models.enterprise_quality import (
     EnterpriseDepartment,
     EnterpriseDisposition,
+    EnterpriseCapa,
     EnterpriseEvidence,
     EnterpriseFacility,
     EnterpriseFinding,
@@ -25,6 +27,10 @@ from app.schemas.enterprise_intake import (
     EnterpriseAuditTrailResponse,
     EnterpriseHumanReviewRequest,
     EnterpriseHumanReviewResponse,
+    EnterpriseCapaCreateRequest,
+    EnterpriseCapaCreateResponse,
+    EnterpriseCapaListItem,
+    EnterpriseCapaListResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -730,5 +736,139 @@ def review_enterprise_finding(
         reviewer_role=payload.reviewer_role,
         human_confirmed=finding.human_confirmed,
         workflow_status=workflow_status,
+    )
+
+
+@router.post("/intake/{finding_id}/capa", response_model=EnterpriseCapaCreateResponse)
+def create_enterprise_capa(
+    finding_id: int,
+    payload: EnterpriseCapaCreateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    due_date_value = None
+    if payload.due_date:
+        try:
+            due_date_value = datetime.fromisoformat(payload.due_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="due_date must be ISO format, e.g. 2026-06-30")
+
+    capa_number = f"CAPA-{finding.id:06d}"
+
+    existing = (
+        db.query(EnterpriseCapa)
+        .filter(EnterpriseCapa.finding_id == finding.id)
+        .order_by(EnterpriseCapa.id.desc())
+        .first()
+    )
+
+    if existing:
+        return EnterpriseCapaCreateResponse(
+            status="success",
+            message="Existing CAPA found for this finding.",
+            finding_id=finding.id,
+            capa_id=existing.id,
+            capa_number=existing.capa_number,
+            capa_status=existing.status,
+            workflow_status="capa_already_open",
+        )
+
+    capa = EnterpriseCapa(
+        tenant_id=finding.tenant_id,
+        inspection_id=finding.inspection_id,
+        finding_id=finding.id,
+        vendor_id=finding.vendor_id,
+        capa_number=capa_number,
+        title=payload.title,
+        description=payload.description,
+        owner_id=payload.owner_id,
+        status=payload.status or "open",
+        due_date=due_date_value,
+    )
+
+    db.add(capa)
+    db.flush()
+
+    disposition = (
+        db.query(EnterpriseDisposition)
+        .filter(EnterpriseDisposition.finding_id == finding.id)
+        .order_by(EnterpriseDisposition.id.desc())
+        .first()
+    )
+
+    if disposition:
+        disposition.status = "capa_open"
+        disposition.final_action = f"CAPA opened: {capa.capa_number}"
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="enterprise_capa_opened",
+        resource_type="enterprise_capa",
+        resource_id=str(capa.id),
+        details={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "capa_id": capa.id,
+            "capa_number": capa.capa_number,
+            "title": capa.title,
+            "status": capa.status,
+            "workflow_status": "capa_open",
+        },
+    )
+
+    db.commit()
+
+    return EnterpriseCapaCreateResponse(
+        status="success",
+        message="Enterprise CAPA opened.",
+        finding_id=finding.id,
+        capa_id=capa.id,
+        capa_number=capa.capa_number,
+        capa_status=capa.status,
+        workflow_status="capa_open",
+    )
+
+
+@router.get("/capas", response_model=EnterpriseCapaListResponse)
+def list_enterprise_capas(
+    limit: int = 25,
+    db: Session = Depends(get_db),
+):
+    limit = max(1, min(limit, 100))
+
+    rows = (
+        db.query(EnterpriseCapa)
+        .order_by(EnterpriseCapa.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return EnterpriseCapaListResponse(
+        items=[
+            EnterpriseCapaListItem(
+                capa_id=row.id,
+                finding_id=row.finding_id,
+                vendor_id=row.vendor_id,
+                capa_number=row.capa_number,
+                title=row.title,
+                description=row.description,
+                status=row.status,
+                due_date=row.due_date.isoformat() if row.due_date else "",
+                closed_at=row.closed_at.isoformat() if row.closed_at else "",
+                created_at=row.created_at.isoformat() if row.created_at else "",
+            )
+            for row in rows
+        ]
     )
 
