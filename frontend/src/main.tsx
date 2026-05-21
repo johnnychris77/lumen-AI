@@ -5,6 +5,7 @@ import InspectionHistory from "./pages/InspectionHistory";
 import EnterpriseIntakePanel from "./components/EnterpriseIntakePanel";
 import EnterpriseIntakeHistoryPanel from "./components/EnterpriseIntakeHistoryPanel";
 import EnterpriseAuditTrailPanel from "./components/EnterpriseAuditTrailPanel";
+import EnterpriseGovernanceCommandCenter from "./components/EnterpriseGovernanceCommandCenter";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -759,6 +760,8 @@ function DashboardHome() {
         </section>
 
         <EnterpriseIntakePanel />
+
+        <EnterpriseGovernanceCommandCenter />
 
         <EnterpriseIntakeHistoryPanel />
 
