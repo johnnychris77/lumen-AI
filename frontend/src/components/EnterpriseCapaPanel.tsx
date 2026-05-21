@@ -19,10 +19,40 @@ const API_BASE =
 
 const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
 
+
+async function updateCapaStatus(capaId: number, status: string, note: string) {
+  const response = await fetch(`${API_BASE}/api/enterprise/capas/${capaId}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${AUTH_TOKEN}`,
+      "X-LumenAI-Role": "operator",
+      "X-LumenAI-Actor": "john-demo",
+      "X-Tenant-Id": "bonsecours",
+      "X-Tenant-Name": "Bon Secours",
+    },
+    body: JSON.stringify({
+      status,
+      note,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `CAPA status update failed (${response.status})`);
+  }
+
+  return data;
+}
+
+
 export default function EnterpriseCapaPanel() {
   const [items, setItems] = useState<CapaItem[]>([]);
   const [selected, setSelected] = useState<CapaItem | null>(null);
   const [loading, setLoading] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState("");
+  const [statusSuccess, setStatusSuccess] = useState("");
   const [error, setError] = useState("");
 
   async function loadCapas() {
@@ -64,6 +94,24 @@ export default function EnterpriseCapaPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function handleStatusUpdate(capa: CapaItem, status: string, note: string) {
+    setUpdatingStatus(status);
+    setStatusSuccess("");
+    setError("");
+
+    try {
+      const result = await updateCapaStatus(capa.capa_id, status, note);
+      setStatusSuccess(
+        `CAPA status updated: ${result.capa_number} → ${result.capa_status}`
+      );
+      await loadCapas();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown CAPA status update error");
+    } finally {
+      setUpdatingStatus("");
+    }
+  }
+
   return (
     <section style={panelStyle}>
       <div style={eyebrowStyle}>Enterprise CAPA Workflow</div>
@@ -90,6 +138,8 @@ export default function EnterpriseCapaPanel() {
       </div>
 
       {error ? <div style={errorStyle}>{error}</div> : null}
+
+      {statusSuccess ? <div style={successStyle}>{statusSuccess}</div> : null}
 
       {!error && items.length === 0 ? (
         <div style={emptyStyle}>
@@ -146,12 +196,20 @@ export default function EnterpriseCapaPanel() {
         </div>
       ) : null}
 
-      {selected ? <CapaDetail item={selected} /> : null}
+      {selected ? <CapaDetail item={selected} onStatusUpdate={handleStatusUpdate} updatingStatus={updatingStatus} /> : null}
     </section>
   );
 }
 
-function CapaDetail({ item }: { item: CapaItem }) {
+function CapaDetail({
+  item,
+  onStatusUpdate,
+  updatingStatus,
+}: {
+  item: CapaItem;
+  onStatusUpdate: (item: CapaItem, status: string, note: string) => void;
+  updatingStatus: string;
+}) {
   return (
     <div style={detailPanelStyle}>
       <div style={eyebrowStyle}>CAPA Detail</div>
@@ -176,6 +234,59 @@ function CapaDetail({ item }: { item: CapaItem }) {
         <p style={{ margin: 0, color: "#475569", lineHeight: 1.65 }}>
           {item.description || "No CAPA description provided."}
         </p>
+      </div>
+
+      <div style={detailSectionStyle}>
+        <h4 style={{ margin: "0 0 8px", color: "#111827" }}>CAPA Status Actions</h4>
+        <p style={{ margin: "0 0 12px", color: "#475569", lineHeight: 1.65 }}>
+          Update the CAPA lifecycle status and create an auditable status-change event.
+        </p>
+
+        <div style={actionRowStyle}>
+          <button
+            type="button"
+            onClick={() =>
+              onStatusUpdate(item, "in_progress", "CAPA owner review started.")
+            }
+            disabled={Boolean(updatingStatus)}
+            style={statusButtonStyle("#1d4ed8", updatingStatus === "in_progress")}
+          >
+            {updatingStatus === "in_progress" ? "Updating..." : "Start Progress"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              onStatusUpdate(item, "pending_review", "CAPA ready for leadership or quality review.")
+            }
+            disabled={Boolean(updatingStatus)}
+            style={statusButtonStyle("#a16207", updatingStatus === "pending_review")}
+          >
+            {updatingStatus === "pending_review" ? "Updating..." : "Mark Pending Review"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              onStatusUpdate(item, "closed", "CAPA reviewed and closed after corrective action documentation.")
+            }
+            disabled={Boolean(updatingStatus)}
+            style={statusButtonStyle("#166534", updatingStatus === "closed")}
+          >
+            {updatingStatus === "closed" ? "Updating..." : "Close CAPA"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              onStatusUpdate(item, "overdue", "CAPA marked overdue for escalation.")
+            }
+            disabled={Boolean(updatingStatus)}
+            style={statusButtonStyle("#991b1b", updatingStatus === "overdue")}
+          >
+            {updatingStatus === "overdue" ? "Updating..." : "Mark Overdue"}
+          </button>
+        </div>
       </div>
 
       <div style={footerStyle}>
@@ -251,6 +362,37 @@ function refreshButtonStyle(loading: boolean): CSSProperties {
     cursor: loading ? "not-allowed" : "pointer",
     background: loading ? "#94a3b8" : "#7e22ce",
     color: "#ffffff",
+  };
+}
+
+
+const successStyle: CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "12px",
+  background: "#dcfce7",
+  border: "1px solid #bbf7d0",
+  color: "#166534",
+  fontWeight: 800,
+};
+
+const actionRowStyle: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "10px",
+};
+
+function statusButtonStyle(background: string, active: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "10px 13px",
+    background: active ? "#94a3b8" : background,
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: active ? "not-allowed" : "pointer",
+    boxShadow: "0 10px 18px rgba(15, 23, 42, 0.12)",
   };
 }
 
