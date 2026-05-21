@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
+type EvidenceItem = {
+  evidence_id: number;
+  finding_id?: number | null;
+  evidence_type: string;
+  file_name: string;
+  storage_uri: string;
+  content_type?: string;
+  notes?: string;
+  created_at?: string;
+};
+
 type IntakeHistoryItem = {
   finding_id: number;
   vendor_id?: number | null;
@@ -175,10 +186,15 @@ function GovernancePacketPreview({
   const [pdfExporting, setPdfExporting] = useState(false);
   const [reviewing, setReviewing] = useState("");
   const [openingCapa, setOpeningCapa] = useState(false);
+  const [evidenceUploading, setEvidenceUploading] = useState(false);
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
+  const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<File | null>(null);
+  const [evidenceNotes, setEvidenceNotes] = useState("Demo evidence attached to enterprise finding.");
   const [exportError, setExportError] = useState("");
   const [exportSuccess, setExportSuccess] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState("");
   const [capaSuccess, setCapaSuccess] = useState("");
+  const [evidenceSuccess, setEvidenceSuccess] = useState("");
 
   async function handleExportPacket() {
     setExporting(true);
@@ -234,6 +250,47 @@ function GovernancePacketPreview({
     } finally {
       setReviewing("");
       setOpeningCapa(false);
+    }
+  }
+
+  async function handleLoadEvidence() {
+    setExportError("");
+
+    try {
+      const items = await listEnterpriseEvidence(item.finding_id);
+      setEvidenceItems(items);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Unknown evidence list error");
+    }
+  }
+
+  async function handleUploadEvidence() {
+    if (!selectedEvidenceFile) {
+      setExportError("Select an evidence file before uploading.");
+      return;
+    }
+
+    setEvidenceUploading(true);
+    setExportError("");
+    setEvidenceSuccess("");
+
+    try {
+      const result = await uploadEnterpriseEvidence(
+        item.finding_id,
+        selectedEvidenceFile,
+        "inspection_evidence",
+        evidenceNotes
+      );
+
+      setEvidenceSuccess(
+        `Evidence uploaded: ${result.file_name} attached to finding #${result.finding_id}`
+      );
+      setSelectedEvidenceFile(null);
+      await handleLoadEvidence();
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Unknown evidence upload error");
+    } finally {
+      setEvidenceUploading(false);
     }
   }
 
@@ -300,6 +357,72 @@ function GovernancePacketPreview({
           <li>Disposition recommended</li>
           <li>Workflow placed in pending human review status</li>
         </ol>
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Evidence Attachments</h4>
+        <p style={packetTextStyle}>
+          Upload supporting evidence for this finding, such as a borescope image,
+          inspection photo, quality note, IFU document, or vendor-supporting file.
+        </p>
+
+        <div style={evidenceUploadRowStyle}>
+          <input
+            type="file"
+            onChange={(event) =>
+              setSelectedEvidenceFile(event.target.files?.[0] || null)
+            }
+            style={fileInputStyle}
+          />
+
+          <input
+            type="text"
+            value={evidenceNotes}
+            onChange={(event) => setEvidenceNotes(event.target.value)}
+            placeholder="Evidence notes"
+            style={evidenceNotesInputStyle}
+          />
+
+          <button
+            type="button"
+            onClick={handleUploadEvidence}
+            disabled={evidenceUploading}
+            style={evidenceButtonStyle(evidenceUploading)}
+          >
+            {evidenceUploading ? "Uploading..." : "Upload Evidence"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLoadEvidence}
+            style={secondaryEvidenceButtonStyle}
+          >
+            Refresh Evidence
+          </button>
+        </div>
+
+        {evidenceSuccess ? (
+          <div style={evidenceSuccessStyle}>{evidenceSuccess}</div>
+        ) : null}
+
+        {evidenceItems.length > 0 ? (
+          <div style={evidenceListStyle}>
+            {evidenceItems.map((evidence) => (
+              <div key={evidence.evidence_id} style={evidenceItemStyle}>
+                <strong>{evidence.file_name}</strong>
+                <span>
+                  {evidence.evidence_type} • {evidence.content_type || "unknown type"}
+                </span>
+                <span>{evidence.notes || "No notes"}</span>
+                <span>Evidence ID: #{evidence.evidence_id}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={evidenceEmptyStyle}>
+            No evidence loaded yet. Upload evidence or refresh this section.
+          </div>
+        )}
       </div>
 
       <div style={packetSectionStyle}>
@@ -613,6 +736,86 @@ const auditGridStyle: CSSProperties = {
 };
 
 
+
+const evidenceUploadRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(260px, 2fr) auto auto",
+  gap: "10px",
+  alignItems: "center",
+  marginTop: "12px",
+};
+
+const fileInputStyle: CSSProperties = {
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #cbd5e1",
+  background: "#ffffff",
+};
+
+const evidenceNotesInputStyle: CSSProperties = {
+  padding: "11px",
+  borderRadius: "12px",
+  border: "1px solid #cbd5e1",
+  background: "#ffffff",
+};
+
+function evidenceButtonStyle(active: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "11px 14px",
+    background: active ? "#94a3b8" : "#0369a1",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: active ? "not-allowed" : "pointer",
+  };
+}
+
+const secondaryEvidenceButtonStyle: CSSProperties = {
+  border: "1px solid #bae6fd",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  background: "#f0f9ff",
+  color: "#0369a1",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const evidenceSuccessStyle: CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#dbeafe",
+  color: "#1d4ed8",
+  fontWeight: 800,
+};
+
+const evidenceListStyle: CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  marginTop: "12px",
+};
+
+const evidenceItemStyle: CSSProperties = {
+  display: "grid",
+  gap: "3px",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  color: "#334155",
+};
+
+const evidenceEmptyStyle: CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
+  background: "#f8fafc",
+  color: "#64748b",
+};
+
+
 const reviewButtonRowStyle: CSSProperties = {
   display: "flex",
   gap: "10px",
@@ -697,6 +900,66 @@ async function openEnterpriseCapa(findingId: number) {
   }
 
   return data;
+}
+
+
+
+async function uploadEnterpriseEvidence(
+  findingId: number,
+  file: File,
+  evidenceType: string,
+  notes: string
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("evidence_type", evidenceType);
+  formData.append("notes", notes);
+
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/evidence`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "operator",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+      body: formData,
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Evidence upload failed (${response.status})`);
+  }
+
+  return data;
+}
+
+async function listEnterpriseEvidence(findingId: number) {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/evidence`,
+    {
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "viewer",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Evidence list failed (${response.status})`);
+  }
+
+  return Array.isArray(data.items) ? data.items : [];
 }
 
 
