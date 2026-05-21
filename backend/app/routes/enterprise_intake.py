@@ -31,6 +31,8 @@ from app.schemas.enterprise_intake import (
     EnterpriseCapaCreateResponse,
     EnterpriseCapaListItem,
     EnterpriseCapaListResponse,
+    EnterpriseCapaStatusUpdateRequest,
+    EnterpriseCapaStatusUpdateResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -870,5 +872,90 @@ def list_enterprise_capas(
             )
             for row in rows
         ]
+    )
+
+
+@router.patch("/capas/{capa_id}/status", response_model=EnterpriseCapaStatusUpdateResponse)
+def update_enterprise_capa_status(
+    capa_id: int,
+    payload: EnterpriseCapaStatusUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    allowed_statuses = {
+        "open",
+        "in_progress",
+        "pending_review",
+        "closed",
+        "overdue",
+        "cancelled",
+    }
+
+    new_status = (payload.status or "").strip().lower()
+
+    if new_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid CAPA status. Allowed: {sorted(allowed_statuses)}",
+        )
+
+    capa = db.get(EnterpriseCapa, capa_id)
+
+    if not capa:
+        raise HTTPException(status_code=404, detail="Enterprise CAPA not found")
+
+    previous_status = capa.status
+    capa.status = new_status
+
+    if new_status == "closed" and not capa.closed_at:
+        capa.closed_at = datetime.now(timezone.utc)
+
+    if new_status != "closed":
+        capa.closed_at = None
+
+    if capa.finding_id:
+        disposition = (
+            db.query(EnterpriseDisposition)
+            .filter(EnterpriseDisposition.finding_id == capa.finding_id)
+            .order_by(EnterpriseDisposition.id.desc())
+            .first()
+        )
+
+        if disposition:
+            disposition.status = f"capa_{new_status}"
+            disposition.final_action = payload.note or f"CAPA status updated to {new_status}"
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=capa.tenant_id,
+        tenant_name="",
+        action_type="enterprise_capa_status_updated",
+        resource_type="enterprise_capa",
+        resource_id=str(capa.id),
+        details={
+            "capa_id": capa.id,
+            "capa_number": capa.capa_number,
+            "finding_id": capa.finding_id,
+            "previous_status": previous_status,
+            "new_status": new_status,
+            "note": payload.note,
+            "workflow_status": f"capa_{new_status}",
+            "closed_at": capa.closed_at.isoformat() if capa.closed_at else "",
+        },
+    )
+
+    db.commit()
+
+    return EnterpriseCapaStatusUpdateResponse(
+        status="success",
+        message="Enterprise CAPA status updated.",
+        capa_id=capa.id,
+        capa_number=capa.capa_number,
+        capa_status=capa.status,
+        workflow_status=f"capa_{new_status}",
+        closed_at=capa.closed_at.isoformat() if capa.closed_at else "",
     )
 

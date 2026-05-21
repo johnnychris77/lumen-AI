@@ -191,3 +191,18 @@ class EnterpriseCapaListItem(BaseModel):
 
 class EnterpriseCapaListResponse(BaseModel):
     items: list[EnterpriseCapaListItem]
+
+
+class EnterpriseCapaStatusUpdateRequest(BaseModel):
+    status: str = Field(default="in_progress")
+    note: str = Field(default="")
+
+
+class EnterpriseCapaStatusUpdateResponse(BaseModel):
+    status: str
+    message: str
+    capa_id: int
+    capa_number: str
+    capa_status: str
+    workflow_status: str
+    closed_at: str = ""
