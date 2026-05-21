@@ -33,6 +33,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseCapaListResponse,
     EnterpriseCapaStatusUpdateRequest,
     EnterpriseCapaStatusUpdateResponse,
+    EnterpriseCapaSummaryResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -957,5 +958,63 @@ def update_enterprise_capa_status(
         capa_status=capa.status,
         workflow_status=f"capa_{new_status}",
         closed_at=capa.closed_at.isoformat() if capa.closed_at else "",
+    )
+
+
+@router.get("/capas/summary", response_model=EnterpriseCapaSummaryResponse)
+def get_enterprise_capa_summary(
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    rows = db.query(EnterpriseCapa).all()
+
+    total = len(rows)
+    open_count = sum(1 for row in rows if row.status == "open")
+    in_progress_count = sum(1 for row in rows if row.status == "in_progress")
+    pending_review_count = sum(1 for row in rows if row.status == "pending_review")
+    closed_count = sum(1 for row in rows if row.status == "closed")
+    overdue_count = sum(1 for row in rows if row.status == "overdue")
+    cancelled_count = sum(1 for row in rows if row.status == "cancelled")
+
+    now = datetime.now(timezone.utc)
+    active_rows = [row for row in rows if row.status != "closed"]
+
+    days_open_values = []
+    for row in active_rows:
+        if row.created_at:
+            created_at = row.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            days_open_values.append((now - created_at).days)
+
+    average_days_open = (
+        round(sum(days_open_values) / len(days_open_values), 1)
+        if days_open_values
+        else 0.0
+    )
+
+    closure_rate = round((closed_count / total) * 100, 1) if total else 0.0
+
+    if overdue_count > 0:
+        risk_message = "Executive attention required: overdue CAPA records exist."
+    elif open_count + in_progress_count + pending_review_count > 0:
+        risk_message = "Active CAPA workload requires continued monitoring."
+    elif total > 0 and closed_count == total:
+        risk_message = "All CAPA records are closed."
+    else:
+        risk_message = "No CAPA records available."
+
+    return EnterpriseCapaSummaryResponse(
+        total_capas=total,
+        open_capas=open_count,
+        in_progress_capas=in_progress_count,
+        pending_review_capas=pending_review_count,
+        closed_capas=closed_count,
+        overdue_capas=overdue_count,
+        cancelled_capas=cancelled_count,
+        average_days_open=average_days_open,
+        closure_rate=closure_rate,
+        risk_message=risk_message,
     )
 

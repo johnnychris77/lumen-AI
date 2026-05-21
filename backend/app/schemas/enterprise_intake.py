@@ -206,3 +206,29 @@ class EnterpriseCapaStatusUpdateResponse(BaseModel):
     capa_status: str
     workflow_status: str
     closed_at: str = ""
+
+
+class EnterpriseCapaSummaryResponse(BaseModel):
+    total_capas: int
+    open_capas: int
+    in_progress_capas: int
+    pending_review_capas: int
+    closed_capas: int
+    overdue_capas: int
+    cancelled_capas: int
+    average_days_open: float
+    closure_rate: float
+    risk_message: str
+
+
+class EnterpriseCapaSummaryResponse(BaseModel):
+    total_capas: int
+    open_capas: int
+    in_progress_capas: int
+    pending_review_capas: int
+    closed_capas: int
+    overdue_capas: int
+    cancelled_capas: int
+    average_days_open: float
+    closure_rate: float
+    risk_message: str
