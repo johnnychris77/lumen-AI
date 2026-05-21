@@ -174,9 +174,11 @@ function GovernancePacketPreview({
   const [exporting, setExporting] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
   const [reviewing, setReviewing] = useState("");
+  const [openingCapa, setOpeningCapa] = useState(false);
   const [exportError, setExportError] = useState("");
   const [exportSuccess, setExportSuccess] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState("");
+  const [capaSuccess, setCapaSuccess] = useState("");
 
   async function handleExportPacket() {
     setExporting(true);
@@ -212,16 +214,26 @@ function GovernancePacketPreview({
     setReviewing(decision);
     setExportError("");
     setReviewSuccess("");
+    setCapaSuccess("");
 
     try {
       const result = await submitHumanReview(item.finding_id, decision, notes);
       setReviewSuccess(
         `Human review saved: ${result.workflow_status || result.decision}`
       );
+
+      if (decision === "open_capa") {
+        setOpeningCapa(true);
+        const capa = await openEnterpriseCapa(item.finding_id);
+        setCapaSuccess(
+          `CAPA opened: ${capa.capa_number} (${capa.capa_status})`
+        );
+      }
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Unknown human review error");
     } finally {
       setReviewing("");
+      setOpeningCapa(false);
     }
   }
 
@@ -351,12 +363,16 @@ function GovernancePacketPreview({
             disabled={Boolean(reviewing)}
             style={reviewButtonStyle("#7e22ce", reviewing === "open_capa")}
           >
-            {reviewing === "open_capa" ? "Saving..." : "Open CAPA"}
+            {reviewing === "open_capa" || openingCapa ? "Opening CAPA..." : "Open CAPA"}
           </button>
         </div>
 
         {reviewSuccess ? (
           <div style={reviewSuccessStyle}>{reviewSuccess}</div>
+        ) : null}
+
+        {capaSuccess ? (
+          <div style={capaSuccessStyle}>{capaSuccess}</div>
         ) : null}
       </div>
 
@@ -617,6 +633,16 @@ function reviewButtonStyle(background: string, active: boolean): CSSProperties {
   };
 }
 
+
+const capaSuccessStyle: CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#f3e8ff",
+  color: "#6b21a8",
+  fontWeight: 800,
+};
+
 const reviewSuccessStyle: CSSProperties = {
   marginTop: "10px",
   padding: "10px",
@@ -637,6 +663,41 @@ const packetFooterStyle: CSSProperties = {
   border: "1px solid #bbf7d0",
 };
 
+
+
+
+async function openEnterpriseCapa(findingId: number) {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/capa`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "operator",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+      body: JSON.stringify({
+        title: "CAPA - Frazier suction retained debris concern",
+        description:
+          "CAPA opened due to confirmed high-risk retained debris finding during borescope inspection.",
+        owner_id: null,
+        due_date: "2026-06-30",
+        status: "open",
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `CAPA creation failed (${response.status})`);
+  }
+
+  return data;
+}
 
 
 async function submitHumanReview(
