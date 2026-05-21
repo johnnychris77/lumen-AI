@@ -1,6 +1,8 @@
+import shutil
+import os
 from datetime import datetime, timezone
 import json
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -34,6 +36,9 @@ from app.schemas.enterprise_intake import (
     EnterpriseCapaStatusUpdateRequest,
     EnterpriseCapaStatusUpdateResponse,
     EnterpriseCapaSummaryResponse,
+    EnterpriseEvidenceUploadResponse,
+    EnterpriseEvidenceListItem,
+    EnterpriseEvidenceListResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -1016,5 +1021,115 @@ def get_enterprise_capa_summary(
         average_days_open=average_days_open,
         closure_rate=closure_rate,
         risk_message=risk_message,
+    )
+
+
+@router.post("/intake/{finding_id}/evidence", response_model=EnterpriseEvidenceUploadResponse)
+def upload_enterprise_evidence(
+    finding_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    evidence_type: str = Form(default="borescope_image"),
+    notes: str = Form(default=""),
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    safe_file_name = os.path.basename(file.filename or "evidence.bin")
+    evidence_dir = os.environ.get("LUMENAI_EVIDENCE_DIR", "./evidence")
+    finding_dir = os.path.join(evidence_dir, f"finding_{finding.id}")
+    os.makedirs(finding_dir, exist_ok=True)
+
+    storage_path = os.path.join(finding_dir, safe_file_name)
+
+    with open(storage_path, "wb") as output:
+        shutil.copyfileobj(file.file, output)
+
+    evidence = EnterpriseEvidence(
+        tenant_id=finding.tenant_id,
+        inspection_id=finding.inspection_id,
+        finding_id=finding.id,
+        evidence_type=evidence_type,
+        file_name=safe_file_name,
+        storage_uri=storage_path,
+        content_type=file.content_type or "",
+        notes=notes,
+    )
+
+    db.add(evidence)
+    db.flush()
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="enterprise_evidence_uploaded",
+        resource_type="enterprise_evidence",
+        resource_id=str(evidence.id),
+        details={
+            "finding_id": finding.id,
+            "evidence_id": evidence.id,
+            "evidence_type": evidence.evidence_type,
+            "file_name": evidence.file_name,
+            "storage_uri": evidence.storage_uri,
+            "content_type": evidence.content_type,
+            "notes": evidence.notes,
+            "workflow_status": "evidence_attached",
+        },
+    )
+
+    db.commit()
+
+    return EnterpriseEvidenceUploadResponse(
+        status="success",
+        message="Enterprise evidence uploaded and attached to finding.",
+        finding_id=finding.id,
+        evidence_id=evidence.id,
+        evidence_type=evidence.evidence_type,
+        file_name=evidence.file_name,
+        storage_uri=evidence.storage_uri,
+        workflow_status="evidence_attached",
+    )
+
+
+@router.get("/intake/{finding_id}/evidence", response_model=EnterpriseEvidenceListResponse)
+def list_enterprise_evidence(
+    finding_id: int,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    rows = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.finding_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .all()
+    )
+
+    return EnterpriseEvidenceListResponse(
+        items=[
+            EnterpriseEvidenceListItem(
+                evidence_id=row.id,
+                finding_id=row.finding_id,
+                evidence_type=row.evidence_type,
+                file_name=row.file_name,
+                storage_uri=row.storage_uri,
+                content_type=row.content_type or "",
+                notes=row.notes or "",
+                created_at=row.created_at.isoformat() if row.created_at else "",
+            )
+            for row in rows
+        ]
     )
 

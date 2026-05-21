@@ -232,3 +232,29 @@ class EnterpriseCapaSummaryResponse(BaseModel):
     average_days_open: float
     closure_rate: float
     risk_message: str
+
+
+class EnterpriseEvidenceUploadResponse(BaseModel):
+    status: str
+    message: str
+    finding_id: int
+    evidence_id: int
+    evidence_type: str
+    file_name: str
+    storage_uri: str
+    workflow_status: str
+
+
+class EnterpriseEvidenceListItem(BaseModel):
+    evidence_id: int
+    finding_id: int | None = None
+    evidence_type: str
+    file_name: str
+    storage_uri: str
+    content_type: str = ""
+    notes: str = ""
+    created_at: str = ""
+
+
+class EnterpriseEvidenceListResponse(BaseModel):
+    items: list[EnterpriseEvidenceListItem]
