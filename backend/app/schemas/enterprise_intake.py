@@ -61,6 +61,16 @@ class EnterpriseIntakeHistoryResponse(BaseModel):
     items: list[EnterpriseIntakeHistoryItem]
 
 
+class EnterpriseGovernanceEvidenceItem(BaseModel):
+    evidence_id: int
+    evidence_type: str
+    file_name: str
+    storage_uri: str
+    content_type: str = ""
+    notes: str = ""
+    created_at: str = ""
+
+
 class EnterpriseGovernancePacketResponse(BaseModel):
     packet_type: str
     title: str
@@ -82,6 +92,7 @@ class EnterpriseGovernancePacketResponse(BaseModel):
     human_confirmed: bool = False
     evidence_to_action_chain: list[str]
     audit_readiness: dict[str, str | int | None]
+    evidence_attachments: list[EnterpriseGovernanceEvidenceItem] = Field(default_factory=list)
 
 
 class EnterpriseAuditTrailItem(BaseModel):
@@ -258,3 +269,4 @@ class EnterpriseEvidenceListItem(BaseModel):
 
 class EnterpriseEvidenceListResponse(BaseModel):
     items: list[EnterpriseEvidenceListItem]
+

@@ -25,6 +25,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseIntakeHistoryItem,
     EnterpriseIntakeHistoryResponse,
     EnterpriseGovernancePacketResponse,
+    EnterpriseGovernanceEvidenceItem,
     EnterpriseAuditTrailItem,
     EnterpriseAuditTrailResponse,
     EnterpriseHumanReviewRequest,
@@ -186,8 +187,7 @@ def create_enterprise_intake(
 
     risk_score = EnterpriseRiskScore(
         tenant_id=payload.tenant_id,
-        inspection_id=None,
-        finding_id=finding.id,
+        inspection_id=finding.id,
         patient_safety_score=patient_safety_score,
         regulatory_score=regulatory_score,
         operational_score=operational_score,
@@ -200,8 +200,7 @@ def create_enterprise_intake(
 
     disposition = EnterpriseDisposition(
         tenant_id=payload.tenant_id,
-        inspection_id=None,
-        finding_id=finding.id,
+        inspection_id=finding.id,
         recommended_action=payload.recommended_action,
         final_action="Pending human review",
         status="recommended",
@@ -244,7 +243,7 @@ def create_enterprise_intake(
         vendor_id=vendor.id,
         instrument_id=instrument.id,
         evidence_id=evidence.id if evidence else None,
-        finding_id=finding.id,
+        inspection_id=finding.id,
         risk_score_id=risk_score.id,
         disposition_id=disposition.id,
         workflow_status="created_pending_human_review",
@@ -287,7 +286,7 @@ def list_enterprise_intake_history(
 
         items.append(
             EnterpriseIntakeHistoryItem(
-                finding_id=finding.id,
+                inspection_id=finding.id,
                 vendor_id=finding.vendor_id,
                 instrument_id=finding.instrument_id,
                 risk_score_id=risk_score.id if risk_score else None,
@@ -343,6 +342,13 @@ def get_enterprise_governance_packet(
         .first()
     )
 
+    evidence_rows = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .all()
+    )
+
     vendor_name = vendor.name if vendor else ""
     instrument_name = instrument.name if instrument else ""
     instrument_category = instrument.category if instrument else ""
@@ -389,6 +395,7 @@ def get_enterprise_governance_packet(
         title=title,
         summary=summary,
         finding_id=finding.id,
+        inspection_id=finding.id,
         vendor_name=vendor_name,
         instrument_name=instrument_name,
         instrument_category=instrument_category,
@@ -420,6 +427,18 @@ def get_enterprise_governance_packet(
             "disposition_id": disposition.id if disposition else None,
             "created_at": finding.created_at.isoformat() if finding.created_at else "",
         },
+        evidence_attachments=[
+            EnterpriseGovernanceEvidenceItem(
+                evidence_id=row.id,
+                evidence_type=row.evidence_type,
+                file_name=row.file_name,
+                storage_uri=row.storage_key or row.file_url or "",
+                content_type=row.mime_type or "",
+                notes="",
+                created_at=row.created_at.isoformat() if row.created_at else "",
+            )
+            for row in evidence_rows
+        ],
     )
 
 
@@ -457,6 +476,13 @@ def get_enterprise_governance_packet_pdf(
         .filter(EnterpriseDisposition.finding_id == finding.id)
         .order_by(EnterpriseDisposition.id.desc())
         .first()
+    )
+
+    evidence_rows = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .all()
     )
 
     vendor_name = vendor.name if vendor else ""
@@ -553,6 +579,37 @@ def get_enterprise_governance_packet_pdf(
 
     for step in chain:
         story.append(Paragraph(f"• {step}", styles["BodyText"]))
+
+    story.append(Spacer(1, 18))
+
+    story.append(Paragraph("Evidence Attachments", styles["Heading3"]))
+
+    if evidence_rows:
+        evidence_data = [["Evidence ID", "Type", "File Name", "Notes"]]
+        for row in evidence_rows:
+            evidence_data.append([
+                str(row.id),
+                row.evidence_type or "—",
+                row.file_name or "—",
+                "—",
+            ])
+
+        evidence_table = Table(evidence_data, colWidths=[80, 120, 150, 150])
+        evidence_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DBEAFE")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ]
+            )
+        )
+        story.append(evidence_table)
+    else:
+        story.append(Paragraph("No evidence attachments are linked to this finding.", styles["BodyText"]))
 
     story.append(Spacer(1, 18))
 
@@ -738,7 +795,7 @@ def review_enterprise_finding(
     return EnterpriseHumanReviewResponse(
         status="success",
         message="Enterprise finding human review completed.",
-        finding_id=finding.id,
+        inspection_id=finding.id,
         decision=decision,
         reviewer_name=payload.reviewer_name,
         reviewer_role=payload.reviewer_role,
@@ -781,7 +838,7 @@ def create_enterprise_capa(
         return EnterpriseCapaCreateResponse(
             status="success",
             message="Existing CAPA found for this finding.",
-            finding_id=finding.id,
+            inspection_id=finding.id,
             capa_id=existing.id,
             capa_number=existing.capa_number,
             capa_status=existing.status,
@@ -790,8 +847,7 @@ def create_enterprise_capa(
 
     capa = EnterpriseCapa(
         tenant_id=finding.tenant_id,
-        inspection_id=finding.inspection_id,
-        finding_id=finding.id,
+        inspection_id=finding.id,
         vendor_id=finding.vendor_id,
         capa_number=capa_number,
         title=payload.title,
@@ -840,7 +896,7 @@ def create_enterprise_capa(
     return EnterpriseCapaCreateResponse(
         status="success",
         message="Enterprise CAPA opened.",
-        finding_id=finding.id,
+        inspection_id=finding.id,
         capa_id=capa.id,
         capa_number=capa.capa_number,
         capa_status=capa.status,
@@ -866,7 +922,7 @@ def list_enterprise_capas(
         items=[
             EnterpriseCapaListItem(
                 capa_id=row.id,
-                finding_id=row.finding_id,
+                finding_id=row.inspection_id,
                 vendor_id=row.vendor_id,
                 capa_number=row.capa_number,
                 title=row.title,
@@ -1052,13 +1108,13 @@ def upload_enterprise_evidence(
 
     evidence = EnterpriseEvidence(
         tenant_id=finding.tenant_id,
-        inspection_id=finding.inspection_id,
-        finding_id=finding.id,
+        inspection_id=finding.id,
         evidence_type=evidence_type,
         file_name=safe_file_name,
-        storage_uri=storage_path,
-        content_type=file.content_type or "",
-        notes=notes,
+        file_url=storage_path,
+        storage_key=storage_path,
+        mime_type=file.content_type or "",
+        
     )
 
     db.add(evidence)
@@ -1077,9 +1133,9 @@ def upload_enterprise_evidence(
             "evidence_id": evidence.id,
             "evidence_type": evidence.evidence_type,
             "file_name": evidence.file_name,
-            "storage_uri": evidence.storage_uri,
-            "content_type": evidence.content_type,
-            "notes": evidence.notes,
+            "storage_uri": evidence.storage_key or evidence.file_url,
+            "content_type": evidence.mime_type,
+            "notes": notes,
             "workflow_status": "evidence_attached",
         },
     )
@@ -1089,11 +1145,11 @@ def upload_enterprise_evidence(
     return EnterpriseEvidenceUploadResponse(
         status="success",
         message="Enterprise evidence uploaded and attached to finding.",
-        finding_id=finding.id,
+        inspection_id=finding.id,
         evidence_id=evidence.id,
         evidence_type=evidence.evidence_type,
         file_name=evidence.file_name,
-        storage_uri=evidence.storage_uri,
+        storage_uri=evidence.storage_key or evidence.file_url,
         workflow_status="evidence_attached",
     )
 
@@ -1112,7 +1168,7 @@ def list_enterprise_evidence(
 
     rows = (
         db.query(EnterpriseEvidence)
-        .filter(EnterpriseEvidence.finding_id == finding.id)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
     )
@@ -1121,12 +1177,12 @@ def list_enterprise_evidence(
         items=[
             EnterpriseEvidenceListItem(
                 evidence_id=row.id,
-                finding_id=row.finding_id,
+                finding_id=row.inspection_id,
                 evidence_type=row.evidence_type,
                 file_name=row.file_name,
-                storage_uri=row.storage_uri,
-                content_type=row.content_type or "",
-                notes=row.notes or "",
+                storage_uri=row.storage_key or row.file_url or "",
+                content_type=row.mime_type or "",
+                notes="",
                 created_at=row.created_at.isoformat() if row.created_at else "",
             )
             for row in rows
