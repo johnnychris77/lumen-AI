@@ -1104,7 +1104,7 @@ def upload_enterprise_evidence(
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
     safe_file_name = os.path.basename(file.filename or "evidence.bin")
-    evidence_dir = os.environ.get("LUMENAI_EVIDENCE_DIR", "./evidence")
+    evidence_dir = os.environ.get("LUMENAI_EVIDENCE_DIR", "/tmp/evidence")
     finding_dir = os.path.join(evidence_dir, f"finding_{finding.id}")
     os.makedirs(finding_dir, exist_ok=True)
 
@@ -1269,7 +1269,7 @@ def upload_instrument_baseline(
         raise HTTPException(status_code=404, detail="Enterprise instrument not found")
 
     safe_file_name = os.path.basename(file.filename or "baseline.bin")
-    baseline_dir = os.environ.get("LUMENAI_BASELINE_DIR", "./baselines")
+    baseline_dir = os.environ.get("LUMENAI_BASELINE_DIR", "/tmp/baselines")
     instrument_dir = os.path.join(baseline_dir, f"instrument_{instrument.id}")
     os.makedirs(instrument_dir, exist_ok=True)
 
