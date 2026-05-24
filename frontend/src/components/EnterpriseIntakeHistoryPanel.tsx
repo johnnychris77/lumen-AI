@@ -415,6 +415,15 @@ function GovernancePacketPreview({
                 </span>
                 <span>{evidence.notes || "No notes"}</span>
                 <span>Evidence ID: #{evidence.evidence_id}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadEvidenceAttachment(evidence.evidence_id, evidence.file_name)
+                  }
+                  style={evidenceDownloadButtonStyle}
+                >
+                  Download Evidence
+                </button>
               </div>
             ))}
           </div>
@@ -806,6 +815,19 @@ const evidenceItemStyle: CSSProperties = {
   color: "#334155",
 };
 
+
+const evidenceDownloadButtonStyle: CSSProperties = {
+  width: "fit-content",
+  marginTop: "6px",
+  border: "1px solid #bae6fd",
+  borderRadius: "10px",
+  padding: "8px 10px",
+  background: "#f0f9ff",
+  color: "#0369a1",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
 const evidenceEmptyStyle: CSSProperties = {
   marginTop: "10px",
   padding: "10px",
@@ -1120,6 +1142,41 @@ async function downloadGovernancePacketPdf(findingId: number) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+
+
+function downloadEvidenceAttachment(evidenceId: number, fileName: string) {
+  const url = `${API_BASE}/api/enterprise/evidence/${evidenceId}/download`;
+
+  fetch(url, {
+    headers: {
+      Authorization: `Bearer ${AUTH_TOKEN}`,
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+      "X-Tenant-Id": "bonsecours",
+      "X-Tenant-Name": "Bon Secours",
+    },
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Evidence download failed (${response.status})`);
+      }
+      return response.blob();
+    })
+    .then((blob) => {
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName || `evidence-${evidenceId}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    })
+    .catch((err) => {
+      alert(err instanceof Error ? err.message : "Unknown evidence download error");
+    });
 }
 
 

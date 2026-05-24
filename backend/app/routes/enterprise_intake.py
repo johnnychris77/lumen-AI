@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 import json
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
@@ -1188,5 +1188,53 @@ def list_enterprise_evidence(
             )
             for row in rows
         ]
+    )
+
+
+@router.get("/evidence/{evidence_id}/download")
+def download_enterprise_evidence(
+    evidence_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    evidence = db.get(EnterpriseEvidence, evidence_id)
+
+    if not evidence:
+        raise HTTPException(status_code=404, detail="Enterprise evidence not found")
+
+    storage_path = evidence.storage_key or evidence.file_url
+
+    if not storage_path:
+        raise HTTPException(status_code=404, detail="Evidence file path not found")
+
+    if not os.path.exists(storage_path):
+        raise HTTPException(status_code=404, detail="Evidence file not found on storage")
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=evidence.tenant_id,
+        tenant_name="",
+        action_type="enterprise_evidence_downloaded",
+        resource_type="enterprise_evidence",
+        resource_id=str(evidence.id),
+        details={
+            "evidence_id": evidence.id,
+            "inspection_id": evidence.inspection_id,
+            "file_name": evidence.file_name,
+            "storage_uri": storage_path,
+            "mime_type": evidence.mime_type,
+            "workflow_status": "evidence_downloaded",
+        },
+    )
+
+    db.commit()
+
+    return FileResponse(
+        path=storage_path,
+        media_type=evidence.mime_type or "application/octet-stream",
+        filename=evidence.file_name or f"evidence-{evidence.id}",
     )
 
