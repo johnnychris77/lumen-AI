@@ -327,3 +327,22 @@ class EnterpriseBaselineComparisonResponse(BaseModel):
     vendor_management_signal: str
     recommended_action: str
     workflow_status: str
+
+
+class EnterpriseBaselineApprovalRequest(BaseModel):
+    reviewer_name: str = "Baseline Reviewer"
+    reviewer_role: str = "quality_reviewer"
+    decision: str
+    review_notes: str = ""
+
+
+class EnterpriseBaselineApprovalResponse(BaseModel):
+    status: str
+    message: str
+    baseline_id: int
+    instrument_id: int
+    vendor_id: int | None = None
+    baseline_status: str
+    approved_by: str = ""
+    approved_at: str = ""
+    workflow_status: str

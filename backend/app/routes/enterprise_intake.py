@@ -45,6 +45,8 @@ from app.schemas.enterprise_intake import (
     EnterpriseInstrumentBaselineItem,
     EnterpriseInstrumentBaselineListResponse,
     EnterpriseBaselineComparisonResponse,
+    EnterpriseBaselineApprovalRequest,
+    EnterpriseBaselineApprovalResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -1306,6 +1308,7 @@ def upload_instrument_baseline(
         resource_id=str(baseline.id),
         details={
             "baseline_id": baseline.id,
+            "baseline_trust_status": baseline_trust_status,
             "instrument_id": instrument.id,
             "vendor_id": instrument.vendor_id,
             "manufacturer_name": baseline.manufacturer_name,
@@ -1445,10 +1448,24 @@ def compare_finding_to_manufacturer_baseline(
 
     baseline = (
         db.query(EnterpriseInstrumentBaseline)
-        .filter(EnterpriseInstrumentBaseline.instrument_id == instrument.id)
+        .filter(
+            EnterpriseInstrumentBaseline.instrument_id == instrument.id,
+            EnterpriseInstrumentBaseline.baseline_status == "approved",
+        )
         .order_by(EnterpriseInstrumentBaseline.id.desc())
         .first()
     )
+
+    baseline_trust_status = "approved"
+
+    if not baseline:
+        baseline = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == instrument.id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .first()
+        )
+        baseline_trust_status = baseline.baseline_status if baseline else "missing"
 
     if not baseline:
         raise HTTPException(
@@ -1580,5 +1597,85 @@ def compare_finding_to_manufacturer_baseline(
         vendor_management_signal=vendor_signal,
         recommended_action=recommended_action,
         workflow_status="baseline_comparison_completed",
+    )
+
+
+@router.post("/baselines/{baseline_id}/review", response_model=EnterpriseBaselineApprovalResponse)
+def review_manufacturer_baseline(
+    baseline_id: int,
+    payload: EnterpriseBaselineApprovalRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    baseline = db.get(EnterpriseInstrumentBaseline, baseline_id)
+
+    if not baseline:
+        raise HTTPException(status_code=404, detail="Manufacturer baseline not found")
+
+    decision = (payload.decision or "").strip().lower()
+
+    if decision not in {"approve", "reject", "request_more_evidence"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Decision must be approve, reject, or request_more_evidence",
+        )
+
+    if decision == "approve":
+        baseline.baseline_status = "approved"
+        baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
+        baseline.approved_at = datetime.utcnow()
+        workflow_status = "baseline_approved"
+        message = "Manufacturer baseline approved as trusted reference."
+    elif decision == "reject":
+        baseline.baseline_status = "rejected"
+        baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
+        baseline.approved_at = datetime.utcnow()
+        workflow_status = "baseline_rejected"
+        message = "Manufacturer baseline rejected and will not be used as trusted reference."
+    else:
+        baseline.baseline_status = "more_evidence_requested"
+        baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
+        baseline.approved_at = datetime.utcnow()
+        workflow_status = "baseline_more_evidence_requested"
+        message = "More evidence requested before baseline approval."
+
+    baseline.updated_at = datetime.utcnow()
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=baseline.tenant_id,
+        tenant_name="",
+        action_type=workflow_status,
+        resource_type="enterprise_instrument_baseline",
+        resource_id=str(baseline.id),
+        details={
+            "baseline_id": baseline.id,
+            "instrument_id": baseline.instrument_id,
+            "vendor_id": baseline.vendor_id,
+            "baseline_status": baseline.baseline_status,
+            "reviewer_name": payload.reviewer_name,
+            "reviewer_role": payload.reviewer_role,
+            "decision": decision,
+            "review_notes": payload.review_notes,
+            "workflow_status": workflow_status,
+        },
+    )
+
+    db.commit()
+    db.refresh(baseline)
+
+    return EnterpriseBaselineApprovalResponse(
+        status="success",
+        message=message,
+        baseline_id=baseline.id,
+        instrument_id=baseline.instrument_id,
+        vendor_id=baseline.vendor_id,
+        baseline_status=baseline.baseline_status,
+        approved_by=baseline.approved_by or "",
+        approved_at=baseline.approved_at.isoformat() if baseline.approved_at else "",
+        workflow_status=workflow_status,
     )
 
