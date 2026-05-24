@@ -400,12 +400,25 @@ def get_enterprise_governance_packet(
     )
     db.commit()
 
-    baseline_rows = (
-        db.query(EnterpriseInstrumentBaseline)
-        .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
-        .order_by(EnterpriseInstrumentBaseline.id.desc())
-        .all()
-    )
+    baseline_instrument_id = getattr(finding, "instrument_id", None)
+    baseline_vendor_id = getattr(finding, "vendor_id", None)
+
+    baseline_rows = []
+    if baseline_instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == baseline_instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and baseline_vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == baseline_vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
 
     baseline_evidence_items = [
         {
