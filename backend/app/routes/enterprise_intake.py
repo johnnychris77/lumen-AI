@@ -1667,21 +1667,6 @@ def review_manufacturer_baseline(
     )
 
     # Explicit fallback insert so baseline approval decisions always appear in audit trail.
-    db.add(
-        EnterpriseAuditTrail(
-            tenant_id=baseline.tenant_id,
-            actor_email=request.headers.get("X-LumenAI-Actor", "unknown"),
-            actor_role=request.headers.get("X-LumenAI-Role", "unknown"),
-            action_type=workflow_status,
-            resource_type="enterprise_instrument_baseline",
-            resource_id=str(baseline.id),
-            status="success",
-            request_method=request.method,
-            request_path=str(request.url.path),
-            details=json.dumps(audit_details),
-            compliance_flag=True,
-        )
-    )
 
     db.commit()
     db.refresh(baseline)
