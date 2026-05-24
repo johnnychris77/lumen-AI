@@ -499,6 +499,9 @@ def get_enterprise_governance_packet(
             "risk_score_id": risk_score.id if risk_score else None,
             "disposition_id": disposition.id if disposition else None,
             "created_at": finding.created_at.isoformat() if finding.created_at else "",
+            "baseline_lookup_instrument_id": baseline_instrument_id,
+            "baseline_lookup_vendor_id": baseline_vendor_id,
+            "baseline_evidence_count": len(baseline_evidence_items),
         },
         evidence_attachments=[
             EnterpriseGovernanceEvidenceItem(
@@ -512,6 +515,7 @@ def get_enterprise_governance_packet(
             )
             for row in evidence_rows
         ],
+        baseline_evidence=baseline_evidence_items,
     )
 
 
