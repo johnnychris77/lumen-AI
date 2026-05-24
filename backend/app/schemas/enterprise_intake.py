@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class EnterpriseInspectionIntakeRequest(BaseModel):
@@ -273,6 +273,7 @@ class EnterpriseEvidenceListResponse(BaseModel):
 
 
 class EnterpriseInstrumentBaselineCreateResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     status: str
     message: str
     baseline_id: int
@@ -289,6 +290,7 @@ class EnterpriseInstrumentBaselineCreateResponse(BaseModel):
 
 
 class EnterpriseInstrumentBaselineItem(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     baseline_id: int
     instrument_id: int
     vendor_id: int | None = None
