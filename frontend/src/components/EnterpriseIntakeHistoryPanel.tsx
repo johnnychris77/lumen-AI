@@ -1,6 +1,22 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
+type BaselineComparisonResult = {
+  status: string;
+  message: string;
+  finding_id: number;
+  instrument_id?: number | null;
+  vendor_id?: number | null;
+  baseline_id?: number | null;
+  evidence_id?: number | null;
+  comparison_score: number;
+  deviation_level: string;
+  baseline_alignment: string;
+  vendor_management_signal: string;
+  recommended_action: string;
+  workflow_status: string;
+};
+
 type EvidenceItem = {
   evidence_id: number;
   finding_id?: number | null;
@@ -187,6 +203,8 @@ function GovernancePacketPreview({
   const [reviewing, setReviewing] = useState("");
   const [openingCapa, setOpeningCapa] = useState(false);
   const [evidenceUploading, setEvidenceUploading] = useState(false);
+  const [comparisonRunning, setComparisonRunning] = useState(false);
+  const [comparisonResult, setComparisonResult] = useState<BaselineComparisonResult | null>(null);
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
   const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<File | null>(null);
   const [evidenceNotes, setEvidenceNotes] = useState("Demo evidence attached to enterprise finding.");
@@ -291,6 +309,21 @@ function GovernancePacketPreview({
       setExportError(err instanceof Error ? err.message : "Unknown evidence upload error");
     } finally {
       setEvidenceUploading(false);
+    }
+  }
+
+  async function handleRunBaselineComparison() {
+    setComparisonRunning(true);
+    setExportError("");
+    setComparisonResult(null);
+
+    try {
+      const result = await runBaselineComparison(item.finding_id);
+      setComparisonResult(result);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Unknown baseline comparison error");
+    } finally {
+      setComparisonRunning(false);
     }
   }
 
@@ -432,6 +465,60 @@ function GovernancePacketPreview({
             No evidence loaded yet. Upload evidence or refresh this section.
           </div>
         )}
+      </div>
+
+      <div style={packetSectionStyle}>
+        <h4 style={packetHeadingStyle}>Baseline Comparison Scorecard</h4>
+        <p style={packetTextStyle}>
+          Compare the current inspection finding against the manufacturer baseline profile
+          to reduce false positives and strengthen vendor-quality scoring.
+        </p>
+
+        <button
+          type="button"
+          onClick={handleRunBaselineComparison}
+          disabled={comparisonRunning}
+          style={baselineCompareButtonStyle(comparisonRunning)}
+        >
+          {comparisonRunning ? "Running Comparison..." : "Run Baseline Comparison"}
+        </button>
+
+        {comparisonResult ? (
+          <div style={comparisonScorecardStyle}>
+            <div style={comparisonScoreCircleStyle(comparisonResult.comparison_score)}>
+              {comparisonResult.comparison_score}
+            </div>
+
+            <div style={comparisonDetailGridStyle}>
+              <InfoCard
+                label="Deviation Level"
+                value={formatWorkflowLabel(comparisonResult.deviation_level)}
+              />
+              <InfoCard
+                label="Baseline Alignment"
+                value={formatWorkflowLabel(comparisonResult.baseline_alignment)}
+              />
+              <InfoCard
+                label="Baseline ID"
+                value={`#${comparisonResult.baseline_id ?? "—"}`}
+              />
+              <InfoCard
+                label="Evidence ID"
+                value={`#${comparisonResult.evidence_id ?? "—"}`}
+              />
+            </div>
+
+            <div style={comparisonMessageStyle}>
+              <strong>Vendor Management Signal:</strong>{" "}
+              {comparisonResult.vendor_management_signal}
+            </div>
+
+            <div style={comparisonActionStyle}>
+              <strong>Recommended Action:</strong>{" "}
+              {comparisonResult.recommended_action}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div style={packetSectionStyle}>
@@ -746,6 +833,74 @@ const auditGridStyle: CSSProperties = {
 
 
 
+
+function baselineCompareButtonStyle(active: boolean): CSSProperties {
+  return {
+    marginTop: "10px",
+    border: "0",
+    borderRadius: "12px",
+    padding: "11px 14px",
+    background: active ? "#94a3b8" : "#0f766e",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: active ? "not-allowed" : "pointer",
+    boxShadow: "0 10px 18px rgba(15, 118, 110, 0.18)",
+  };
+}
+
+const comparisonScorecardStyle: CSSProperties = {
+  display: "grid",
+  gap: "12px",
+  marginTop: "14px",
+  padding: "14px",
+  borderRadius: "16px",
+  border: "1px solid #99f6e4",
+  background: "linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%)",
+};
+
+function comparisonScoreCircleStyle(score: number): CSSProperties {
+  const risky = score >= 80;
+  const moderate = score >= 55 && score < 80;
+
+  return {
+    width: "86px",
+    height: "86px",
+    borderRadius: "999px",
+    display: "grid",
+    placeItems: "center",
+    fontSize: "30px",
+    fontWeight: 950,
+    color: "#ffffff",
+    background: risky ? "#991b1b" : moderate ? "#a16207" : "#166534",
+    boxShadow: "0 12px 24px rgba(15, 23, 42, 0.18)",
+  };
+}
+
+const comparisonDetailGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+};
+
+const comparisonMessageStyle: CSSProperties = {
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#ecfeff",
+  color: "#155e75",
+  border: "1px solid #a5f3fc",
+  lineHeight: 1.6,
+};
+
+const comparisonActionStyle: CSSProperties = {
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#fff7ed",
+  color: "#9a3412",
+  border: "1px solid #fed7aa",
+  lineHeight: 1.6,
+};
+
+
 const evidenceUploadRowStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "minmax(220px, 1fr) minmax(260px, 2fr) auto auto",
@@ -924,6 +1079,32 @@ async function openEnterpriseCapa(findingId: number) {
   return data;
 }
 
+
+
+
+async function runBaselineComparison(findingId: number) {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/baseline-comparison`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+        "X-LumenAI-Role": "operator",
+        "X-LumenAI-Actor": "john-demo",
+        "X-Tenant-Id": "bonsecours",
+        "X-Tenant-Name": "Bon Secours",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Baseline comparison failed (${response.status})`);
+  }
+
+  return data;
+}
 
 
 async function uploadEnterpriseEvidence(
@@ -1177,6 +1358,16 @@ function downloadEvidenceAttachment(evidenceId: number, fileName: string) {
     .catch((err) => {
       alert(err instanceof Error ? err.message : "Unknown evidence download error");
     });
+}
+
+
+
+function formatWorkflowLabel(value?: string) {
+  if (!value) return "—";
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 
