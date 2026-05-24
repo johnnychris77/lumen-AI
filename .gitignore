@@ -55,3 +55,8 @@ generated_portfolio_briefings/
 generated_governance_packets/
 backend/.env
 .pytest_cache/
+
+# Local runtime evidence/test artifacts
+evidence/
+tmp/
+baselines/
