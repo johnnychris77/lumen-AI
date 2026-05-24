@@ -13,6 +13,18 @@ type RecentInstrumentOption = {
   created_at?: string;
 };
 
+type BaselineApprovalResult = {
+  status: string;
+  message: string;
+  baseline_id: number;
+  instrument_id: number;
+  vendor_id?: number | null;
+  baseline_status: string;
+  approved_by?: string;
+  approved_at?: string;
+  workflow_status: string;
+};
+
 type BaselineItem = {
   baseline_id: number;
   instrument_id: number;
@@ -36,6 +48,40 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
 
 const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
+
+
+async function reviewManufacturerBaseline(
+  baselineId: number,
+  decision: "approve" | "reject" | "request_more_evidence",
+  reviewNotes: string
+): Promise<BaselineApprovalResult> {
+  const response = await fetch(`${API_BASE}/api/enterprise/baselines/${baselineId}/review`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${AUTH_TOKEN}`,
+      "X-LumenAI-Role": "operator",
+      "X-LumenAI-Actor": "john-demo",
+      "X-Tenant-Id": "bonsecours",
+      "X-Tenant-Name": "Bon Secours",
+    },
+    body: JSON.stringify({
+      reviewer_name: "Quality Reviewer",
+      reviewer_role: "quality_reviewer",
+      decision,
+      review_notes: reviewNotes,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Baseline review failed (${response.status})`);
+  }
+
+  return data;
+}
+
 
 export default function ManufacturerBaselinePanel() {
   const [instrumentId, setInstrumentId] = useState("1");
@@ -438,7 +484,7 @@ export default function ManufacturerBaselinePanel() {
         </div>
       )}
 
-      {selected ? <BaselineDetail item={selected} /> : null}
+      {selected ? <BaselineDetail item={selected} onReviewed={loadBaselines} /> : null}
     </section>
   );
 }
@@ -452,7 +498,45 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function BaselineDetail({ item }: { item: BaselineItem }) {
+function BaselineDetail({
+  item,
+  onReviewed,
+}: {
+  item: BaselineItem;
+  onReviewed: () => Promise<void>;
+}) {
+  const [reviewing, setReviewing] = useState("");
+  const [reviewNotes, setReviewNotes] = useState(
+    "Baseline reviewed as manufacturer reference for comparison scoring."
+  );
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewError, setReviewError] = useState("");
+
+  async function handleReview(
+    decision: "approve" | "reject" | "request_more_evidence"
+  ) {
+    setReviewing(decision);
+    setReviewMessage("");
+    setReviewError("");
+
+    try {
+      const result = await reviewManufacturerBaseline(
+        item.baseline_id,
+        decision,
+        reviewNotes
+      );
+
+      setReviewMessage(
+        `${formatLabel(result.baseline_status)}: ${result.message}`
+      );
+
+      await onReviewed();
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "Unknown baseline review error");
+    } finally {
+      setReviewing("");
+    }
+  }
   return (
     <div style={detailPanelStyle}>
       <div style={eyebrowStyle}>Baseline Detail</div>
@@ -488,6 +572,53 @@ function BaselineDetail({ item }: { item: BaselineItem }) {
           This baseline helps LumenAI compare current inspection evidence against known manufacturer appearance,
           reducing false-positive rust/corrosion findings and strengthening vendor-quality scoring.
         </p>
+      </div>
+
+      <div style={approvalPanelStyle}>
+        <h4 style={sectionHeadingStyle}>Baseline Review Decision</h4>
+        <p style={paragraphStyle}>
+          Approve this baseline only after confirming it represents a trusted manufacturer or new-condition reference.
+        </p>
+
+        <textarea
+          value={reviewNotes}
+          onChange={(event) => setReviewNotes(event.target.value)}
+          style={reviewTextareaStyle}
+        />
+
+        <div style={approvalButtonRowStyle}>
+          <button
+            type="button"
+            onClick={() => handleReview("approve")}
+            disabled={Boolean(reviewing)}
+            style={approveButtonStyle(Boolean(reviewing))}
+          >
+            {reviewing === "approve" ? "Approving..." : "Approve Baseline"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleReview("request_more_evidence")}
+            disabled={Boolean(reviewing)}
+            style={moreEvidenceButtonStyle(Boolean(reviewing))}
+          >
+            {reviewing === "request_more_evidence"
+              ? "Requesting..."
+              : "Request More Evidence"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleReview("reject")}
+            disabled={Boolean(reviewing)}
+            style={rejectButtonStyle(Boolean(reviewing))}
+          >
+            {reviewing === "reject" ? "Rejecting..." : "Reject Baseline"}
+          </button>
+        </div>
+
+        {reviewMessage ? <div style={reviewSuccessStyle}>{reviewMessage}</div> : null}
+        {reviewError ? <div style={reviewErrorStyle}>{reviewError}</div> : null}
       </div>
 
       <div style={footerStyle}>
@@ -760,6 +891,89 @@ const paragraphStyle: CSSProperties = {
   margin: 0,
   color: "#475569",
   lineHeight: 1.65,
+};
+
+
+const approvalPanelStyle: CSSProperties = {
+  marginTop: "16px",
+  padding: "14px",
+  borderRadius: "16px",
+  border: "1px solid #bfdbfe",
+  background: "linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)",
+};
+
+const reviewTextareaStyle: CSSProperties = {
+  width: "100%",
+  minHeight: "72px",
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #cbd5e1",
+  background: "#ffffff",
+  resize: "vertical",
+};
+
+const approvalButtonRowStyle: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "12px",
+};
+
+function approveButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "10px 14px",
+    background: disabled ? "#94a3b8" : "#166534",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+
+function moreEvidenceButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "10px 14px",
+    background: disabled ? "#94a3b8" : "#a16207",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+
+function rejectButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    border: "0",
+    borderRadius: "12px",
+    padding: "10px 14px",
+    background: disabled ? "#94a3b8" : "#991b1b",
+    color: "#ffffff",
+    fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+
+const reviewSuccessStyle: CSSProperties = {
+  marginTop: "12px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+  fontWeight: 800,
+};
+
+const reviewErrorStyle: CSSProperties = {
+  marginTop: "12px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  fontWeight: 800,
 };
 
 const footerStyle: CSSProperties = {
