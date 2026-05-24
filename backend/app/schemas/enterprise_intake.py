@@ -349,6 +349,7 @@ class EnterpriseBaselineApprovalResponse(BaseModel):
 
 
 class EnterpriseGovernanceBaselineEvidence(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     baseline_id: int
     instrument_id: int
     vendor_id: int | None = None
