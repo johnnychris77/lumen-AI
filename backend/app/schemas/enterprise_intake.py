@@ -93,7 +93,7 @@ class EnterpriseGovernancePacketResponse(BaseModel):
     evidence_to_action_chain: list[str]
     audit_readiness: dict[str, str | int | None]
     evidence_attachments: list[EnterpriseGovernanceEvidenceItem] = Field(default_factory=list)
-
+    baseline_evidence: list[dict] = []
 
 class EnterpriseAuditTrailItem(BaseModel):
     id: int
