@@ -25,3 +25,5 @@ redis
 rq
 
 apscheduler
+boto3
+

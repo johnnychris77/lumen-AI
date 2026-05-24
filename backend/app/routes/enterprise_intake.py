@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.services.object_storage import save_upload_file, open_stored_object
 from app.models.audit_log import AuditLog
 from app.models.enterprise_quality import (
     EnterpriseDepartment,
@@ -1105,14 +1106,16 @@ def upload_enterprise_evidence(
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
     safe_file_name = os.path.basename(file.filename or "evidence.bin")
-    evidence_dir = os.environ.get("LUMENAI_EVIDENCE_DIR", "/tmp/evidence")
-    finding_dir = os.path.join(evidence_dir, f"finding_{finding.id}")
-    os.makedirs(finding_dir, exist_ok=True)
+    object_key = f"evidence/finding_{finding.id}/{safe_file_name}"
 
-    storage_path = os.path.join(finding_dir, safe_file_name)
+    stored = save_upload_file(
+        file_obj=file.file,
+        file_name=safe_file_name,
+        object_key=object_key,
+        content_type=file.content_type or "application/octet-stream",
+    )
 
-    with open(storage_path, "wb") as output:
-        shutil.copyfileobj(file.file, output)
+    storage_path = stored.storage_uri
 
     evidence = EnterpriseEvidence(
         tenant_id=finding.tenant_id,
@@ -1217,7 +1220,9 @@ def download_enterprise_evidence(
     if not storage_path:
         raise HTTPException(status_code=404, detail="Evidence file path not found")
 
-    if not os.path.exists(storage_path):
+    resolved_path = open_stored_object(storage_path)
+
+    if not os.path.exists(resolved_path):
         raise HTTPException(status_code=404, detail="Evidence file not found on storage")
 
     _record_enterprise_audit(
@@ -1241,7 +1246,7 @@ def download_enterprise_evidence(
     db.commit()
 
     return FileResponse(
-        path=storage_path,
+        path=resolved_path,
         media_type=evidence.mime_type or "application/octet-stream",
         filename=evidence.file_name or f"evidence-{evidence.id}",
     )
@@ -1270,14 +1275,16 @@ def upload_instrument_baseline(
         raise HTTPException(status_code=404, detail="Enterprise instrument not found")
 
     safe_file_name = os.path.basename(file.filename or "baseline.bin")
-    baseline_dir = os.environ.get("LUMENAI_BASELINE_DIR", "/tmp/baselines")
-    instrument_dir = os.path.join(baseline_dir, f"instrument_{instrument.id}")
-    os.makedirs(instrument_dir, exist_ok=True)
+    object_key = f"baselines/instrument_{instrument.id}/{safe_file_name}"
 
-    storage_path = os.path.join(instrument_dir, safe_file_name)
+    stored = save_upload_file(
+        file_obj=file.file,
+        file_name=safe_file_name,
+        object_key=object_key,
+        content_type=file.content_type or "application/octet-stream",
+    )
 
-    with open(storage_path, "wb") as output:
-        shutil.copyfileobj(file.file, output)
+    storage_path = stored.storage_uri
 
     baseline = EnterpriseInstrumentBaseline(
         tenant_id=instrument.tenant_id,
