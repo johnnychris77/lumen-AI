@@ -346,3 +346,22 @@ class EnterpriseBaselineApprovalResponse(BaseModel):
     approved_by: str = ""
     approved_at: str = ""
     workflow_status: str
+
+
+class EnterpriseGovernanceBaselineEvidence(BaseModel):
+    baseline_id: int
+    instrument_id: int
+    vendor_id: int | None = None
+    manufacturer_name: str = ""
+    model_number: str = ""
+    catalog_number: str = ""
+    baseline_type: str = ""
+    file_name: str = ""
+    storage_uri: str = ""
+    baseline_status: str = ""
+    approved_by: str = ""
+    approved_at: str = ""
+    known_normal_characteristics: str = ""
+    known_abnormal_characteristics: str = ""
+    baseline_notes: str = ""
+    audit_significance: str = ""

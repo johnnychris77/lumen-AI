@@ -29,6 +29,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseIntakeHistoryResponse,
     EnterpriseGovernancePacketResponse,
     EnterpriseGovernanceEvidenceItem,
+    EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
     EnterpriseAuditTrailResponse,
     EnterpriseHumanReviewRequest,
@@ -398,6 +399,39 @@ def get_enterprise_governance_packet(
         },
     )
     db.commit()
+
+    baseline_rows = (
+        db.query(EnterpriseInstrumentBaseline)
+        .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+        .order_by(EnterpriseInstrumentBaseline.id.desc())
+        .all()
+    )
+
+    baseline_evidence_items = [
+        {
+            "baseline_id": baseline.id,
+            "instrument_id": baseline.instrument_id,
+            "vendor_id": baseline.vendor_id,
+            "manufacturer_name": baseline.manufacturer_name or "",
+            "model_number": baseline.model_number or "",
+            "catalog_number": baseline.catalog_number or "",
+            "baseline_type": baseline.baseline_type or "",
+            "file_name": baseline.file_name or "",
+            "storage_uri": baseline.storage_uri or "",
+            "baseline_status": baseline.baseline_status or "",
+            "approved_by": baseline.approved_by or "",
+            "approved_at": baseline.approved_at.isoformat() if baseline.approved_at else "",
+            "known_normal_characteristics": baseline.known_normal_characteristics or "",
+            "known_abnormal_characteristics": baseline.known_abnormal_characteristics or "",
+            "baseline_notes": baseline.baseline_notes or "",
+            "audit_significance": (
+                "Approved manufacturer baseline may be used as trusted comparison evidence."
+                if (baseline.baseline_status or "").lower() == "approved"
+                else "Baseline captured but not yet approved as trusted comparison evidence."
+            ),
+        }
+        for baseline in baseline_rows
+    ]
 
     return EnterpriseGovernancePacketResponse(
         packet_type="enterprise_intake_governance_packet",
