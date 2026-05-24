@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
+type RecentInstrumentOption = {
+  finding_id: number;
+  instrument_id: number;
+  vendor_id?: number | null;
+  vendor_name?: string;
+  instrument_name?: string;
+  instrument_category?: string;
+  finding_category?: string;
+  severity?: string;
+  created_at?: string;
+};
+
 type BaselineItem = {
   baseline_id: number;
   instrument_id: number;
@@ -27,6 +39,7 @@ const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
 
 export default function ManufacturerBaselinePanel() {
   const [instrumentId, setInstrumentId] = useState("1");
+  const [recentInstruments, setRecentInstruments] = useState<RecentInstrumentOption[]>([]);
   const [manufacturerName, setManufacturerName] = useState("Carl Storz");
   const [modelNumber, setModelNumber] = useState("Rigid Scope Demo Model");
   const [catalogNumber, setCatalogNumber] = useState("CS-RIGID-DEMO");
@@ -47,6 +60,55 @@ export default function ManufacturerBaselinePanel() {
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
+  async function loadRecentInstruments() {
+    try {
+      const response = await fetch(`${API_BASE}/api/enterprise/intake/history?limit=25`, {
+        headers: {
+          Authorization: `Bearer ${AUTH_TOKEN}`,
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+          "X-Tenant-Id": "bonsecours",
+          "X-Tenant-Name": "Bon Secours",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail || `Recent instrument request failed (${response.status})`);
+      }
+
+      const historyItems = Array.isArray(data.items) ? data.items : [];
+
+      const uniqueByInstrument = new Map<number, RecentInstrumentOption>();
+
+      for (const item of historyItems) {
+        if (item.instrument_id && !uniqueByInstrument.has(item.instrument_id)) {
+          uniqueByInstrument.set(item.instrument_id, {
+            finding_id: item.finding_id,
+            instrument_id: item.instrument_id,
+            vendor_id: item.vendor_id,
+            vendor_name: item.vendor_name,
+            instrument_name: item.instrument_name,
+            instrument_category: item.instrument_category,
+            finding_category: item.finding_category,
+            severity: item.severity,
+            created_at: item.created_at,
+          });
+        }
+      }
+
+      const options = Array.from(uniqueByInstrument.values());
+      setRecentInstruments(options);
+
+      if (options.length > 0 && !options.some((option) => String(option.instrument_id) === instrumentId)) {
+        setInstrumentId(String(options[0].instrument_id));
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  }
 
   async function loadBaselines() {
     setLoading(true);
@@ -144,6 +206,7 @@ export default function ManufacturerBaselinePanel() {
   }
 
   useEffect(() => {
+    loadRecentInstruments();
     loadBaselines();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,26 +226,57 @@ export default function ManufacturerBaselinePanel() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={loadBaselines}
-          disabled={loading}
-          style={refreshButtonStyle(loading)}
-        >
-          {loading ? "Refreshing..." : "Refresh Baselines"}
-        </button>
+        <div style={headerButtonGroupStyle}>
+          <button
+            type="button"
+            onClick={loadRecentInstruments}
+            style={secondaryRefreshButtonStyle}
+          >
+            Refresh Instruments
+          </button>
+
+          <button
+            type="button"
+            onClick={loadBaselines}
+            disabled={loading}
+            style={refreshButtonStyle(loading)}
+          >
+            {loading ? "Refreshing..." : "Refresh Baselines"}
+          </button>
+        </div>
       </div>
 
       {error ? <div style={errorStyle}>{error}</div> : null}
       {success ? <div style={successStyle}>{success}</div> : null}
 
       <div style={uploadGridStyle}>
-        <Field label="Instrument ID">
-          <input
-            value={instrumentId}
-            onChange={(event) => setInstrumentId(event.target.value)}
-            style={inputStyle}
-          />
+        <Field label="Instrument">
+          {recentInstruments.length > 0 ? (
+            <select
+              value={instrumentId}
+              onChange={(event) => setInstrumentId(event.target.value)}
+              style={inputStyle}
+            >
+              {recentInstruments.map((option) => (
+                <option key={option.instrument_id} value={option.instrument_id}>
+                  #{option.instrument_id} — {option.instrument_name || "Instrument"} / Finding #{option.finding_id}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={instrumentId}
+              onChange={(event) => setInstrumentId(event.target.value)}
+              style={inputStyle}
+              placeholder="Enter instrument ID"
+            />
+          )}
+
+          {recentInstruments.length === 0 ? (
+            <span style={helperTextStyle}>
+              No recent instruments loaded. Create an enterprise intake, then refresh instruments.
+            </span>
+          ) : null}
         </Field>
 
         <Field label="Manufacturer">
@@ -230,6 +324,30 @@ export default function ManufacturerBaselinePanel() {
           />
         </Field>
       </div>
+
+      {recentInstruments.length > 0 ? (
+        <div style={selectedInstrumentStyle}>
+          {(() => {
+            const selectedInstrument = recentInstruments.find(
+              (option) => String(option.instrument_id) === instrumentId
+            );
+
+            if (!selectedInstrument) {
+              return "Selected instrument context unavailable.";
+            }
+
+            return (
+              <>
+                <strong>Selected Instrument Context:</strong>{" "}
+                Instrument #{selectedInstrument.instrument_id} • Finding #{selectedInstrument.finding_id} •{" "}
+                {selectedInstrument.vendor_name || "Vendor"} •{" "}
+                {selectedInstrument.instrument_name || "Instrument"} •{" "}
+                {selectedInstrument.finding_category || "Finding category unavailable"}
+              </>
+            );
+          })()}
+        </div>
+      ) : null}
 
       <div style={textareaGridStyle}>
         <Field label="Known Normal Characteristics">
@@ -426,6 +544,40 @@ const eyebrowStyle: CSSProperties = {
   color: "#0e7490",
   letterSpacing: "0.08em",
   textTransform: "uppercase",
+};
+
+
+const headerButtonGroupStyle: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const secondaryRefreshButtonStyle: CSSProperties = {
+  border: "1px solid #a5f3fc",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 900,
+  cursor: "pointer",
+  background: "#ecfeff",
+  color: "#0e7490",
+};
+
+const helperTextStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: "12px",
+  fontWeight: 700,
+};
+
+const selectedInstrumentStyle: CSSProperties = {
+  marginTop: "12px",
+  padding: "12px",
+  borderRadius: "14px",
+  border: "1px solid #a5f3fc",
+  background: "#ecfeff",
+  color: "#155e75",
+  fontWeight: 800,
+  lineHeight: 1.55,
 };
 
 const headerRowStyle: CSSProperties = {
