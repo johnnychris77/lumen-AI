@@ -44,6 +44,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseInstrumentBaselineCreateResponse,
     EnterpriseInstrumentBaselineItem,
     EnterpriseInstrumentBaselineListResponse,
+    EnterpriseBaselineComparisonResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -290,7 +291,7 @@ def list_enterprise_intake_history(
 
         items.append(
             EnterpriseIntakeHistoryItem(
-                inspection_id=finding.id,
+                finding_id=finding.id,
                 vendor_id=finding.vendor_id,
                 instrument_id=finding.instrument_id,
                 risk_score_id=risk_score.id if risk_score else None,
@@ -1417,5 +1418,167 @@ def list_vendor_baselines(
             )
             for row in rows
         ]
+    )
+
+
+@router.post("/intake/{finding_id}/baseline-comparison", response_model=EnterpriseBaselineComparisonResponse)
+def compare_finding_to_manufacturer_baseline(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    instrument = (
+        db.get(EnterpriseInstrument, finding.instrument_id)
+        if finding.instrument_id
+        else None
+    )
+
+    if not instrument:
+        raise HTTPException(status_code=404, detail="Linked enterprise instrument not found")
+
+    baseline = (
+        db.query(EnterpriseInstrumentBaseline)
+        .filter(EnterpriseInstrumentBaseline.instrument_id == instrument.id)
+        .order_by(EnterpriseInstrumentBaseline.id.desc())
+        .first()
+    )
+
+    if not baseline:
+        raise HTTPException(
+            status_code=404,
+            detail="No manufacturer baseline exists for this instrument",
+        )
+
+    evidence = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .first()
+    )
+
+    # Rules-based v1 scoring.
+    # Future version should compare image features using CV/AI.
+    finding_text = " ".join(
+        [
+            finding.finding_category or "",
+            finding.finding_description or "",
+            finding.severity or "",
+        ]
+    ).lower()
+
+    normal_text = " ".join(
+        [
+            baseline.known_normal_characteristics or "",
+            baseline.baseline_notes or "",
+        ]
+    ).lower()
+
+    abnormal_text = (baseline.known_abnormal_characteristics or "").lower()
+
+    risk_terms = [
+        "bioburden",
+        "retained debris",
+        "debris",
+        "blood",
+        "tissue",
+        "foreign material",
+        "corrosion",
+        "rust",
+        "flaking",
+        "residue",
+    ]
+
+    normal_artifact_terms = [
+        "weld",
+        "weld pattern",
+        "machining",
+        "surface variation",
+        "discoloration",
+        "manufacturing artifact",
+        "normal manufacturing",
+        "factory",
+    ]
+
+    risk_hits = sum(1 for term in risk_terms if term in finding_text)
+    baseline_normal_hits = sum(
+        1 for term in normal_artifact_terms
+        if term in finding_text and term in normal_text
+    )
+    abnormal_hits = sum(1 for term in risk_terms if term in abnormal_text and term in finding_text)
+
+    base_score = 50
+    score = base_score + (risk_hits * 10) + (abnormal_hits * 12) - (baseline_normal_hits * 15)
+
+    if (finding.severity or "").lower() == "critical":
+        score += 15
+    elif (finding.severity or "").lower() == "high":
+        score += 10
+    elif (finding.severity or "").lower() == "moderate":
+        score += 5
+
+    score = max(0, min(score, 100))
+
+    if score >= 80:
+        deviation_level = "high_deviation"
+        baseline_alignment = "not_consistent_with_baseline"
+        vendor_signal = "Strong vendor-quality signal; finding appears to deviate from baseline."
+        recommended_action = "Escalate to vendor-quality review and consider CAPA if confirmed."
+    elif score >= 55:
+        deviation_level = "moderate_deviation"
+        baseline_alignment = "partially_consistent_with_baseline"
+        vendor_signal = "Moderate signal; human review should compare evidence against baseline."
+        recommended_action = "Require reviewer confirmation and additional evidence if needed."
+    else:
+        deviation_level = "low_deviation"
+        baseline_alignment = "consistent_with_known_baseline_artifact"
+        vendor_signal = "Low vendor-quality signal; finding may reflect known manufacturer appearance."
+        recommended_action = "Document baseline alignment and avoid false-positive escalation unless reviewer confirms."
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="baseline_comparison_scored",
+        resource_type="enterprise_finding",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "instrument_id": instrument.id,
+            "vendor_id": instrument.vendor_id,
+            "baseline_id": baseline.id,
+            "evidence_id": evidence.id if evidence else None,
+            "comparison_score": score,
+            "deviation_level": deviation_level,
+            "baseline_alignment": baseline_alignment,
+            "vendor_management_signal": vendor_signal,
+            "recommended_action": recommended_action,
+            "workflow_status": "baseline_comparison_completed",
+        },
+    )
+
+    db.commit()
+
+    return EnterpriseBaselineComparisonResponse(
+        status="success",
+        message="Baseline-to-inspection comparison score generated.",
+        finding_id=finding.id,
+        instrument_id=instrument.id,
+        vendor_id=instrument.vendor_id,
+        baseline_id=baseline.id,
+        evidence_id=evidence.id if evidence else None,
+        comparison_score=score,
+        deviation_level=deviation_level,
+        baseline_alignment=baseline_alignment,
+        vendor_management_signal=vendor_signal,
+        recommended_action=recommended_action,
+        workflow_status="baseline_comparison_completed",
     )
 

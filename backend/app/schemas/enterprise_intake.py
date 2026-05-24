@@ -309,3 +309,19 @@ class EnterpriseInstrumentBaselineItem(BaseModel):
 
 class EnterpriseInstrumentBaselineListResponse(BaseModel):
     items: list[EnterpriseInstrumentBaselineItem]
+
+
+class EnterpriseBaselineComparisonResponse(BaseModel):
+    status: str
+    message: str
+    finding_id: int
+    instrument_id: int | None = None
+    vendor_id: int | None = None
+    baseline_id: int | None = None
+    evidence_id: int | None = None
+    comparison_score: int
+    deviation_level: str
+    baseline_alignment: str
+    vendor_management_signal: str
+    recommended_action: str
+    workflow_status: str
