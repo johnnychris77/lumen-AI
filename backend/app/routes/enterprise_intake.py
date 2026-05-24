@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
-from app.services.object_storage import save_upload_file, open_stored_object
+from app.services.object_storage import save_upload_file, open_stored_object, storage_health_check
 from app.models.audit_log import AuditLog
 from app.models.enterprise_quality import (
     EnterpriseDepartment,
@@ -1690,4 +1690,20 @@ def review_manufacturer_baseline(
         approved_at=baseline.approved_at.isoformat() if baseline.approved_at else "",
         workflow_status=workflow_status,
     )
+
+
+@router.get("/storage/health")
+def enterprise_storage_health():
+    from fastapi import HTTPException
+
+    try:
+        return storage_health_check()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Object storage health check failed",
+                "error": str(exc),
+            },
+        )
 

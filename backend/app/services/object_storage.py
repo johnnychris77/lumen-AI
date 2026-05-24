@@ -111,3 +111,49 @@ def open_stored_object(storage_uri: str):
         return tmp.name
 
     return storage_uri
+
+
+
+def storage_health_check() -> dict:
+    backend = _storage_backend()
+
+    if backend == "s3":
+        bucket = os.environ["LUMENAI_S3_BUCKET"]
+        client = _s3_client()
+        test_key = "healthcheck/lumenai-storage-health.txt"
+        payload = b"LumenAI object storage health check"
+
+        client.put_object(
+            Bucket=bucket,
+            Key=test_key,
+            Body=payload,
+            ContentType="text/plain",
+        )
+
+        response = client.get_object(Bucket=bucket, Key=test_key)
+        body = response["Body"].read()
+
+        return {
+            "status": "ok",
+            "backend": "s3",
+            "bucket": bucket,
+            "object_key": test_key,
+            "read_write_verified": body == payload,
+            "storage_uri": f"s3://{bucket}/{test_key}",
+        }
+
+    root = Path(_local_root())
+    root.mkdir(parents=True, exist_ok=True)
+    test_path = root / "healthcheck" / "lumenai-storage-health.txt"
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text("LumenAI object storage health check")
+    body = test_path.read_text()
+
+    return {
+        "status": "ok",
+        "backend": "local",
+        "root": str(root),
+        "object_key": "healthcheck/lumenai-storage-health.txt",
+        "read_write_verified": body == "LumenAI object storage health check",
+        "storage_uri": str(test_path),
+    }
