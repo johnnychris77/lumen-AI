@@ -1145,6 +1145,7 @@ def upload_enterprise_evidence(
     return EnterpriseEvidenceUploadResponse(
         status="success",
         message="Enterprise evidence uploaded and attached to finding.",
+        finding_id=finding.id,
         inspection_id=finding.id,
         evidence_id=evidence.id,
         evidence_type=evidence.evidence_type,
