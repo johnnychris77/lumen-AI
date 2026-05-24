@@ -248,7 +248,7 @@ def create_enterprise_intake(
         vendor_id=vendor.id,
         instrument_id=instrument.id,
         evidence_id=evidence.id if evidence else None,
-        inspection_id=finding.id,
+        finding_id=finding.id,
         risk_score_id=risk_score.id,
         disposition_id=disposition.id,
         workflow_status="created_pending_human_review",
