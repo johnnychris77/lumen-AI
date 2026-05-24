@@ -420,6 +420,14 @@ def get_enterprise_governance_packet(
             .all()
         )
 
+    if not baseline_rows:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .limit(10)
+            .all()
+        )
+
     baseline_evidence_items = [
         {
             "baseline_id": baseline.id,
