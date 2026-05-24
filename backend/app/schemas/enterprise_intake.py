@@ -270,3 +270,42 @@ class EnterpriseEvidenceListItem(BaseModel):
 class EnterpriseEvidenceListResponse(BaseModel):
     items: list[EnterpriseEvidenceListItem]
 
+
+
+class EnterpriseInstrumentBaselineCreateResponse(BaseModel):
+    status: str
+    message: str
+    baseline_id: int
+    instrument_id: int
+    vendor_id: int | None = None
+    manufacturer_name: str
+    model_number: str = ""
+    catalog_number: str = ""
+    baseline_type: str
+    file_name: str
+    storage_uri: str
+    baseline_status: str
+    workflow_status: str
+
+
+class EnterpriseInstrumentBaselineItem(BaseModel):
+    baseline_id: int
+    instrument_id: int
+    vendor_id: int | None = None
+    manufacturer_name: str
+    model_number: str = ""
+    catalog_number: str = ""
+    baseline_type: str
+    file_name: str
+    storage_uri: str
+    known_normal_characteristics: str = ""
+    known_abnormal_characteristics: str = ""
+    baseline_notes: str = ""
+    baseline_status: str = ""
+    approved_by: str = ""
+    approved_at: str = ""
+    created_at: str = ""
+
+
+class EnterpriseInstrumentBaselineListResponse(BaseModel):
+    items: list[EnterpriseInstrumentBaselineItem]

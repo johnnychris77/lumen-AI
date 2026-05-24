@@ -16,6 +16,7 @@ from app.models.enterprise_quality import (
     EnterpriseFacility,
     EnterpriseFinding,
     EnterpriseInstrument,
+    EnterpriseInstrumentBaseline,
     EnterpriseRiskScore,
     EnterpriseVendor,
 )
@@ -40,6 +41,9 @@ from app.schemas.enterprise_intake import (
     EnterpriseEvidenceUploadResponse,
     EnterpriseEvidenceListItem,
     EnterpriseEvidenceListResponse,
+    EnterpriseInstrumentBaselineCreateResponse,
+    EnterpriseInstrumentBaselineItem,
+    EnterpriseInstrumentBaselineListResponse,
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
@@ -1236,5 +1240,182 @@ def download_enterprise_evidence(
         path=storage_path,
         media_type=evidence.mime_type or "application/octet-stream",
         filename=evidence.file_name or f"evidence-{evidence.id}",
+    )
+
+
+@router.post("/instruments/{instrument_id}/baseline", response_model=EnterpriseInstrumentBaselineCreateResponse)
+def upload_instrument_baseline(
+    instrument_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    manufacturer_name: str = Form(default=""),
+    model_number: str = Form(default=""),
+    catalog_number: str = Form(default=""),
+    baseline_type: str = Form(default="manufacturer_reference"),
+    known_normal_characteristics: str = Form(default=""),
+    known_abnormal_characteristics: str = Form(default=""),
+    baseline_notes: str = Form(default=""),
+    baseline_status: str = Form(default="pending_review"),
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    instrument = db.get(EnterpriseInstrument, instrument_id)
+
+    if not instrument:
+        raise HTTPException(status_code=404, detail="Enterprise instrument not found")
+
+    safe_file_name = os.path.basename(file.filename or "baseline.bin")
+    baseline_dir = os.environ.get("LUMENAI_BASELINE_DIR", "./baselines")
+    instrument_dir = os.path.join(baseline_dir, f"instrument_{instrument.id}")
+    os.makedirs(instrument_dir, exist_ok=True)
+
+    storage_path = os.path.join(instrument_dir, safe_file_name)
+
+    with open(storage_path, "wb") as output:
+        shutil.copyfileobj(file.file, output)
+
+    baseline = EnterpriseInstrumentBaseline(
+        tenant_id=instrument.tenant_id,
+        vendor_id=instrument.vendor_id,
+        instrument_id=instrument.id,
+        manufacturer_name=manufacturer_name or "",
+        model_number=model_number or "",
+        catalog_number=catalog_number or "",
+        baseline_type=baseline_type or "manufacturer_reference",
+        file_name=safe_file_name,
+        storage_uri=storage_path,
+        content_type=file.content_type or "",
+        known_normal_characteristics=known_normal_characteristics or "",
+        known_abnormal_characteristics=known_abnormal_characteristics or "",
+        baseline_notes=baseline_notes or "",
+        baseline_status=baseline_status or "pending_review",
+    )
+
+    db.add(baseline)
+    db.flush()
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=instrument.tenant_id,
+        tenant_name="",
+        action_type="manufacturer_baseline_uploaded",
+        resource_type="enterprise_instrument_baseline",
+        resource_id=str(baseline.id),
+        details={
+            "baseline_id": baseline.id,
+            "instrument_id": instrument.id,
+            "vendor_id": instrument.vendor_id,
+            "manufacturer_name": baseline.manufacturer_name,
+            "model_number": baseline.model_number,
+            "catalog_number": baseline.catalog_number,
+            "baseline_type": baseline.baseline_type,
+            "file_name": baseline.file_name,
+            "storage_uri": baseline.storage_uri,
+            "baseline_status": baseline.baseline_status,
+            "workflow_status": "baseline_uploaded_pending_review",
+        },
+    )
+
+    db.commit()
+
+    return EnterpriseInstrumentBaselineCreateResponse(
+        status="success",
+        message="Manufacturer baseline uploaded and linked to instrument.",
+        baseline_id=baseline.id,
+        instrument_id=instrument.id,
+        vendor_id=instrument.vendor_id,
+        manufacturer_name=baseline.manufacturer_name,
+        model_number=baseline.model_number,
+        catalog_number=baseline.catalog_number,
+        baseline_type=baseline.baseline_type,
+        file_name=baseline.file_name,
+        storage_uri=baseline.storage_uri,
+        baseline_status=baseline.baseline_status,
+        workflow_status="baseline_uploaded_pending_review",
+    )
+
+
+@router.get("/instruments/{instrument_id}/baseline", response_model=EnterpriseInstrumentBaselineListResponse)
+def list_instrument_baselines(
+    instrument_id: int,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    instrument = db.get(EnterpriseInstrument, instrument_id)
+
+    if not instrument:
+        raise HTTPException(status_code=404, detail="Enterprise instrument not found")
+
+    rows = (
+        db.query(EnterpriseInstrumentBaseline)
+        .filter(EnterpriseInstrumentBaseline.instrument_id == instrument.id)
+        .order_by(EnterpriseInstrumentBaseline.id.desc())
+        .all()
+    )
+
+    return EnterpriseInstrumentBaselineListResponse(
+        items=[
+            EnterpriseInstrumentBaselineItem(
+                baseline_id=row.id,
+                instrument_id=row.instrument_id,
+                vendor_id=row.vendor_id,
+                manufacturer_name=row.manufacturer_name or "",
+                model_number=row.model_number or "",
+                catalog_number=row.catalog_number or "",
+                baseline_type=row.baseline_type or "",
+                file_name=row.file_name or "",
+                storage_uri=row.storage_uri or "",
+                known_normal_characteristics=row.known_normal_characteristics or "",
+                known_abnormal_characteristics=row.known_abnormal_characteristics or "",
+                baseline_notes=row.baseline_notes or "",
+                baseline_status=row.baseline_status or "",
+                approved_by=row.approved_by or "",
+                approved_at=row.approved_at.isoformat() if row.approved_at else "",
+                created_at=row.created_at.isoformat() if row.created_at else "",
+            )
+            for row in rows
+        ]
+    )
+
+
+@router.get("/vendor-baselines", response_model=EnterpriseInstrumentBaselineListResponse)
+def list_vendor_baselines(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    limit = max(1, min(limit, 100))
+
+    rows = (
+        db.query(EnterpriseInstrumentBaseline)
+        .order_by(EnterpriseInstrumentBaseline.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return EnterpriseInstrumentBaselineListResponse(
+        items=[
+            EnterpriseInstrumentBaselineItem(
+                baseline_id=row.id,
+                instrument_id=row.instrument_id,
+                vendor_id=row.vendor_id,
+                manufacturer_name=row.manufacturer_name or "",
+                model_number=row.model_number or "",
+                catalog_number=row.catalog_number or "",
+                baseline_type=row.baseline_type or "",
+                file_name=row.file_name or "",
+                storage_uri=row.storage_uri or "",
+                known_normal_characteristics=row.known_normal_characteristics or "",
+                known_abnormal_characteristics=row.known_abnormal_characteristics or "",
+                baseline_notes=row.baseline_notes or "",
+                baseline_status=row.baseline_status or "",
+                approved_by=row.approved_by or "",
+                approved_at=row.approved_at.isoformat() if row.approved_at else "",
+                created_at=row.created_at.isoformat() if row.created_at else "",
+            )
+            for row in rows
+        ]
     )
 

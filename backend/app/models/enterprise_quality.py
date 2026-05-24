@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from sqlalchemy import Column, DateTime, Integer, String, Text
 
 
 class EnterpriseFacility(Base):
@@ -155,3 +156,32 @@ class EnterpriseGovernancePacket(Base):
     generated_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EnterpriseInstrumentBaseline(Base):
+    __tablename__ = "enterprise_instrument_baselines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String, index=True, default="default")
+    vendor_id = Column(Integer, nullable=True)
+    instrument_id = Column(Integer, nullable=False, index=True)
+
+    manufacturer_name = Column(String, default="")
+    model_number = Column(String, default="")
+    catalog_number = Column(String, default="")
+    baseline_type = Column(String, default="manufacturer_reference")
+
+    file_name = Column(String, default="")
+    storage_uri = Column(String, default="")
+    content_type = Column(String, default="")
+
+    known_normal_characteristics = Column(Text, default="")
+    known_abnormal_characteristics = Column(Text, default="")
+    baseline_notes = Column(Text, default="")
+
+    baseline_status = Column(String, default="pending_review")
+    approved_by = Column(String, default="")
+    approved_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
