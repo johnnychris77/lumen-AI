@@ -296,9 +296,9 @@ app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX
 app.include_router(enterprise_intake_router)
 
 from fastapi.openapi.utils import get_openapi
-import importlib
 from app.db.base import Base
 from app.db.session import engine
+import importlib
 
 def custom_openapi():
     if app.openapi_schema is not None:
