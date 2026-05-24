@@ -1309,7 +1309,7 @@ def upload_instrument_baseline(
         resource_id=str(baseline.id),
         details={
             "baseline_id": baseline.id,
-            "baseline_trust_status": baseline_trust_status,
+            "baseline_trust_status": baseline.baseline_status,
             "instrument_id": instrument.id,
             "vendor_id": instrument.vendor_id,
             "manufacturer_name": baseline.manufacturer_name,
