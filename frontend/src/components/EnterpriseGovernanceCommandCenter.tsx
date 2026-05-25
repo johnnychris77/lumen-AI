@@ -1,3 +1,23 @@
+
+type GovernanceBaselineEvidence = {
+  baseline_id: number;
+  instrument_id: number;
+  vendor_id?: number | null;
+  manufacturer_name?: string;
+  model_number?: string;
+  catalog_number?: string;
+  baseline_type?: string;
+  file_name?: string;
+  storage_uri?: string;
+  baseline_status?: string;
+  approved_by?: string;
+  approved_at?: string;
+  known_normal_characteristics?: string;
+  known_abnormal_characteristics?: string;
+  baseline_notes?: string;
+  audit_significance?: string;
+};
+
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
@@ -51,6 +71,92 @@ type AuditTrailItem = {
   compliance_flag: boolean;
   created_at: string;
 };
+
+
+function BaselineEvidenceSection({
+  items,
+}: {
+  items?: GovernanceBaselineEvidence[];
+}) {
+  const baselines = items || [];
+
+  if (!baselines.length) {
+    return (
+      <div style={emptyBaselineEvidenceStyle}>
+        <strong>Manufacturer Baseline Evidence</strong>
+        <p style={mutedParagraphStyle}>
+          No manufacturer baseline evidence is currently attached to this governance packet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={baselineEvidenceSectionStyle}>
+      <div style={sectionHeaderRowStyle}>
+        <div>
+          <h3 style={sectionTitleStyle}>Manufacturer Baseline Evidence</h3>
+          <p style={mutedParagraphStyle}>
+            Approved manufacturer or new-condition baseline references used to support comparison scoring and vendor-quality decisions.
+          </p>
+        </div>
+        <span style={countBadgeStyle}>{baselines.length} baseline{baselines.length === 1 ? "" : "s"}</span>
+      </div>
+
+      <div style={baselineEvidenceGridStyle}>
+        {baselines.map((baseline) => (
+          <div key={baseline.baseline_id} style={baselineEvidenceCardStyle}>
+            <div style={cardHeaderRowStyle}>
+              <strong>Baseline #{baseline.baseline_id}</strong>
+              <span style={statusBadgeStyle(baseline.baseline_status || "")}>
+                {formatLabel(baseline.baseline_status || "unknown")}
+              </span>
+            </div>
+
+            <div style={detailGridStyle}>
+              <div>
+                <span style={fieldLabelStyle}>Manufacturer</span>
+                <span style={fieldValueStyle}>{baseline.manufacturer_name || "Not documented"}</span>
+              </div>
+              <div>
+                <span style={fieldLabelStyle}>Model</span>
+                <span style={fieldValueStyle}>{baseline.model_number || "Not documented"}</span>
+              </div>
+              <div>
+                <span style={fieldLabelStyle}>Catalog</span>
+                <span style={fieldValueStyle}>{baseline.catalog_number || "Not documented"}</span>
+              </div>
+              <div>
+                <span style={fieldLabelStyle}>Approved By</span>
+                <span style={fieldValueStyle}>{baseline.approved_by || "Pending review"}</span>
+              </div>
+              <div>
+                <span style={fieldLabelStyle}>Approved At</span>
+                <span style={fieldValueStyle}>{baseline.approved_at || "Pending review"}</span>
+              </div>
+              <div>
+                <span style={fieldLabelStyle}>Storage URI</span>
+                <span style={monoValueStyle}>{baseline.storage_uri || "Not available"}</span>
+              </div>
+            </div>
+
+            <div style={evidenceNarrativeStyle}>
+              <strong>Known Normal Characteristics</strong>
+              <p>{baseline.known_normal_characteristics || "Not documented."}</p>
+
+              <strong>Known Abnormal Characteristics</strong>
+              <p>{baseline.known_abnormal_characteristics || "Not documented."}</p>
+
+              <strong>Audit Significance</strong>
+              <p>{baseline.audit_significance || "Baseline evidence captured for governance review."}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -290,7 +396,7 @@ function CommandCard({
       <div style={cardLabelStyle}>{label}</div>
       <div style={cardValueStyle(tone)}>{value}</div>
       <div style={cardSubtextStyle}>{subtext}</div>
-    </div>
+          <BaselineEvidenceSection items={packet.baseline_evidence} />\n</div>
   );
 }
 
@@ -470,3 +576,133 @@ function riskMessageStyle(overdue: number): CSSProperties {
     fontWeight: 900,
   };
 }
+
+
+const baselineEvidenceSectionStyle: React.CSSProperties = {
+  marginTop: "18px",
+  padding: "16px",
+  borderRadius: "18px",
+  border: "1px solid #bfdbfe",
+  background: "linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)",
+};
+
+const emptyBaselineEvidenceStyle: React.CSSProperties = {
+  marginTop: "18px",
+  padding: "14px",
+  borderRadius: "16px",
+  border: "1px dashed #cbd5e1",
+  background: "#f8fafc",
+};
+
+const sectionHeaderRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+  marginBottom: "12px",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#0f172a",
+};
+
+const mutedParagraphStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  color: "#475569",
+  lineHeight: 1.5,
+};
+
+const countBadgeStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "6px 10px",
+  background: "#dbeafe",
+  color: "#1e40af",
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const baselineEvidenceGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: "12px",
+};
+
+const baselineEvidenceCardStyle: React.CSSProperties = {
+  padding: "14px",
+  borderRadius: "16px",
+  border: "1px solid #dbeafe",
+  background: "#ffffff",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+};
+
+const cardHeaderRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+  marginBottom: "12px",
+};
+
+function statusBadgeStyle(status: string): React.CSSProperties {
+  const normalized = status.toLowerCase();
+  const approved = normalized === "approved";
+  const rejected = normalized === "rejected";
+
+  return {
+    borderRadius: "999px",
+    padding: "5px 9px",
+    fontSize: "12px",
+    fontWeight: 900,
+    background: approved ? "#dcfce7" : rejected ? "#fee2e2" : "#fef3c7",
+    color: approved ? "#166534" : rejected ? "#991b1b" : "#92400e",
+  };
+}
+
+const detailGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: "10px",
+};
+
+const fieldLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  color: "#64748b",
+  fontWeight: 900,
+};
+
+const fieldValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "3px",
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const monoValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "3px",
+  color: "#334155",
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  fontSize: "12px",
+  overflowWrap: "anywhere",
+};
+
+const evidenceNarrativeStyle: React.CSSProperties = {
+  marginTop: "12px",
+  paddingTop: "12px",
+  borderTop: "1px solid #e2e8f0",
+  color: "#334155",
+  lineHeight: 1.5,
+};
+
+function formatLabel(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
