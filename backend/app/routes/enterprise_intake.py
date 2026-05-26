@@ -2477,3 +2477,250 @@ def get_enterprise_vendor_escalation_packet(
         escalation_summary=escalation_summary,
         message="Vendor escalation packet generated successfully.",
     )
+
+
+@router.get("/intake/{finding_id}/vendor-escalation-packet.pdf")
+def get_enterprise_vendor_escalation_packet_pdf(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi import HTTPException
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+    vendor_name = (
+        getattr(vendor, "vendor_name", None)
+        or getattr(vendor, "name", None)
+        or getattr(vendor, "vendor", None)
+        or ""
+    ) if vendor else ""
+
+    instrument_name = (
+        getattr(instrument, "instrument_name", None)
+        or getattr(instrument, "name", None)
+        or getattr(instrument, "instrument", None)
+        or ""
+    ) if instrument else ""
+
+    instrument_category = (
+        getattr(instrument, "instrument_category", None)
+        or getattr(instrument, "category", None)
+        or ""
+    ) if instrument else ""
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    comparison = None
+    try:
+        comparison = (
+            db.query(EnterpriseBaselineComparisonScore)
+            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
+            .order_by(EnterpriseBaselineComparisonScore.id.desc())
+            .first()
+        )
+    except Exception:
+        comparison = None
+
+    comparison_score = getattr(comparison, "comparison_score", None) if comparison else None
+    deviation_level = getattr(comparison, "deviation_level", "") if comparison else ""
+    baseline_alignment = getattr(comparison, "baseline_alignment", "") if comparison else ""
+    vendor_management_signal = getattr(comparison, "vendor_management_signal", "") if comparison else ""
+
+    escalation_status = "vendor_review_not_required"
+    recommended_vendor_action = (
+        "Document internally. Vendor escalation is not recommended unless human reviewer confirms a true defect."
+    )
+
+    if deviation_level in ["high_deviation", "critical_deviation"]:
+        escalation_status = "vendor_escalation_recommended"
+        recommended_vendor_action = (
+            "Request vendor quality review, written response, and corrective action plan if the finding is confirmed."
+        )
+    elif (finding.severity or "").lower() in ["high", "critical"] and not approved_baseline_count:
+        escalation_status = "vendor_review_pending_baseline_confirmation"
+        recommended_vendor_action = (
+            "Hold vendor escalation until manufacturer baseline evidence and human review confirm whether this is a true defect."
+        )
+    elif approved_baseline_count and baseline_alignment == "consistent_with_known_baseline_artifact":
+        escalation_status = "vendor_escalation_not_recommended_baseline_artifact"
+        recommended_vendor_action = (
+            "Do not escalate as vendor defect at this time. Finding aligns with approved manufacturer baseline artifact."
+        )
+
+    requested_vendor_response = (
+        "Please review the finding, instrument context, baseline evidence, and comparison summary. "
+        "If vendor review is requested, provide a written determination, root cause if applicable, "
+        "and recommended corrective action."
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Vendor Escalation Packet", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    summary_data = [
+        ["Finding ID", str(finding.id)],
+        ["Escalation Status", escalation_status],
+        ["Vendor", vendor_name],
+        ["Instrument", instrument_name],
+        ["Instrument Category", instrument_category],
+        ["Finding Category", finding.finding_category or ""],
+        ["Severity", finding.severity or ""],
+        ["Confidence Score", str(finding.confidence_score or "")],
+        ["Comparison Score", str(comparison_score if comparison_score is not None else "")],
+        ["Deviation Level", deviation_level],
+        ["Baseline Alignment", baseline_alignment],
+        ["Vendor Signal", vendor_management_signal],
+    ]
+
+    summary_table = Table(summary_data, colWidths=[140, 360])
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#e2e8f0")),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(summary_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Finding Description", styles["Heading2"]))
+    story.append(Paragraph(finding.finding_description or "No finding description documented.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Vendor Action", styles["Heading2"]))
+    story.append(Paragraph(recommended_vendor_action, styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Requested Vendor Response", styles["Heading2"]))
+    story.append(Paragraph(requested_vendor_response, styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Manufacturer Baseline Evidence", styles["Heading2"]))
+
+    if baseline_rows:
+        baseline_table_data = [[
+            "Baseline ID",
+            "Manufacturer",
+            "Model",
+            "Status",
+            "Approved By",
+        ]]
+
+        for baseline in baseline_rows:
+            baseline_table_data.append([
+                str(baseline.id),
+                baseline.manufacturer_name or "",
+                baseline.model_number or "",
+                baseline.baseline_status or "",
+                baseline.approved_by or "",
+            ])
+
+        baseline_table = Table(baseline_table_data, colWidths=[60, 110, 110, 80, 120])
+        baseline_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(baseline_table)
+
+        for baseline in baseline_rows[:3]:
+            audit_significance = (
+                "Approved manufacturer baseline may be used as trusted comparison evidence."
+                if (baseline.baseline_status or "").lower() == "approved"
+                else "Baseline captured but not yet approved as trusted comparison evidence."
+            )
+
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(f"Baseline #{baseline.id} Detail", styles["Heading3"]))
+            story.append(Paragraph(f"<b>Storage URI:</b> {baseline.storage_uri or ''}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Known Normal Characteristics:</b> {baseline.known_normal_characteristics or 'Not documented.'}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Known Abnormal Characteristics:</b> {baseline.known_abnormal_characteristics or 'Not documented.'}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Audit Significance:</b> {audit_significance}", styles["BodyText"]))
+    else:
+        story.append(Paragraph("No manufacturer baseline evidence attached.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Escalation Summary", styles["Heading2"]))
+    story.append(Paragraph(
+        f"LumenAI generated this vendor escalation packet for Finding #{finding.id}. "
+        f"The finding involves {instrument_name or 'the instrument'} associated with {vendor_name or 'the vendor'}. "
+        f"Current escalation status: {escalation_status}. "
+        f"Baseline evidence count: {len(baseline_rows)}. "
+        f"Approved baseline count: {approved_baseline_count}.",
+        styles["BodyText"],
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="vendor_escalation_packet_pdf_exported",
+        resource_type="enterprise_vendor_escalation_packet_pdf",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "vendor_name": vendor_name,
+            "instrument_name": instrument_name,
+            "escalation_status": escalation_status,
+            "baseline_evidence_count": len(baseline_rows),
+            "approved_baseline_count": approved_baseline_count,
+            "comparison_score": comparison_score,
+            "deviation_level": deviation_level,
+            "baseline_alignment": baseline_alignment,
+            "workflow_status": "vendor_escalation_packet_pdf_exported",
+        },
+    )
+    db.commit()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=lumenai-vendor-escalation-packet-finding-{finding.id}.pdf"
+        },
+    )
