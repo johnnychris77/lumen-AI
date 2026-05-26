@@ -412,3 +412,32 @@ class EnterpriseVendorEscalationPacketResponse(BaseModel):
     baseline_evidence: list[dict] = []
     escalation_summary: str = ""
     message: str = ""
+
+
+class EnterpriseInfectionPreventionReviewPacketResponse(BaseModel):
+    status: str = "success"
+    finding_id: int
+    packet_type: str = "infection_prevention_review_packet"
+    ip_review_status: str = ""
+    patient_safety_signal: str = ""
+    infection_risk_signal: str = ""
+    vendor_id: int | None = None
+    vendor_name: str = ""
+    instrument_id: int | None = None
+    instrument_name: str = ""
+    instrument_category: str = ""
+    finding_category: str = ""
+    finding_description: str = ""
+    severity: str = ""
+    confidence_score: float | None = None
+    baseline_evidence_count: int = 0
+    approved_baseline_count: int = 0
+    comparison_score: int | None = None
+    deviation_level: str = ""
+    baseline_alignment: str = ""
+    recommended_ip_action: str = ""
+    recommended_documentation: list[str] = []
+    supporting_evidence: list[dict] = []
+    baseline_evidence: list[dict] = []
+    ip_review_summary: str = ""
+    message: str = ""

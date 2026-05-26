@@ -30,6 +30,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseGovernancePacketResponse,
     EnterpriseGovernanceExportPackageResponse,
     EnterpriseVendorEscalationPacketResponse,
+    EnterpriseInfectionPreventionReviewPacketResponse,
     EnterpriseGovernanceEvidenceItem,
     EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
@@ -2723,4 +2724,255 @@ def get_enterprise_vendor_escalation_packet_pdf(
         headers={
             "Content-Disposition": f"attachment; filename=lumenai-vendor-escalation-packet-finding-{finding.id}.pdf"
         },
+    )
+
+
+@router.get("/intake/{finding_id}/infection-prevention-review-packet", response_model=EnterpriseInfectionPreventionReviewPacketResponse)
+def get_enterprise_infection_prevention_review_packet(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+    vendor_name = (
+        getattr(vendor, "vendor_name", None)
+        or getattr(vendor, "name", None)
+        or getattr(vendor, "vendor", None)
+        or ""
+    ) if vendor else ""
+
+    instrument_name = (
+        getattr(instrument, "instrument_name", None)
+        or getattr(instrument, "name", None)
+        or getattr(instrument, "instrument", None)
+        or ""
+    ) if instrument else ""
+
+    instrument_category = (
+        getattr(instrument, "instrument_category", None)
+        or getattr(instrument, "category", None)
+        or ""
+    ) if instrument else ""
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    baseline_evidence = [
+        {
+            "baseline_id": baseline.id,
+            "instrument_id": baseline.instrument_id,
+            "vendor_id": baseline.vendor_id,
+            "manufacturer_name": baseline.manufacturer_name or "",
+            "model_number": baseline.model_number or "",
+            "catalog_number": baseline.catalog_number or "",
+            "baseline_type": baseline.baseline_type or "",
+            "file_name": baseline.file_name or "",
+            "storage_uri": baseline.storage_uri or "",
+            "baseline_status": baseline.baseline_status or "",
+            "approved_by": baseline.approved_by or "",
+            "approved_at": baseline.approved_at.isoformat() if baseline.approved_at else "",
+            "known_normal_characteristics": baseline.known_normal_characteristics or "",
+            "known_abnormal_characteristics": baseline.known_abnormal_characteristics or "",
+            "baseline_notes": baseline.baseline_notes or "",
+            "audit_significance": (
+                "Approved manufacturer baseline may be used as trusted comparison evidence."
+                if (baseline.baseline_status or "").lower() == "approved"
+                else "Baseline captured but not yet approved as trusted comparison evidence."
+            ),
+        }
+        for baseline in baseline_rows
+    ]
+
+    evidence_rows = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .all()
+    )
+
+    supporting_evidence = [
+        {
+            "evidence_id": evidence.id,
+            "evidence_type": evidence.evidence_type or "",
+            "file_name": evidence.file_name or "",
+            "storage_uri": getattr(evidence, "storage_uri", "") or getattr(evidence, "storage_key", "") or getattr(evidence, "file_url", "") or "",
+            "content_type": getattr(evidence, "mime_type", "") or "",
+            "created_at": evidence.created_at.isoformat() if evidence.created_at else "",
+        }
+        for evidence in evidence_rows
+    ]
+
+    comparison = None
+    try:
+        comparison = (
+            db.query(EnterpriseBaselineComparisonScore)
+            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
+            .order_by(EnterpriseBaselineComparisonScore.id.desc())
+            .first()
+        )
+    except Exception:
+        comparison = None
+
+    comparison_score = getattr(comparison, "comparison_score", None) if comparison else None
+    deviation_level = getattr(comparison, "deviation_level", "") if comparison else ""
+    baseline_alignment = getattr(comparison, "baseline_alignment", "") if comparison else ""
+
+    finding_category = finding.finding_category or ""
+    severity = finding.severity or ""
+
+    category_lower = finding_category.lower()
+    severity_lower = severity.lower()
+    description_lower = (finding.finding_description or "").lower()
+
+    infection_keywords = [
+        "bioburden",
+        "retained debris",
+        "blood",
+        "tissue",
+        "bone",
+        "organic",
+        "soil",
+        "contamination",
+        "foreign material",
+    ]
+
+    has_infection_signal = any(
+        keyword in category_lower or keyword in description_lower
+        for keyword in infection_keywords
+    )
+
+    is_lumened = "lumen" in (instrument_category or "").lower() or "suction" in (instrument_name or "").lower()
+
+    patient_safety_signal = "low"
+    infection_risk_signal = "routine_documentation"
+
+    if has_infection_signal and is_lumened:
+        patient_safety_signal = "elevated"
+        infection_risk_signal = "ip_review_recommended_for_lumened_instrument"
+    elif has_infection_signal:
+        patient_safety_signal = "moderate"
+        infection_risk_signal = "ip_review_recommended"
+    elif severity_lower in ["high", "critical"]:
+        patient_safety_signal = "moderate"
+        infection_risk_signal = "quality_review_recommended"
+
+    ip_review_status = "ip_review_not_required"
+    recommended_ip_action = "Document finding in quality record. IP review is not required unless human reviewer confirms contamination or patient exposure risk."
+
+    if infection_risk_signal in ["ip_review_recommended", "ip_review_recommended_for_lumened_instrument"]:
+        ip_review_status = "ip_review_recommended"
+        recommended_ip_action = (
+            "Request Infection Prevention review. Confirm whether the finding represents retained bioburden, "
+            "whether the device reached patient care, whether additional cleaning verification is needed, "
+            "and whether any exposure or surveillance follow-up is required."
+        )
+
+    if approved_baseline_count and baseline_alignment == "consistent_with_known_baseline_artifact":
+        ip_review_status = "baseline_artifact_documentation"
+        recommended_ip_action = (
+            "Document approved baseline alignment. IP escalation may not be required unless reviewer confirms true retained debris, "
+            "organic material, or patient exposure risk."
+        )
+
+    recommended_documentation = [
+        "finding description and severity",
+        "instrument and lumen context",
+        "inspection evidence or borescope image when available",
+        "manufacturer baseline evidence",
+        "baseline comparison score and alignment",
+        "human reviewer decision",
+        "cleaning/recleaning disposition",
+        "patient exposure assessment if applicable",
+    ]
+
+    ip_review_summary = (
+        f"LumenAI generated an Infection Prevention review packet for Finding #{finding.id}. "
+        f"The finding involves {instrument_name or 'the instrument'} associated with {vendor_name or 'the vendor'}. "
+        f"Patient safety signal: {patient_safety_signal}. "
+        f"Infection risk signal: {infection_risk_signal}. "
+        f"IP review status: {ip_review_status}. "
+        f"Baseline evidence count: {len(baseline_evidence)}. "
+        f"Approved baseline count: {approved_baseline_count}."
+    )
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="infection_prevention_review_packet_generated",
+        resource_type="enterprise_infection_prevention_review_packet",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "patient_safety_signal": patient_safety_signal,
+            "infection_risk_signal": infection_risk_signal,
+            "ip_review_status": ip_review_status,
+            "baseline_evidence_count": len(baseline_evidence),
+            "approved_baseline_count": approved_baseline_count,
+            "comparison_score": comparison_score,
+            "deviation_level": deviation_level,
+            "baseline_alignment": baseline_alignment,
+            "workflow_status": "infection_prevention_review_packet_generated",
+        },
+    )
+    db.commit()
+
+    return EnterpriseInfectionPreventionReviewPacketResponse(
+        status="success",
+        finding_id=finding.id,
+        packet_type="infection_prevention_review_packet",
+        ip_review_status=ip_review_status,
+        patient_safety_signal=patient_safety_signal,
+        infection_risk_signal=infection_risk_signal,
+        vendor_id=finding.vendor_id,
+        vendor_name=vendor_name,
+        instrument_id=finding.instrument_id,
+        instrument_name=instrument_name,
+        instrument_category=instrument_category,
+        finding_category=finding_category,
+        finding_description=finding.finding_description or "",
+        severity=severity,
+        confidence_score=finding.confidence_score,
+        baseline_evidence_count=len(baseline_evidence),
+        approved_baseline_count=approved_baseline_count,
+        comparison_score=comparison_score,
+        deviation_level=deviation_level,
+        baseline_alignment=baseline_alignment,
+        recommended_ip_action=recommended_ip_action,
+        recommended_documentation=recommended_documentation,
+        supporting_evidence=supporting_evidence,
+        baseline_evidence=baseline_evidence,
+        ip_review_summary=ip_review_summary,
+        message="Infection Prevention review packet generated successfully.",
     )
