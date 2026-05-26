@@ -3499,3 +3499,323 @@ def get_enterprise_executive_quality_review_dashboard(
         top_vendor_signals=top_vendor_signals,
         recent_findings=recent_findings,
     )
+
+
+@router.get("/executive-quality-review-dashboard.pdf")
+def get_enterprise_executive_quality_review_dashboard_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    total_findings = db.query(EnterpriseFinding).count()
+
+    critical_findings = (
+        db.query(EnterpriseFinding)
+        .filter(EnterpriseFinding.severity == "critical")
+        .count()
+    )
+
+    high_findings = (
+        db.query(EnterpriseFinding)
+        .filter(EnterpriseFinding.severity == "high")
+        .count()
+    )
+
+    baseline_evidence_count = db.query(EnterpriseInstrumentBaseline).count()
+
+    approved_baseline_count = (
+        db.query(EnterpriseInstrumentBaseline)
+        .filter(EnterpriseInstrumentBaseline.baseline_status == "approved")
+        .count()
+    )
+
+    audit_event_count = 0
+    governance_export_count = 0
+    try:
+        audit_event_count = db.query(EnterpriseAuditEvent).count()
+        governance_export_count = (
+            db.query(EnterpriseAuditEvent)
+            .filter(EnterpriseAuditEvent.action_type.in_([
+                "governance_packet_exported_pdf",
+                "governance_export_package_generated",
+                "governance_zip_bundle_exported",
+                "vendor_escalation_packet_generated",
+                "vendor_escalation_packet_pdf_exported",
+                "infection_prevention_review_packet_generated",
+                "infection_prevention_review_packet_pdf_exported",
+                "executive_quality_review_dashboard_viewed",
+                "executive_quality_review_dashboard_pdf_exported",
+            ]))
+            .count()
+        )
+    except Exception:
+        audit_event_count = 0
+        governance_export_count = 0
+
+    open_capa_count = 0
+    closed_capa_count = 0
+    try:
+        open_capa_count = (
+            db.query(EnterpriseCapa)
+            .filter(EnterpriseCapa.status.in_(["open", "in_progress", "pending_review"]))
+            .count()
+        )
+        closed_capa_count = (
+            db.query(EnterpriseCapa)
+            .filter(EnterpriseCapa.status.in_(["closed", "completed"]))
+            .count()
+        )
+    except Exception:
+        open_capa_count = 0
+        closed_capa_count = 0
+
+    vendor_escalation_ready_count = 0
+    ip_review_recommended_count = 0
+
+    all_findings = db.query(EnterpriseFinding).all()
+
+    for finding in all_findings:
+        finding_category = (finding.finding_category or "").lower()
+        description = (finding.finding_description or "").lower()
+        severity = (finding.severity or "").lower()
+
+        if severity in ["high", "critical"]:
+            vendor_escalation_ready_count += 1
+
+        infection_terms = [
+            "bioburden",
+            "retained debris",
+            "blood",
+            "tissue",
+            "bone",
+            "organic",
+            "soil",
+            "contamination",
+            "foreign material",
+        ]
+
+        if any(term in finding_category or term in description for term in infection_terms):
+            ip_review_recommended_count += 1
+
+    quality_signal = "stable"
+    if critical_findings > 0 or open_capa_count > 0:
+        quality_signal = "active_quality_risk"
+    if critical_findings >= 3 or ip_review_recommended_count >= 3:
+        quality_signal = "elevated_enterprise_risk"
+
+    executive_summary = (
+        f"LumenAI executive quality dashboard includes {total_findings} findings, "
+        f"{critical_findings} critical findings, {high_findings} high findings, "
+        f"{baseline_evidence_count} manufacturer baseline records, and "
+        f"{approved_baseline_count} approved baseline references. "
+        f"Current quality signal: {quality_signal}."
+    )
+
+    recommended_leadership_actions = [
+        "Review critical and high-severity findings during quality huddle.",
+        "Validate whether vendor escalation packets are required for confirmed device-quality defects.",
+        "Review Infection Prevention packets for bioburden, retained debris, or lumened instrument concerns.",
+        "Monitor approved manufacturer baseline coverage to reduce false-positive escalation.",
+        "Track CAPA closure and audit export activity for survey readiness.",
+    ]
+
+    recent_rows = (
+        db.query(EnterpriseFinding)
+        .order_by(EnterpriseFinding.id.desc())
+        .limit(10)
+        .all()
+    )
+
+    recent_findings = []
+    vendor_signal_counts = {}
+
+    for finding in recent_rows:
+        vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+        instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+        vendor_name = (
+            getattr(vendor, "vendor_name", None)
+            or getattr(vendor, "name", None)
+            or getattr(vendor, "vendor", None)
+            or ""
+        ) if vendor else ""
+
+        instrument_name = (
+            getattr(instrument, "instrument_name", None)
+            or getattr(instrument, "name", None)
+            or getattr(instrument, "instrument", None)
+            or ""
+        ) if instrument else ""
+
+        if vendor_name:
+            vendor_signal_counts[vendor_name] = vendor_signal_counts.get(vendor_name, 0) + 1
+
+        recent_findings.append({
+            "finding_id": finding.id,
+            "vendor_name": vendor_name,
+            "instrument_name": instrument_name,
+            "finding_category": finding.finding_category or "",
+            "severity": finding.severity or "",
+            "confidence_score": finding.confidence_score,
+            "created_at": finding.created_at.isoformat() if finding.created_at else "",
+        })
+
+    top_vendor_signals = [
+        {"vendor_name": vendor_name, "finding_count": count}
+        for vendor_name, count in sorted(
+            vendor_signal_counts.items(),
+            key=lambda item: item[1],
+            reverse=True
+        )
+    ]
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Executive Quality Review Dashboard", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Executive Summary", styles["Heading2"]))
+    story.append(Paragraph(executive_summary, styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Enterprise Quality Metrics", styles["Heading2"]))
+
+    metrics_data = [
+        ["Metric", "Value"],
+        ["Quality Signal", quality_signal],
+        ["Total Findings", str(total_findings)],
+        ["Critical Findings", str(critical_findings)],
+        ["High Findings", str(high_findings)],
+        ["Baseline Evidence Count", str(baseline_evidence_count)],
+        ["Approved Baseline Count", str(approved_baseline_count)],
+        ["Vendor Escalation Ready", str(vendor_escalation_ready_count)],
+        ["IP Review Recommended", str(ip_review_recommended_count)],
+        ["Open CAPAs", str(open_capa_count)],
+        ["Closed CAPAs", str(closed_capa_count)],
+        ["Audit Events", str(audit_event_count)],
+        ["Governance Exports", str(governance_export_count)],
+    ]
+
+    metrics_table = Table(metrics_data, colWidths=[220, 260])
+    metrics_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#f8fafc")),
+        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(metrics_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Leadership Actions", styles["Heading2"]))
+
+    action_data = [["Action"]]
+    for action in recommended_leadership_actions:
+        action_data.append([action])
+
+    action_table = Table(action_data, colWidths=[500])
+    action_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(action_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Top Vendor Signals", styles["Heading2"]))
+
+    if top_vendor_signals:
+        vendor_data = [["Vendor", "Finding Count"]]
+        for vendor in top_vendor_signals[:10]:
+            vendor_data.append([
+                vendor["vendor_name"],
+                str(vendor["finding_count"]),
+            ])
+
+        vendor_table = Table(vendor_data, colWidths=[300, 180])
+        vendor_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(vendor_table)
+    else:
+        story.append(Paragraph("No vendor signals available.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recent Findings", styles["Heading2"]))
+
+    if recent_findings:
+        finding_data = [["ID", "Vendor", "Instrument", "Category", "Severity"]]
+        for finding in recent_findings:
+            finding_data.append([
+                str(finding["finding_id"]),
+                finding["vendor_name"],
+                finding["instrument_name"],
+                finding["finding_category"],
+                finding["severity"],
+            ])
+
+        finding_table = Table(finding_data, colWidths=[35, 90, 100, 190, 65])
+        finding_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e0f2fe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(finding_table)
+    else:
+        story.append(Paragraph("No recent findings available.", styles["BodyText"]))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="executive_quality_review_dashboard_pdf_exported",
+            resource_type="enterprise_executive_quality_review_dashboard_pdf",
+            resource_id="executive_quality_review_dashboard",
+            details={
+                "total_findings": total_findings,
+                "critical_findings": critical_findings,
+                "high_findings": high_findings,
+                "baseline_evidence_count": baseline_evidence_count,
+                "approved_baseline_count": approved_baseline_count,
+                "vendor_escalation_ready_count": vendor_escalation_ready_count,
+                "ip_review_recommended_count": ip_review_recommended_count,
+                "open_capa_count": open_capa_count,
+                "quality_signal": quality_signal,
+                "workflow_status": "executive_quality_review_dashboard_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-executive-quality-review-dashboard.pdf"
+        },
+    )
