@@ -555,6 +555,35 @@ def get_enterprise_governance_packet_pdf(
         .first()
     )
 
+
+    baseline_instrument_id = getattr(finding, "instrument_id", None) or getattr(instrument, "id", None)
+    baseline_vendor_id = getattr(finding, "vendor_id", None) or getattr(vendor, "id", None)
+
+    baseline_rows = []
+    if baseline_instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == baseline_instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and baseline_vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == baseline_vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .limit(10)
+            .all()
+        )
+
     evidence_rows = (
         db.query(EnterpriseEvidence)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
@@ -722,6 +751,58 @@ def get_enterprise_governance_packet_pdf(
             styles["Italic"],
         )
     )
+
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Manufacturer Baseline Evidence", styles["Heading2"]))
+
+    if baseline_rows:
+        baseline_table_data = [[
+            "Baseline ID",
+            "Manufacturer",
+            "Model",
+            "Status",
+            "Approved By",
+            "Audit Significance",
+        ]]
+
+        for baseline in baseline_rows:
+            audit_significance = (
+                "Approved manufacturer baseline may be used as trusted comparison evidence."
+                if (baseline.baseline_status or "").lower() == "approved"
+                else "Baseline captured but not yet approved as trusted comparison evidence."
+            )
+
+            baseline_table_data.append([
+                str(baseline.id),
+                baseline.manufacturer_name or "",
+                baseline.model_number or "",
+                baseline.baseline_status or "",
+                baseline.approved_by or "",
+                audit_significance,
+            ])
+
+        baseline_table = Table(baseline_table_data, colWidths=[60, 85, 85, 65, 85, 150])
+        baseline_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(baseline_table)
+
+        for baseline in baseline_rows[:3]:
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(f"Baseline #{baseline.id} Detail", styles["Heading3"]))
+            story.append(Paragraph(f"<b>Storage URI:</b> {baseline.storage_uri or ''}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Known Normal Characteristics:</b> {baseline.known_normal_characteristics or 'Not documented.'}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Known Abnormal Characteristics:</b> {baseline.known_abnormal_characteristics or 'Not documented.'}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Baseline Notes:</b> {baseline.baseline_notes or 'Not documented.'}", styles["BodyText"]))
+    else:
+        story.append(Paragraph("No manufacturer baseline evidence is currently attached to this governance packet.", styles["BodyText"]))
+
 
     doc.build(story)
 
