@@ -6,6 +6,7 @@ import EnterpriseIntakePanel from "./components/EnterpriseIntakePanel";
 import EnterpriseIntakeHistoryPanel from "./components/EnterpriseIntakeHistoryPanel";
 import EnterpriseAuditTrailPanel from "./components/EnterpriseAuditTrailPanel";
 import EnterpriseGovernanceCommandCenter from "./components/EnterpriseGovernanceCommandCenter";
+import ExecutiveQualityReviewPanel from "./components/ExecutiveQualityReviewPanel";
 import ManufacturerBaselinePanel from "./components/ManufacturerBaselinePanel";
 
 const API_BASE =
@@ -762,6 +763,7 @@ function DashboardHome() {
 
         <EnterpriseIntakePanel />
 
+        <ExecutiveQualityReviewPanel />
         <EnterpriseGovernanceCommandCenter />
 
         <ManufacturerBaselinePanel />
