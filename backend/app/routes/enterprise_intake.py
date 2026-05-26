@@ -28,6 +28,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseIntakeHistoryItem,
     EnterpriseIntakeHistoryResponse,
     EnterpriseGovernancePacketResponse,
+    EnterpriseGovernanceExportPackageResponse,
     EnterpriseGovernanceEvidenceItem,
     EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
@@ -1856,3 +1857,149 @@ def enterprise_storage_health():
             },
         )
 
+
+
+@router.get("/intake/{finding_id}/governance-export-package", response_model=EnterpriseGovernanceExportPackageResponse)
+def get_enterprise_governance_export_package(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    evidence_attachment_count = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .count()
+    )
+
+    comparison_score_count = (
+        db.query(EnterpriseBaselineComparisonScore)
+        .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
+        .count()
+    ) if "EnterpriseBaselineComparisonScore" in globals() else 0
+
+    capa_count = 0
+    try:
+        capa_count = (
+            db.query(EnterpriseCapa)
+            .filter(EnterpriseCapa.finding_id == finding.id)
+            .count()
+        )
+    except Exception:
+        capa_count = 0
+
+    audit_event_count = 0
+    try:
+        audit_event_count = (
+            db.query(EnterpriseAuditEvent)
+            .filter(EnterpriseAuditEvent.resource_id == str(finding.id))
+            .count()
+        )
+    except Exception:
+        audit_event_count = 0
+
+    included_sections = [
+        "enterprise finding",
+        "risk score",
+        "disposition",
+        "governance packet json",
+        "governance packet pdf",
+        "evidence attachments",
+        "audit trail",
+    ]
+
+    if baseline_rows:
+        included_sections.append("manufacturer baseline evidence")
+
+    if approved_baseline_count:
+        included_sections.append("approved baseline decision")
+
+    if comparison_score_count:
+        included_sections.append("baseline comparison score")
+
+    if capa_count:
+        included_sections.append("CAPA status")
+
+    readiness_status = "in_progress"
+    if approved_baseline_count and comparison_score_count:
+        readiness_status = "vendor_ip_leadership_ready"
+    elif approved_baseline_count:
+        readiness_status = "baseline_approved_packet_ready"
+    elif baseline_rows:
+        readiness_status = "baseline_captured_pending_full_review"
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="governance_export_package_generated",
+        resource_type="enterprise_governance_export_package",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "json_packet_url": f"/api/enterprise/intake/{finding.id}/governance-packet",
+            "pdf_packet_url": f"/api/enterprise/intake/{finding.id}/governance-packet.pdf",
+            "baseline_evidence_count": len(baseline_rows),
+            "approved_baseline_count": approved_baseline_count,
+            "evidence_attachment_count": evidence_attachment_count,
+            "comparison_score_count": comparison_score_count,
+            "capa_count": capa_count,
+            "audit_event_count": audit_event_count,
+            "readiness_status": readiness_status,
+            "workflow_status": "governance_export_package_generated",
+        },
+    )
+    db.commit()
+
+    return EnterpriseGovernanceExportPackageResponse(
+        status="success",
+        finding_id=finding.id,
+        package_type="enterprise_governance_export_package",
+        readiness_status=readiness_status,
+        json_packet_url=f"/api/enterprise/intake/{finding.id}/governance-packet",
+        pdf_packet_url=f"/api/enterprise/intake/{finding.id}/governance-packet.pdf",
+        baseline_evidence_count=len(baseline_rows),
+        approved_baseline_count=approved_baseline_count,
+        evidence_attachment_count=evidence_attachment_count,
+        comparison_score_count=comparison_score_count,
+        capa_count=capa_count,
+        audit_event_count=audit_event_count,
+        included_sections=included_sections,
+        recommended_use=[
+            "leadership review",
+            "vendor escalation",
+            "infection prevention review",
+            "quality committee discussion",
+            "survey readiness",
+        ],
+        message="Governance export package summary generated successfully.",
+    )

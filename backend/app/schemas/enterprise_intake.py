@@ -366,3 +366,21 @@ class EnterpriseGovernanceBaselineEvidence(BaseModel):
     known_abnormal_characteristics: str = ""
     baseline_notes: str = ""
     audit_significance: str = ""
+
+
+class EnterpriseGovernanceExportPackageResponse(BaseModel):
+    status: str = "success"
+    finding_id: int
+    package_type: str = "enterprise_governance_export_package"
+    readiness_status: str = ""
+    json_packet_url: str = ""
+    pdf_packet_url: str = ""
+    baseline_evidence_count: int = 0
+    approved_baseline_count: int = 0
+    evidence_attachment_count: int = 0
+    comparison_score_count: int = 0
+    capa_count: int = 0
+    audit_event_count: int = 0
+    included_sections: list[str] = []
+    recommended_use: list[str] = []
+    message: str = ""
