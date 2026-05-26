@@ -441,3 +441,24 @@ class EnterpriseInfectionPreventionReviewPacketResponse(BaseModel):
     baseline_evidence: list[dict] = []
     ip_review_summary: str = ""
     message: str = ""
+
+
+class EnterpriseExecutiveQualityReviewDashboardResponse(BaseModel):
+    status: str = "success"
+    dashboard_type: str = "executive_quality_review_dashboard"
+    total_findings: int = 0
+    critical_findings: int = 0
+    high_findings: int = 0
+    baseline_evidence_count: int = 0
+    approved_baseline_count: int = 0
+    vendor_escalation_ready_count: int = 0
+    ip_review_recommended_count: int = 0
+    open_capa_count: int = 0
+    closed_capa_count: int = 0
+    audit_event_count: int = 0
+    governance_export_count: int = 0
+    quality_signal: str = ""
+    executive_summary: str = ""
+    recommended_leadership_actions: list[str] = []
+    top_vendor_signals: list[dict] = []
+    recent_findings: list[dict] = []

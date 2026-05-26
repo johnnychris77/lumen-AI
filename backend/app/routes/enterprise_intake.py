@@ -31,6 +31,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseGovernanceExportPackageResponse,
     EnterpriseVendorEscalationPacketResponse,
     EnterpriseInfectionPreventionReviewPacketResponse,
+    EnterpriseExecutiveQualityReviewDashboardResponse,
     EnterpriseGovernanceEvidenceItem,
     EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
@@ -2127,7 +2128,7 @@ def get_enterprise_governance_zip_bundle(
         "overall_score": risk_score.overall_score if risk_score else 0,
         "recommended_action": disposition.recommended_action if disposition else "",
         "final_action": disposition.final_action if disposition else "",
-        "workflow_status": finding.workflow_status or "",
+        "workflow_status": getattr(finding, "workflow_status", "") or "",
         "human_confirmed": bool(finding.human_confirmed),
         "baseline_evidence": baseline_evidence,
         "evidence_attachments": evidence_attachments,
@@ -3286,4 +3287,215 @@ def get_enterprise_infection_prevention_review_packet_pdf(
         headers={
             "Content-Disposition": f"attachment; filename=lumenai-infection-prevention-review-packet-finding-{finding.id}.pdf"
         },
+    )
+
+
+@router.get("/executive-quality-review-dashboard", response_model=EnterpriseExecutiveQualityReviewDashboardResponse)
+def get_enterprise_executive_quality_review_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    total_findings = db.query(EnterpriseFinding).count()
+
+    critical_findings = (
+        db.query(EnterpriseFinding)
+        .filter(EnterpriseFinding.severity == "critical")
+        .count()
+    )
+
+    high_findings = (
+        db.query(EnterpriseFinding)
+        .filter(EnterpriseFinding.severity == "high")
+        .count()
+    )
+
+    baseline_evidence_count = db.query(EnterpriseInstrumentBaseline).count()
+
+    approved_baseline_count = (
+        db.query(EnterpriseInstrumentBaseline)
+        .filter(EnterpriseInstrumentBaseline.baseline_status == "approved")
+        .count()
+    )
+
+    audit_event_count = 0
+    governance_export_count = 0
+    try:
+        audit_event_count = db.query(EnterpriseAuditEvent).count()
+        governance_export_count = (
+            db.query(EnterpriseAuditEvent)
+            .filter(EnterpriseAuditEvent.action_type.in_([
+                "governance_packet_exported_pdf",
+                "governance_export_package_generated",
+                "governance_zip_bundle_exported",
+                "vendor_escalation_packet_generated",
+                "vendor_escalation_packet_pdf_exported",
+                "infection_prevention_review_packet_generated",
+                "infection_prevention_review_packet_pdf_exported",
+            ]))
+            .count()
+        )
+    except Exception:
+        audit_event_count = 0
+        governance_export_count = 0
+
+    open_capa_count = 0
+    closed_capa_count = 0
+    try:
+        open_capa_count = (
+            db.query(EnterpriseCapa)
+            .filter(EnterpriseCapa.status.in_(["open", "in_progress", "pending_review"]))
+            .count()
+        )
+        closed_capa_count = (
+            db.query(EnterpriseCapa)
+            .filter(EnterpriseCapa.status.in_(["closed", "completed"]))
+            .count()
+        )
+    except Exception:
+        open_capa_count = 0
+        closed_capa_count = 0
+
+    recent_rows = (
+        db.query(EnterpriseFinding)
+        .order_by(EnterpriseFinding.id.desc())
+        .limit(10)
+        .all()
+    )
+
+    recent_findings = []
+    vendor_signal_counts = {}
+
+    for finding in recent_rows:
+        vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+        instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+        vendor_name = (
+            getattr(vendor, "vendor_name", None)
+            or getattr(vendor, "name", None)
+            or getattr(vendor, "vendor", None)
+            or ""
+        ) if vendor else ""
+
+        instrument_name = (
+            getattr(instrument, "instrument_name", None)
+            or getattr(instrument, "name", None)
+            or getattr(instrument, "instrument", None)
+            or ""
+        ) if instrument else ""
+
+        if vendor_name:
+            vendor_signal_counts[vendor_name] = vendor_signal_counts.get(vendor_name, 0) + 1
+
+        recent_findings.append({
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "vendor_name": vendor_name,
+            "instrument_id": finding.instrument_id,
+            "instrument_name": instrument_name,
+            "finding_category": finding.finding_category or "",
+            "severity": finding.severity or "",
+            "confidence_score": finding.confidence_score,
+            "workflow_status": getattr(finding, "workflow_status", "") or "",
+            "created_at": finding.created_at.isoformat() if finding.created_at else "",
+        })
+
+    top_vendor_signals = [
+        {"vendor_name": vendor_name, "finding_count": count}
+        for vendor_name, count in sorted(
+            vendor_signal_counts.items(),
+            key=lambda item: item[1],
+            reverse=True
+        )
+    ]
+
+    vendor_escalation_ready_count = 0
+    ip_review_recommended_count = 0
+
+    for finding in db.query(EnterpriseFinding).all():
+        finding_category = (finding.finding_category or "").lower()
+        description = (finding.finding_description or "").lower()
+        severity = (finding.severity or "").lower()
+
+        if severity in ["high", "critical"]:
+            vendor_escalation_ready_count += 1
+
+        infection_terms = [
+            "bioburden",
+            "retained debris",
+            "blood",
+            "tissue",
+            "bone",
+            "organic",
+            "soil",
+            "contamination",
+            "foreign material",
+        ]
+
+        if any(term in finding_category or term in description for term in infection_terms):
+            ip_review_recommended_count += 1
+
+    quality_signal = "stable"
+    if critical_findings > 0 or open_capa_count > 0:
+        quality_signal = "active_quality_risk"
+    if critical_findings >= 3 or ip_review_recommended_count >= 3:
+        quality_signal = "elevated_enterprise_risk"
+
+    executive_summary = (
+        f"LumenAI executive quality dashboard includes {total_findings} findings, "
+        f"{critical_findings} critical findings, {high_findings} high findings, "
+        f"{baseline_evidence_count} manufacturer baseline records, and "
+        f"{approved_baseline_count} approved baseline references. "
+        f"Current quality signal: {quality_signal}."
+    )
+
+    recommended_leadership_actions = [
+        "Review critical and high-severity findings during quality huddle.",
+        "Validate whether vendor escalation packets are required for confirmed device-quality defects.",
+        "Review Infection Prevention packets for bioburden, retained debris, or lumened instrument concerns.",
+        "Monitor approved manufacturer baseline coverage to reduce false-positive escalation.",
+        "Track CAPA closure and audit export activity for survey readiness.",
+    ]
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id="",
+        tenant_name="",
+        action_type="executive_quality_review_dashboard_viewed",
+        resource_type="enterprise_executive_quality_review_dashboard",
+        resource_id="executive_quality_review_dashboard",
+        details={
+            "total_findings": total_findings,
+            "critical_findings": critical_findings,
+            "high_findings": high_findings,
+            "baseline_evidence_count": baseline_evidence_count,
+            "approved_baseline_count": approved_baseline_count,
+            "vendor_escalation_ready_count": vendor_escalation_ready_count,
+            "ip_review_recommended_count": ip_review_recommended_count,
+            "open_capa_count": open_capa_count,
+            "quality_signal": quality_signal,
+            "workflow_status": "executive_quality_review_dashboard_viewed",
+        },
+    )
+    db.commit()
+
+    return EnterpriseExecutiveQualityReviewDashboardResponse(
+        status="success",
+        dashboard_type="executive_quality_review_dashboard",
+        total_findings=total_findings,
+        critical_findings=critical_findings,
+        high_findings=high_findings,
+        baseline_evidence_count=baseline_evidence_count,
+        approved_baseline_count=approved_baseline_count,
+        vendor_escalation_ready_count=vendor_escalation_ready_count,
+        ip_review_recommended_count=ip_review_recommended_count,
+        open_capa_count=open_capa_count,
+        closed_capa_count=closed_capa_count,
+        audit_event_count=audit_event_count,
+        governance_export_count=governance_export_count,
+        quality_signal=quality_signal,
+        executive_summary=executive_summary,
+        recommended_leadership_actions=recommended_leadership_actions,
+        top_vendor_signals=top_vendor_signals,
+        recent_findings=recent_findings,
     )
