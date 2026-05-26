@@ -94,9 +94,15 @@ export default function ExecutiveQualityReviewPanel() {
           </p>
         </div>
 
-        <button type="button" onClick={loadDashboard} disabled={loading} style={refreshButtonStyle}>
-          {loading ? "Refreshing..." : "Refresh Dashboard"}
-        </button>
+        <div style={buttonGroupStyle}>
+          <button type="button" onClick={loadDashboard} disabled={loading} style={refreshButtonStyle}>
+            {loading ? "Refreshing..." : "Refresh Dashboard"}
+          </button>
+
+          <a href={executivePdfUrl} target="_blank" rel="noreferrer" style={exportButtonStyle}>
+            Download Executive PDF
+          </a>
+        </div>
       </div>
 
       {error ? <div style={errorStyle}>{error}</div> : null}
@@ -466,4 +472,23 @@ const emptyStateStyle: React.CSSProperties = {
   background: "#ffffff",
   color: "#64748b",
   border: "1px dashed #cbd5e1",
+};
+
+
+const buttonGroupStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const exportButtonStyle: React.CSSProperties = {
+  borderRadius: "14px",
+  padding: "10px 14px",
+  background: "#dbeafe",
+  color: "#1e40af",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
 };
