@@ -384,3 +384,31 @@ class EnterpriseGovernanceExportPackageResponse(BaseModel):
     included_sections: list[str] = []
     recommended_use: list[str] = []
     message: str = ""
+
+
+class EnterpriseVendorEscalationPacketResponse(BaseModel):
+    status: str = "success"
+    finding_id: int
+    packet_type: str = "vendor_escalation_packet"
+    escalation_status: str = ""
+    vendor_id: int | None = None
+    vendor_name: str = ""
+    instrument_id: int | None = None
+    instrument_name: str = ""
+    instrument_category: str = ""
+    finding_category: str = ""
+    finding_description: str = ""
+    severity: str = ""
+    confidence_score: float | None = None
+    baseline_evidence_count: int = 0
+    approved_baseline_count: int = 0
+    comparison_score: int | None = None
+    deviation_level: str = ""
+    baseline_alignment: str = ""
+    vendor_management_signal: str = ""
+    recommended_vendor_action: str = ""
+    requested_vendor_response: str = ""
+    supporting_evidence: list[dict] = []
+    baseline_evidence: list[dict] = []
+    escalation_summary: str = ""
+    message: str = ""

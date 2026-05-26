@@ -29,6 +29,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseIntakeHistoryResponse,
     EnterpriseGovernancePacketResponse,
     EnterpriseGovernanceExportPackageResponse,
+    EnterpriseVendorEscalationPacketResponse,
     EnterpriseGovernanceEvidenceItem,
     EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
@@ -2286,4 +2287,193 @@ Recommended use:
         path=tmp.name,
         media_type="application/zip",
         filename=f"lumenai-governance-bundle-finding-{finding.id}.zip",
+    )
+
+
+@router.get("/intake/{finding_id}/vendor-escalation-packet", response_model=EnterpriseVendorEscalationPacketResponse)
+def get_enterprise_vendor_escalation_packet(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    baseline_evidence = [
+        {
+            "baseline_id": baseline.id,
+            "instrument_id": baseline.instrument_id,
+            "vendor_id": baseline.vendor_id,
+            "manufacturer_name": baseline.manufacturer_name or "",
+            "model_number": baseline.model_number or "",
+            "catalog_number": baseline.catalog_number or "",
+            "baseline_type": baseline.baseline_type or "",
+            "file_name": baseline.file_name or "",
+            "storage_uri": baseline.storage_uri or "",
+            "baseline_status": baseline.baseline_status or "",
+            "approved_by": baseline.approved_by or "",
+            "approved_at": baseline.approved_at.isoformat() if baseline.approved_at else "",
+            "known_normal_characteristics": baseline.known_normal_characteristics or "",
+            "known_abnormal_characteristics": baseline.known_abnormal_characteristics or "",
+            "baseline_notes": baseline.baseline_notes or "",
+            "audit_significance": (
+                "Approved manufacturer baseline may be used as trusted comparison evidence."
+                if (baseline.baseline_status or "").lower() == "approved"
+                else "Baseline captured but not yet approved as trusted comparison evidence."
+            ),
+        }
+        for baseline in baseline_rows
+    ]
+
+    evidence_rows = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .all()
+    )
+
+    supporting_evidence = [
+        {
+            "evidence_id": evidence.id,
+            "evidence_type": evidence.evidence_type or "",
+            "file_name": evidence.file_name or "",
+            "storage_uri": getattr(evidence, "storage_uri", "") or getattr(evidence, "storage_key", "") or getattr(evidence, "file_url", "") or "",
+            "content_type": getattr(evidence, "mime_type", "") or "",
+            "created_at": evidence.created_at.isoformat() if evidence.created_at else "",
+        }
+        for evidence in evidence_rows
+    ]
+
+    comparison = None
+    try:
+        comparison = (
+            db.query(EnterpriseBaselineComparisonScore)
+            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
+            .order_by(EnterpriseBaselineComparisonScore.id.desc())
+            .first()
+        )
+    except Exception:
+        comparison = None
+
+    comparison_score = getattr(comparison, "comparison_score", None) if comparison else None
+    deviation_level = getattr(comparison, "deviation_level", "") if comparison else ""
+    baseline_alignment = getattr(comparison, "baseline_alignment", "") if comparison else ""
+    vendor_management_signal = getattr(comparison, "vendor_management_signal", "") if comparison else ""
+
+    vendor_name = (getattr(vendor, "vendor_name", None) or getattr(vendor, "name", None) or getattr(vendor, "vendor", None) or "") if vendor else ""
+    instrument_name = (getattr(instrument, "instrument_name", None) or getattr(instrument, "name", None) or getattr(instrument, "instrument", None) or "") if instrument else ""
+    instrument_category = (getattr(instrument, "instrument_category", None) or getattr(instrument, "category", None) or "") if instrument else ""
+
+    escalation_status = "vendor_review_not_required"
+    recommended_vendor_action = "Document internally. Vendor escalation is not recommended unless human reviewer confirms a true defect."
+
+    if deviation_level in ["high_deviation", "critical_deviation"]:
+        escalation_status = "vendor_escalation_recommended"
+        recommended_vendor_action = (
+            "Request vendor quality review, written response, and corrective action plan if the finding is confirmed."
+        )
+    elif (finding.severity or "").lower() in ["high", "critical"] and not approved_baseline_count:
+        escalation_status = "vendor_review_pending_baseline_confirmation"
+        recommended_vendor_action = (
+            "Hold vendor escalation until manufacturer baseline evidence and human review confirm whether this is a true defect."
+        )
+    elif approved_baseline_count and baseline_alignment == "consistent_with_known_baseline_artifact":
+        escalation_status = "vendor_escalation_not_recommended_baseline_artifact"
+        recommended_vendor_action = (
+            "Do not escalate as vendor defect at this time. Finding aligns with approved manufacturer baseline artifact."
+        )
+
+    requested_vendor_response = (
+        "Please review the attached finding, instrument context, and baseline comparison summary. "
+        "If vendor review is requested, provide written determination, root cause if applicable, and recommended corrective action."
+    )
+
+    escalation_summary = (
+        f"LumenAI generated a vendor escalation packet for Finding #{finding.id}. "
+        f"The finding involves {instrument_name or 'the instrument'} associated with {vendor_name or 'the vendor'}. "
+        f"Current escalation status: {escalation_status}. "
+        f"Baseline evidence count: {len(baseline_evidence)}. "
+        f"Approved baseline count: {approved_baseline_count}."
+    )
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="vendor_escalation_packet_generated",
+        resource_type="enterprise_vendor_escalation_packet",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "vendor_name": vendor_name,
+            "instrument_name": instrument_name,
+            "escalation_status": escalation_status,
+            "baseline_evidence_count": len(baseline_evidence),
+            "approved_baseline_count": approved_baseline_count,
+            "comparison_score": comparison_score,
+            "deviation_level": deviation_level,
+            "baseline_alignment": baseline_alignment,
+            "workflow_status": "vendor_escalation_packet_generated",
+        },
+    )
+    db.commit()
+
+    return EnterpriseVendorEscalationPacketResponse(
+        status="success",
+        finding_id=finding.id,
+        packet_type="vendor_escalation_packet",
+        escalation_status=escalation_status,
+        vendor_id=finding.vendor_id,
+        vendor_name=vendor_name,
+        instrument_id=finding.instrument_id,
+        instrument_name=instrument_name,
+        instrument_category=instrument_category,
+        finding_category=finding.finding_category or "",
+        finding_description=finding.finding_description or "",
+        severity=finding.severity or "",
+        confidence_score=finding.confidence_score,
+        baseline_evidence_count=len(baseline_evidence),
+        approved_baseline_count=approved_baseline_count,
+        comparison_score=comparison_score,
+        deviation_level=deviation_level,
+        baseline_alignment=baseline_alignment,
+        vendor_management_signal=vendor_management_signal,
+        recommended_vendor_action=recommended_vendor_action,
+        requested_vendor_response=requested_vendor_response,
+        supporting_evidence=supporting_evidence,
+        baseline_evidence=baseline_evidence,
+        escalation_summary=escalation_summary,
+        message="Vendor escalation packet generated successfully.",
     )
