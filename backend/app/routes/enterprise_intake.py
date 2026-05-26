@@ -2003,3 +2003,287 @@ def get_enterprise_governance_export_package(
         ],
         message="Governance export package summary generated successfully.",
     )
+
+
+@router.get("/intake/{finding_id}/governance-zip-bundle")
+def get_enterprise_governance_zip_bundle(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    import json
+    import tempfile
+    import zipfile
+    from io import BytesIO
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+
+    risk_score = (
+        db.query(EnterpriseRiskScore)
+        .filter(EnterpriseRiskScore.finding_id == finding.id)
+        .order_by(EnterpriseRiskScore.id.desc())
+        .first()
+    )
+
+    disposition = (
+        db.query(EnterpriseDisposition)
+        .filter(EnterpriseDisposition.finding_id == finding.id)
+        .order_by(EnterpriseDisposition.id.desc())
+        .first()
+    )
+
+    evidence_rows = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .order_by(EnterpriseEvidence.id.desc())
+        .all()
+    )
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    baseline_evidence = [
+        {
+            "baseline_id": baseline.id,
+            "instrument_id": baseline.instrument_id,
+            "vendor_id": baseline.vendor_id,
+            "manufacturer_name": baseline.manufacturer_name or "",
+            "model_number": baseline.model_number or "",
+            "catalog_number": baseline.catalog_number or "",
+            "baseline_type": baseline.baseline_type or "",
+            "file_name": baseline.file_name or "",
+            "storage_uri": baseline.storage_uri or "",
+            "baseline_status": baseline.baseline_status or "",
+            "approved_by": baseline.approved_by or "",
+            "approved_at": baseline.approved_at.isoformat() if baseline.approved_at else "",
+            "known_normal_characteristics": baseline.known_normal_characteristics or "",
+            "known_abnormal_characteristics": baseline.known_abnormal_characteristics or "",
+            "baseline_notes": baseline.baseline_notes or "",
+            "audit_significance": (
+                "Approved manufacturer baseline may be used as trusted comparison evidence."
+                if (baseline.baseline_status or "").lower() == "approved"
+                else "Baseline captured but not yet approved as trusted comparison evidence."
+            ),
+        }
+        for baseline in baseline_rows
+    ]
+
+    evidence_attachments = [
+        {
+            "evidence_id": evidence.id,
+            "evidence_type": evidence.evidence_type or "",
+            "file_name": evidence.file_name or "",
+            "storage_uri": getattr(evidence, "storage_uri", "") or getattr(evidence, "storage_key", "") or getattr(evidence, "file_url", "") or "",
+            "content_type": getattr(evidence, "mime_type", "") or "",
+            "created_at": evidence.created_at.isoformat() if evidence.created_at else "",
+        }
+        for evidence in evidence_rows
+    ]
+
+    governance_packet = {
+        "packet_type": "enterprise_intake_governance_packet",
+        "finding_id": finding.id,
+        "vendor_name": vendor.vendor_name if vendor else "",
+        "instrument_name": instrument.instrument_name if instrument else "",
+        "instrument_category": instrument.instrument_category if instrument else "",
+        "finding_category": finding.finding_category or "",
+        "finding_description": finding.finding_description or "",
+        "severity": finding.severity or "",
+        "confidence_score": finding.confidence_score,
+        "risk_tier": risk_score.risk_tier if risk_score else "",
+        "overall_score": risk_score.overall_score if risk_score else 0,
+        "recommended_action": disposition.recommended_action if disposition else "",
+        "final_action": disposition.final_action if disposition else "",
+        "workflow_status": finding.workflow_status or "",
+        "human_confirmed": bool(finding.human_confirmed),
+        "baseline_evidence": baseline_evidence,
+        "evidence_attachments": evidence_attachments,
+        "audit_readiness": {
+            "finding_id": finding.id,
+            "vendor_id": finding.vendor_id,
+            "instrument_id": finding.instrument_id,
+            "risk_score_id": risk_score.id if risk_score else None,
+            "disposition_id": disposition.id if disposition else None,
+            "baseline_evidence_count": len(baseline_evidence),
+            "approved_baseline_count": approved_baseline_count,
+            "evidence_attachment_count": len(evidence_attachments),
+            "created_at": finding.created_at.isoformat() if finding.created_at else "",
+        },
+    }
+
+    readiness_status = "in_progress"
+    if approved_baseline_count:
+        readiness_status = "vendor_ip_leadership_ready"
+    elif baseline_rows:
+        readiness_status = "baseline_captured_pending_full_review"
+
+    manifest = {
+        "status": "success",
+        "finding_id": finding.id,
+        "package_type": "enterprise_governance_zip_bundle",
+        "readiness_status": readiness_status,
+        "included_files": [
+            "governance-packet.json",
+            "baseline-evidence.json",
+            "evidence-attachments.json",
+            "governance-packet-summary.pdf",
+            "export-package-manifest.json",
+            "README.txt",
+        ],
+        "included_sections": [
+            "enterprise finding",
+            "risk score",
+            "disposition",
+            "manufacturer baseline evidence",
+            "baseline approval decision",
+            "evidence attachments",
+            "audit readiness summary",
+        ],
+        "recommended_use": [
+            "leadership review",
+            "vendor escalation",
+            "infection prevention review",
+            "quality committee discussion",
+            "survey readiness",
+        ],
+    }
+
+    # Build compact PDF summary for the ZIP.
+    pdf_buffer = BytesIO()
+    pdf_doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Governance Packet Summary", styles["Title"]))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(f"Finding ID: {finding.id}", styles["BodyText"]))
+    story.append(Paragraph(f"Vendor: {governance_packet['vendor_name']}", styles["BodyText"]))
+    story.append(Paragraph(f"Instrument: {governance_packet['instrument_name']}", styles["BodyText"]))
+    story.append(Paragraph(f"Finding Category: {governance_packet['finding_category']}", styles["BodyText"]))
+    story.append(Paragraph(f"Severity: {governance_packet['severity']}", styles["BodyText"]))
+    story.append(Paragraph(f"Readiness Status: {readiness_status}", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Manufacturer Baseline Evidence", styles["Heading2"]))
+
+    if baseline_evidence:
+        table_data = [["Baseline", "Manufacturer", "Model", "Status", "Approved By"]]
+        for baseline in baseline_evidence:
+            table_data.append([
+                str(baseline["baseline_id"]),
+                baseline["manufacturer_name"],
+                baseline["model_number"],
+                baseline["baseline_status"],
+                baseline["approved_by"],
+            ])
+
+        table = Table(table_data, colWidths=[60, 110, 110, 80, 110])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(table)
+
+        for baseline in baseline_evidence[:3]:
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(f"Baseline #{baseline['baseline_id']} Audit Significance", styles["Heading3"]))
+            story.append(Paragraph(baseline["audit_significance"], styles["BodyText"]))
+            story.append(Paragraph(f"Known Normal: {baseline['known_normal_characteristics']}", styles["BodyText"]))
+            story.append(Paragraph(f"Known Abnormal: {baseline['known_abnormal_characteristics']}", styles["BodyText"]))
+    else:
+        story.append(Paragraph("No manufacturer baseline evidence attached.", styles["BodyText"]))
+
+    pdf_doc.build(story)
+    pdf_buffer.seek(0)
+
+    readme = f"""LumenAI Governance ZIP Bundle
+
+Finding ID: {finding.id}
+Vendor: {governance_packet['vendor_name']}
+Instrument: {governance_packet['instrument_name']}
+Readiness Status: {readiness_status}
+
+This package includes:
+- governance-packet.json
+- baseline-evidence.json
+- evidence-attachments.json
+- governance-packet-summary.pdf
+- export-package-manifest.json
+
+Recommended use:
+- Leadership review
+- Vendor escalation
+- Infection Prevention review
+- Quality committee discussion
+- Survey readiness
+"""
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f"-finding-{finding.id}-governance-bundle.zip")
+    tmp.close()
+
+    with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("governance-packet.json", json.dumps(governance_packet, indent=2, default=str))
+        zf.writestr("baseline-evidence.json", json.dumps(baseline_evidence, indent=2, default=str))
+        zf.writestr("evidence-attachments.json", json.dumps(evidence_attachments, indent=2, default=str))
+        zf.writestr("export-package-manifest.json", json.dumps(manifest, indent=2, default=str))
+        zf.writestr("README.txt", readme)
+        zf.writestr("governance-packet-summary.pdf", pdf_buffer.getvalue())
+
+    _record_enterprise_audit(
+        db,
+        request,
+        tenant_id=finding.tenant_id,
+        tenant_name="",
+        action_type="governance_zip_bundle_exported",
+        resource_type="enterprise_governance_zip_bundle",
+        resource_id=str(finding.id),
+        details={
+            "finding_id": finding.id,
+            "readiness_status": readiness_status,
+            "baseline_evidence_count": len(baseline_evidence),
+            "approved_baseline_count": approved_baseline_count,
+            "evidence_attachment_count": len(evidence_attachments),
+            "workflow_status": "governance_zip_bundle_exported",
+        },
+    )
+    db.commit()
+
+    return FileResponse(
+        path=tmp.name,
+        media_type="application/zip",
+        filename=f"lumenai-governance-bundle-finding-{finding.id}.zip",
+    )
