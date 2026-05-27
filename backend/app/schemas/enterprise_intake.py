@@ -467,6 +467,7 @@ class EnterpriseExecutiveQualityReviewDashboardResponse(BaseModel):
 class EnterpriseExportReadinessStatusResponse(BaseModel):
     status: str = "success"
     finding_id: int
+    generated_at: str = ""
     governance_zip_ready: bool = False
     vendor_pdf_ready: bool = False
     infection_prevention_pdf_ready: bool = False

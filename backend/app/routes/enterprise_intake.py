@@ -1876,6 +1876,8 @@ def get_enterprise_governance_export_package(
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
+    generated_at = datetime.now(timezone.utc).isoformat()
+
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
@@ -3828,12 +3830,15 @@ def get_enterprise_export_readiness_status(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    from datetime import datetime, timezone
     from fastapi import HTTPException
 
     finding = db.get(EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    generated_at = datetime.now(timezone.utc).isoformat()
 
     baseline_rows = []
     if finding.instrument_id:
@@ -3949,6 +3954,7 @@ def get_enterprise_export_readiness_status(
             resource_id=str(finding.id),
             details={
                 "finding_id": finding.id,
+                "generated_at": generated_at,
                 "governance_zip_ready": governance_zip_ready,
                 "vendor_pdf_ready": vendor_pdf_ready,
                 "infection_prevention_pdf_ready": infection_prevention_pdf_ready,
@@ -3966,6 +3972,7 @@ def get_enterprise_export_readiness_status(
     return EnterpriseExportReadinessStatusResponse(
         status="success",
         finding_id=finding.id,
+        generated_at=generated_at,
         governance_zip_ready=governance_zip_ready,
         vendor_pdf_ready=vendor_pdf_ready,
         infection_prevention_pdf_ready=infection_prevention_pdf_ready,
