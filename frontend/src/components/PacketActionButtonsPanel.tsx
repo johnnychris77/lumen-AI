@@ -165,6 +165,12 @@ export default function PacketActionButtonsPanel() {
   const vendorPdfUrl = `${API_BASE}/api/enterprise/intake/${findingId}/vendor-escalation-packet.pdf`;
   const ipPdfUrl = `${API_BASE}/api/enterprise/intake/${findingId}/infection-prevention-review-packet.pdf`;
   const executivePdfUrl = `${API_BASE}/api/enterprise/executive-quality-review-dashboard.pdf`;
+  const historyPdfParams = new URLSearchParams();
+  historyPdfParams.set("limit", historyLimit || "10");
+  if (historyFindingId.trim()) {
+    historyPdfParams.set("finding_id", historyFindingId.trim());
+  }
+  const historyPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.pdf?${historyPdfParams.toString()}`;
 
   return (
     <section style={panelStyle}>
@@ -285,6 +291,10 @@ export default function PacketActionButtonsPanel() {
             <button type="button" onClick={clearHistoryFilters} style={historySecondaryButtonStyle}>
               Clear
             </button>
+
+            <a href={historyPdfUrl} target="_blank" rel="noreferrer" style={historyPdfButtonStyle}>
+              Download History PDF
+            </a>
           </div>
         </div>
 
@@ -751,4 +761,15 @@ const historySecondaryButtonStyle: React.CSSProperties = {
   color: "#334155",
   fontWeight: 900,
   cursor: "pointer",
+};
+
+
+const historyPdfButtonStyle: React.CSSProperties = {
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#ede9fe",
+  color: "#5b21b6",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
 };
