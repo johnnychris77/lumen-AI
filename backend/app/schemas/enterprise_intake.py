@@ -462,3 +462,21 @@ class EnterpriseExecutiveQualityReviewDashboardResponse(BaseModel):
     recommended_leadership_actions: list[str] = []
     top_vendor_signals: list[dict] = []
     recent_findings: list[dict] = []
+
+
+class EnterpriseExportReadinessStatusResponse(BaseModel):
+    status: str = "success"
+    finding_id: int
+    governance_zip_ready: bool = False
+    vendor_pdf_ready: bool = False
+    infection_prevention_pdf_ready: bool = False
+    executive_pdf_ready: bool = True
+    baseline_evidence_count: int = 0
+    approved_baseline_count: int = 0
+    evidence_attachment_count: int = 0
+    governance_zip_url: str = ""
+    vendor_pdf_url: str = ""
+    infection_prevention_pdf_url: str = ""
+    executive_pdf_url: str = ""
+    readiness_summary: str = ""
+    cards: list[dict] = []

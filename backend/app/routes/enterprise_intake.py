@@ -32,6 +32,7 @@ from app.schemas.enterprise_intake import (
     EnterpriseVendorEscalationPacketResponse,
     EnterpriseInfectionPreventionReviewPacketResponse,
     EnterpriseExecutiveQualityReviewDashboardResponse,
+    EnterpriseExportReadinessStatusResponse,
     EnterpriseGovernanceEvidenceItem,
     EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
@@ -3818,4 +3819,324 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
         headers={
             "Content-Disposition": "attachment; filename=lumenai-executive-quality-review-dashboard.pdf"
         },
+    )
+
+
+@router.get("/intake/{finding_id}/export-readiness-status", response_model=EnterpriseExportReadinessStatusResponse)
+def get_enterprise_export_readiness_status(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    baseline_evidence_count = len(baseline_rows)
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    evidence_attachment_count = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .count()
+    )
+
+    severity = (finding.severity or "").lower()
+    finding_category = (finding.finding_category or "").lower()
+    finding_description = (finding.finding_description or "").lower()
+
+    infection_terms = [
+        "bioburden",
+        "retained debris",
+        "blood",
+        "tissue",
+        "bone",
+        "organic",
+        "soil",
+        "contamination",
+        "foreign material",
+    ]
+
+    has_ip_signal = any(
+        term in finding_category or term in finding_description
+        for term in infection_terms
+    )
+
+    governance_zip_ready = True
+    executive_pdf_ready = True
+    vendor_pdf_ready = severity in ["high", "critical"] or approved_baseline_count > 0
+    infection_prevention_pdf_ready = has_ip_signal or severity in ["high", "critical"]
+
+    governance_zip_url = f"/api/enterprise/intake/{finding.id}/governance-zip-bundle"
+    vendor_pdf_url = f"/api/enterprise/intake/{finding.id}/vendor-escalation-packet.pdf"
+    infection_prevention_pdf_url = f"/api/enterprise/intake/{finding.id}/infection-prevention-review-packet.pdf"
+    executive_pdf_url = "/api/enterprise/executive-quality-review-dashboard.pdf"
+
+    cards = [
+        {
+            "key": "governance_zip",
+            "title": "Governance ZIP Bundle",
+            "ready": governance_zip_ready,
+            "status": "Ready" if governance_zip_ready else "Not Ready",
+            "url": governance_zip_url,
+            "description": "Includes JSON packet, baseline evidence, evidence attachments, PDF summary, manifest, and README.",
+        },
+        {
+            "key": "vendor_escalation_pdf",
+            "title": "Vendor Escalation PDF",
+            "ready": vendor_pdf_ready,
+            "status": "Ready" if vendor_pdf_ready else "Review Needed",
+            "url": vendor_pdf_url,
+            "description": "Vendor-facing quality packet with finding context, baseline evidence, and recommended vendor action.",
+        },
+        {
+            "key": "infection_prevention_pdf",
+            "title": "Infection Prevention PDF",
+            "ready": infection_prevention_pdf_ready,
+            "status": "Ready" if infection_prevention_pdf_ready else "Review Needed",
+            "url": infection_prevention_pdf_url,
+            "description": "IP-ready packet with patient-safety signal, infection-risk signal, and recommended documentation.",
+        },
+        {
+            "key": "executive_quality_pdf",
+            "title": "Executive Quality PDF",
+            "ready": executive_pdf_ready,
+            "status": "Ready",
+            "url": executive_pdf_url,
+            "description": "Leadership-ready summary of findings, quality signal, vendor signals, CAPA status, and actions.",
+        },
+    ]
+
+    readiness_summary = (
+        f"Export readiness generated for Finding #{finding.id}. "
+        f"Baseline evidence count: {baseline_evidence_count}. "
+        f"Approved baseline count: {approved_baseline_count}. "
+        f"Evidence attachment count: {evidence_attachment_count}."
+    )
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id=finding.tenant_id,
+            tenant_name="",
+            action_type="export_readiness_status_viewed",
+            resource_type="enterprise_export_readiness_status",
+            resource_id=str(finding.id),
+            details={
+                "finding_id": finding.id,
+                "governance_zip_ready": governance_zip_ready,
+                "vendor_pdf_ready": vendor_pdf_ready,
+                "infection_prevention_pdf_ready": infection_prevention_pdf_ready,
+                "executive_pdf_ready": executive_pdf_ready,
+                "baseline_evidence_count": baseline_evidence_count,
+                "approved_baseline_count": approved_baseline_count,
+                "evidence_attachment_count": evidence_attachment_count,
+                "workflow_status": "export_readiness_status_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return EnterpriseExportReadinessStatusResponse(
+        status="success",
+        finding_id=finding.id,
+        governance_zip_ready=governance_zip_ready,
+        vendor_pdf_ready=vendor_pdf_ready,
+        infection_prevention_pdf_ready=infection_prevention_pdf_ready,
+        executive_pdf_ready=executive_pdf_ready,
+        baseline_evidence_count=baseline_evidence_count,
+        approved_baseline_count=approved_baseline_count,
+        evidence_attachment_count=evidence_attachment_count,
+        governance_zip_url=governance_zip_url,
+        vendor_pdf_url=vendor_pdf_url,
+        infection_prevention_pdf_url=infection_prevention_pdf_url,
+        executive_pdf_url=executive_pdf_url,
+        readiness_summary=readiness_summary,
+        cards=cards,
+    )
+
+
+@router.get("/intake/{finding_id}/export-readiness-status", response_model=EnterpriseExportReadinessStatusResponse)
+def get_enterprise_export_readiness_status(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    finding = db.get(EnterpriseFinding, finding_id)
+
+    if not finding:
+        raise HTTPException(status_code=404, detail="Enterprise finding not found")
+
+    baseline_rows = []
+    if finding.instrument_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    if not baseline_rows and finding.vendor_id:
+        baseline_rows = (
+            db.query(EnterpriseInstrumentBaseline)
+            .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
+            .order_by(EnterpriseInstrumentBaseline.id.desc())
+            .all()
+        )
+
+    baseline_evidence_count = len(baseline_rows)
+
+    approved_baseline_count = sum(
+        1 for baseline in baseline_rows
+        if (baseline.baseline_status or "").lower() == "approved"
+    )
+
+    evidence_attachment_count = (
+        db.query(EnterpriseEvidence)
+        .filter(EnterpriseEvidence.inspection_id == finding.id)
+        .count()
+    )
+
+    severity = (finding.severity or "").lower()
+    finding_category = (finding.finding_category or "").lower()
+    finding_description = (finding.finding_description or "").lower()
+
+    infection_terms = [
+        "bioburden",
+        "retained debris",
+        "blood",
+        "tissue",
+        "bone",
+        "organic",
+        "soil",
+        "contamination",
+        "foreign material",
+    ]
+
+    has_ip_signal = any(
+        term in finding_category or term in finding_description
+        for term in infection_terms
+    )
+
+    governance_zip_ready = True
+    executive_pdf_ready = True
+    vendor_pdf_ready = severity in ["high", "critical"] or approved_baseline_count > 0
+    infection_prevention_pdf_ready = has_ip_signal or severity in ["high", "critical"]
+
+    governance_zip_url = f"/api/enterprise/intake/{finding.id}/governance-zip-bundle"
+    vendor_pdf_url = f"/api/enterprise/intake/{finding.id}/vendor-escalation-packet.pdf"
+    infection_prevention_pdf_url = f"/api/enterprise/intake/{finding.id}/infection-prevention-review-packet.pdf"
+    executive_pdf_url = "/api/enterprise/executive-quality-review-dashboard.pdf"
+
+    cards = [
+        {
+            "key": "governance_zip",
+            "title": "Governance ZIP Bundle",
+            "ready": governance_zip_ready,
+            "status": "Ready" if governance_zip_ready else "Not Ready",
+            "url": governance_zip_url,
+            "description": "Includes JSON packet, baseline evidence, evidence attachments, PDF summary, manifest, and README.",
+        },
+        {
+            "key": "vendor_escalation_pdf",
+            "title": "Vendor Escalation PDF",
+            "ready": vendor_pdf_ready,
+            "status": "Ready" if vendor_pdf_ready else "Review Needed",
+            "url": vendor_pdf_url,
+            "description": "Vendor-facing quality packet with finding context, baseline evidence, and recommended vendor action.",
+        },
+        {
+            "key": "infection_prevention_pdf",
+            "title": "Infection Prevention PDF",
+            "ready": infection_prevention_pdf_ready,
+            "status": "Ready" if infection_prevention_pdf_ready else "Review Needed",
+            "url": infection_prevention_pdf_url,
+            "description": "IP-ready packet with patient-safety signal, infection-risk signal, and recommended documentation.",
+        },
+        {
+            "key": "executive_quality_pdf",
+            "title": "Executive Quality PDF",
+            "ready": executive_pdf_ready,
+            "status": "Ready",
+            "url": executive_pdf_url,
+            "description": "Leadership-ready summary of findings, quality signal, vendor signals, CAPA status, and actions.",
+        },
+    ]
+
+    readiness_summary = (
+        f"Export readiness generated for Finding #{finding.id}. "
+        f"Baseline evidence count: {baseline_evidence_count}. "
+        f"Approved baseline count: {approved_baseline_count}. "
+        f"Evidence attachment count: {evidence_attachment_count}."
+    )
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id=finding.tenant_id,
+            tenant_name="",
+            action_type="export_readiness_status_viewed",
+            resource_type="enterprise_export_readiness_status",
+            resource_id=str(finding.id),
+            details={
+                "finding_id": finding.id,
+                "governance_zip_ready": governance_zip_ready,
+                "vendor_pdf_ready": vendor_pdf_ready,
+                "infection_prevention_pdf_ready": infection_prevention_pdf_ready,
+                "executive_pdf_ready": executive_pdf_ready,
+                "baseline_evidence_count": baseline_evidence_count,
+                "approved_baseline_count": approved_baseline_count,
+                "evidence_attachment_count": evidence_attachment_count,
+                "workflow_status": "export_readiness_status_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return EnterpriseExportReadinessStatusResponse(
+        status="success",
+        finding_id=finding.id,
+        governance_zip_ready=governance_zip_ready,
+        vendor_pdf_ready=vendor_pdf_ready,
+        infection_prevention_pdf_ready=infection_prevention_pdf_ready,
+        executive_pdf_ready=executive_pdf_ready,
+        baseline_evidence_count=baseline_evidence_count,
+        approved_baseline_count=approved_baseline_count,
+        evidence_attachment_count=evidence_attachment_count,
+        governance_zip_url=governance_zip_url,
+        vendor_pdf_url=vendor_pdf_url,
+        infection_prevention_pdf_url=infection_prevention_pdf_url,
+        executive_pdf_url=executive_pdf_url,
+        readiness_summary=readiness_summary,
+        cards=cards,
     )
