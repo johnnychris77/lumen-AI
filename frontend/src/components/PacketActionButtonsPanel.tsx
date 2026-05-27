@@ -66,13 +66,17 @@ export default function PacketActionButtonsPanel() {
 
   useEffect(() => {
     loadReadiness();
-  }, []);
+  }, [findingId]);
 
   const [lastExport, setLastExport] = useState("");
 
   function recordExport(label: string) {
     const timestamp = new Date().toLocaleString();
     setLastExport(`${label} export opened for Finding #${findingId} at ${timestamp}. This action is audit-tracked by the backend when the export endpoint is requested.`);
+
+    window.setTimeout(() => {
+      loadReadiness();
+    }, 1200);
   }
 
   function scrollToAuditTrail() {
@@ -102,6 +106,9 @@ export default function PacketActionButtonsPanel() {
           <strong>Export Readiness Status</strong>
           <p style={readinessSummaryStyle}>
             {readiness?.readiness_summary || "Load export readiness to confirm available packets."}
+          </p>
+          <p style={autoRefreshTextStyle}>
+            Auto-refreshes when the Finding ID changes or an export is opened.
           </p>
         </div>
         <button type="button" onClick={loadReadiness} disabled={readinessLoading} style={readinessButtonStyle}>
@@ -447,4 +454,12 @@ const auditTrailButtonStyle: React.CSSProperties = {
   color: "#ffffff",
   fontWeight: 900,
   cursor: "pointer",
+};
+
+
+const autoRefreshTextStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#64748b",
+  fontSize: "12px",
+  lineHeight: 1.4,
 };
