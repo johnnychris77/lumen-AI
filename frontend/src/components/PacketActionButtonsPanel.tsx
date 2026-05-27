@@ -1,12 +1,73 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_BASE ||
   "http://127.0.0.1:18012";
 
+
+type ExportReadinessCard = {
+  key: string;
+  title: string;
+  ready: boolean;
+  status: string;
+  url: string;
+  description: string;
+};
+
+type ExportReadinessStatus = {
+  status: string;
+  finding_id: number;
+  baseline_evidence_count: number;
+  approved_baseline_count: number;
+  evidence_attachment_count: number;
+  readiness_summary: string;
+  cards: ExportReadinessCard[];
+};
+
+async function fetchExportReadiness(findingId: string): Promise<ExportReadinessStatus> {
+  const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/export-readiness-status`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Export readiness failed (${response.status})`);
+  }
+
+  return data;
+}
+
+
 export default function PacketActionButtonsPanel() {
   const [findingId, setFindingId] = useState("2");
+  const [readiness, setReadiness] = useState<ExportReadinessStatus | null>(null);
+  const [readinessError, setReadinessError] = useState("");
+  const [readinessLoading, setReadinessLoading] = useState(false);
+
+  async function loadReadiness() {
+    setReadinessLoading(true);
+    setReadinessError("");
+
+    try {
+      const data = await fetchExportReadiness(findingId);
+      setReadiness(data);
+    } catch (err) {
+      setReadinessError(err instanceof Error ? err.message : "Unknown export readiness error");
+    } finally {
+      setReadinessLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReadiness();
+  }, []);
+
   const [lastExport, setLastExport] = useState("");
 
   function recordExport(label: string) {
@@ -36,31 +97,30 @@ export default function PacketActionButtonsPanel() {
         </p>
       </div>
 
+      <div style={readinessHeaderStyle}>
+        <div>
+          <strong>Export Readiness Status</strong>
+          <p style={readinessSummaryStyle}>
+            {readiness?.readiness_summary || "Load export readiness to confirm available packets."}
+          </p>
+        </div>
+        <button type="button" onClick={loadReadiness} disabled={readinessLoading} style={readinessButtonStyle}>
+          {readinessLoading ? "Checking..." : "Check Readiness"}
+        </button>
+      </div>
+
+      {readinessError ? <div style={readinessErrorStyle}>{readinessError}</div> : null}
+
       <div style={exportStatusGridStyle}>
-        <ExportStatusCard
-          title="Governance ZIP Bundle"
-          status="Ready"
-          description="Includes JSON packet, baseline evidence, evidence attachments, PDF summary, manifest, and README."
-          intent="ready"
-        />
-        <ExportStatusCard
-          title="Vendor Escalation PDF"
-          status="Ready"
-          description="Vendor-facing quality packet with finding context, baseline evidence, and recommended vendor action."
-          intent="ready"
-        />
-        <ExportStatusCard
-          title="Infection Prevention PDF"
-          status="Ready"
-          description="IP-ready packet with patient-safety signal, infection-risk signal, and recommended documentation."
-          intent="ready"
-        />
-        <ExportStatusCard
-          title="Executive Quality PDF"
-          status="Ready"
-          description="Leadership-ready summary of findings, quality signal, vendor signals, CAPA status, and actions."
-          intent="ready"
-        />
+        {(readiness?.cards || fallbackCards).map((card) => (
+          <ExportStatusCard
+            key={card.key}
+            title={card.title}
+            status={card.status}
+            description={card.description}
+            intent={card.ready ? "ready" : "warning"}
+          />
+        ))}
       </div>
 
       <div style={controlRowStyle}>
@@ -106,6 +166,41 @@ export default function PacketActionButtonsPanel() {
   );
 }
 
+const fallbackCards: ExportReadinessCard[] = [
+  {
+    key: "governance_zip",
+    title: "Governance ZIP Bundle",
+    ready: true,
+    status: "Ready",
+    url: "",
+    description: "Includes JSON packet, baseline evidence, evidence attachments, PDF summary, manifest, and README.",
+  },
+  {
+    key: "vendor_escalation_pdf",
+    title: "Vendor Escalation PDF",
+    ready: true,
+    status: "Ready",
+    url: "",
+    description: "Vendor-facing quality packet with finding context, baseline evidence, and recommended vendor action.",
+  },
+  {
+    key: "infection_prevention_pdf",
+    title: "Infection Prevention PDF",
+    ready: true,
+    status: "Ready",
+    url: "",
+    description: "IP-ready packet with patient-safety signal, infection-risk signal, and recommended documentation.",
+  },
+  {
+    key: "executive_quality_pdf",
+    title: "Executive Quality PDF",
+    ready: true,
+    status: "Ready",
+    url: "",
+    description: "Leadership-ready summary of findings, quality signal, vendor signals, CAPA status, and actions.",
+  },
+];
+
 function ExportStatusCard({
   title,
   status,
@@ -127,6 +222,45 @@ function ExportStatusCard({
     </div>
   );
 }
+
+const readinessHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+  marginTop: "16px",
+  padding: "12px",
+  borderRadius: "16px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
+const readinessSummaryStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#475569",
+  lineHeight: 1.45,
+};
+
+const readinessButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#7c3aed",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const readinessErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
 
 const exportStatusGridStyle: React.CSSProperties = {
   display: "grid",
