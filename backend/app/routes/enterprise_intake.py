@@ -2117,9 +2117,9 @@ def get_enterprise_governance_zip_bundle(
     governance_packet = {
         "packet_type": "enterprise_intake_governance_packet",
         "finding_id": finding.id,
-        "vendor_name": vendor.vendor_name if vendor else "",
-        "instrument_name": instrument.instrument_name if instrument else "",
-        "instrument_category": instrument.instrument_category if instrument else "",
+        "vendor_name": (getattr(vendor, "vendor_name", None) or getattr(vendor, "name", None) or getattr(vendor, "vendor", None) or "") if vendor else "",
+        "instrument_name": (getattr(instrument, "instrument_name", None) or getattr(instrument, "name", None) or getattr(instrument, "instrument", None) or "") if instrument else "",
+        "instrument_category": (getattr(instrument, "instrument_category", None) or getattr(instrument, "category", None) or "") if instrument else "",
         "finding_category": finding.finding_category or "",
         "finding_description": finding.finding_description or "",
         "severity": finding.severity or "",
@@ -2129,7 +2129,7 @@ def get_enterprise_governance_zip_bundle(
         "recommended_action": disposition.recommended_action if disposition else "",
         "final_action": disposition.final_action if disposition else "",
         "workflow_status": getattr(finding, "workflow_status", "") or "",
-        "human_confirmed": bool(finding.human_confirmed),
+        "human_confirmed": bool(getattr(finding, "human_confirmed", False)),
         "baseline_evidence": baseline_evidence,
         "evidence_attachments": evidence_attachments,
         "audit_readiness": {
