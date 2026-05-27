@@ -25,6 +25,44 @@ type ExportReadinessStatus = {
   cards: ExportReadinessCard[];
 };
 
+
+type ExportReadinessHistoryItem = {
+  finding_id: number;
+  generated_at: string;
+  governance_zip_ready: boolean;
+  vendor_pdf_ready: boolean;
+  infection_prevention_pdf_ready: boolean;
+  executive_pdf_ready: boolean;
+  baseline_evidence_count: number;
+  approved_baseline_count: number;
+  evidence_attachment_count: number;
+  readiness_summary: string;
+};
+
+type ExportReadinessHistoryResponse = {
+  status: string;
+  history_type: string;
+  items: ExportReadinessHistoryItem[];
+};
+
+async function fetchExportReadinessHistory(): Promise<ExportReadinessHistoryResponse> {
+  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history?limit=5`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Export readiness history failed (${response.status})`);
+  }
+
+  return data;
+}
+
 async function fetchExportReadiness(findingId: string): Promise<ExportReadinessStatus> {
   const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/export-readiness-status`, {
     headers: {
@@ -49,6 +87,8 @@ export default function PacketActionButtonsPanel() {
   const [readiness, setReadiness] = useState<ExportReadinessStatus | null>(null);
   const [readinessError, setReadinessError] = useState("");
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [historyItems, setHistoryItems] = useState<ExportReadinessHistoryItem[]>([]);
+  const [historyError, setHistoryError] = useState("");
   const [lastCheckedAt, setLastCheckedAt] = useState("");
 
   async function loadReadiness() {
@@ -68,9 +108,21 @@ export default function PacketActionButtonsPanel() {
 
   useEffect(() => {
     loadReadiness();
+    loadHistory();
   }, [findingId]);
 
   const [lastExport, setLastExport] = useState("");
+
+  async function loadHistory() {
+    setHistoryError("");
+
+    try {
+      const data = await fetchExportReadinessHistory();
+      setHistoryItems(data.items || []);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown export readiness history error");
+    }
+  }
 
   function recordExport(label: string) {
     const timestamp = new Date().toLocaleString();
@@ -176,6 +228,44 @@ export default function PacketActionButtonsPanel() {
           </button>
         </div>
       ) : null}
+      <div style={historyPanelStyle}>
+        <div style={historyHeaderStyle}>
+          <div>
+            <strong>Recent Export Readiness Checks</strong>
+            <p style={historySubtextStyle}>
+              Shows the most recent backend readiness checks for packet exports.
+            </p>
+          </div>
+          <button type="button" onClick={loadHistory} style={historyButtonStyle}>
+            Refresh History
+          </button>
+        </div>
+
+        {historyError ? <div style={historyErrorStyle}>{historyError}</div> : null}
+
+        {historyItems.length ? (
+          <div style={historyListStyle}>
+            {historyItems.map((item) => (
+              <div key={`${item.finding_id}-${item.generated_at}`} style={historyItemStyle}>
+                <div style={historyItemHeaderStyle}>
+                  <strong>Finding #{item.finding_id}</strong>
+                  <span>{formatHistoryDate(item.generated_at)}</span>
+                </div>
+                <div style={historyBadgeRowStyle}>
+                  <span style={readyBadgeStyle(item.governance_zip_ready)}>ZIP</span>
+                  <span style={readyBadgeStyle(item.vendor_pdf_ready)}>Vendor PDF</span>
+                  <span style={readyBadgeStyle(item.infection_prevention_pdf_ready)}>IP PDF</span>
+                  <span style={readyBadgeStyle(item.executive_pdf_ready)}>Executive PDF</span>
+                </div>
+                <p style={historySubtextStyle}>{item.readiness_summary}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={historySubtextStyle}>No readiness history yet. Click Check Readiness to create a history entry.</p>
+        )}
+      </div>
+
     </section>
   );
 }
@@ -234,6 +324,11 @@ const fallbackCards: ExportReadinessCard[] = [
     description: "Leadership-ready summary of findings, quality signal, vendor signals, CAPA status, and actions.",
   },
 ];
+
+function formatHistoryDate(value: string) {
+  if (!value) return "";
+  return new Date(value).toLocaleString();
+}
 
 function ExportStatusCard({
   title,
@@ -479,3 +574,85 @@ const lastCheckedTextStyle: React.CSSProperties = {
   fontWeight: 800,
   lineHeight: 1.4,
 };
+
+
+const historyPanelStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "14px",
+  borderRadius: "18px",
+  border: "1px solid #e2e8f0",
+  background: "#f8fafc",
+};
+
+const historyHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const historySubtextStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#475569",
+  lineHeight: 1.45,
+  fontSize: "13px",
+};
+
+const historyButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#334155",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const historyErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
+const historyListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "10px",
+  marginTop: "12px",
+};
+
+const historyItemStyle: React.CSSProperties = {
+  padding: "12px",
+  borderRadius: "14px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+const historyItemHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  color: "#0f172a",
+};
+
+const historyBadgeRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginTop: "8px",
+};
+
+function readyBadgeStyle(ready: boolean): React.CSSProperties {
+  return {
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "12px",
+    fontWeight: 900,
+    background: ready ? "#dcfce7" : "#ffedd5",
+    color: ready ? "#166534" : "#9a3412",
+  };
+}
+
