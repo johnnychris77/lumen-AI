@@ -118,7 +118,7 @@ export default function PacketActionButtonsPanel() {
             title={card.title}
             status={card.status}
             description={card.description}
-            intent={card.ready ? "ready" : "warning"}
+            intent={getReadinessIntent(card)}
           />
         ))}
       </div>
@@ -166,6 +166,26 @@ export default function PacketActionButtonsPanel() {
   );
 }
 
+
+function getReadinessIntent(card: ExportReadinessCard): "ready" | "warning" | "error" | "neutral" {
+  const status = (card.status || "").toLowerCase();
+  const key = (card.key || "").toLowerCase();
+
+  if (key === "executive_quality_pdf" && card.ready) {
+    return "neutral";
+  }
+
+  if (card.ready || status === "ready") {
+    return "ready";
+  }
+
+  if (status.includes("not ready") || status.includes("error") || status.includes("failed")) {
+    return "error";
+  }
+
+  return "warning";
+}
+
 const fallbackCards: ExportReadinessCard[] = [
   {
     key: "governance_zip",
@@ -210,7 +230,7 @@ function ExportStatusCard({
   title: string;
   status: string;
   description: string;
-  intent: "ready" | "warning" | "error";
+  intent: "ready" | "warning" | "error" | "neutral";
 }) {
   return (
     <div style={exportStatusCardStyle(intent)}>
@@ -269,11 +289,12 @@ const exportStatusGridStyle: React.CSSProperties = {
   marginTop: "16px",
 };
 
-function exportStatusCardStyle(intent: "ready" | "warning" | "error"): React.CSSProperties {
+function exportStatusCardStyle(intent: "ready" | "warning" | "error" | "neutral"): React.CSSProperties {
   const palette = {
     ready: { border: "#bbf7d0", background: "#f0fdf4" },
     warning: { border: "#fed7aa", background: "#fff7ed" },
     error: { border: "#fecaca", background: "#fef2f2" },
+    neutral: { border: "#bfdbfe", background: "#eff6ff" },
   }[intent];
 
   return {
@@ -292,11 +313,12 @@ const exportStatusHeaderStyle: React.CSSProperties = {
   color: "#0f172a",
 };
 
-function exportStatusBadgeStyle(intent: "ready" | "warning" | "error"): React.CSSProperties {
+function exportStatusBadgeStyle(intent: "ready" | "warning" | "error" | "neutral"): React.CSSProperties {
   const palette = {
     ready: { background: "#dcfce7", color: "#166534" },
     warning: { background: "#ffedd5", color: "#9a3412" },
     error: { background: "#fee2e2", color: "#991b1b" },
+    neutral: { background: "#dbeafe", color: "#1e40af" },
   }[intent];
 
   return {
