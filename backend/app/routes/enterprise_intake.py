@@ -33,6 +33,8 @@ from app.schemas.enterprise_intake import (
     EnterpriseInfectionPreventionReviewPacketResponse,
     EnterpriseExecutiveQualityReviewDashboardResponse,
     EnterpriseExportReadinessStatusResponse,
+    EnterpriseExportReadinessHistoryResponse,
+    EnterpriseExportReadinessHistoryItem,
     EnterpriseGovernanceEvidenceItem,
     EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
@@ -58,6 +60,8 @@ from app.schemas.enterprise_intake import (
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
+
+EXPORT_READINESS_HISTORY: list[dict] = []
 
 
 def _audit_actor_from_request(request: Request) -> tuple[str, str]:
@@ -3943,6 +3947,22 @@ def get_enterprise_export_readiness_status(
         f"Evidence attachment count: {evidence_attachment_count}."
     )
 
+    history_item = {
+        "finding_id": finding.id,
+        "generated_at": generated_at,
+        "governance_zip_ready": governance_zip_ready,
+        "vendor_pdf_ready": vendor_pdf_ready,
+        "infection_prevention_pdf_ready": infection_prevention_pdf_ready,
+        "executive_pdf_ready": executive_pdf_ready,
+        "baseline_evidence_count": baseline_evidence_count,
+        "approved_baseline_count": approved_baseline_count,
+        "evidence_attachment_count": evidence_attachment_count,
+        "readiness_summary": readiness_summary,
+    }
+
+    EXPORT_READINESS_HISTORY.insert(0, history_item)
+    del EXPORT_READINESS_HISTORY[50:]
+
     try:
         _record_enterprise_audit(
             db,
@@ -4146,4 +4166,20 @@ def get_enterprise_export_readiness_status(
         executive_pdf_url=executive_pdf_url,
         readiness_summary=readiness_summary,
         cards=cards,
+    )
+
+
+@router.get("/export-readiness-history", response_model=EnterpriseExportReadinessHistoryResponse)
+def get_enterprise_export_readiness_history(
+    limit: int = 20,
+):
+    safe_limit = max(1, min(limit, 50))
+
+    return EnterpriseExportReadinessHistoryResponse(
+        status="success",
+        history_type="export_readiness_history",
+        items=[
+            EnterpriseExportReadinessHistoryItem(**item)
+            for item in EXPORT_READINESS_HISTORY[:safe_limit]
+        ],
     )

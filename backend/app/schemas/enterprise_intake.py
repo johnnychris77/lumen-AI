@@ -481,3 +481,22 @@ class EnterpriseExportReadinessStatusResponse(BaseModel):
     executive_pdf_url: str = ""
     readiness_summary: str = ""
     cards: list[dict] = []
+
+
+class EnterpriseExportReadinessHistoryItem(BaseModel):
+    finding_id: int
+    generated_at: str = ""
+    governance_zip_ready: bool = False
+    vendor_pdf_ready: bool = False
+    infection_prevention_pdf_ready: bool = False
+    executive_pdf_ready: bool = False
+    baseline_evidence_count: int = 0
+    approved_baseline_count: int = 0
+    evidence_attachment_count: int = 0
+    readiness_summary: str = ""
+
+
+class EnterpriseExportReadinessHistoryResponse(BaseModel):
+    status: str = "success"
+    history_type: str = "export_readiness_history"
+    items: list[EnterpriseExportReadinessHistoryItem] = []
