@@ -7,6 +7,12 @@ const API_BASE =
 
 export default function PacketActionButtonsPanel() {
   const [findingId, setFindingId] = useState("2");
+  const [lastExport, setLastExport] = useState("");
+
+  function recordExport(label: string) {
+    const timestamp = new Date().toLocaleString();
+    setLastExport(`${label} export opened for Finding #${findingId} at ${timestamp}. This action is audit-tracked by the backend when the export endpoint is requested.`);
+  }
 
   const governanceZipUrl = `${API_BASE}/api/enterprise/intake/${findingId}/governance-zip-bundle`;
   const vendorPdfUrl = `${API_BASE}/api/enterprise/intake/${findingId}/vendor-escalation-packet.pdf`;
@@ -33,22 +39,32 @@ export default function PacketActionButtonsPanel() {
           />
         </label>
 
-        <a href={governanceZipUrl} target="_blank" rel="noreferrer" style={primaryButtonStyle}>
+        <a href={governanceZipUrl} target="_blank" rel="noreferrer" style={primaryButtonStyle} onClick={() => recordExport("Governance ZIP Bundle")}>
           Download Governance ZIP
         </a>
 
-        <a href={vendorPdfUrl} target="_blank" rel="noreferrer" style={warningButtonStyle}>
+        <a href={vendorPdfUrl} target="_blank" rel="noreferrer" style={warningButtonStyle} onClick={() => recordExport("Vendor Escalation PDF")}>
           Download Vendor PDF
         </a>
 
-        <a href={ipPdfUrl} target="_blank" rel="noreferrer" style={infoButtonStyle}>
+        <a href={ipPdfUrl} target="_blank" rel="noreferrer" style={infoButtonStyle} onClick={() => recordExport("Infection Prevention PDF")}>
           Download IP PDF
         </a>
 
-        <a href={executivePdfUrl} target="_blank" rel="noreferrer" style={executiveButtonStyle}>
+        <a href={executivePdfUrl} target="_blank" rel="noreferrer" style={executiveButtonStyle} onClick={() => recordExport("Executive Quality PDF")}>
           Download Executive PDF
         </a>
       </div>
+
+      {lastExport ? (
+        <div style={confirmationStyle}>
+          <strong>Export confirmation</strong>
+          <p style={confirmationTextStyle}>{lastExport}</p>
+          <p style={confirmationTextStyle}>
+            Review the Enterprise Audit Trail panel to verify the backend audit event after the export completes.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -134,4 +150,19 @@ const executiveButtonStyle: React.CSSProperties = {
   ...baseButtonStyle,
   background: "#dbeafe",
   color: "#1e40af",
+};
+
+
+const confirmationStyle: React.CSSProperties = {
+  marginTop: "14px",
+  padding: "12px 14px",
+  borderRadius: "16px",
+  border: "1px solid #bbf7d0",
+  background: "#f0fdf4",
+  color: "#166534",
+};
+
+const confirmationTextStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  lineHeight: 1.5,
 };
