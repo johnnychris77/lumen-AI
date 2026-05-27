@@ -257,6 +257,11 @@ export default function PacketActionButtonsPanel() {
                   <span style={readyBadgeStyle(item.infection_prevention_pdf_ready)}>IP PDF</span>
                   <span style={readyBadgeStyle(item.executive_pdf_ready)}>Executive PDF</span>
                 </div>
+                <div style={historyCountRowStyle}>
+                  <span>Baseline Evidence: {item.baseline_evidence_count}</span>
+                  <span>Approved Baselines: {item.approved_baseline_count}</span>
+                  <span>Evidence Attachments: {item.evidence_attachment_count}</span>
+                </div>
                 <p style={historySubtextStyle}>{item.readiness_summary}</p>
               </div>
             ))}
@@ -656,3 +661,13 @@ function readyBadgeStyle(ready: boolean): React.CSSProperties {
   };
 }
 
+\n
+const historyCountRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "10px",
+  marginTop: "8px",
+  color: "#334155",
+  fontSize: "12px",
+  fontWeight: 800,
+};
