@@ -661,7 +661,7 @@ function readyBadgeStyle(ready: boolean): React.CSSProperties {
   };
 }
 
-\n
+
 const historyCountRowStyle: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
