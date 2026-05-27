@@ -36,6 +36,33 @@ export default function PacketActionButtonsPanel() {
         </p>
       </div>
 
+      <div style={exportStatusGridStyle}>
+        <ExportStatusCard
+          title="Governance ZIP Bundle"
+          status="Ready"
+          description="Includes JSON packet, baseline evidence, evidence attachments, PDF summary, manifest, and README."
+          intent="ready"
+        />
+        <ExportStatusCard
+          title="Vendor Escalation PDF"
+          status="Ready"
+          description="Vendor-facing quality packet with finding context, baseline evidence, and recommended vendor action."
+          intent="ready"
+        />
+        <ExportStatusCard
+          title="Infection Prevention PDF"
+          status="Ready"
+          description="IP-ready packet with patient-safety signal, infection-risk signal, and recommended documentation."
+          intent="ready"
+        />
+        <ExportStatusCard
+          title="Executive Quality PDF"
+          status="Ready"
+          description="Leadership-ready summary of findings, quality signal, vendor signals, CAPA status, and actions."
+          intent="ready"
+        />
+      </div>
+
       <div style={controlRowStyle}>
         <label style={labelStyle}>
           Finding ID
@@ -78,6 +105,83 @@ export default function PacketActionButtonsPanel() {
     </section>
   );
 }
+
+function ExportStatusCard({
+  title,
+  status,
+  description,
+  intent,
+}: {
+  title: string;
+  status: string;
+  description: string;
+  intent: "ready" | "warning" | "error";
+}) {
+  return (
+    <div style={exportStatusCardStyle(intent)}>
+      <div style={exportStatusHeaderStyle}>
+        <strong>{title}</strong>
+        <span style={exportStatusBadgeStyle(intent)}>{status}</span>
+      </div>
+      <p style={exportStatusDescriptionStyle}>{description}</p>
+    </div>
+  );
+}
+
+const exportStatusGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "12px",
+  marginTop: "16px",
+};
+
+function exportStatusCardStyle(intent: "ready" | "warning" | "error"): React.CSSProperties {
+  const palette = {
+    ready: { border: "#bbf7d0", background: "#f0fdf4" },
+    warning: { border: "#fed7aa", background: "#fff7ed" },
+    error: { border: "#fecaca", background: "#fef2f2" },
+  }[intent];
+
+  return {
+    padding: "14px",
+    borderRadius: "16px",
+    border: `1px solid ${palette.border}`,
+    background: palette.background,
+  };
+}
+
+const exportStatusHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  alignItems: "center",
+  color: "#0f172a",
+};
+
+function exportStatusBadgeStyle(intent: "ready" | "warning" | "error"): React.CSSProperties {
+  const palette = {
+    ready: { background: "#dcfce7", color: "#166534" },
+    warning: { background: "#ffedd5", color: "#9a3412" },
+    error: { background: "#fee2e2", color: "#991b1b" },
+  }[intent];
+
+  return {
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "12px",
+    fontWeight: 900,
+    background: palette.background,
+    color: palette.color,
+    whiteSpace: "nowrap",
+  };
+}
+
+const exportStatusDescriptionStyle: React.CSSProperties = {
+  margin: "8px 0 0",
+  color: "#475569",
+  lineHeight: 1.45,
+  fontSize: "13px",
+};
 
 const panelStyle: React.CSSProperties = {
   padding: "20px",
