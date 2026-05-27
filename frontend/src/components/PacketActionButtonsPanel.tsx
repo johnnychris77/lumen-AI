@@ -49,6 +49,7 @@ export default function PacketActionButtonsPanel() {
   const [readiness, setReadiness] = useState<ExportReadinessStatus | null>(null);
   const [readinessError, setReadinessError] = useState("");
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState("");
 
   async function loadReadiness() {
     setReadinessLoading(true);
@@ -57,6 +58,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const data = await fetchExportReadiness(findingId);
       setReadiness(data);
+      setLastCheckedAt(new Date().toLocaleString());
     } catch (err) {
       setReadinessError(err instanceof Error ? err.message : "Unknown export readiness error");
     } finally {
@@ -110,6 +112,11 @@ export default function PacketActionButtonsPanel() {
           <p style={autoRefreshTextStyle}>
             Auto-refreshes when the Finding ID changes or an export is opened.
           </p>
+          {lastCheckedAt ? (
+            <p style={lastCheckedTextStyle}>
+              Last checked: {lastCheckedAt}
+            </p>
+          ) : null}
         </div>
         <button type="button" onClick={loadReadiness} disabled={readinessLoading} style={readinessButtonStyle}>
           {readinessLoading ? "Checking..." : "Check Readiness"}
@@ -461,5 +468,14 @@ const autoRefreshTextStyle: React.CSSProperties = {
   margin: "4px 0 0",
   color: "#64748b",
   fontSize: "12px",
+  lineHeight: 1.4,
+};
+
+
+const lastCheckedTextStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#334155",
+  fontSize: "12px",
+  fontWeight: 800,
   lineHeight: 1.4,
 };
