@@ -45,8 +45,18 @@ type ExportReadinessHistoryResponse = {
   items: ExportReadinessHistoryItem[];
 };
 
-async function fetchExportReadinessHistory(): Promise<ExportReadinessHistoryResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history?limit=5`, {
+async function fetchExportReadinessHistory(
+  limit: string,
+  findingIdFilter: string
+): Promise<ExportReadinessHistoryResponse> {
+  const params = new URLSearchParams();
+  params.set("limit", limit || "5");
+
+  if (findingIdFilter.trim()) {
+    params.set("finding_id", findingIdFilter.trim());
+  }
+
+  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history?${params.toString()}`, {
     headers: {
       Authorization: "Bearer dev-token",
       "X-LumenAI-Role": "viewer",
@@ -89,6 +99,8 @@ export default function PacketActionButtonsPanel() {
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [historyItems, setHistoryItems] = useState<ExportReadinessHistoryItem[]>([]);
   const [historyError, setHistoryError] = useState("");
+  const [historyFindingId, setHistoryFindingId] = useState("2");
+  const [historyLimit, setHistoryLimit] = useState("5");
   const [lastCheckedAt, setLastCheckedAt] = useState("");
 
   async function loadReadiness() {
@@ -117,11 +129,20 @@ export default function PacketActionButtonsPanel() {
     setHistoryError("");
 
     try {
-      const data = await fetchExportReadinessHistory();
+      const data = await fetchExportReadinessHistory(historyLimit, historyFindingId);
       setHistoryItems(data.items || []);
     } catch (err) {
       setHistoryError(err instanceof Error ? err.message : "Unknown export readiness history error");
     }
+  }
+
+  function clearHistoryFilters() {
+    setHistoryFindingId("");
+    setHistoryLimit("5");
+
+    window.setTimeout(() => {
+      loadHistory();
+    }, 100);
   }
 
   function recordExport(label: string) {
@@ -236,9 +257,35 @@ export default function PacketActionButtonsPanel() {
               Shows the most recent backend readiness checks for packet exports.
             </p>
           </div>
-          <button type="button" onClick={loadHistory} style={historyButtonStyle}>
-            Refresh History
-          </button>
+          <div style={historyFilterRowStyle}>
+            <label style={historyFilterLabelStyle}>
+              Finding ID
+              <input
+                value={historyFindingId}
+                onChange={(event) => setHistoryFindingId(event.target.value)}
+                style={historyFilterInputStyle}
+                placeholder="All"
+              />
+            </label>
+
+            <label style={historyFilterLabelStyle}>
+              Limit
+              <input
+                value={historyLimit}
+                onChange={(event) => setHistoryLimit(event.target.value)}
+                style={historyFilterInputStyle}
+                placeholder="5"
+              />
+            </label>
+
+            <button type="button" onClick={loadHistory} style={historyButtonStyle}>
+              Refresh History
+            </button>
+
+            <button type="button" onClick={clearHistoryFilters} style={historySecondaryButtonStyle}>
+              Clear
+            </button>
+          </div>
         </div>
 
         {historyError ? <div style={historyErrorStyle}>{historyError}</div> : null}
@@ -670,4 +717,38 @@ const historyCountRowStyle: React.CSSProperties = {
   color: "#334155",
   fontSize: "12px",
   fontWeight: 800,
+};
+
+
+const historyFilterRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  alignItems: "end",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const historyFilterLabelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "4px",
+  color: "#334155",
+  fontSize: "12px",
+  fontWeight: 900,
+};
+
+const historyFilterInputStyle: React.CSSProperties = {
+  padding: "8px",
+  borderRadius: "10px",
+  border: "1px solid #cbd5e1",
+  width: "90px",
+};
+
+const historySecondaryButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#e2e8f0",
+  color: "#334155",
+  fontWeight: 900,
+  cursor: "pointer",
 };
