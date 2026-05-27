@@ -17,6 +17,7 @@ from app.models.enterprise_quality import (
     EnterpriseEvidence,
     EnterpriseFacility,
     EnterpriseFinding,
+    EnterpriseExportReadinessHistory,
     EnterpriseInstrument,
     EnterpriseInstrumentBaseline,
     EnterpriseRiskScore,
@@ -3947,21 +3948,20 @@ def get_enterprise_export_readiness_status(
         f"Evidence attachment count: {evidence_attachment_count}."
     )
 
-    history_item = {
-        "finding_id": finding.id,
-        "generated_at": generated_at,
-        "governance_zip_ready": governance_zip_ready,
-        "vendor_pdf_ready": vendor_pdf_ready,
-        "infection_prevention_pdf_ready": infection_prevention_pdf_ready,
-        "executive_pdf_ready": executive_pdf_ready,
-        "baseline_evidence_count": baseline_evidence_count,
-        "approved_baseline_count": approved_baseline_count,
-        "evidence_attachment_count": evidence_attachment_count,
-        "readiness_summary": readiness_summary,
-    }
-
-    EXPORT_READINESS_HISTORY.insert(0, history_item)
-    del EXPORT_READINESS_HISTORY[50:]
+    history_row = EnterpriseExportReadinessHistory(
+        finding_id=finding.id,
+        tenant_id=getattr(finding, "tenant_id", "") or "",
+        generated_at=datetime.now(timezone.utc),
+        governance_zip_ready=governance_zip_ready,
+        vendor_pdf_ready=vendor_pdf_ready,
+        infection_prevention_pdf_ready=infection_prevention_pdf_ready,
+        executive_pdf_ready=executive_pdf_ready,
+        baseline_evidence_count=baseline_evidence_count,
+        approved_baseline_count=approved_baseline_count,
+        evidence_attachment_count=evidence_attachment_count,
+        readiness_summary=readiness_summary,
+    )
+    db.add(history_row)
 
     try:
         _record_enterprise_audit(
@@ -4172,14 +4172,39 @@ def get_enterprise_export_readiness_status(
 @router.get("/export-readiness-history", response_model=EnterpriseExportReadinessHistoryResponse)
 def get_enterprise_export_readiness_history(
     limit: int = 20,
+    finding_id: int | None = None,
+    db: Session = Depends(get_db),
 ):
     safe_limit = max(1, min(limit, 50))
+
+    query = db.query(EnterpriseExportReadinessHistory)
+
+    if finding_id is not None:
+        query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
+
+    rows = (
+        query
+        .order_by(EnterpriseExportReadinessHistory.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
 
     return EnterpriseExportReadinessHistoryResponse(
         status="success",
         history_type="export_readiness_history",
         items=[
-            EnterpriseExportReadinessHistoryItem(**item)
-            for item in EXPORT_READINESS_HISTORY[:safe_limit]
+            EnterpriseExportReadinessHistoryItem(
+                finding_id=row.finding_id,
+                generated_at=row.generated_at.isoformat() if row.generated_at else "",
+                governance_zip_ready=row.governance_zip_ready,
+                vendor_pdf_ready=row.vendor_pdf_ready,
+                infection_prevention_pdf_ready=row.infection_prevention_pdf_ready,
+                executive_pdf_ready=row.executive_pdf_ready,
+                baseline_evidence_count=row.baseline_evidence_count,
+                approved_baseline_count=row.approved_baseline_count,
+                evidence_attachment_count=row.evidence_attachment_count,
+                readiness_summary=row.readiness_summary or "",
+            )
+            for row in rows
         ],
     )

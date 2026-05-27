@@ -185,3 +185,25 @@ class EnterpriseInstrumentBaseline(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EnterpriseExportReadinessHistory(Base):
+    __tablename__ = "enterprise_export_readiness_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    finding_id = Column(Integer, index=True, nullable=False)
+    tenant_id = Column(String, default="", index=True)
+
+    generated_at = Column(DateTime, nullable=True)
+
+    governance_zip_ready = Column(Boolean, default=False)
+    vendor_pdf_ready = Column(Boolean, default=False)
+    infection_prevention_pdf_ready = Column(Boolean, default=False)
+    executive_pdf_ready = Column(Boolean, default=True)
+
+    baseline_evidence_count = Column(Integer, default=0)
+    approved_baseline_count = Column(Integer, default=0)
+    evidence_attachment_count = Column(Integer, default=0)
+
+    readiness_summary = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
