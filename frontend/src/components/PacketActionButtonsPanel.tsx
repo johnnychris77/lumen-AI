@@ -14,6 +14,13 @@ export default function PacketActionButtonsPanel() {
     setLastExport(`${label} export opened for Finding #${findingId} at ${timestamp}. This action is audit-tracked by the backend when the export endpoint is requested.`);
   }
 
+  function scrollToAuditTrail() {
+    const auditTrail = document.getElementById("enterprise-audit-trail");
+    if (auditTrail) {
+      auditTrail.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   const governanceZipUrl = `${API_BASE}/api/enterprise/intake/${findingId}/governance-zip-bundle`;
   const vendorPdfUrl = `${API_BASE}/api/enterprise/intake/${findingId}/vendor-escalation-packet.pdf`;
   const ipPdfUrl = `${API_BASE}/api/enterprise/intake/${findingId}/infection-prevention-review-packet.pdf`;
@@ -63,6 +70,9 @@ export default function PacketActionButtonsPanel() {
           <p style={confirmationTextStyle}>
             Review the Enterprise Audit Trail panel to verify the backend audit event after the export completes.
           </p>
+          <button type="button" onClick={scrollToAuditTrail} style={auditTrailButtonStyle}>
+            View Audit Trail
+          </button>
         </div>
       ) : null}
     </section>
@@ -165,4 +175,16 @@ const confirmationStyle: React.CSSProperties = {
 const confirmationTextStyle: React.CSSProperties = {
   margin: "6px 0 0",
   lineHeight: 1.5,
+};
+
+
+const auditTrailButtonStyle: React.CSSProperties = {
+  marginTop: "10px",
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#166534",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
 };

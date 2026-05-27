@@ -774,7 +774,9 @@ function DashboardHome() {
 
         <EnterpriseIntakeHistoryPanel />
 
-        <EnterpriseAuditTrailPanel />
+        <div id="enterprise-audit-trail">
+          <EnterpriseAuditTrailPanel />
+        </div>
         <p style={{ color: "#4b5563", margin: 0 }}>
           Real-time surgical instrument quality intelligence for SPD teams,
           surgical vendors, and device manufacturers.
