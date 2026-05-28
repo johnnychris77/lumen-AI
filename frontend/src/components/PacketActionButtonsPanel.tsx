@@ -174,6 +174,7 @@ export default function PacketActionButtonsPanel() {
   const historyCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.csv?${historyPdfParams.toString()}`;
   const historyPowerBiCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.csv?${historyPdfParams.toString()}`;
   const powerBiDictionaryPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf`;
+  const powerBiDashboardSpecPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf`;
 
 
   async function downloadHistoryCsv() {
@@ -262,6 +263,35 @@ export default function PacketActionButtonsPanel() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Data Dictionary PDF download error");
+    }
+  }
+
+
+  async function downloadPowerBiDashboardSpecPdf() {
+    try {
+      const response = await fetch(powerBiDashboardSpecPdfUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI Dashboard Spec PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-powerbi-starter-dashboard-spec.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Dashboard Spec PDF download error");
     }
   }
 
@@ -399,6 +429,10 @@ export default function PacketActionButtonsPanel() {
 
             <button type="button" onClick={downloadPowerBiDictionaryPdf} style={dataDictionaryButtonStyle}>
               Download Data Dictionary PDF
+            </button>
+
+            <button type="button" onClick={downloadPowerBiDashboardSpecPdf} style={dashboardSpecButtonStyle}>
+              Download Dashboard Spec PDF
             </button>
           </div>
         </div>
@@ -912,6 +946,19 @@ const dataDictionaryButtonStyle: React.CSSProperties = {
   padding: "9px 12px",
   background: "#e0f2fe",
   color: "#075985",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+
+const dashboardSpecButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#ede9fe",
+  color: "#5b21b6",
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
