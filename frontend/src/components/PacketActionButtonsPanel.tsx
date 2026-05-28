@@ -411,6 +411,30 @@ export default function PacketActionButtonsPanel() {
         ))}
       </div>
 
+      <div style={powerBiToolkitSummaryCardStyle}>
+        <div style={powerBiToolkitSummaryHeaderStyle}>
+          <div>
+            <div style={powerBiToolkitSummaryEyebrowStyle}>Power BI Toolkit</div>
+            <h3 style={powerBiToolkitSummaryTitleStyle}>Export Readiness Analytics Package</h3>
+          </div>
+          <span style={powerBiToolkitSummaryBadgeStyle}>Complete</span>
+        </div>
+
+        <div style={powerBiToolkitSummaryGridStyle}>
+          <ToolkitAsset label="Standard History CSV" status="Ready" />
+          <ToolkitAsset label="Power BI CSV" status="Ready" />
+          <ToolkitAsset label="Data Dictionary PDF" status="Ready" />
+          <ToolkitAsset label="Dashboard Spec PDF" status="Ready" />
+          <ToolkitAsset label="Toolkit ZIP" status="Ready" />
+          <ToolkitAsset label="README PDF" status="Ready" />
+        </div>
+
+        <p style={powerBiToolkitSummaryTextStyle}>
+          Toolkit files support Excel review, Power BI dashboard development, audit readiness,
+          export-readiness trending, and leadership reporting.
+        </p>
+      </div>
+
       <div style={controlRowStyle}>
         <label style={labelStyle}>
           Finding ID
@@ -728,6 +752,15 @@ const exportStatusDescriptionStyle: React.CSSProperties = {
   lineHeight: 1.45,
   fontSize: "13px",
 };
+
+function ToolkitAsset({ label, status }: { label: string; status: string }) {
+  return (
+    <div style={toolkitAssetStyle}>
+      <span style={toolkitAssetLabelStyle}>{label}</span>
+      <strong style={toolkitAssetStatusStyle}>{status}</strong>
+    </div>
+  );
+}
 
 const panelStyle: React.CSSProperties = {
   padding: "20px",
@@ -1101,5 +1134,82 @@ const powerBiToolkitBadgeTextStyle: React.CSSProperties = {
   margin: "4px 0 0",
   color: "#166534",
   lineHeight: 1.45,
+  fontSize: "13px",
+};
+
+
+const powerBiToolkitSummaryCardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #c4b5fd",
+  background: "linear-gradient(135deg, #faf5ff 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(88, 28, 135, 0.08)",
+};
+
+const powerBiToolkitSummaryHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const powerBiToolkitSummaryEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7c3aed",
+};
+
+const powerBiToolkitSummaryTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#2e1065",
+};
+
+const powerBiToolkitSummaryBadgeStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "6px 10px",
+  background: "#dcfce7",
+  color: "#166534",
+  fontWeight: 900,
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+};
+
+const powerBiToolkitSummaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const toolkitAssetStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #e9d5ff",
+  background: "#ffffff",
+};
+
+const toolkitAssetLabelStyle: React.CSSProperties = {
+  display: "block",
+  color: "#4c1d95",
+  fontWeight: 800,
+  fontSize: "13px",
+};
+
+const toolkitAssetStatusStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#166534",
+  fontSize: "12px",
+};
+
+const powerBiToolkitSummaryTextStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#475569",
+  lineHeight: 1.5,
   fontSize: "13px",
 };
