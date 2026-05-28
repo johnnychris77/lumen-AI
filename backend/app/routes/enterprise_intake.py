@@ -5182,3 +5182,196 @@ def get_enterprise_export_readiness_powerbi_dashboard_spec(
         db.rollback()
 
     return dashboard_spec
+
+
+@router.get("/export-readiness-history.powerbi.dashboard-spec.pdf")
+def get_enterprise_export_readiness_powerbi_dashboard_spec_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    spec = get_enterprise_export_readiness_powerbi_dashboard_spec(
+        request=request,
+        db=db,
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Power BI Starter Dashboard Spec", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Purpose", styles["Heading2"]))
+    story.append(Paragraph(spec.get("purpose", ""), styles["BodyText"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Recommended Dataset", styles["Heading2"]))
+    story.append(Paragraph(spec.get("recommended_dataset_name", "ExportReadiness"), styles["BodyText"]))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Recommended Report Pages", styles["Heading2"]))
+
+    for page in spec.get("recommended_pages", []):
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(page.get("page_name", ""), styles["Heading3"]))
+        story.append(Paragraph(f"<b>Audience:</b> {page.get('audience', '')}", styles["BodyText"]))
+        story.append(Paragraph(f"<b>Purpose:</b> {page.get('purpose', '')}", styles["BodyText"]))
+
+        visuals = page.get("recommended_visuals", [])
+        if visuals:
+            visual_data = [["Visual", "Title", "Fields / Measure", "Description"]]
+
+            for visual in visuals:
+                fields = visual.get("fields") or visual.get("axis") or visual.get("values") or visual.get("legend") or visual.get("rows") or visual.get("columns") or ""
+                if isinstance(fields, list):
+                    fields = ", ".join(str(item) for item in fields)
+
+                measure = visual.get("measure", "")
+                field_measure = fields
+                if measure:
+                    field_measure = f"{field_measure} | Measure: {measure}" if field_measure else f"Measure: {measure}"
+
+                visual_data.append([
+                    visual.get("visual_type", ""),
+                    visual.get("title", ""),
+                    field_measure,
+                    visual.get("description", ""),
+                ])
+
+            visual_table = Table(visual_data, colWidths=[75, 110, 140, 165])
+            visual_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+                ("FONTSIZE", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(Spacer(1, 6))
+            story.append(visual_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Slicers", styles["Heading2"]))
+
+    slicers = spec.get("recommended_slicers", [])
+    if slicers:
+        slicer_data = [["Field", "Display Name", "Type"]]
+        for slicer in slicers:
+            slicer_data.append([
+                slicer.get("field", ""),
+                slicer.get("display_name", ""),
+                slicer.get("type", ""),
+            ])
+
+        slicer_table = Table(slicer_data, colWidths=[150, 160, 170])
+        slicer_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(slicer_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended DAX Measures", styles["Heading2"]))
+
+    measures = spec.get("recommended_measures", [])
+    if measures:
+        measure_data = [["Measure", "DAX"]]
+        for measure in measures:
+            measure_data.append([
+                measure.get("measure_name", ""),
+                measure.get("dax", ""),
+            ])
+
+        measure_table = Table(measure_data, colWidths=[160, 330])
+        measure_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 6.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(measure_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Conditional Formatting Rules", styles["Heading2"]))
+
+    rules = spec.get("recommended_conditional_formatting", [])
+    if rules:
+        rule_data = [["Field", "Rule"]]
+        for rule in rules:
+            rule_data.append([
+                rule.get("field", ""),
+                rule.get("rule", ""),
+            ])
+
+        rule_table = Table(rule_data, colWidths=[170, 320])
+        rule_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fee2e2")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(rule_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Refresh Plan", styles["Heading2"]))
+
+    refresh_plan = spec.get("recommended_refresh_plan", {})
+    refresh_data = [["Item", "Recommendation"]]
+    for key, value in refresh_plan.items():
+        refresh_data.append([
+            key.replace("_", " ").title(),
+            str(value),
+        ])
+
+    refresh_table = Table(refresh_data, colWidths=[160, 330])
+    refresh_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e0f2fe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(refresh_table)
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_dashboard_spec_pdf_exported",
+            resource_type="enterprise_export_readiness_powerbi_dashboard_spec_pdf",
+            resource_id="powerbi_dashboard_spec_pdf",
+            details={
+                "page_count": len(spec.get("recommended_pages", [])),
+                "slicer_count": len(spec.get("recommended_slicers", [])),
+                "measure_count": len(spec.get("recommended_measures", [])),
+                "workflow_status": "export_readiness_powerbi_dashboard_spec_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-powerbi-starter-dashboard-spec.pdf"
+        },
+    )
