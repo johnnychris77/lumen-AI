@@ -5532,6 +5532,11 @@ def get_enterprise_export_readiness_powerbi_toolkit_zip(
         db=db,
     )
 
+    toolkit_metadata = get_enterprise_export_readiness_powerbi_toolkit_metadata(
+        request=request,
+        db=db,
+    )
+
     readme = f"""LumenAI Power BI Export Toolkit
 
 Purpose
@@ -5589,6 +5594,10 @@ record_count={len(rows)}
         zip_file.writestr(
             "powerbi-dashboard-spec.json",
             json.dumps(dashboard_spec, indent=2, default=str),
+        )
+        zip_file.writestr(
+            "powerbi-toolkit-metadata.json",
+            json.dumps(toolkit_metadata, indent=2, default=str),
         )
         zip_file.writestr("README.txt", readme)
 
@@ -5818,3 +5827,96 @@ def get_enterprise_export_readiness_powerbi_toolkit_readme_pdf(
             "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-readme.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.metadata")
+def get_enterprise_export_readiness_powerbi_toolkit_metadata(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    metadata = {
+        "status": "success",
+        "toolkit_name": "LumenAI Power BI Export Toolkit",
+        "toolkit_version": "1.0.0",
+        "toolkit_release": "Power BI Export Readiness Toolkit v1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "dataset_name": "ExportReadiness",
+        "source_system": "LumenAI Enterprise Export Readiness",
+        "source_endpoint": "/api/enterprise/export-readiness-history.powerbi.csv",
+        "metadata_endpoint": "/api/enterprise/export-readiness-history.powerbi-toolkit.metadata",
+        "toolkit_zip_endpoint": "/api/enterprise/export-readiness-history.powerbi-toolkit.zip",
+        "readiness_model_version": "export_readiness_scoring_v1",
+        "readiness_score_method": "Percent of export packet types ready across Governance ZIP, Vendor PDF, Infection Prevention PDF, and Executive Quality PDF.",
+        "included_assets": [
+            {
+                "file_name": "export-readiness-history.csv",
+                "asset_type": "CSV",
+                "purpose": "Standard persistent export-readiness history.",
+            },
+            {
+                "file_name": "export-readiness-powerbi.csv",
+                "asset_type": "CSV",
+                "purpose": "Power BI-ready dataset with derived readiness fields.",
+            },
+            {
+                "file_name": "powerbi-data-dictionary.json",
+                "asset_type": "JSON",
+                "purpose": "Field definitions, recommended DAX measures, and recommended visuals.",
+            },
+            {
+                "file_name": "powerbi-dashboard-spec.json",
+                "asset_type": "JSON",
+                "purpose": "Starter dashboard pages, visuals, slicers, measures, formatting, and refresh guidance.",
+            },
+            {
+                "file_name": "README.txt",
+                "asset_type": "Text",
+                "purpose": "Implementation guide for the toolkit ZIP.",
+            },
+        ],
+        "recommended_power_bi_dataset_settings": {
+            "readiness_generated_at": "Date/Time",
+            "readiness_date": "Date",
+            "readiness_month": "Text or Date period",
+            "readiness_score": "Whole Number",
+            "baseline_approval_rate": "Decimal Number or Percentage",
+            "boolean_flags": "True/False",
+        },
+        "recommended_refresh_cadence": {
+            "leadership_dashboard": "Daily",
+            "quality_committee": "Weekly",
+            "survey_readiness_review": "As needed before review or survey activity",
+        },
+        "enterprise_use_cases": [
+            "Export readiness reporting",
+            "Baseline evidence coverage monitoring",
+            "Approved baseline maturity tracking",
+            "Audit readiness review",
+            "Quality committee reporting",
+            "Leadership dashboarding",
+        ],
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_metadata_viewed",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_metadata",
+            resource_id="powerbi_toolkit_metadata",
+            details={
+                "toolkit_version": metadata["toolkit_version"],
+                "readiness_model_version": metadata["readiness_model_version"],
+                "asset_count": len(metadata["included_assets"]),
+                "workflow_status": "export_readiness_powerbi_toolkit_metadata_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return metadata
