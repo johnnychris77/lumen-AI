@@ -5375,3 +5375,251 @@ def get_enterprise_export_readiness_powerbi_dashboard_spec_pdf(
             "Content-Disposition": "attachment; filename=lumenai-powerbi-starter-dashboard-spec.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.zip")
+def get_enterprise_export_readiness_powerbi_toolkit_zip(
+    limit: int = 500,
+    finding_id: int | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    import json
+    import zipfile
+    from io import BytesIO, StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 2000))
+
+    query = db.query(EnterpriseExportReadinessHistory)
+
+    if finding_id is not None:
+        query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
+
+    rows = (
+        query
+        .order_by(EnterpriseExportReadinessHistory.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    def build_standard_csv() -> str:
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "history_id",
+            "finding_id",
+            "tenant_id",
+            "generated_at",
+            "governance_zip_ready",
+            "vendor_pdf_ready",
+            "infection_prevention_pdf_ready",
+            "executive_pdf_ready",
+            "baseline_evidence_count",
+            "approved_baseline_count",
+            "evidence_attachment_count",
+            "readiness_summary",
+            "created_at",
+        ])
+
+        for row in rows:
+            writer.writerow([
+                row.id,
+                row.finding_id,
+                row.tenant_id or "",
+                row.generated_at.isoformat() if row.generated_at else "",
+                row.governance_zip_ready,
+                row.vendor_pdf_ready,
+                row.infection_prevention_pdf_ready,
+                row.executive_pdf_ready,
+                row.baseline_evidence_count,
+                row.approved_baseline_count,
+                row.evidence_attachment_count,
+                row.readiness_summary or "",
+                row.created_at.isoformat() if row.created_at else "",
+            ])
+
+        return output.getvalue()
+
+    def build_powerbi_csv() -> str:
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "history_id",
+            "finding_id",
+            "tenant_id",
+            "readiness_generated_at",
+            "readiness_date",
+            "readiness_month",
+            "governance_zip_ready",
+            "vendor_pdf_ready",
+            "infection_prevention_pdf_ready",
+            "executive_pdf_ready",
+            "all_exports_ready",
+            "readiness_score",
+            "readiness_status",
+            "baseline_evidence_count",
+            "approved_baseline_count",
+            "baseline_approval_rate",
+            "evidence_attachment_count",
+            "readiness_summary",
+            "created_at",
+        ])
+
+        for row in rows:
+            generated_at = row.generated_at
+            readiness_date = generated_at.date().isoformat() if generated_at else ""
+            readiness_month = generated_at.strftime("%Y-%m") if generated_at else ""
+
+            readiness_flags = [
+                bool(row.governance_zip_ready),
+                bool(row.vendor_pdf_ready),
+                bool(row.infection_prevention_pdf_ready),
+                bool(row.executive_pdf_ready),
+            ]
+
+            readiness_score = int((sum(1 for flag in readiness_flags if flag) / 4) * 100)
+            all_exports_ready = all(readiness_flags)
+
+            if all_exports_ready:
+                readiness_status = "Ready"
+            elif readiness_score >= 50:
+                readiness_status = "Partially Ready"
+            else:
+                readiness_status = "Not Ready"
+
+            baseline_approval_rate = 0
+            if row.baseline_evidence_count:
+                baseline_approval_rate = round(
+                    row.approved_baseline_count / row.baseline_evidence_count,
+                    4,
+                )
+
+            writer.writerow([
+                row.id,
+                row.finding_id,
+                row.tenant_id or "",
+                generated_at.isoformat() if generated_at else "",
+                readiness_date,
+                readiness_month,
+                row.governance_zip_ready,
+                row.vendor_pdf_ready,
+                row.infection_prevention_pdf_ready,
+                row.executive_pdf_ready,
+                all_exports_ready,
+                readiness_score,
+                readiness_status,
+                row.baseline_evidence_count,
+                row.approved_baseline_count,
+                baseline_approval_rate,
+                row.evidence_attachment_count,
+                row.readiness_summary or "",
+                row.created_at.isoformat() if row.created_at else "",
+            ])
+
+        return output.getvalue()
+
+    data_dictionary = get_enterprise_export_readiness_powerbi_data_dictionary(
+        request=request,
+        db=db,
+    )
+
+    dashboard_spec = get_enterprise_export_readiness_powerbi_dashboard_spec(
+        request=request,
+        db=db,
+    )
+
+    readme = f"""LumenAI Power BI Export Toolkit
+
+Purpose
+This ZIP bundle contains the core export readiness files needed to build a Power BI dashboard for LumenAI export readiness, baseline evidence coverage, and audit reporting.
+
+Files Included
+1. export-readiness-history.csv
+   Standard persistent export readiness history.
+
+2. export-readiness-powerbi.csv
+   Power BI-ready dataset with derived fields such as readiness_date, readiness_month, readiness_score, readiness_status, all_exports_ready, and baseline_approval_rate.
+
+3. powerbi-data-dictionary.json
+   Machine-readable field dictionary, recommended DAX measures, and recommended visuals.
+
+4. powerbi-dashboard-spec.json
+   Starter dashboard specification with report pages, visuals, slicers, measures, conditional formatting, and refresh plan.
+
+How to Use in Power BI
+1. Open Power BI Desktop.
+2. Select Get Data.
+3. Choose Text/CSV.
+4. Import export-readiness-powerbi.csv.
+5. Set readiness_generated_at and created_at as Date/Time.
+6. Set readiness_date as Date.
+7. Set readiness_score as Whole Number.
+8. Set baseline_approval_rate as Decimal Number or Percentage.
+9. Build the pages described in powerbi-dashboard-spec.json.
+
+Suggested Dataset Name
+ExportReadiness
+
+Recommended Filters
+- readiness_date
+- readiness_month
+- finding_id
+- tenant_id
+- readiness_status
+
+Generated Parameters
+limit={safe_limit}
+finding_id={finding_id if finding_id is not None else "all"}
+record_count={len(rows)}
+"""
+
+    buffer = BytesIO()
+
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr("export-readiness-history.csv", build_standard_csv())
+        zip_file.writestr("export-readiness-powerbi.csv", build_powerbi_csv())
+        zip_file.writestr(
+            "powerbi-data-dictionary.json",
+            json.dumps(data_dictionary, indent=2, default=str),
+        )
+        zip_file.writestr(
+            "powerbi-dashboard-spec.json",
+            json.dumps(dashboard_spec, indent=2, default=str),
+        )
+        zip_file.writestr("README.txt", readme)
+
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_zip_exported",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_zip",
+            resource_id=str(finding_id) if finding_id is not None else "all",
+            details={
+                "limit": safe_limit,
+                "finding_id": finding_id,
+                "record_count": len(rows),
+                "workflow_status": "export_readiness_powerbi_toolkit_zip_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    filename_suffix = f"finding-{finding_id}" if finding_id is not None else "all"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=lumenai-powerbi-export-toolkit-{filename_suffix}.zip"
+        },
+    )
