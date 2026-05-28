@@ -175,6 +175,7 @@ export default function PacketActionButtonsPanel() {
   const historyPowerBiCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.csv?${historyPdfParams.toString()}`;
   const powerBiDictionaryPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf`;
   const powerBiDashboardSpecPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf`;
+  const powerBiToolkitZipUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.zip?${historyPdfParams.toString()}`;
 
 
   async function downloadHistoryCsv() {
@@ -292,6 +293,37 @@ export default function PacketActionButtonsPanel() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Dashboard Spec PDF download error");
+    }
+  }
+
+
+  async function downloadPowerBiToolkitZip() {
+    try {
+      const response = await fetch(powerBiToolkitZipUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI Toolkit ZIP download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = historyFindingId.trim()
+        ? `lumenai-powerbi-export-toolkit-finding-${historyFindingId.trim()}.zip`
+        : "lumenai-powerbi-export-toolkit-all.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Toolkit ZIP download error");
     }
   }
 
@@ -433,6 +465,10 @@ export default function PacketActionButtonsPanel() {
 
             <button type="button" onClick={downloadPowerBiDashboardSpecPdf} style={dashboardSpecButtonStyle}>
               Download Dashboard Spec PDF
+            </button>
+
+            <button type="button" onClick={downloadPowerBiToolkitZip} style={powerBiToolkitButtonStyle}>
+              Download Power BI Toolkit ZIP
             </button>
           </div>
         </div>
@@ -959,6 +995,19 @@ const dashboardSpecButtonStyle: React.CSSProperties = {
   padding: "9px 12px",
   background: "#ede9fe",
   color: "#5b21b6",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+
+const powerBiToolkitButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#f3e8ff",
+  color: "#6b21a8",
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
