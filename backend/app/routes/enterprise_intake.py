@@ -4208,3 +4208,145 @@ def get_enterprise_export_readiness_history(
             for row in rows
         ],
     )
+
+
+@router.get("/export-readiness-history.pdf")
+def get_enterprise_export_readiness_history_pdf(
+    limit: int = 20,
+    finding_id: int | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    safe_limit = max(1, min(limit, 50))
+
+    query = db.query(EnterpriseExportReadinessHistory)
+
+    if finding_id is not None:
+        query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
+
+    rows = (
+        query
+        .order_by(EnterpriseExportReadinessHistory.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Export Readiness History Audit Report", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    filter_text = f"Limit: {safe_limit}"
+    if finding_id is not None:
+        filter_text += f" | Finding ID filter: {finding_id}"
+
+    story.append(Paragraph(filter_text, styles["BodyText"]))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Audit Summary", styles["Heading2"]))
+    story.append(Paragraph(
+        "This report summarizes backend-generated export readiness checks for Governance ZIP, "
+        "Vendor Escalation PDF, Infection Prevention PDF, and Executive Quality PDF exports.",
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 12))
+
+    if rows:
+        table_data = [[
+            "Finding",
+            "Generated At",
+            "ZIP",
+            "Vendor",
+            "IP",
+            "Exec",
+            "Baselines",
+            "Approved",
+            "Evidence",
+        ]]
+
+        for row in rows:
+            generated_at = row.generated_at.isoformat() if row.generated_at else ""
+            table_data.append([
+                str(row.finding_id),
+                generated_at,
+                "Yes" if row.governance_zip_ready else "No",
+                "Yes" if row.vendor_pdf_ready else "No",
+                "Yes" if row.infection_prevention_pdf_ready else "No",
+                "Yes" if row.executive_pdf_ready else "No",
+                str(row.baseline_evidence_count),
+                str(row.approved_baseline_count),
+                str(row.evidence_attachment_count),
+            ])
+
+        table = Table(table_data, colWidths=[45, 125, 40, 45, 35, 40, 60, 60, 55])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 6.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(table)
+
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("Readiness Detail", styles["Heading2"]))
+
+        for row in rows[:10]:
+            generated_at = row.generated_at.isoformat() if row.generated_at else ""
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(f"Finding #{row.finding_id}", styles["Heading3"]))
+            story.append(Paragraph(f"<b>Generated At:</b> {generated_at}", styles["BodyText"]))
+            story.append(Paragraph(f"<b>Readiness Summary:</b> {row.readiness_summary or ''}", styles["BodyText"]))
+            story.append(Paragraph(
+                f"<b>Export Flags:</b> "
+                f"Governance ZIP={'Yes' if row.governance_zip_ready else 'No'}; "
+                f"Vendor PDF={'Yes' if row.vendor_pdf_ready else 'No'}; "
+                f"IP PDF={'Yes' if row.infection_prevention_pdf_ready else 'No'}; "
+                f"Executive PDF={'Yes' if row.executive_pdf_ready else 'No'}.",
+                styles["BodyText"],
+            ))
+    else:
+        story.append(Paragraph("No export readiness history records found for the selected filter.", styles["BodyText"]))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_history_pdf_exported",
+            resource_type="enterprise_export_readiness_history_pdf",
+            resource_id=str(finding_id) if finding_id is not None else "all",
+            details={
+                "limit": safe_limit,
+                "finding_id": finding_id,
+                "record_count": len(rows),
+                "workflow_status": "export_readiness_history_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    filename_suffix = f"finding-{finding_id}" if finding_id is not None else "all"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=lumenai-export-readiness-history-{filename_suffix}.pdf"
+        },
+    )
