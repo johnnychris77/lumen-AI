@@ -6,6 +6,48 @@ const API_BASE =
   "http://127.0.0.1:18012";
 
 
+
+type PowerBiToolkitMetadataAsset = {
+  file_name: string;
+  asset_type: string;
+  purpose: string;
+};
+
+type PowerBiToolkitMetadata = {
+  status: string;
+  toolkit_name: string;
+  toolkit_version: string;
+  toolkit_release: string;
+  generated_at: string;
+  dataset_name: string;
+  source_system: string;
+  readiness_model_version: string;
+  included_assets: PowerBiToolkitMetadataAsset[];
+  recommended_refresh_cadence?: {
+    leadership_dashboard?: string;
+    quality_committee?: string;
+    survey_readiness_review?: string;
+  };
+};
+
+async function fetchPowerBiToolkitMetadata(): Promise<PowerBiToolkitMetadata> {
+  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.metadata`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Power BI toolkit metadata failed (${response.status})`);
+  }
+
+  return data;
+}
+
 type ExportReadinessCard = {
   key: string;
   title: string;
@@ -99,6 +141,8 @@ export default function PacketActionButtonsPanel() {
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [historyItems, setHistoryItems] = useState<ExportReadinessHistoryItem[]>([]);
   const [historyError, setHistoryError] = useState("");
+  const [toolkitMetadata, setToolkitMetadata] = useState<PowerBiToolkitMetadata | null>(null);
+  const [toolkitMetadataError, setToolkitMetadataError] = useState("");
   const [historyFindingId, setHistoryFindingId] = useState("2");
   const [historyLimit, setHistoryLimit] = useState("5");
   const [lastCheckedAt, setLastCheckedAt] = useState("");
@@ -121,6 +165,7 @@ export default function PacketActionButtonsPanel() {
   useEffect(() => {
     loadReadiness();
     loadHistory();
+    loadPowerBiToolkitMetadata();
   }, [findingId]);
 
   const [lastExport, setLastExport] = useState("");
@@ -143,6 +188,17 @@ export default function PacketActionButtonsPanel() {
     window.setTimeout(() => {
       loadHistory();
     }, 100);
+  }
+
+  async function loadPowerBiToolkitMetadata() {
+    setToolkitMetadataError("");
+
+    try {
+      const data = await fetchPowerBiToolkitMetadata();
+      setToolkitMetadata(data);
+    } catch (err) {
+      setToolkitMetadataError(err instanceof Error ? err.message : "Unknown Power BI toolkit metadata error");
+    }
   }
 
   function recordExport(label: string) {
@@ -433,6 +489,59 @@ export default function PacketActionButtonsPanel() {
           Toolkit files support Excel review, Power BI dashboard development, audit readiness,
           export-readiness trending, and leadership reporting.
         </p>
+      </div>
+
+      <div style={toolkitMetadataCardStyle}>
+        <div style={toolkitMetadataHeaderStyle}>
+          <div>
+            <div style={toolkitMetadataEyebrowStyle}>Toolkit Metadata</div>
+            <h3 style={toolkitMetadataTitleStyle}>
+              {toolkitMetadata?.toolkit_name || "LumenAI Power BI Export Toolkit"}
+            </h3>
+          </div>
+          <button type="button" onClick={loadPowerBiToolkitMetadata} style={toolkitMetadataButtonStyle}>
+            Refresh Metadata
+          </button>
+        </div>
+
+        {toolkitMetadataError ? (
+          <div style={toolkitMetadataErrorStyle}>{toolkitMetadataError}</div>
+        ) : null}
+
+        {toolkitMetadata ? (
+          <>
+            <div style={toolkitMetadataGridStyle}>
+              <MetadataItem label="Toolkit Version" value={toolkitMetadata.toolkit_version} />
+              <MetadataItem label="Readiness Model" value={toolkitMetadata.readiness_model_version} />
+              <MetadataItem label="Dataset" value={toolkitMetadata.dataset_name} />
+              <MetadataItem
+                label="Generated"
+                value={toolkitMetadata.generated_at ? new Date(toolkitMetadata.generated_at).toLocaleString() : ""}
+              />
+              <MetadataItem label="Included Assets" value={String(toolkitMetadata.included_assets?.length || 0)} />
+              <MetadataItem label="Source System" value={toolkitMetadata.source_system} />
+            </div>
+
+            <div style={toolkitAssetListStyle}>
+              {(toolkitMetadata.included_assets || []).map((asset) => (
+                <div key={asset.file_name} style={toolkitAssetMetadataStyle}>
+                  <strong>{asset.file_name}</strong>
+                  <span>{asset.asset_type}</span>
+                  <p>{asset.purpose}</p>
+                </div>
+              ))}
+            </div>
+
+            <div style={toolkitRefreshPlanStyle}>
+              <strong>Recommended Refresh Cadence</strong>
+              <p>Leadership dashboard: {toolkitMetadata.recommended_refresh_cadence?.leadership_dashboard || "Not specified"}</p>
+              <p>Quality committee: {toolkitMetadata.recommended_refresh_cadence?.quality_committee || "Not specified"}</p>
+              <p>Survey readiness: {toolkitMetadata.recommended_refresh_cadence?.survey_readiness_review || "Not specified"}</p>
+            </div>
+          </>
+        ) : (
+          <p style={toolkitMetadataEmptyStyle}>Toolkit metadata has not loaded yet.</p>
+        )}
       </div>
 
       <div style={controlRowStyle}>
@@ -752,6 +861,15 @@ const exportStatusDescriptionStyle: React.CSSProperties = {
   lineHeight: 1.45,
   fontSize: "13px",
 };
+
+function MetadataItem({ label, value }: { label: string; value?: string }) {
+  return (
+    <div style={metadataItemStyle}>
+      <span style={metadataItemLabelStyle}>{label}</span>
+      <strong style={metadataItemValueStyle}>{value || "Not available"}</strong>
+    </div>
+  );
+}
 
 function ToolkitAsset({ label, status }: { label: string; status: string }) {
   return (
@@ -1212,4 +1330,113 @@ const powerBiToolkitSummaryTextStyle: React.CSSProperties = {
   color: "#475569",
   lineHeight: 1.5,
   fontSize: "13px",
+};
+
+const toolkitMetadataCardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #bae6fd",
+  background: "linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(14, 116, 144, 0.08)",
+};
+
+const toolkitMetadataHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const toolkitMetadataEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#0369a1",
+};
+
+const toolkitMetadataTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#0c4a6e",
+};
+
+const toolkitMetadataButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#0ea5e9",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const toolkitMetadataGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const metadataItemStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #bae6fd",
+  background: "#ffffff",
+};
+
+const metadataItemLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  color: "#64748b",
+};
+
+const metadataItemValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#0f172a",
+  fontSize: "13px",
+};
+
+const toolkitAssetListStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const toolkitAssetMetadataStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  color: "#334155",
+};
+
+const toolkitRefreshPlanStyle: React.CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#ecfeff",
+  color: "#164e63",
+};
+
+const toolkitMetadataErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
+const toolkitMetadataEmptyStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#64748b",
 };
