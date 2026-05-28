@@ -176,6 +176,7 @@ export default function PacketActionButtonsPanel() {
   const powerBiDictionaryPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf`;
   const powerBiDashboardSpecPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf`;
   const powerBiToolkitZipUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.zip?${historyPdfParams.toString()}`;
+  const powerBiToolkitReadmePdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf`;
 
 
   async function downloadHistoryCsv() {
@@ -327,6 +328,35 @@ export default function PacketActionButtonsPanel() {
     }
   }
 
+
+  async function downloadPowerBiToolkitReadmePdf() {
+    try {
+      const response = await fetch(powerBiToolkitReadmePdfUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI Toolkit README PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-powerbi-toolkit-readme.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Toolkit README PDF download error");
+    }
+  }
+
   return (
     <section style={panelStyle}>
       <div>
@@ -469,6 +499,10 @@ export default function PacketActionButtonsPanel() {
 
             <button type="button" onClick={downloadPowerBiToolkitZip} style={powerBiToolkitButtonStyle}>
               Download Power BI Toolkit ZIP
+            </button>
+
+            <button type="button" onClick={downloadPowerBiToolkitReadmePdf} style={toolkitReadmeButtonStyle}>
+              Download Toolkit README PDF
             </button>
           </div>
         </div>
@@ -1008,6 +1042,19 @@ const powerBiToolkitButtonStyle: React.CSSProperties = {
   padding: "9px 12px",
   background: "#f3e8ff",
   color: "#6b21a8",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+
+const toolkitReadmeButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#ccfbf1",
+  color: "#115e59",
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
