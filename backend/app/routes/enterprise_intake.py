@@ -4790,3 +4790,148 @@ def get_enterprise_export_readiness_powerbi_data_dictionary(
         ],
         "fields": dictionary,
     }
+
+
+@router.get("/export-readiness-history.powerbi.data-dictionary.pdf")
+def get_enterprise_export_readiness_powerbi_data_dictionary_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    dictionary_response = get_enterprise_export_readiness_powerbi_data_dictionary(
+        request=request,
+        db=db,
+    )
+
+    fields = dictionary_response.get("fields", [])
+    measures = dictionary_response.get("recommended_power_bi_measures", [])
+    visuals = dictionary_response.get("recommended_visuals", [])
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Power BI Data Dictionary", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Purpose", styles["Heading2"]))
+    story.append(Paragraph(
+        "This data dictionary describes the fields included in the LumenAI export readiness Power BI CSV. "
+        "It is intended to support dashboard development, audit-readiness review, leadership reporting, "
+        "quality committee discussions, and data governance.",
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Recommended Power BI Measures", styles["Heading2"]))
+
+    if measures:
+        measure_data = [["Measure", "DAX"]]
+        for measure in measures:
+            measure_data.append([
+                measure.get("measure_name", ""),
+                measure.get("dax", ""),
+            ])
+
+        measure_table = Table(measure_data, colWidths=[160, 330])
+        measure_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(measure_table)
+    else:
+        story.append(Paragraph("No recommended measures documented.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Visuals", styles["Heading2"]))
+
+    if visuals:
+        visual_data = [["Recommended Visual"]]
+        for visual in visuals:
+            visual_data.append([visual])
+
+        visual_table = Table(visual_data, colWidths=[490])
+        visual_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(visual_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Field Dictionary", styles["Heading2"]))
+
+    if fields:
+        field_data = [[
+            "Field",
+            "Display Name",
+            "Type",
+            "Description",
+            "Power BI Usage",
+            "Example",
+        ]]
+
+        for field in fields:
+            field_data.append([
+                field.get("field_name", ""),
+                field.get("display_name", ""),
+                field.get("data_type", ""),
+                field.get("description", ""),
+                field.get("power_bi_usage", ""),
+                field.get("example_value", ""),
+            ])
+
+        field_table = Table(field_data, colWidths=[82, 82, 55, 120, 115, 55])
+        field_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 5.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(field_table)
+    else:
+        story.append(Paragraph("No fields documented.", styles["BodyText"]))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_data_dictionary_pdf_exported",
+            resource_type="enterprise_export_readiness_powerbi_data_dictionary_pdf",
+            resource_id="powerbi_data_dictionary_pdf",
+            details={
+                "field_count": len(fields),
+                "measure_count": len(measures),
+                "visual_count": len(visuals),
+                "workflow_status": "export_readiness_powerbi_data_dictionary_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-powerbi-data-dictionary.pdf"
+        },
+    )
