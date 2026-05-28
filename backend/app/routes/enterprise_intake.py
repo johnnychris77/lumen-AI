@@ -4935,3 +4935,250 @@ def get_enterprise_export_readiness_powerbi_data_dictionary_pdf(
             "Content-Disposition": "attachment; filename=lumenai-powerbi-data-dictionary.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi.dashboard-spec")
+def get_enterprise_export_readiness_powerbi_dashboard_spec(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    dashboard_spec = {
+        "status": "success",
+        "spec_type": "export_readiness_powerbi_starter_dashboard",
+        "title": "LumenAI Export Readiness Power BI Starter Dashboard",
+        "purpose": (
+            "Starter dashboard specification for analyzing export readiness history, "
+            "baseline evidence coverage, approved baseline maturity, and packet readiness "
+            "for governance, vendor escalation, Infection Prevention, and executive review exports."
+        ),
+        "recommended_dataset_name": "ExportReadiness",
+        "recommended_pages": [
+            {
+                "page_name": "Executive Overview",
+                "audience": "Leadership, quality committee, operational executives",
+                "purpose": "Summarize overall export readiness and governance maturity.",
+                "recommended_visuals": [
+                    {
+                        "visual_type": "Card",
+                        "title": "Average Readiness Score",
+                        "fields": ["readiness_score"],
+                        "measure": "Average Readiness Score",
+                        "description": "Shows average readiness score across selected readiness checks.",
+                    },
+                    {
+                        "visual_type": "Card",
+                        "title": "Total Readiness Checks",
+                        "fields": ["history_id"],
+                        "measure": "Total Readiness Checks",
+                        "description": "Counts readiness history records.",
+                    },
+                    {
+                        "visual_type": "Card",
+                        "title": "Baseline Approval Rate",
+                        "fields": ["baseline_approval_rate"],
+                        "measure": "Baseline Approval Rate",
+                        "description": "Shows average percentage of approved baseline records.",
+                    },
+                    {
+                        "visual_type": "Donut Chart",
+                        "title": "Readiness Status Distribution",
+                        "legend": "readiness_status",
+                        "values": "history_id count",
+                        "description": "Shows Ready, Partially Ready, and Not Ready status distribution.",
+                    },
+                    {
+                        "visual_type": "Line Chart",
+                        "title": "Readiness Score Trend",
+                        "axis": "readiness_date",
+                        "values": "Average Readiness Score",
+                        "description": "Tracks readiness score trend over time.",
+                    },
+                ],
+            },
+            {
+                "page_name": "Finding-Level Readiness",
+                "audience": "Quality, SPD leadership, audit reviewers",
+                "purpose": "Drill into readiness by finding and packet type.",
+                "recommended_visuals": [
+                    {
+                        "visual_type": "Table",
+                        "title": "Finding Readiness Detail",
+                        "fields": [
+                            "finding_id",
+                            "readiness_generated_at",
+                            "readiness_status",
+                            "governance_zip_ready",
+                            "vendor_pdf_ready",
+                            "infection_prevention_pdf_ready",
+                            "executive_pdf_ready",
+                            "baseline_evidence_count",
+                            "approved_baseline_count",
+                            "evidence_attachment_count",
+                        ],
+                        "description": "Provides record-level export readiness detail.",
+                    },
+                    {
+                        "visual_type": "Stacked Bar Chart",
+                        "title": "Readiness Score by Finding",
+                        "axis": "finding_id",
+                        "values": "Average Readiness Score",
+                        "description": "Compares readiness score across findings.",
+                    },
+                    {
+                        "visual_type": "Clustered Column Chart",
+                        "title": "Baseline Evidence vs Approved Baselines",
+                        "axis": "finding_id",
+                        "values": [
+                            "baseline_evidence_count",
+                            "approved_baseline_count",
+                        ],
+                        "description": "Shows baseline evidence maturity by finding.",
+                    },
+                ],
+            },
+            {
+                "page_name": "Packet Readiness",
+                "audience": "Governance users, quality coordinators, analysts",
+                "purpose": "Monitor readiness of individual export packet types.",
+                "recommended_visuals": [
+                    {
+                        "visual_type": "Matrix",
+                        "title": "Packet Readiness Matrix",
+                        "rows": "finding_id",
+                        "columns": [
+                            "governance_zip_ready",
+                            "vendor_pdf_ready",
+                            "infection_prevention_pdf_ready",
+                            "executive_pdf_ready",
+                        ],
+                        "description": "Shows which packet types are ready by finding.",
+                    },
+                    {
+                        "visual_type": "Bar Chart",
+                        "title": "Ready Export Checks by Packet Type",
+                        "fields": [
+                            "governance_zip_ready",
+                            "vendor_pdf_ready",
+                            "infection_prevention_pdf_ready",
+                            "executive_pdf_ready",
+                        ],
+                        "description": "Compares readiness across export packet categories.",
+                    },
+                ],
+            },
+            {
+                "page_name": "Audit Detail",
+                "audience": "Survey readiness, auditors, compliance teams",
+                "purpose": "Provide a detailed readiness audit trail.",
+                "recommended_visuals": [
+                    {
+                        "visual_type": "Table",
+                        "title": "Export Readiness Audit Log",
+                        "fields": [
+                            "history_id",
+                            "tenant_id",
+                            "finding_id",
+                            "readiness_generated_at",
+                            "created_at",
+                            "readiness_summary",
+                        ],
+                        "description": "Detailed record of backend-generated readiness checks.",
+                    }
+                ],
+            },
+        ],
+        "recommended_slicers": [
+            {
+                "field": "readiness_date",
+                "display_name": "Readiness Date",
+                "type": "date slicer",
+            },
+            {
+                "field": "readiness_month",
+                "display_name": "Readiness Month",
+                "type": "dropdown or tile slicer",
+            },
+            {
+                "field": "finding_id",
+                "display_name": "Finding ID",
+                "type": "dropdown slicer",
+            },
+            {
+                "field": "tenant_id",
+                "display_name": "Tenant",
+                "type": "dropdown slicer",
+            },
+            {
+                "field": "readiness_status",
+                "display_name": "Readiness Status",
+                "type": "dropdown slicer",
+            },
+        ],
+        "recommended_measures": [
+            {
+                "measure_name": "Average Readiness Score",
+                "dax": "Average Readiness Score = AVERAGE('ExportReadiness'[readiness_score])",
+            },
+            {
+                "measure_name": "Total Readiness Checks",
+                "dax": "Total Readiness Checks = COUNTROWS('ExportReadiness')",
+            },
+            {
+                "measure_name": "Ready Export Checks",
+                "dax": "Ready Export Checks = COUNTROWS(FILTER('ExportReadiness', 'ExportReadiness'[all_exports_ready] = TRUE()))",
+            },
+            {
+                "measure_name": "Readiness Completion Rate",
+                "dax": "Readiness Completion Rate = DIVIDE([Ready Export Checks], [Total Readiness Checks])",
+            },
+            {
+                "measure_name": "Baseline Approval Rate",
+                "dax": "Baseline Approval Rate = AVERAGE('ExportReadiness'[baseline_approval_rate])",
+            },
+            {
+                "measure_name": "Average Baseline Evidence Count",
+                "dax": "Average Baseline Evidence Count = AVERAGE('ExportReadiness'[baseline_evidence_count])",
+            },
+        ],
+        "recommended_conditional_formatting": [
+            {
+                "field": "readiness_score",
+                "rule": "Green >= 90; Amber 50-89; Red < 50",
+            },
+            {
+                "field": "readiness_status",
+                "rule": "Ready = Green; Partially Ready = Amber; Not Ready = Red",
+            },
+            {
+                "field": "baseline_approval_rate",
+                "rule": "Green >= 0.9; Amber 0.5-0.89; Red < 0.5",
+            },
+        ],
+        "recommended_refresh_plan": {
+            "manual_csv_import": "Download Power BI CSV from LumenAI dashboard and refresh Power BI dataset manually.",
+            "future_api_refresh": "Use authenticated API endpoint as a web data source after token management is productionized.",
+            "recommended_frequency": "Daily for leadership reporting; weekly for quality committee review.",
+        },
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_dashboard_spec_viewed",
+            resource_type="enterprise_export_readiness_powerbi_dashboard_spec",
+            resource_id="powerbi_dashboard_spec",
+            details={
+                "page_count": len(dashboard_spec["recommended_pages"]),
+                "slicer_count": len(dashboard_spec["recommended_slicers"]),
+                "measure_count": len(dashboard_spec["recommended_measures"]),
+                "workflow_status": "export_readiness_powerbi_dashboard_spec_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return dashboard_spec
