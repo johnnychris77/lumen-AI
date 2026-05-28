@@ -5623,3 +5623,198 @@ record_count={len(rows)}
             "Content-Disposition": f"attachment; filename=lumenai-powerbi-export-toolkit-{filename_suffix}.zip"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.readme.pdf")
+def get_enterprise_export_readiness_powerbi_toolkit_readme_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Power BI Toolkit README", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Purpose", styles["Heading2"]))
+    story.append(Paragraph(
+        "This guide explains how to use the LumenAI Power BI Export Toolkit to build dashboards for export readiness, "
+        "baseline evidence coverage, approved baseline maturity, packet readiness, and audit reporting.",
+        styles["BodyText"],
+    ))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Toolkit Files", styles["Heading2"]))
+
+    files_data = [
+        ["File", "Purpose"],
+        ["export-readiness-history.csv", "Standard persistent export readiness history for audit review."],
+        ["export-readiness-powerbi.csv", "Power BI-ready dataset with derived readiness fields."],
+        ["powerbi-data-dictionary.json", "Machine-readable data dictionary with fields, DAX measures, and visuals."],
+        ["powerbi-dashboard-spec.json", "Starter dashboard layout, pages, visuals, slicers, and measures."],
+        ["README.txt", "Plain-text implementation guide included in the toolkit ZIP."],
+    ]
+
+    files_table = Table(files_data, colWidths=[190, 300])
+    files_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(files_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Power BI Import Steps", styles["Heading2"]))
+
+    steps = [
+        "Open Power BI Desktop.",
+        "Select Get Data.",
+        "Choose Text/CSV.",
+        "Import export-readiness-powerbi.csv.",
+        "Confirm field data types.",
+        "Create recommended measures.",
+        "Build the report pages from the dashboard spec.",
+        "Add slicers for readiness date, month, finding ID, tenant, and readiness status.",
+        "Publish to Power BI Service when ready.",
+    ]
+
+    steps_data = [["Step", "Action"]]
+    for index, step in enumerate(steps, start=1):
+        steps_data.append([str(index), step])
+
+    steps_table = Table(steps_data, colWidths=[45, 445])
+    steps_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(steps_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Power BI Data Types", styles["Heading2"]))
+
+    data_types = [
+        ["Field", "Recommended Type"],
+        ["history_id", "Whole Number"],
+        ["finding_id", "Whole Number"],
+        ["tenant_id", "Text"],
+        ["readiness_generated_at", "Date/Time"],
+        ["readiness_date", "Date"],
+        ["readiness_month", "Text or Date Period"],
+        ["governance_zip_ready", "True/False"],
+        ["vendor_pdf_ready", "True/False"],
+        ["infection_prevention_pdf_ready", "True/False"],
+        ["executive_pdf_ready", "True/False"],
+        ["all_exports_ready", "True/False"],
+        ["readiness_score", "Whole Number"],
+        ["readiness_status", "Text"],
+        ["baseline_evidence_count", "Whole Number"],
+        ["approved_baseline_count", "Whole Number"],
+        ["baseline_approval_rate", "Decimal Number or Percentage"],
+        ["evidence_attachment_count", "Whole Number"],
+        ["readiness_summary", "Text"],
+        ["created_at", "Date/Time"],
+    ]
+
+    type_table = Table(data_types, colWidths=[230, 260])
+    type_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 6.5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(type_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Report Pages", styles["Heading2"]))
+
+    pages_data = [
+        ["Page", "Purpose"],
+        ["Executive Overview", "Leadership summary of readiness score, readiness status, and baseline governance maturity."],
+        ["Finding-Level Readiness", "Drill-down view by finding ID and packet readiness type."],
+        ["Packet Readiness", "Matrix or bar view of Governance ZIP, Vendor PDF, IP PDF, and Executive PDF readiness."],
+        ["Audit Detail", "Record-level readiness audit log with timestamps and summaries."],
+    ]
+
+    pages_table = Table(pages_data, colWidths=[160, 330])
+    pages_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e0f2fe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(pages_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended DAX Measures", styles["Heading2"]))
+
+    dax_data = [
+        ["Measure", "DAX"],
+        ["Average Readiness Score", "Average Readiness Score = AVERAGE('ExportReadiness'[readiness_score])"],
+        ["Total Readiness Checks", "Total Readiness Checks = COUNTROWS('ExportReadiness')"],
+        ["Ready Export Checks", "Ready Export Checks = COUNTROWS(FILTER('ExportReadiness', 'ExportReadiness'[all_exports_ready] = TRUE()))"],
+        ["Readiness Completion Rate", "Readiness Completion Rate = DIVIDE([Ready Export Checks], [Total Readiness Checks])"],
+        ["Baseline Approval Rate", "Baseline Approval Rate = AVERAGE('ExportReadiness'[baseline_approval_rate])"],
+    ]
+
+    dax_table = Table(dax_data, colWidths=[160, 330])
+    dax_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ede9fe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 6.5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(dax_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Refresh Plan", styles["Heading2"]))
+    story.append(Paragraph(
+        "For v1, download the Power BI CSV or Toolkit ZIP from LumenAI and refresh the Power BI dataset manually. "
+        "Recommended cadence is daily for leadership dashboards and weekly for quality committee review. "
+        "Future versions may support direct authenticated API refresh after production token handling is finalized.",
+        styles["BodyText"],
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_readme_pdf_exported",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_readme_pdf",
+            resource_id="powerbi_toolkit_readme_pdf",
+            details={
+                "workflow_status": "export_readiness_powerbi_toolkit_readme_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-readme.pdf"
+        },
+    )
