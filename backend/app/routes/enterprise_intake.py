@@ -4350,3 +4350,97 @@ def get_enterprise_export_readiness_history_pdf(
             "Content-Disposition": f"attachment; filename=lumenai-export-readiness-history-{filename_suffix}.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.csv")
+def get_enterprise_export_readiness_history_csv(
+    limit: int = 50,
+    finding_id: int | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 500))
+
+    query = db.query(EnterpriseExportReadinessHistory)
+
+    if finding_id is not None:
+        query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
+
+    rows = (
+        query
+        .order_by(EnterpriseExportReadinessHistory.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "history_id",
+        "finding_id",
+        "tenant_id",
+        "generated_at",
+        "governance_zip_ready",
+        "vendor_pdf_ready",
+        "infection_prevention_pdf_ready",
+        "executive_pdf_ready",
+        "baseline_evidence_count",
+        "approved_baseline_count",
+        "evidence_attachment_count",
+        "readiness_summary",
+        "created_at",
+    ])
+
+    for row in rows:
+        writer.writerow([
+            row.id,
+            row.finding_id,
+            row.tenant_id or "",
+            row.generated_at.isoformat() if row.generated_at else "",
+            row.governance_zip_ready,
+            row.vendor_pdf_ready,
+            row.infection_prevention_pdf_ready,
+            row.executive_pdf_ready,
+            row.baseline_evidence_count,
+            row.approved_baseline_count,
+            row.evidence_attachment_count,
+            row.readiness_summary or "",
+            row.created_at.isoformat() if row.created_at else "",
+        ])
+
+    output.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_history_csv_exported",
+            resource_type="enterprise_export_readiness_history_csv",
+            resource_id=str(finding_id) if finding_id is not None else "all",
+            details={
+                "limit": safe_limit,
+                "finding_id": finding_id,
+                "record_count": len(rows),
+                "workflow_status": "export_readiness_history_csv_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    filename_suffix = f"finding-{finding_id}" if finding_id is not None else "all"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=lumenai-export-readiness-history-{filename_suffix}.csv"
+        },
+    )
