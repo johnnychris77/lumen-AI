@@ -171,6 +171,7 @@ export default function PacketActionButtonsPanel() {
     historyPdfParams.set("finding_id", historyFindingId.trim());
   }
   const historyPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.pdf?${historyPdfParams.toString()}`;
+  const historyCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.csv?${historyPdfParams.toString()}`;
 
   return (
     <section style={panelStyle}>
@@ -772,4 +773,17 @@ const historyPdfButtonStyle: React.CSSProperties = {
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
+};
+
+
+const historyCsvButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#dcfce7",
+  color: "#166534",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
 };
