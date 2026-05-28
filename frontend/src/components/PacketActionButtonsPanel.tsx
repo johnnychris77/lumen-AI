@@ -173,6 +173,7 @@ export default function PacketActionButtonsPanel() {
   const historyPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.pdf?${historyPdfParams.toString()}`;
   const historyCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.csv?${historyPdfParams.toString()}`;
   const historyPowerBiCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.csv?${historyPdfParams.toString()}`;
+  const powerBiDictionaryPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf`;
 
 
   async function downloadHistoryCsv() {
@@ -232,6 +233,35 @@ export default function PacketActionButtonsPanel() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       setHistoryError(err instanceof Error ? err.message : "Unknown Power BI CSV download error");
+    }
+  }
+
+
+  async function downloadPowerBiDictionaryPdf() {
+    try {
+      const response = await fetch(powerBiDictionaryPdfUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI Data Dictionary PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-powerbi-data-dictionary.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Data Dictionary PDF download error");
     }
   }
 
@@ -365,6 +395,10 @@ export default function PacketActionButtonsPanel() {
 
             <button type="button" onClick={downloadPowerBiCsv} style={powerBiCsvButtonStyle}>
               Download Power BI CSV
+            </button>
+
+            <button type="button" onClick={downloadPowerBiDictionaryPdf} style={dataDictionaryButtonStyle}>
+              Download Data Dictionary PDF
             </button>
           </div>
         </div>
@@ -865,6 +899,19 @@ const powerBiCsvButtonStyle: React.CSSProperties = {
   padding: "9px 12px",
   background: "#fef3c7",
   color: "#92400e",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+
+const dataDictionaryButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#e0f2fe",
+  color: "#075985",
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
