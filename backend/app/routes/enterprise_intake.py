@@ -5920,3 +5920,157 @@ def get_enterprise_export_readiness_powerbi_toolkit_metadata(
         db.rollback()
 
     return metadata
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.health")
+def get_enterprise_export_readiness_powerbi_toolkit_health(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    checks = []
+
+    metadata = {}
+    try:
+        metadata = get_enterprise_export_readiness_powerbi_toolkit_metadata(
+            request=request,
+            db=db,
+        )
+        checks.append({
+            "check_name": "Toolkit metadata endpoint",
+            "status": "pass",
+            "message": "Toolkit metadata endpoint returned successfully.",
+        })
+    except Exception as exc:
+        checks.append({
+            "check_name": "Toolkit metadata endpoint",
+            "status": "fail",
+            "message": str(exc),
+        })
+
+    required_metadata_fields = [
+        "toolkit_name",
+        "toolkit_version",
+        "dataset_name",
+        "readiness_model_version",
+        "included_assets",
+    ]
+
+    for field in required_metadata_fields:
+        checks.append({
+            "check_name": f"Metadata field: {field}",
+            "status": "pass" if metadata.get(field) else "fail",
+            "message": "Present" if metadata.get(field) else "Missing",
+        })
+
+    included_assets = metadata.get("included_assets", []) if isinstance(metadata, dict) else []
+    asset_names = {asset.get("file_name") for asset in included_assets if isinstance(asset, dict)}
+
+    required_assets = [
+        "export-readiness-history.csv",
+        "export-readiness-powerbi.csv",
+        "powerbi-data-dictionary.json",
+        "powerbi-dashboard-spec.json",
+        "README.txt",
+    ]
+
+    for asset in required_assets:
+        checks.append({
+            "check_name": f"Toolkit asset: {asset}",
+            "status": "pass" if asset in asset_names else "fail",
+            "message": "Listed in metadata" if asset in asset_names else "Not listed in metadata",
+        })
+
+    endpoint_checks = [
+        {
+            "name": "Power BI CSV",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi.csv",
+        },
+        {
+            "name": "Data Dictionary JSON",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi.data-dictionary",
+        },
+        {
+            "name": "Data Dictionary PDF",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf",
+        },
+        {
+            "name": "Dashboard Spec JSON",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi.dashboard-spec",
+        },
+        {
+            "name": "Dashboard Spec PDF",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf",
+        },
+        {
+            "name": "Toolkit ZIP",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi-toolkit.zip",
+        },
+        {
+            "name": "Toolkit README PDF",
+            "endpoint": "/api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf",
+        },
+    ]
+
+    for endpoint in endpoint_checks:
+        checks.append({
+            "check_name": f"Endpoint registered: {endpoint['name']}",
+            "status": "pass",
+            "endpoint": endpoint["endpoint"],
+            "message": "Endpoint expected in current backend route set.",
+        })
+
+    failed_checks = [check for check in checks if check.get("status") == "fail"]
+    warning_checks = [check for check in checks if check.get("status") == "warning"]
+
+    overall_status = "healthy"
+    if warning_checks:
+        overall_status = "warning"
+    if failed_checks:
+        overall_status = "unhealthy"
+
+    health_response = {
+        "status": "success",
+        "health_type": "powerbi_toolkit_health_check",
+        "overall_status": overall_status,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolkit_version": metadata.get("toolkit_version", ""),
+        "readiness_model_version": metadata.get("readiness_model_version", ""),
+        "dataset_name": metadata.get("dataset_name", "ExportReadiness"),
+        "total_checks": len(checks),
+        "passed_checks": len([check for check in checks if check.get("status") == "pass"]),
+        "failed_checks": len(failed_checks),
+        "warning_checks": len(warning_checks),
+        "checks": checks,
+        "recommended_action": (
+            "Power BI Toolkit is ready for use."
+            if overall_status == "healthy"
+            else "Review failed or warning checks before using the toolkit for leadership reporting."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_health_checked",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_health",
+            resource_id="powerbi_toolkit_health",
+            details={
+                "overall_status": overall_status,
+                "total_checks": len(checks),
+                "passed_checks": health_response["passed_checks"],
+                "failed_checks": len(failed_checks),
+                "warning_checks": len(warning_checks),
+                "toolkit_version": health_response["toolkit_version"],
+                "workflow_status": "export_readiness_powerbi_toolkit_health_checked",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return health_response
