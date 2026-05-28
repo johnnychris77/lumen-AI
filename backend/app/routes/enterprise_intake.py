@@ -4444,3 +4444,137 @@ def get_enterprise_export_readiness_history_csv(
             "Content-Disposition": f"attachment; filename=lumenai-export-readiness-history-{filename_suffix}.csv"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi.csv")
+def get_enterprise_export_readiness_history_powerbi_csv(
+    limit: int = 500,
+    finding_id: int | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 2000))
+
+    query = db.query(EnterpriseExportReadinessHistory)
+
+    if finding_id is not None:
+        query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
+
+    rows = (
+        query
+        .order_by(EnterpriseExportReadinessHistory.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "history_id",
+        "finding_id",
+        "tenant_id",
+        "readiness_generated_at",
+        "readiness_date",
+        "readiness_month",
+        "governance_zip_ready",
+        "vendor_pdf_ready",
+        "infection_prevention_pdf_ready",
+        "executive_pdf_ready",
+        "all_exports_ready",
+        "readiness_score",
+        "readiness_status",
+        "baseline_evidence_count",
+        "approved_baseline_count",
+        "baseline_approval_rate",
+        "evidence_attachment_count",
+        "readiness_summary",
+        "created_at",
+    ])
+
+    for row in rows:
+        generated_at = row.generated_at
+        readiness_date = generated_at.date().isoformat() if generated_at else ""
+        readiness_month = generated_at.strftime("%Y-%m") if generated_at else ""
+
+        readiness_flags = [
+            bool(row.governance_zip_ready),
+            bool(row.vendor_pdf_ready),
+            bool(row.infection_prevention_pdf_ready),
+            bool(row.executive_pdf_ready),
+        ]
+
+        readiness_score = int((sum(1 for flag in readiness_flags if flag) / 4) * 100)
+        all_exports_ready = all(readiness_flags)
+
+        if all_exports_ready:
+            readiness_status = "Ready"
+        elif readiness_score >= 50:
+            readiness_status = "Partially Ready"
+        else:
+            readiness_status = "Not Ready"
+
+        baseline_approval_rate = 0
+        if row.baseline_evidence_count:
+            baseline_approval_rate = round(
+                row.approved_baseline_count / row.baseline_evidence_count,
+                4,
+            )
+
+        writer.writerow([
+            row.id,
+            row.finding_id,
+            row.tenant_id or "",
+            generated_at.isoformat() if generated_at else "",
+            readiness_date,
+            readiness_month,
+            row.governance_zip_ready,
+            row.vendor_pdf_ready,
+            row.infection_prevention_pdf_ready,
+            row.executive_pdf_ready,
+            all_exports_ready,
+            readiness_score,
+            readiness_status,
+            row.baseline_evidence_count,
+            row.approved_baseline_count,
+            baseline_approval_rate,
+            row.evidence_attachment_count,
+            row.readiness_summary or "",
+            row.created_at.isoformat() if row.created_at else "",
+        ])
+
+    output.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_history_powerbi_csv_exported",
+            resource_type="enterprise_export_readiness_history_powerbi_csv",
+            resource_id=str(finding_id) if finding_id is not None else "all",
+            details={
+                "limit": safe_limit,
+                "finding_id": finding_id,
+                "record_count": len(rows),
+                "workflow_status": "export_readiness_history_powerbi_csv_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    filename_suffix = f"finding-{finding_id}" if finding_id is not None else "all"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=lumenai-export-readiness-powerbi-{filename_suffix}.csv"
+        },
+    )
