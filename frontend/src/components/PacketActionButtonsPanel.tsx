@@ -172,6 +172,7 @@ export default function PacketActionButtonsPanel() {
   }
   const historyPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.pdf?${historyPdfParams.toString()}`;
   const historyCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.csv?${historyPdfParams.toString()}`;
+  const historyPowerBiCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.csv?${historyPdfParams.toString()}`;
 
   return (
     <section style={panelStyle}>
@@ -782,6 +783,19 @@ const historyCsvButtonStyle: React.CSSProperties = {
   padding: "9px 12px",
   background: "#dcfce7",
   color: "#166534",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+
+const powerBiCsvButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#fef3c7",
+  color: "#92400e",
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
