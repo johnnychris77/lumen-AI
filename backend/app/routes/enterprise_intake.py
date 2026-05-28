@@ -4578,3 +4578,215 @@ def get_enterprise_export_readiness_history_powerbi_csv(
             "Content-Disposition": f"attachment; filename=lumenai-export-readiness-powerbi-{filename_suffix}.csv"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi.data-dictionary")
+def get_enterprise_export_readiness_powerbi_data_dictionary(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    dictionary = [
+        {
+            "field_name": "history_id",
+            "display_name": "History ID",
+            "data_type": "integer",
+            "description": "Unique identifier for each export readiness history record.",
+            "power_bi_usage": "Use as a unique row key or drill-through identifier.",
+            "example_value": "47",
+        },
+        {
+            "field_name": "finding_id",
+            "display_name": "Finding ID",
+            "data_type": "integer",
+            "description": "Enterprise finding associated with the export readiness check.",
+            "power_bi_usage": "Use to filter, group, or join readiness records to finding-level reports.",
+            "example_value": "2",
+        },
+        {
+            "field_name": "tenant_id",
+            "display_name": "Tenant",
+            "data_type": "text",
+            "description": "Tenant or organization identifier associated with the readiness record.",
+            "power_bi_usage": "Use as organization/site/system filter when supporting multiple tenants.",
+            "example_value": "bonsecours",
+        },
+        {
+            "field_name": "readiness_generated_at",
+            "display_name": "Readiness Generated At",
+            "data_type": "datetime",
+            "description": "Backend timestamp when the readiness status was generated.",
+            "power_bi_usage": "Use for trend analysis, audit timing, and freshness validation.",
+            "example_value": "2026-05-28T01:49:02.398008",
+        },
+        {
+            "field_name": "readiness_date",
+            "display_name": "Readiness Date",
+            "data_type": "date",
+            "description": "Date portion of the backend-generated readiness timestamp.",
+            "power_bi_usage": "Use on date slicers, daily trend visuals, and audit timelines.",
+            "example_value": "2026-05-28",
+        },
+        {
+            "field_name": "readiness_month",
+            "display_name": "Readiness Month",
+            "data_type": "text/date period",
+            "description": "Year-month period derived from readiness_generated_at.",
+            "power_bi_usage": "Use for monthly readiness trend charts.",
+            "example_value": "2026-05",
+        },
+        {
+            "field_name": "governance_zip_ready",
+            "display_name": "Governance ZIP Ready",
+            "data_type": "boolean",
+            "description": "Indicates whether the governance ZIP bundle is available for export.",
+            "power_bi_usage": "Use as a readiness KPI or conditional formatting flag.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "vendor_pdf_ready",
+            "display_name": "Vendor PDF Ready",
+            "data_type": "boolean",
+            "description": "Indicates whether the vendor escalation PDF is available for export.",
+            "power_bi_usage": "Use to monitor vendor escalation packet readiness.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "infection_prevention_pdf_ready",
+            "display_name": "IP PDF Ready",
+            "data_type": "boolean",
+            "description": "Indicates whether the Infection Prevention review PDF is available for export.",
+            "power_bi_usage": "Use to monitor IP review packet readiness for patient-safety findings.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "executive_pdf_ready",
+            "display_name": "Executive PDF Ready",
+            "data_type": "boolean",
+            "description": "Indicates whether the Executive Quality Review PDF is available for export.",
+            "power_bi_usage": "Use as a leadership reporting readiness flag.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "all_exports_ready",
+            "display_name": "All Exports Ready",
+            "data_type": "boolean",
+            "description": "True when all export types are ready.",
+            "power_bi_usage": "Use as the main overall export readiness KPI.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "readiness_score",
+            "display_name": "Readiness Score",
+            "data_type": "integer percentage",
+            "description": "Percent score based on how many export types are ready.",
+            "power_bi_usage": "Use as a gauge, card, or trend metric.",
+            "example_value": "100",
+        },
+        {
+            "field_name": "readiness_status",
+            "display_name": "Readiness Status",
+            "data_type": "text/category",
+            "description": "Categorical readiness status derived from readiness score.",
+            "power_bi_usage": "Use as legend, slicer, or conditional status label.",
+            "example_value": "Ready",
+        },
+        {
+            "field_name": "baseline_evidence_count",
+            "display_name": "Baseline Evidence Count",
+            "data_type": "integer",
+            "description": "Number of manufacturer baseline evidence records linked to the finding/instrument.",
+            "power_bi_usage": "Use to monitor baseline evidence coverage.",
+            "example_value": "3",
+        },
+        {
+            "field_name": "approved_baseline_count",
+            "display_name": "Approved Baseline Count",
+            "data_type": "integer",
+            "description": "Number of approved baseline evidence records.",
+            "power_bi_usage": "Use to monitor trusted baseline coverage.",
+            "example_value": "3",
+        },
+        {
+            "field_name": "baseline_approval_rate",
+            "display_name": "Baseline Approval Rate",
+            "data_type": "decimal",
+            "description": "Approved baselines divided by total baseline evidence records.",
+            "power_bi_usage": "Use as a percentage KPI for baseline governance maturity.",
+            "example_value": "1.0",
+        },
+        {
+            "field_name": "evidence_attachment_count",
+            "display_name": "Evidence Attachment Count",
+            "data_type": "integer",
+            "description": "Number of evidence attachments associated with the finding.",
+            "power_bi_usage": "Use to monitor evidence completeness.",
+            "example_value": "0",
+        },
+        {
+            "field_name": "readiness_summary",
+            "display_name": "Readiness Summary",
+            "data_type": "text",
+            "description": "Human-readable summary of the readiness check.",
+            "power_bi_usage": "Use in drill-through tables or detail views.",
+            "example_value": "Export readiness generated for Finding #2.",
+        },
+        {
+            "field_name": "created_at",
+            "display_name": "Record Created At",
+            "data_type": "datetime",
+            "description": "Timestamp when the readiness history record was stored.",
+            "power_bi_usage": "Use for audit trail timing and record freshness checks.",
+            "example_value": "2026-05-28T01:49:02.399981",
+        },
+    ]
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_data_dictionary_viewed",
+            resource_type="enterprise_export_readiness_powerbi_data_dictionary",
+            resource_id="powerbi_data_dictionary",
+            details={
+                "field_count": len(dictionary),
+                "workflow_status": "export_readiness_powerbi_data_dictionary_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return {
+        "status": "success",
+        "dictionary_type": "export_readiness_powerbi_data_dictionary",
+        "field_count": len(dictionary),
+        "recommended_power_bi_measures": [
+            {
+                "measure_name": "Average Readiness Score",
+                "dax": "Average Readiness Score = AVERAGE('ExportReadiness'[readiness_score])",
+            },
+            {
+                "measure_name": "Ready Export Checks",
+                "dax": "Ready Export Checks = COUNTROWS(FILTER('ExportReadiness', 'ExportReadiness'[all_exports_ready] = TRUE()))",
+            },
+            {
+                "measure_name": "Baseline Approval Rate",
+                "dax": "Baseline Approval Rate = AVERAGE('ExportReadiness'[baseline_approval_rate])",
+            },
+            {
+                "measure_name": "Total Readiness Checks",
+                "dax": "Total Readiness Checks = COUNTROWS('ExportReadiness')",
+            },
+        ],
+        "recommended_visuals": [
+            "Card: Average Readiness Score",
+            "Card: Total Readiness Checks",
+            "Donut or stacked bar: Readiness Status",
+            "Line chart: Readiness Score by Readiness Date",
+            "Bar chart: Baseline Evidence Count by Finding ID",
+            "Table: Finding ID, Readiness Status, Generated At, Baseline Approval Rate",
+        ],
+        "fields": dictionary,
+    }
