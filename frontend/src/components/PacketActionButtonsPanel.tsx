@@ -174,6 +174,67 @@ export default function PacketActionButtonsPanel() {
   const historyCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.csv?${historyPdfParams.toString()}`;
   const historyPowerBiCsvUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.csv?${historyPdfParams.toString()}`;
 
+
+  async function downloadHistoryCsv() {
+    try {
+      const response = await fetch(historyCsvUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`History CSV download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = historyFindingId.trim()
+        ? `lumenai-export-readiness-history-finding-${historyFindingId.trim()}.csv`
+        : "lumenai-export-readiness-history-all.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown history CSV download error");
+    }
+  }
+
+  async function downloadPowerBiCsv() {
+    try {
+      const response = await fetch(historyPowerBiCsvUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI CSV download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = historyFindingId.trim()
+        ? `lumenai-export-readiness-powerbi-finding-${historyFindingId.trim()}.csv`
+        : "lumenai-export-readiness-powerbi-all.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI CSV download error");
+    }
+  }
+
   return (
     <section style={panelStyle}>
       <div>
@@ -297,6 +358,14 @@ export default function PacketActionButtonsPanel() {
             <a href={historyPdfUrl} target="_blank" rel="noreferrer" style={historyPdfButtonStyle}>
               Download History PDF
             </a>
+
+            <button type="button" onClick={downloadHistoryCsv} style={historyCsvButtonStyle}>
+              Download History CSV
+            </button>
+
+            <button type="button" onClick={downloadPowerBiCsv} style={powerBiCsvButtonStyle}>
+              Download Power BI CSV
+            </button>
           </div>
         </div>
 
