@@ -7,6 +7,48 @@ const API_BASE =
 
 
 
+
+type PowerBiToolkitHealthCheck = {
+  check_name: string;
+  status: string;
+  message: string;
+  endpoint?: string;
+};
+
+type PowerBiToolkitHealth = {
+  status: string;
+  health_type: string;
+  overall_status: string;
+  generated_at: string;
+  toolkit_version: string;
+  readiness_model_version: string;
+  dataset_name: string;
+  total_checks: number;
+  passed_checks: number;
+  failed_checks: number;
+  warning_checks: number;
+  checks: PowerBiToolkitHealthCheck[];
+  recommended_action: string;
+};
+
+async function fetchPowerBiToolkitHealth(): Promise<PowerBiToolkitHealth> {
+  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.health`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Power BI toolkit health check failed (${response.status})`);
+  }
+
+  return data;
+}
+
 type PowerBiToolkitMetadataAsset = {
   file_name: string;
   asset_type: string;
@@ -143,6 +185,8 @@ export default function PacketActionButtonsPanel() {
   const [historyError, setHistoryError] = useState("");
   const [toolkitMetadata, setToolkitMetadata] = useState<PowerBiToolkitMetadata | null>(null);
   const [toolkitMetadataError, setToolkitMetadataError] = useState("");
+  const [toolkitHealth, setToolkitHealth] = useState<PowerBiToolkitHealth | null>(null);
+  const [toolkitHealthError, setToolkitHealthError] = useState("");
   const [historyFindingId, setHistoryFindingId] = useState("2");
   const [historyLimit, setHistoryLimit] = useState("5");
   const [lastCheckedAt, setLastCheckedAt] = useState("");
@@ -166,6 +210,7 @@ export default function PacketActionButtonsPanel() {
     loadReadiness();
     loadHistory();
     loadPowerBiToolkitMetadata();
+    loadPowerBiToolkitHealth();
   }, [findingId]);
 
   const [lastExport, setLastExport] = useState("");
@@ -188,6 +233,17 @@ export default function PacketActionButtonsPanel() {
     window.setTimeout(() => {
       loadHistory();
     }, 100);
+  }
+
+  async function loadPowerBiToolkitHealth() {
+    setToolkitHealthError("");
+
+    try {
+      const data = await fetchPowerBiToolkitHealth();
+      setToolkitHealth(data);
+    } catch (err) {
+      setToolkitHealthError(err instanceof Error ? err.message : "Unknown Power BI toolkit health error");
+    }
   }
 
   async function loadPowerBiToolkitMetadata() {
@@ -489,6 +545,69 @@ export default function PacketActionButtonsPanel() {
           Toolkit files support Excel review, Power BI dashboard development, audit readiness,
           export-readiness trending, and leadership reporting.
         </p>
+      </div>
+
+      <div style={toolkitHealthCardStyle}>
+        <div style={toolkitHealthHeaderStyle}>
+          <div>
+            <div style={toolkitHealthEyebrowStyle}>Toolkit Health</div>
+            <h3 style={toolkitHealthTitleStyle}>
+              Power BI Toolkit Health Check
+            </h3>
+          </div>
+          <button type="button" onClick={loadPowerBiToolkitHealth} style={toolkitHealthButtonStyle}>
+            Refresh Health
+          </button>
+        </div>
+
+        {toolkitHealthError ? (
+          <div style={toolkitHealthErrorStyle}>{toolkitHealthError}</div>
+        ) : null}
+
+        {toolkitHealth ? (
+          <>
+            <div style={toolkitHealthStatusRowStyle}>
+              <span style={toolkitHealthBadgeStyle(toolkitHealth.overall_status)}>
+                {toolkitHealth.overall_status}
+              </span>
+              <span style={toolkitHealthGeneratedStyle}>
+                Generated: {toolkitHealth.generated_at ? new Date(toolkitHealth.generated_at).toLocaleString() : "Not available"}
+              </span>
+            </div>
+
+            <div style={toolkitHealthGridStyle}>
+              <HealthMetric label="Toolkit Version" value={toolkitHealth.toolkit_version} />
+              <HealthMetric label="Readiness Model" value={toolkitHealth.readiness_model_version} />
+              <HealthMetric label="Dataset" value={toolkitHealth.dataset_name} />
+              <HealthMetric label="Total Checks" value={String(toolkitHealth.total_checks)} />
+              <HealthMetric label="Passed" value={String(toolkitHealth.passed_checks)} />
+              <HealthMetric label="Failed" value={String(toolkitHealth.failed_checks)} />
+              <HealthMetric label="Warnings" value={String(toolkitHealth.warning_checks)} />
+            </div>
+
+            <div style={toolkitHealthActionStyle}>
+              <strong>Recommended Action</strong>
+              <p>{toolkitHealth.recommended_action}</p>
+            </div>
+
+            <details style={toolkitHealthDetailsStyle}>
+              <summary style={toolkitHealthSummaryStyle}>View health checks</summary>
+              <div style={toolkitHealthCheckListStyle}>
+                {(toolkitHealth.checks || []).map((check) => (
+                  <div key={check.check_name} style={toolkitHealthCheckItemStyle}>
+                    <span style={toolkitHealthCheckBadgeStyle(check.status)}>{check.status}</span>
+                    <div>
+                      <strong>{check.check_name}</strong>
+                      <p>{check.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </>
+        ) : (
+          <p style={toolkitHealthEmptyStyle}>Toolkit health has not loaded yet.</p>
+        )}
       </div>
 
       <div style={toolkitMetadataCardStyle}>
@@ -861,6 +980,15 @@ const exportStatusDescriptionStyle: React.CSSProperties = {
   lineHeight: 1.45,
   fontSize: "13px",
 };
+
+function HealthMetric({ label, value }: { label: string; value?: string }) {
+  return (
+    <div style={healthMetricStyle}>
+      <span style={healthMetricLabelStyle}>{label}</span>
+      <strong style={healthMetricValueStyle}>{value || "Not available"}</strong>
+    </div>
+  );
+}
 
 function MetadataItem({ label, value }: { label: string; value?: string }) {
   return (
@@ -1437,6 +1565,173 @@ const toolkitMetadataErrorStyle: React.CSSProperties = {
 };
 
 const toolkitMetadataEmptyStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#64748b",
+};
+
+
+
+const toolkitHealthCardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #bbf7d0",
+  background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(22, 101, 52, 0.08)",
+};
+
+const toolkitHealthHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const toolkitHealthEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#15803d",
+};
+
+const toolkitHealthTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#14532d",
+};
+
+const toolkitHealthButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#16a34a",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const toolkitHealthStatusRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "14px",
+};
+
+function toolkitHealthBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+  const isHealthy = normalized === "healthy";
+  const isWarning = normalized === "warning";
+
+  return {
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: isHealthy ? "#dcfce7" : isWarning ? "#ffedd5" : "#fee2e2",
+    color: isHealthy ? "#166534" : isWarning ? "#9a3412" : "#991b1b",
+  };
+}
+
+const toolkitHealthGeneratedStyle: React.CSSProperties = {
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const toolkitHealthGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const healthMetricStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #bbf7d0",
+  background: "#ffffff",
+};
+
+const healthMetricLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  color: "#64748b",
+};
+
+const healthMetricValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#0f172a",
+  fontSize: "13px",
+};
+
+const toolkitHealthActionStyle: React.CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#ffffff",
+  border: "1px solid #bbf7d0",
+  color: "#14532d",
+};
+
+const toolkitHealthDetailsStyle: React.CSSProperties = {
+  marginTop: "12px",
+};
+
+const toolkitHealthSummaryStyle: React.CSSProperties = {
+  cursor: "pointer",
+  fontWeight: 900,
+  color: "#166534",
+};
+
+const toolkitHealthCheckListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  marginTop: "10px",
+};
+
+const toolkitHealthCheckItemStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+function toolkitHealthCheckBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+
+  return {
+    alignSelf: "flex-start",
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "11px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: normalized === "pass" ? "#dcfce7" : normalized === "warning" ? "#ffedd5" : "#fee2e2",
+    color: normalized === "pass" ? "#166534" : normalized === "warning" ? "#9a3412" : "#991b1b",
+  };
+}
+
+const toolkitHealthErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
+const toolkitHealthEmptyStyle: React.CSSProperties = {
   margin: "12px 0 0",
   color: "#64748b",
 };
