@@ -9,6 +9,52 @@ const API_BASE =
 
 
 
+
+type PowerBiProductionLockCriterion = {
+  criterion: string;
+  status: string;
+};
+
+type PowerBiProductionLock = {
+  status: string;
+  lock_type: string;
+  release_status: string;
+  generated_at: string;
+  toolkit_name: string;
+  toolkit_version: string;
+  toolkit_release: string;
+  readiness_model_version: string;
+  dataset_name: string;
+  health_status: string;
+  health_failed_checks: number;
+  health_warning_checks: number;
+  final_validation_status: string;
+  final_validation_failed_items: number;
+  final_validation_passed_items: number;
+  production_lock_criteria: PowerBiProductionLockCriterion[];
+  locked_assets: string[];
+  executive_message: string;
+  recommended_next_step: string;
+};
+
+async function fetchPowerBiProductionLock(): Promise<PowerBiProductionLock> {
+  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.production-lock`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Power BI production lock failed (${response.status})`);
+  }
+
+  return data;
+}
+
 type PowerBiFinalValidationItem = {
   key: string;
   label: string;
@@ -231,6 +277,8 @@ export default function PacketActionButtonsPanel() {
   const [toolkitHealthError, setToolkitHealthError] = useState("");
   const [finalValidation, setFinalValidation] = useState<PowerBiFinalValidation | null>(null);
   const [finalValidationError, setFinalValidationError] = useState("");
+  const [productionLock, setProductionLock] = useState<PowerBiProductionLock | null>(null);
+  const [productionLockError, setProductionLockError] = useState("");
   const [historyFindingId, setHistoryFindingId] = useState("2");
   const [historyLimit, setHistoryLimit] = useState("5");
   const [lastCheckedAt, setLastCheckedAt] = useState("");
@@ -256,6 +304,7 @@ export default function PacketActionButtonsPanel() {
     loadPowerBiToolkitMetadata();
     loadPowerBiToolkitHealth();
     loadPowerBiFinalValidation();
+    loadPowerBiProductionLock();
   }, [findingId]);
 
   const [lastExport, setLastExport] = useState("");
@@ -278,6 +327,17 @@ export default function PacketActionButtonsPanel() {
     window.setTimeout(() => {
       loadHistory();
     }, 100);
+  }
+
+  async function loadPowerBiProductionLock() {
+    setProductionLockError("");
+
+    try {
+      const data = await fetchPowerBiProductionLock();
+      setProductionLock(data);
+    } catch (err) {
+      setProductionLockError(err instanceof Error ? err.message : "Unknown Power BI production lock error");
+    }
   }
 
   async function loadPowerBiFinalValidation() {
@@ -640,6 +700,78 @@ export default function PacketActionButtonsPanel() {
           Toolkit files support Excel review, Power BI dashboard development, audit readiness,
           export-readiness trending, and leadership reporting.
         </p>
+      </div>
+
+      <div style={productionLockCardStyle}>
+        <div style={productionLockHeaderStyle}>
+          <div>
+            <div style={productionLockEyebrowStyle}>Production Lock</div>
+            <h3 style={productionLockTitleStyle}>Power BI Toolkit Production Lock</h3>
+          </div>
+          <button type="button" onClick={loadPowerBiProductionLock} style={productionLockButtonStyle}>
+            Refresh Lock
+          </button>
+        </div>
+
+        {productionLockError ? (
+          <div style={productionLockErrorStyle}>{productionLockError}</div>
+        ) : null}
+
+        {productionLock ? (
+          <>
+            <div style={productionLockStatusRowStyle}>
+              <span style={productionLockBadgeStyle(productionLock.release_status)}>
+                {productionLock.release_status}
+              </span>
+              <span style={productionLockGeneratedStyle}>
+                Generated: {productionLock.generated_at ? new Date(productionLock.generated_at).toLocaleString() : "Not available"}
+              </span>
+            </div>
+
+            <div style={productionLockGridStyle}>
+              <ProductionLockMetric label="Toolkit Version" value={productionLock.toolkit_version} />
+              <ProductionLockMetric label="Health Status" value={productionLock.health_status} />
+              <ProductionLockMetric label="Validation Status" value={productionLock.final_validation_status} />
+              <ProductionLockMetric label="Health Failed Checks" value={String(productionLock.health_failed_checks)} />
+              <ProductionLockMetric label="Validation Failed Items" value={String(productionLock.final_validation_failed_items)} />
+              <ProductionLockMetric label="Dataset" value={productionLock.dataset_name} />
+            </div>
+
+            <div style={productionLockMessageStyle}>
+              <strong>Executive Message</strong>
+              <p>{productionLock.executive_message}</p>
+            </div>
+
+            <div style={productionLockNextStepStyle}>
+              <strong>Recommended Next Step</strong>
+              <p>{productionLock.recommended_next_step}</p>
+            </div>
+
+            <details style={productionLockDetailsStyle}>
+              <summary style={productionLockSummaryStyle}>View lock criteria and assets</summary>
+
+              <div style={productionLockCriteriaListStyle}>
+                {(productionLock.production_lock_criteria || []).map((item) => (
+                  <div key={item.criterion} style={productionLockCriteriaItemStyle}>
+                    <span style={productionLockCriteriaBadgeStyle(item.status)}>{item.status}</span>
+                    <strong>{item.criterion}</strong>
+                  </div>
+                ))}
+              </div>
+
+              <div style={productionLockAssetsStyle}>
+                <strong>Locked Assets</strong>
+                <div style={productionLockAssetGridStyle}>
+                  {(productionLock.locked_assets || []).map((asset) => (
+                    <span key={asset} style={productionLockAssetStyle}>{asset}</span>
+                  ))}
+                </div>
+              </div>
+            </details>
+          </>
+        ) : (
+          <p style={productionLockEmptyStyle}>Production lock has not loaded yet.</p>
+        )}
       </div>
 
       <div style={finalValidationCardStyle}>
@@ -1144,6 +1276,15 @@ const exportStatusDescriptionStyle: React.CSSProperties = {
   lineHeight: 1.45,
   fontSize: "13px",
 };
+
+function ProductionLockMetric({ label, value }: { label: string; value?: string }) {
+  return (
+    <div style={productionLockMetricStyle}>
+      <span style={productionLockMetricLabelStyle}>{label}</span>
+      <strong style={productionLockMetricValueStyle}>{value || "Not available"}</strong>
+    </div>
+  );
+}
 
 function ValidationMetric({ label, value }: { label: string; value?: string }) {
   return (
@@ -2131,6 +2272,201 @@ const finalValidationErrorStyle: React.CSSProperties = {
 };
 
 const finalValidationEmptyStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#64748b",
+};
+
+
+
+const productionLockCardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #facc15",
+  background: "linear-gradient(135deg, #fefce8 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(161, 98, 7, 0.08)",
+};
+
+const productionLockHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const productionLockEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#a16207",
+};
+
+const productionLockTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#713f12",
+};
+
+const productionLockButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#ca8a04",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const productionLockStatusRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "14px",
+};
+
+function productionLockBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+  const isLocked = normalized === "locked";
+
+  return {
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: isLocked ? "#dcfce7" : "#fee2e2",
+    color: isLocked ? "#166534" : "#991b1b",
+  };
+}
+
+const productionLockGeneratedStyle: React.CSSProperties = {
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const productionLockGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const productionLockMetricStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #fde68a",
+  background: "#ffffff",
+};
+
+const productionLockMetricLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  color: "#64748b",
+};
+
+const productionLockMetricValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#0f172a",
+  fontSize: "13px",
+};
+
+const productionLockMessageStyle: React.CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#ffffff",
+  border: "1px solid #fde68a",
+  color: "#713f12",
+};
+
+const productionLockNextStepStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#f0fdf4",
+  border: "1px solid #bbf7d0",
+  color: "#14532d",
+};
+
+const productionLockDetailsStyle: React.CSSProperties = {
+  marginTop: "12px",
+};
+
+const productionLockSummaryStyle: React.CSSProperties = {
+  cursor: "pointer",
+  fontWeight: 900,
+  color: "#a16207",
+};
+
+const productionLockCriteriaListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  marginTop: "10px",
+};
+
+const productionLockCriteriaItemStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  alignItems: "center",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+function productionLockCriteriaBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+
+  return {
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "11px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: normalized === "pass" ? "#dcfce7" : "#fee2e2",
+    color: normalized === "pass" ? "#166534" : "#991b1b",
+  };
+}
+
+const productionLockAssetsStyle: React.CSSProperties = {
+  marginTop: "12px",
+};
+
+const productionLockAssetGridStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginTop: "8px",
+};
+
+const productionLockAssetStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "5px 9px",
+  background: "#fef3c7",
+  color: "#713f12",
+  fontSize: "12px",
+  fontWeight: 800,
+};
+
+const productionLockErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
+const productionLockEmptyStyle: React.CSSProperties = {
   margin: "12px 0 0",
   color: "#64748b",
 };
