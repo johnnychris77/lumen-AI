@@ -6843,3 +6843,295 @@ def get_enterprise_export_readiness_powerbi_toolkit_completion_certificate_pdf(
             "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-v1-completion-certificate.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.v1-archive.zip")
+def get_enterprise_export_readiness_powerbi_toolkit_v1_archive_zip(
+    limit: int = 500,
+    finding_id: int | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    import json
+    import zipfile
+    from datetime import datetime, timezone
+    from io import BytesIO, StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 2000))
+
+    query = db.query(EnterpriseExportReadinessHistory)
+
+    if finding_id is not None:
+        query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
+
+    rows = (
+        query
+        .order_by(EnterpriseExportReadinessHistory.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    metadata = get_enterprise_export_readiness_powerbi_toolkit_metadata(
+        request=request,
+        db=db,
+    )
+
+    health = get_enterprise_export_readiness_powerbi_toolkit_health(
+        request=request,
+        db=db,
+    )
+
+    final_validation = get_enterprise_export_readiness_powerbi_toolkit_final_validation(
+        request=request,
+        db=db,
+    )
+
+    production_lock = get_enterprise_export_readiness_powerbi_toolkit_production_lock(
+        request=request,
+        db=db,
+    )
+
+    data_dictionary = get_enterprise_export_readiness_powerbi_data_dictionary(
+        request=request,
+        db=db,
+    )
+
+    dashboard_spec = get_enterprise_export_readiness_powerbi_dashboard_spec(
+        request=request,
+        db=db,
+    )
+
+    def build_standard_csv() -> str:
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "history_id",
+            "finding_id",
+            "tenant_id",
+            "generated_at",
+            "governance_zip_ready",
+            "vendor_pdf_ready",
+            "infection_prevention_pdf_ready",
+            "executive_pdf_ready",
+            "baseline_evidence_count",
+            "approved_baseline_count",
+            "evidence_attachment_count",
+            "readiness_summary",
+            "created_at",
+        ])
+
+        for row in rows:
+            writer.writerow([
+                row.id,
+                row.finding_id,
+                row.tenant_id or "",
+                row.generated_at.isoformat() if row.generated_at else "",
+                row.governance_zip_ready,
+                row.vendor_pdf_ready,
+                row.infection_prevention_pdf_ready,
+                row.executive_pdf_ready,
+                row.baseline_evidence_count,
+                row.approved_baseline_count,
+                row.evidence_attachment_count,
+                row.readiness_summary or "",
+                row.created_at.isoformat() if row.created_at else "",
+            ])
+
+        return output.getvalue()
+
+    def build_powerbi_csv() -> str:
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "history_id",
+            "finding_id",
+            "tenant_id",
+            "readiness_generated_at",
+            "readiness_date",
+            "readiness_month",
+            "governance_zip_ready",
+            "vendor_pdf_ready",
+            "infection_prevention_pdf_ready",
+            "executive_pdf_ready",
+            "all_exports_ready",
+            "readiness_score",
+            "readiness_status",
+            "baseline_evidence_count",
+            "approved_baseline_count",
+            "baseline_approval_rate",
+            "evidence_attachment_count",
+            "readiness_summary",
+            "created_at",
+        ])
+
+        for row in rows:
+            generated_at = row.generated_at
+            readiness_date = generated_at.date().isoformat() if generated_at else ""
+            readiness_month = generated_at.strftime("%Y-%m") if generated_at else ""
+
+            readiness_flags = [
+                bool(row.governance_zip_ready),
+                bool(row.vendor_pdf_ready),
+                bool(row.infection_prevention_pdf_ready),
+                bool(row.executive_pdf_ready),
+            ]
+
+            readiness_score = int((sum(1 for flag in readiness_flags if flag) / 4) * 100)
+            all_exports_ready = all(readiness_flags)
+
+            if all_exports_ready:
+                readiness_status = "Ready"
+            elif readiness_score >= 50:
+                readiness_status = "Partially Ready"
+            else:
+                readiness_status = "Not Ready"
+
+            baseline_approval_rate = 0
+            if row.baseline_evidence_count:
+                baseline_approval_rate = round(
+                    row.approved_baseline_count / row.baseline_evidence_count,
+                    4,
+                )
+
+            writer.writerow([
+                row.id,
+                row.finding_id,
+                row.tenant_id or "",
+                generated_at.isoformat() if generated_at else "",
+                readiness_date,
+                readiness_month,
+                row.governance_zip_ready,
+                row.vendor_pdf_ready,
+                row.infection_prevention_pdf_ready,
+                row.executive_pdf_ready,
+                all_exports_ready,
+                readiness_score,
+                readiness_status,
+                row.baseline_evidence_count,
+                row.approved_baseline_count,
+                baseline_approval_rate,
+                row.evidence_attachment_count,
+                row.readiness_summary or "",
+                row.created_at.isoformat() if row.created_at else "",
+            ])
+
+        return output.getvalue()
+
+    archive_manifest = {
+        "status": "success",
+        "archive_type": "powerbi_toolkit_v1_archive",
+        "archive_version": "1.0.0",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolkit_version": metadata.get("toolkit_version", "1.0.0"),
+        "readiness_model_version": metadata.get("readiness_model_version", "export_readiness_scoring_v1"),
+        "release_status": production_lock.get("release_status", ""),
+        "health_status": health.get("overall_status", ""),
+        "final_validation_status": final_validation.get("final_status", ""),
+        "record_count": len(rows),
+        "limit": safe_limit,
+        "finding_id": finding_id if finding_id is not None else "all",
+        "included_files": [
+            "README.txt",
+            "archive-manifest.json",
+            "export-readiness-history.csv",
+            "export-readiness-powerbi.csv",
+            "powerbi-data-dictionary.json",
+            "powerbi-dashboard-spec.json",
+            "powerbi-toolkit-metadata.json",
+            "powerbi-toolkit-health.json",
+            "powerbi-toolkit-final-validation.json",
+            "powerbi-toolkit-production-lock.json",
+        ],
+        "archive_purpose": (
+            "Final v1 archive bundle for preserving the LumenAI Power BI Toolkit release state, "
+            "including CSV exports, metadata, health check, validation, production lock, and implementation references."
+        ),
+    }
+
+    readme = f"""LumenAI Power BI Toolkit v1 Archive Bundle
+
+Purpose
+This archive preserves the completed LumenAI Power BI Toolkit v1 release package.
+
+Release Status
+- Toolkit Version: {metadata.get("toolkit_version", "1.0.0")}
+- Readiness Model Version: {metadata.get("readiness_model_version", "export_readiness_scoring_v1")}
+- Production Lock Status: {production_lock.get("release_status", "")}
+- Health Status: {health.get("overall_status", "")}
+- Final Validation Status: {final_validation.get("final_status", "")}
+- Failed Health Checks: {health.get("failed_checks", 0)}
+- Failed Validation Items: {final_validation.get("failed_items", 0)}
+
+Files Included
+1. export-readiness-history.csv
+2. export-readiness-powerbi.csv
+3. powerbi-data-dictionary.json
+4. powerbi-dashboard-spec.json
+5. powerbi-toolkit-metadata.json
+6. powerbi-toolkit-health.json
+7. powerbi-toolkit-final-validation.json
+8. powerbi-toolkit-production-lock.json
+9. archive-manifest.json
+10. README.txt
+
+Recommended Use
+Use this archive as the stable v1 release record for Power BI dashboard build, pilot review, leadership reporting, quality committee review, and audit-readiness support.
+
+Generated Parameters
+limit={safe_limit}
+finding_id={finding_id if finding_id is not None else "all"}
+record_count={len(rows)}
+"""
+
+    buffer = BytesIO()
+
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr("README.txt", readme)
+        zip_file.writestr("archive-manifest.json", json.dumps(archive_manifest, indent=2, default=str))
+        zip_file.writestr("export-readiness-history.csv", build_standard_csv())
+        zip_file.writestr("export-readiness-powerbi.csv", build_powerbi_csv())
+        zip_file.writestr("powerbi-data-dictionary.json", json.dumps(data_dictionary, indent=2, default=str))
+        zip_file.writestr("powerbi-dashboard-spec.json", json.dumps(dashboard_spec, indent=2, default=str))
+        zip_file.writestr("powerbi-toolkit-metadata.json", json.dumps(metadata, indent=2, default=str))
+        zip_file.writestr("powerbi-toolkit-health.json", json.dumps(health, indent=2, default=str))
+        zip_file.writestr("powerbi-toolkit-final-validation.json", json.dumps(final_validation, indent=2, default=str))
+        zip_file.writestr("powerbi-toolkit-production-lock.json", json.dumps(production_lock, indent=2, default=str))
+
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_v1_archive_exported",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_v1_archive_zip",
+            resource_id=str(finding_id) if finding_id is not None else "all",
+            details={
+                "archive_version": archive_manifest["archive_version"],
+                "toolkit_version": archive_manifest["toolkit_version"],
+                "release_status": archive_manifest["release_status"],
+                "health_status": archive_manifest["health_status"],
+                "final_validation_status": archive_manifest["final_validation_status"],
+                "record_count": len(rows),
+                "workflow_status": "export_readiness_powerbi_toolkit_v1_archive_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    filename_suffix = f"finding-{finding_id}" if finding_id is not None else "all"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=lumenai-powerbi-toolkit-v1-archive-{filename_suffix}.zip"
+        },
+    )
