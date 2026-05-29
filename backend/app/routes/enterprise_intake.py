@@ -1930,8 +1930,8 @@ def get_enterprise_governance_export_package(
     audit_event_count = 0
     try:
         audit_event_count = (
-            db.query(EnterpriseAuditEvent)
-            .filter(EnterpriseAuditEvent.resource_id == str(finding.id))
+            db.query(EnterpriseAuditTrail)
+            .filter(EnterpriseAuditTrail.resource_id == str(finding.id))
             .count()
         )
     except Exception:
@@ -3328,10 +3328,10 @@ def get_enterprise_executive_quality_review_dashboard(
     audit_event_count = 0
     governance_export_count = 0
     try:
-        audit_event_count = db.query(EnterpriseAuditEvent).count()
+        audit_event_count = db.query(EnterpriseAuditTrail).count()
         governance_export_count = (
-            db.query(EnterpriseAuditEvent)
-            .filter(EnterpriseAuditEvent.action_type.in_([
+            db.query(EnterpriseAuditTrail)
+            .filter(EnterpriseAuditTrail.action_type.in_([
                 "governance_packet_exported_pdf",
                 "governance_export_package_generated",
                 "governance_zip_bundle_exported",
@@ -3546,10 +3546,10 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     audit_event_count = 0
     governance_export_count = 0
     try:
-        audit_event_count = db.query(EnterpriseAuditEvent).count()
+        audit_event_count = db.query(EnterpriseAuditTrail).count()
         governance_export_count = (
-            db.query(EnterpriseAuditEvent)
-            .filter(EnterpriseAuditEvent.action_type.in_([
+            db.query(EnterpriseAuditTrail)
+            .filter(EnterpriseAuditTrail.action_type.in_([
                 "governance_packet_exported_pdf",
                 "governance_export_package_generated",
                 "governance_zip_bundle_exported",
@@ -7241,3 +7241,199 @@ def get_enterprise_export_readiness_powerbi_toolkit_v1_closeout(
         db.rollback()
 
     return closeout_response
+
+
+@router.get("/audit-command-center")
+def get_enterprise_audit_command_center(
+    limit: int = 25,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    safe_limit = max(1, min(limit, 100))
+
+    # Audit events are stored in AuditLog.
+    audit_query = db.query(AuditLog)
+
+    audit_events = (
+        audit_query
+        .order_by(AuditLog.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    all_events = db.query(AuditLog).all()
+
+    def safe_text(value):
+        return value or ""
+
+    def get_action(event):
+        return safe_text(getattr(event, "action_type", ""))
+
+    def get_resource(event):
+        return safe_text(getattr(event, "resource_type", ""))
+
+    def get_created_at(event):
+        value = getattr(event, "created_at", None)
+        return value.isoformat() if value else ""
+
+    def get_details(event):
+        details = getattr(event, "details", None)
+        return details if isinstance(details, dict) else {}
+
+    export_events = [
+        event for event in all_events
+        if "export" in get_action(event).lower()
+        or "export" in get_resource(event).lower()
+    ]
+
+    pdf_events = [
+        event for event in all_events
+        if "pdf" in get_action(event).lower()
+        or "pdf" in get_resource(event).lower()
+    ]
+
+    csv_events = [
+        event for event in all_events
+        if "csv" in get_action(event).lower()
+        or "csv" in get_resource(event).lower()
+    ]
+
+    zip_events = [
+        event for event in all_events
+        if "zip" in get_action(event).lower()
+        or "zip" in get_resource(event).lower()
+    ]
+
+    health_events = [
+        event for event in all_events
+        if "health" in get_action(event).lower()
+        or "health" in get_resource(event).lower()
+    ]
+
+    validation_events = [
+        event for event in all_events
+        if "validation" in get_action(event).lower()
+        or "validated" in get_action(event).lower()
+        or "validation" in get_resource(event).lower()
+    ]
+
+    production_lock_events = [
+        event for event in all_events
+        if "production_lock" in get_action(event).lower()
+        or "production_lock" in get_resource(event).lower()
+        or "production" in get_action(event).lower()
+    ]
+
+    powerbi_events = [
+        event for event in all_events
+        if "powerbi" in get_action(event).lower()
+        or "powerbi" in get_resource(event).lower()
+    ]
+
+    high_value_keywords = [
+        "production_lock",
+        "final_validation",
+        "health",
+        "executive_summary",
+        "completion_certificate",
+        "release_notes",
+        "archive",
+        "governance",
+        "vendor",
+        "infection",
+        "capa",
+    ]
+
+    high_value_events = [
+        event for event in all_events
+        if any(
+            keyword in get_action(event).lower()
+            or keyword in get_resource(event).lower()
+            for keyword in high_value_keywords
+        )
+    ]
+
+    recent_items = []
+    for event in audit_events:
+        recent_items.append({
+            "audit_id": getattr(event, "id", None),
+            "tenant_id": safe_text(getattr(event, "tenant_id", "")),
+            "tenant_name": safe_text(getattr(event, "tenant_name", "")),
+            "action_type": get_action(event),
+            "resource_type": get_resource(event),
+            "resource_id": safe_text(getattr(event, "resource_id", "")),
+            "actor": safe_text(getattr(event, "actor", "")),
+            "created_at": get_created_at(event),
+            "details": get_details(event),
+        })
+
+    high_value_items = []
+    for event in high_value_events[-safe_limit:]:
+        high_value_items.append({
+            "audit_id": getattr(event, "id", None),
+            "action_type": get_action(event),
+            "resource_type": get_resource(event),
+            "resource_id": safe_text(getattr(event, "resource_id", "")),
+            "created_at": get_created_at(event),
+            "details": get_details(event),
+        })
+
+    command_center = {
+        "status": "success",
+        "dashboard_type": "enterprise_audit_command_center",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_audit_events": len(all_events),
+        "export_event_count": len(export_events),
+        "pdf_export_count": len(pdf_events),
+        "csv_export_count": len(csv_events),
+        "zip_export_count": len(zip_events),
+        "health_check_count": len(health_events),
+        "validation_event_count": len(validation_events),
+        "production_lock_event_count": len(production_lock_events),
+        "powerbi_event_count": len(powerbi_events),
+        "high_value_compliance_event_count": len(high_value_events),
+        "audit_signal": (
+            "audit_activity_present"
+            if len(all_events) > 0
+            else "no_audit_activity"
+        ),
+        "executive_summary": (
+            f"LumenAI Enterprise Audit Command Center includes {len(all_events)} audit events, "
+            f"{len(export_events)} export-related events, {len(pdf_events)} PDF events, "
+            f"{len(csv_events)} CSV events, {len(zip_events)} ZIP events, "
+            f"{len(health_events)} health-check events, {len(validation_events)} validation events, "
+            f"and {len(production_lock_events)} production-lock events."
+        ),
+        "recommended_leadership_actions": [
+            "Review high-value audit events during governance or quality huddle.",
+            "Monitor export activity for survey-readiness traceability.",
+            "Validate Power BI toolkit production-lock and final-validation events remain available.",
+            "Use audit logs to support leadership reporting, quality review, and compliance evidence.",
+        ],
+        "recent_audit_events": recent_items,
+        "high_value_compliance_events": high_value_items,
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_viewed",
+            resource_type="enterprise_audit_command_center",
+            resource_id="audit_command_center",
+            details={
+                "total_audit_events": command_center["total_audit_events"],
+                "export_event_count": command_center["export_event_count"],
+                "high_value_compliance_event_count": command_center["high_value_compliance_event_count"],
+                "workflow_status": "enterprise_audit_command_center_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return command_center
