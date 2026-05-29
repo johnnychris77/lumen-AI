@@ -289,6 +289,7 @@ export default function PacketActionButtonsPanel() {
   const powerBiDashboardSpecPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf`;
   const powerBiToolkitZipUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.zip?${historyPdfParams.toString()}`;
   const powerBiToolkitReadmePdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf`;
+  const powerBiExecutiveSummaryPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.executive-summary.pdf`;
 
 
   async function downloadHistoryCsv() {
@@ -466,6 +467,35 @@ export default function PacketActionButtonsPanel() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Toolkit README PDF download error");
+    }
+  }
+
+
+  async function downloadPowerBiExecutiveSummaryPdf() {
+    try {
+      const response = await fetch(powerBiExecutiveSummaryPdfUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI Executive Summary PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-powerbi-toolkit-executive-summary.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Executive Summary PDF download error");
     }
   }
 
@@ -774,6 +804,10 @@ export default function PacketActionButtonsPanel() {
 
             <button type="button" onClick={downloadPowerBiToolkitReadmePdf} style={toolkitReadmeButtonStyle}>
               Download Toolkit README PDF
+            </button>
+
+            <button type="button" onClick={downloadPowerBiExecutiveSummaryPdf} style={executiveSummaryButtonStyle}>
+              Download Executive Summary PDF
             </button>
           </div>
         </div>
@@ -1782,3 +1816,16 @@ function toolkitHealthMiniStatusStyle(status: string): React.CSSProperties {
       : "#991b1b",
   };
 }
+
+
+const executiveSummaryButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#fee2e2",
+  color: "#991b1b",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
