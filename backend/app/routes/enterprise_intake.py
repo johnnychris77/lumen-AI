@@ -7437,3 +7437,180 @@ def get_enterprise_audit_command_center(
         db.rollback()
 
     return command_center
+
+
+@router.get("/audit-command-center.pdf")
+def get_enterprise_audit_command_center_pdf(
+    limit: int = 25,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    dashboard = get_enterprise_audit_command_center(
+        limit=limit,
+        request=request,
+        db=db,
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Enterprise Audit Command Center", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Executive Summary", styles["Heading2"]))
+    story.append(Paragraph(
+        dashboard.get("executive_summary", "No executive summary available."),
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 12))
+
+    metrics_data = [
+        ["Metric", "Value"],
+        ["Total Audit Events", str(dashboard.get("total_audit_events", 0))],
+        ["Export Events", str(dashboard.get("export_event_count", 0))],
+        ["PDF Exports", str(dashboard.get("pdf_export_count", 0))],
+        ["CSV Exports", str(dashboard.get("csv_export_count", 0))],
+        ["ZIP Exports", str(dashboard.get("zip_export_count", 0))],
+        ["Health Checks", str(dashboard.get("health_check_count", 0))],
+        ["Validation Events", str(dashboard.get("validation_event_count", 0))],
+        ["Production Lock Events", str(dashboard.get("production_lock_event_count", 0))],
+        ["Power BI Events", str(dashboard.get("powerbi_event_count", 0))],
+        ["High-Value Compliance Events", str(dashboard.get("high_value_compliance_event_count", 0))],
+        ["Audit Signal", dashboard.get("audit_signal", "")],
+    ]
+
+    metrics_table = Table(metrics_data, colWidths=[240, 250])
+    metrics_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(metrics_table)
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Recommended Leadership Actions", styles["Heading2"]))
+
+    actions = dashboard.get("recommended_leadership_actions", [])
+    if actions:
+        action_data = [["Action"]]
+        for action in actions:
+            action_data.append([action])
+
+        action_table = Table(action_data, colWidths=[490])
+        action_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(action_table)
+    else:
+        story.append(Paragraph("No recommended leadership actions returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recent Audit Events", styles["Heading2"]))
+
+    recent_events = dashboard.get("recent_audit_events", [])
+    if recent_events:
+        event_data = [["ID", "Action", "Resource", "Resource ID", "Created"]]
+
+        for event in recent_events[:25]:
+            event_data.append([
+                str(event.get("audit_id", "")),
+                event.get("action_type", ""),
+                event.get("resource_type", ""),
+                event.get("resource_id", ""),
+                event.get("created_at", ""),
+            ])
+
+        event_table = Table(event_data, colWidths=[35, 150, 130, 95, 80])
+        event_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 5.8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(event_table)
+    else:
+        story.append(Paragraph("No recent audit events returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("High-Value Compliance Events", styles["Heading2"]))
+
+    high_value_events = dashboard.get("high_value_compliance_events", [])
+    if high_value_events:
+        high_value_data = [["ID", "Action", "Resource", "Resource ID", "Created"]]
+
+        for event in high_value_events[:25]:
+            high_value_data.append([
+                str(event.get("audit_id", "")),
+                event.get("action_type", ""),
+                event.get("resource_type", ""),
+                event.get("resource_id", ""),
+                event.get("created_at", ""),
+            ])
+
+        high_value_table = Table(high_value_data, colWidths=[35, 150, 130, 95, 80])
+        high_value_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fee2e2")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 5.8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(high_value_table)
+    else:
+        story.append(Paragraph("No high-value compliance events returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Audit Governance Note", styles["Heading2"]))
+    story.append(Paragraph(
+        "This report summarizes LumenAI enterprise audit activity and is intended to support leadership review, "
+        "quality governance, export traceability, survey readiness, and compliance evidence discussions.",
+        styles["BodyText"],
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_pdf_exported",
+            resource_type="enterprise_audit_command_center_pdf",
+            resource_id="audit_command_center_pdf",
+            details={
+                "limit": max(1, min(limit, 100)),
+                "total_audit_events": dashboard.get("total_audit_events", 0),
+                "export_event_count": dashboard.get("export_event_count", 0),
+                "high_value_compliance_event_count": dashboard.get("high_value_compliance_event_count", 0),
+                "workflow_status": "enterprise_audit_command_center_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center.pdf"
+        },
+    )
