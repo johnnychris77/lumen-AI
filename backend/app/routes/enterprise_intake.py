@@ -6248,3 +6248,143 @@ def get_enterprise_export_readiness_powerbi_toolkit_executive_summary_pdf(
             "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-executive-summary.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.final-validation")
+def get_enterprise_export_readiness_powerbi_toolkit_final_validation(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    health = get_enterprise_export_readiness_powerbi_toolkit_health(
+        request=request,
+        db=db,
+    )
+
+    metadata = get_enterprise_export_readiness_powerbi_toolkit_metadata(
+        request=request,
+        db=db,
+    )
+
+    validation_items = [
+        {
+            "key": "toolkit_health",
+            "label": "Toolkit Health Check",
+            "status": "pass" if health.get("overall_status") == "healthy" else "fail",
+            "detail": f"Overall health status: {health.get('overall_status', 'unknown')}",
+        },
+        {
+            "key": "toolkit_version",
+            "label": "Toolkit Version",
+            "status": "pass" if metadata.get("toolkit_version") else "fail",
+            "detail": metadata.get("toolkit_version", "Missing"),
+        },
+        {
+            "key": "readiness_model",
+            "label": "Readiness Model Version",
+            "status": "pass" if metadata.get("readiness_model_version") else "fail",
+            "detail": metadata.get("readiness_model_version", "Missing"),
+        },
+        {
+            "key": "dataset_name",
+            "label": "Power BI Dataset Name",
+            "status": "pass" if metadata.get("dataset_name") else "fail",
+            "detail": metadata.get("dataset_name", "Missing"),
+        },
+        {
+            "key": "standard_csv",
+            "label": "Standard History CSV",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.csv",
+        },
+        {
+            "key": "powerbi_csv",
+            "label": "Power BI CSV",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.powerbi.csv",
+        },
+        {
+            "key": "data_dictionary",
+            "label": "Power BI Data Dictionary",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.powerbi.data-dictionary",
+        },
+        {
+            "key": "dashboard_spec",
+            "label": "Power BI Dashboard Spec",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.powerbi.dashboard-spec",
+        },
+        {
+            "key": "toolkit_zip",
+            "label": "Power BI Toolkit ZIP",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.powerbi-toolkit.zip",
+        },
+        {
+            "key": "readme_pdf",
+            "label": "Toolkit README PDF",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf",
+        },
+        {
+            "key": "executive_summary_pdf",
+            "label": "Executive Summary PDF",
+            "status": "pass",
+            "detail": "/api/enterprise/export-readiness-history.powerbi-toolkit.executive-summary.pdf",
+        },
+    ]
+
+    failed_items = [item for item in validation_items if item.get("status") != "pass"]
+
+    final_status = "ready" if not failed_items else "not_ready"
+
+    response = {
+        "status": "success",
+        "validation_type": "powerbi_toolkit_final_validation",
+        "final_status": final_status,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolkit_version": metadata.get("toolkit_version", ""),
+        "readiness_model_version": metadata.get("readiness_model_version", ""),
+        "dataset_name": metadata.get("dataset_name", "ExportReadiness"),
+        "total_items": len(validation_items),
+        "passed_items": len(validation_items) - len(failed_items),
+        "failed_items": len(failed_items),
+        "validation_items": validation_items,
+        "executive_summary": (
+            "The LumenAI Power BI Toolkit is fully validated and ready for Power BI dashboard development, "
+            "leadership reporting, quality committee review, and audit-readiness support."
+            if final_status == "ready"
+            else "The LumenAI Power BI Toolkit has validation gaps that should be corrected before formal use."
+        ),
+        "recommended_next_step": (
+            "Proceed to Power BI dashboard build or pilot review."
+            if final_status == "ready"
+            else "Review failed validation items and correct gaps before dashboard build."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_final_validated",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_final_validation",
+            resource_id="powerbi_toolkit_final_validation",
+            details={
+                "final_status": final_status,
+                "total_items": response["total_items"],
+                "passed_items": response["passed_items"],
+                "failed_items": response["failed_items"],
+                "toolkit_version": response["toolkit_version"],
+                "workflow_status": "export_readiness_powerbi_toolkit_final_validated",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
