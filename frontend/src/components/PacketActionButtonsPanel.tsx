@@ -485,6 +485,15 @@ export default function PacketActionButtonsPanel() {
             <p style={powerBiToolkitBadgeTextStyle}>
               CSV export, Power BI CSV, data dictionary, dashboard spec, toolkit ZIP, and README PDF are available.
             </p>
+
+            <div style={toolkitHealthMiniBadgeStyle}>
+              <span style={toolkitHealthMiniStatusStyle(toolkitHealth?.overall_status || "pending")}>
+                Toolkit Health: {toolkitHealth?.overall_status || "Pending"}
+              </span>
+              <span>Passed: {toolkitHealth?.passed_checks ?? "-"}</span>
+              <span>Failed: {toolkitHealth?.failed_checks ?? "-"}</span>
+              <span>Version: {toolkitHealth?.toolkit_version || "-"}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1735,3 +1744,41 @@ const toolkitHealthEmptyStyle: React.CSSProperties = {
   margin: "12px 0 0",
   color: "#64748b",
 };
+
+
+
+const toolkitHealthMiniBadgeStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginTop: "8px",
+  fontSize: "12px",
+  fontWeight: 900,
+  color: "#166534",
+};
+
+function toolkitHealthMiniStatusStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+  const isHealthy = normalized === "healthy";
+  const isWarning = normalized === "warning";
+  const isPending = normalized === "pending";
+
+  return {
+    borderRadius: "999px",
+    padding: "3px 8px",
+    background: isHealthy
+      ? "#dcfce7"
+      : isWarning
+      ? "#ffedd5"
+      : isPending
+      ? "#e2e8f0"
+      : "#fee2e2",
+    color: isHealthy
+      ? "#166534"
+      : isWarning
+      ? "#9a3412"
+      : isPending
+      ? "#334155"
+      : "#991b1b",
+  };
+}
