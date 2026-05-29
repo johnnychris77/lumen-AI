@@ -6388,3 +6388,120 @@ def get_enterprise_export_readiness_powerbi_toolkit_final_validation(
         db.rollback()
 
     return response
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.production-lock")
+def get_enterprise_export_readiness_powerbi_toolkit_production_lock(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    health = get_enterprise_export_readiness_powerbi_toolkit_health(
+        request=request,
+        db=db,
+    )
+
+    final_validation = get_enterprise_export_readiness_powerbi_toolkit_final_validation(
+        request=request,
+        db=db,
+    )
+
+    metadata = get_enterprise_export_readiness_powerbi_toolkit_metadata(
+        request=request,
+        db=db,
+    )
+
+    health_ready = health.get("overall_status") == "healthy" and health.get("failed_checks", 1) == 0
+    validation_ready = final_validation.get("final_status") == "ready" and final_validation.get("failed_items", 1) == 0
+    version_ready = metadata.get("toolkit_version") == "1.0.0"
+
+    release_locked = bool(health_ready and validation_ready and version_ready)
+
+    lock_response = {
+        "status": "success",
+        "lock_type": "powerbi_toolkit_production_lock",
+        "release_status": "locked" if release_locked else "not_locked",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolkit_name": metadata.get("toolkit_name", "LumenAI Power BI Export Toolkit"),
+        "toolkit_version": metadata.get("toolkit_version", ""),
+        "toolkit_release": metadata.get("toolkit_release", "Power BI Export Readiness Toolkit v1"),
+        "readiness_model_version": metadata.get("readiness_model_version", ""),
+        "dataset_name": metadata.get("dataset_name", "ExportReadiness"),
+        "health_status": health.get("overall_status", "unknown"),
+        "health_failed_checks": health.get("failed_checks", 0),
+        "health_warning_checks": health.get("warning_checks", 0),
+        "final_validation_status": final_validation.get("final_status", "unknown"),
+        "final_validation_failed_items": final_validation.get("failed_items", 0),
+        "final_validation_passed_items": final_validation.get("passed_items", 0),
+        "production_lock_criteria": [
+            {
+                "criterion": "Toolkit health is healthy",
+                "status": "pass" if health_ready else "fail",
+            },
+            {
+                "criterion": "Final validation is ready",
+                "status": "pass" if validation_ready else "fail",
+            },
+            {
+                "criterion": "Toolkit version is 1.0.0",
+                "status": "pass" if version_ready else "fail",
+            },
+            {
+                "criterion": "No failed health checks",
+                "status": "pass" if health.get("failed_checks", 1) == 0 else "fail",
+            },
+            {
+                "criterion": "No failed validation items",
+                "status": "pass" if final_validation.get("failed_items", 1) == 0 else "fail",
+            },
+        ],
+        "locked_assets": [
+            "Standard History CSV",
+            "Power BI CSV",
+            "Data Dictionary JSON",
+            "Data Dictionary PDF",
+            "Dashboard Spec JSON",
+            "Dashboard Spec PDF",
+            "Toolkit ZIP",
+            "Toolkit README PDF",
+            "Executive Summary PDF",
+            "Toolkit Metadata",
+            "Toolkit Health Check",
+            "Final Validation Checklist",
+        ],
+        "executive_message": (
+            "The LumenAI Power BI Toolkit v1.0.0 is production-locked and ready for Power BI dashboard development, "
+            "leadership reporting, quality committee review, and audit-readiness support."
+            if release_locked
+            else "The LumenAI Power BI Toolkit is not production-locked. Review failed criteria before formal release."
+        ),
+        "recommended_next_step": (
+            "Proceed to Power BI dashboard build, pilot review, or v1 release documentation."
+            if release_locked
+            else "Correct failed lock criteria and re-run production lock validation."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_production_locked",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_production_lock",
+            resource_id="powerbi_toolkit_v1",
+            details={
+                "release_status": lock_response["release_status"],
+                "toolkit_version": lock_response["toolkit_version"],
+                "health_status": lock_response["health_status"],
+                "final_validation_status": lock_response["final_validation_status"],
+                "workflow_status": "export_readiness_powerbi_toolkit_production_locked",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return lock_response
