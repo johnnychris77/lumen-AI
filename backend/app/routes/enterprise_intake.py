@@ -7135,3 +7135,109 @@ record_count={len(rows)}
             "Content-Disposition": f"attachment; filename=lumenai-powerbi-toolkit-v1-archive-{filename_suffix}.zip"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.v1-closeout")
+def get_enterprise_export_readiness_powerbi_toolkit_v1_closeout(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    production_lock = get_enterprise_export_readiness_powerbi_toolkit_production_lock(
+        request=request,
+        db=db,
+    )
+
+    health = get_enterprise_export_readiness_powerbi_toolkit_health(
+        request=request,
+        db=db,
+    )
+
+    final_validation = get_enterprise_export_readiness_powerbi_toolkit_final_validation(
+        request=request,
+        db=db,
+    )
+
+    release_status = production_lock.get("release_status", "")
+    health_status = health.get("overall_status", "")
+    validation_status = final_validation.get("final_status", "")
+
+    complete = (
+        release_status == "locked"
+        and health_status == "healthy"
+        and validation_status == "ready"
+        and health.get("failed_checks", 1) == 0
+        and final_validation.get("failed_items", 1) == 0
+    )
+
+    closeout_response = {
+        "status": "success",
+        "closeout_type": "powerbi_toolkit_v1_final_closeout",
+        "workstream_status": "complete" if complete else "incomplete",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolkit_name": production_lock.get("toolkit_name", "LumenAI Power BI Export Toolkit"),
+        "toolkit_version": production_lock.get("toolkit_version", "1.0.0"),
+        "readiness_model_version": production_lock.get("readiness_model_version", ""),
+        "dataset_name": production_lock.get("dataset_name", "ExportReadiness"),
+        "release_status": release_status,
+        "health_status": health_status,
+        "final_validation_status": validation_status,
+        "health_failed_checks": health.get("failed_checks", 0),
+        "final_validation_failed_items": final_validation.get("failed_items", 0),
+        "completed_capabilities": [
+            "Persistent export readiness history",
+            "Standard readiness history CSV",
+            "Power BI-ready CSV",
+            "Power BI data dictionary JSON",
+            "Power BI data dictionary PDF",
+            "Starter dashboard specification JSON",
+            "Starter dashboard specification PDF",
+            "Power BI toolkit ZIP",
+            "Toolkit README PDF",
+            "Toolkit metadata endpoint and dashboard display",
+            "Toolkit health endpoint and dashboard display",
+            "Final validation checklist endpoint and dashboard display",
+            "Production lock endpoint and dashboard display",
+            "Executive summary PDF",
+            "Release notes PDF",
+            "Completion certificate PDF",
+            "v1 archive bundle ZIP",
+        ],
+        "executive_closeout_summary": (
+            "The LumenAI Power BI Toolkit v1.0.0 workstream is complete. The toolkit is production-locked, "
+            "health checks are healthy, final validation is ready, and all required export, documentation, "
+            "metadata, validation, and archive assets are available."
+            if complete
+            else "The LumenAI Power BI Toolkit v1 workstream is not fully complete. Review health, validation, and production lock status."
+        ),
+        "recommended_next_step": (
+            "Proceed to Power BI dashboard build, pilot review, or move to the next LumenAI enterprise module."
+            if complete
+            else "Correct incomplete closeout criteria before moving to the next module."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_v1_closed_out",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_v1_closeout",
+            resource_id="powerbi_toolkit_v1_closeout",
+            details={
+                "workstream_status": closeout_response["workstream_status"],
+                "toolkit_version": closeout_response["toolkit_version"],
+                "release_status": closeout_response["release_status"],
+                "health_status": closeout_response["health_status"],
+                "final_validation_status": closeout_response["final_validation_status"],
+                "workflow_status": "export_readiness_powerbi_toolkit_v1_closed_out",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return closeout_response
