@@ -6074,3 +6074,177 @@ def get_enterprise_export_readiness_powerbi_toolkit_health(
         db.rollback()
 
     return health_response
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.executive-summary.pdf")
+def get_enterprise_export_readiness_powerbi_toolkit_executive_summary_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    health = get_enterprise_export_readiness_powerbi_toolkit_health(
+        request=request,
+        db=db,
+    )
+
+    metadata = get_enterprise_export_readiness_powerbi_toolkit_metadata(
+        request=request,
+        db=db,
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    overall_status = health.get("overall_status", "unknown")
+    toolkit_version = health.get("toolkit_version", "")
+    readiness_model_version = health.get("readiness_model_version", "")
+    dataset_name = health.get("dataset_name", "ExportReadiness")
+    recommended_action = health.get("recommended_action", "")
+    included_assets = metadata.get("included_assets", [])
+
+    story.append(Paragraph("LumenAI Power BI Toolkit Executive Summary", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Executive Summary", styles["Heading2"]))
+    story.append(Paragraph(
+        "The LumenAI Power BI Export Toolkit provides a structured analytics package for export-readiness reporting, "
+        "baseline evidence coverage, approved baseline maturity, audit readiness, and leadership dashboarding. "
+        "This executive summary confirms toolkit status, versioning, included assets, and recommended action.",
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 12))
+
+    status_data = [
+        ["Metric", "Value"],
+        ["Overall Toolkit Health", str(overall_status).upper()],
+        ["Toolkit Version", toolkit_version],
+        ["Readiness Model Version", readiness_model_version],
+        ["Dataset Name", dataset_name],
+        ["Total Checks", str(health.get("total_checks", ""))],
+        ["Passed Checks", str(health.get("passed_checks", ""))],
+        ["Failed Checks", str(health.get("failed_checks", ""))],
+        ["Warning Checks", str(health.get("warning_checks", ""))],
+    ]
+
+    status_table = Table(status_data, colWidths=[190, 300])
+    status_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(status_table)
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Recommended Action", styles["Heading2"]))
+    story.append(Paragraph(recommended_action or "No recommended action available.", styles["BodyText"]))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Included Toolkit Assets", styles["Heading2"]))
+
+    if included_assets:
+        asset_data = [["Asset", "Type", "Purpose"]]
+        for asset in included_assets:
+            asset_data.append([
+                asset.get("file_name", ""),
+                asset.get("asset_type", ""),
+                asset.get("purpose", ""),
+            ])
+
+        asset_table = Table(asset_data, colWidths=[170, 70, 250])
+        asset_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(asset_table)
+    else:
+        story.append(Paragraph("No included assets were returned by toolkit metadata.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Leadership Interpretation", styles["Heading2"]))
+
+    if overall_status == "healthy":
+        interpretation = (
+            "The Power BI Toolkit is healthy and ready for leadership reporting, quality committee review, "
+            "audit-readiness preparation, and Power BI dashboard development. Current health checks show no failed "
+            "or warning conditions."
+        )
+    elif overall_status == "warning":
+        interpretation = (
+            "The Power BI Toolkit is available but has warning conditions. Leadership and analytics users should "
+            "review warning checks before using the toolkit for formal reporting."
+        )
+    else:
+        interpretation = (
+            "The Power BI Toolkit is not fully healthy. Failed checks should be reviewed and corrected before using "
+            "the toolkit for leadership reporting or audit-readiness activities."
+        )
+
+    story.append(Paragraph(interpretation, styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Use", styles["Heading2"]))
+
+    recommended_use_data = [
+        ["Use Case", "Recommendation"],
+        ["Executive Dashboard", "Use the Power BI CSV and dashboard spec to build leadership-ready visuals."],
+        ["Quality Committee", "Use readiness status, baseline approval rate, and finding-level readiness trends."],
+        ["Audit Readiness", "Use the history CSV, metadata, and health check to document export-readiness governance."],
+        ["Power BI Build", "Use the data dictionary and starter dashboard spec as the implementation guide."],
+    ]
+
+    recommended_use_table = Table(recommended_use_data, colWidths=[150, 340])
+    recommended_use_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(recommended_use_table)
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_executive_summary_pdf_exported",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_executive_summary_pdf",
+            resource_id="powerbi_toolkit_executive_summary_pdf",
+            details={
+                "overall_status": overall_status,
+                "toolkit_version": toolkit_version,
+                "readiness_model_version": readiness_model_version,
+                "passed_checks": health.get("passed_checks", 0),
+                "failed_checks": health.get("failed_checks", 0),
+                "warning_checks": health.get("warning_checks", 0),
+                "workflow_status": "export_readiness_powerbi_toolkit_executive_summary_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-executive-summary.pdf"
+        },
+    )
