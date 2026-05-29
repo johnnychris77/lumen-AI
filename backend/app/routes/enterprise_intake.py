@@ -6666,3 +6666,180 @@ def get_enterprise_export_readiness_powerbi_toolkit_release_notes_pdf(
             "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-v1-release-notes.pdf"
         },
     )
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.completion-certificate.pdf")
+def get_enterprise_export_readiness_powerbi_toolkit_completion_certificate_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    production_lock = get_enterprise_export_readiness_powerbi_toolkit_production_lock(
+        request=request,
+        db=db,
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    release_status = production_lock.get("release_status", "")
+    toolkit_version = production_lock.get("toolkit_version", "")
+    toolkit_release = production_lock.get("toolkit_release", "")
+    readiness_model_version = production_lock.get("readiness_model_version", "")
+    health_status = production_lock.get("health_status", "")
+    final_validation_status = production_lock.get("final_validation_status", "")
+    health_failed_checks = production_lock.get("health_failed_checks", "")
+    validation_failed_items = production_lock.get("final_validation_failed_items", "")
+    locked_assets = production_lock.get("locked_assets", [])
+
+    story.append(Paragraph("LumenAI Power BI Toolkit v1.0.0", styles["Title"]))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("Completion Certificate", styles["Title"]))
+    story.append(Spacer(1, 18))
+
+    story.append(Paragraph("Certification Statement", styles["Heading2"]))
+    story.append(Paragraph(
+        "This certificate confirms that the LumenAI Power BI Export Toolkit has completed its v1 validation pathway "
+        "and has reached a production-locked release state. The toolkit is ready to support Power BI dashboard "
+        "development, leadership reporting, quality committee review, and audit-readiness workflows.",
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 14))
+
+    certificate_data = [
+        ["Certificate Item", "Certified Value"],
+        ["Toolkit Name", production_lock.get("toolkit_name", "LumenAI Power BI Export Toolkit")],
+        ["Toolkit Version", toolkit_version],
+        ["Toolkit Release", toolkit_release],
+        ["Release Status", str(release_status).upper()],
+        ["Readiness Model Version", readiness_model_version],
+        ["Dataset Name", production_lock.get("dataset_name", "ExportReadiness")],
+        ["Health Status", health_status],
+        ["Health Failed Checks", str(health_failed_checks)],
+        ["Final Validation Status", final_validation_status],
+        ["Final Validation Failed Items", str(validation_failed_items)],
+    ]
+
+    certificate_table = Table(certificate_data, colWidths=[190, 300])
+    certificate_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(certificate_table)
+    story.append(Spacer(1, 14))
+
+    story.append(Paragraph("Production Lock Criteria", styles["Heading2"]))
+
+    criteria = production_lock.get("production_lock_criteria", [])
+    if criteria:
+        criteria_data = [["Criterion", "Status"]]
+        for item in criteria:
+            criteria_data.append([
+                item.get("criterion", ""),
+                item.get("status", ""),
+            ])
+
+        criteria_table = Table(criteria_data, colWidths=[370, 120])
+        criteria_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(criteria_table)
+    else:
+        story.append(Paragraph("No production lock criteria were returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Certified Toolkit Assets", styles["Heading2"]))
+
+    if locked_assets:
+        asset_data = [["Certified Asset"]]
+        for asset in locked_assets:
+            asset_data.append([asset])
+
+        asset_table = Table(asset_data, colWidths=[490])
+        asset_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(asset_table)
+    else:
+        story.append(Paragraph("No certified assets were returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Executive Certification Message", styles["Heading2"]))
+    story.append(Paragraph(
+        production_lock.get(
+            "executive_message",
+            "The LumenAI Power BI Toolkit v1.0.0 is production-locked and ready for use.",
+        ),
+        styles["BodyText"],
+    ))
+
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Recommended Next Step", styles["Heading2"]))
+    story.append(Paragraph(
+        production_lock.get(
+            "recommended_next_step",
+            "Proceed to Power BI dashboard build, pilot review, or v1 release documentation.",
+        ),
+        styles["BodyText"],
+    ))
+
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(
+        "Certificate Status: COMPLETE",
+        styles["Heading2"],
+    ))
+    story.append(Paragraph(
+        "This certificate is generated from the LumenAI production lock endpoint and reflects the toolkit status at the time of generation.",
+        styles["BodyText"],
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_completion_certificate_pdf_exported",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_completion_certificate_pdf",
+            resource_id="powerbi_toolkit_v1_completion_certificate",
+            details={
+                "release_status": release_status,
+                "toolkit_version": toolkit_version,
+                "health_status": health_status,
+                "final_validation_status": final_validation_status,
+                "workflow_status": "export_readiness_powerbi_toolkit_completion_certificate_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-v1-completion-certificate.pdf"
+        },
+    )
