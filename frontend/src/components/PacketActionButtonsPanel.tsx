@@ -8,6 +8,48 @@ const API_BASE =
 
 
 
+
+type PowerBiFinalValidationItem = {
+  key: string;
+  label: string;
+  status: string;
+  detail: string;
+};
+
+type PowerBiFinalValidation = {
+  status: string;
+  validation_type: string;
+  final_status: string;
+  generated_at: string;
+  toolkit_version: string;
+  readiness_model_version: string;
+  dataset_name: string;
+  total_items: number;
+  passed_items: number;
+  failed_items: number;
+  validation_items: PowerBiFinalValidationItem[];
+  executive_summary: string;
+  recommended_next_step: string;
+};
+
+async function fetchPowerBiFinalValidation(): Promise<PowerBiFinalValidation> {
+  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.final-validation`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Power BI final validation failed (${response.status})`);
+  }
+
+  return data;
+}
+
 type PowerBiToolkitHealthCheck = {
   check_name: string;
   status: string;
@@ -187,6 +229,8 @@ export default function PacketActionButtonsPanel() {
   const [toolkitMetadataError, setToolkitMetadataError] = useState("");
   const [toolkitHealth, setToolkitHealth] = useState<PowerBiToolkitHealth | null>(null);
   const [toolkitHealthError, setToolkitHealthError] = useState("");
+  const [finalValidation, setFinalValidation] = useState<PowerBiFinalValidation | null>(null);
+  const [finalValidationError, setFinalValidationError] = useState("");
   const [historyFindingId, setHistoryFindingId] = useState("2");
   const [historyLimit, setHistoryLimit] = useState("5");
   const [lastCheckedAt, setLastCheckedAt] = useState("");
@@ -211,6 +255,7 @@ export default function PacketActionButtonsPanel() {
     loadHistory();
     loadPowerBiToolkitMetadata();
     loadPowerBiToolkitHealth();
+    loadPowerBiFinalValidation();
   }, [findingId]);
 
   const [lastExport, setLastExport] = useState("");
@@ -233,6 +278,17 @@ export default function PacketActionButtonsPanel() {
     window.setTimeout(() => {
       loadHistory();
     }, 100);
+  }
+
+  async function loadPowerBiFinalValidation() {
+    setFinalValidationError("");
+
+    try {
+      const data = await fetchPowerBiFinalValidation();
+      setFinalValidation(data);
+    } catch (err) {
+      setFinalValidationError(err instanceof Error ? err.message : "Unknown Power BI final validation error");
+    }
   }
 
   async function loadPowerBiToolkitHealth() {
@@ -584,6 +640,71 @@ export default function PacketActionButtonsPanel() {
           Toolkit files support Excel review, Power BI dashboard development, audit readiness,
           export-readiness trending, and leadership reporting.
         </p>
+      </div>
+
+      <div style={finalValidationCardStyle}>
+        <div style={finalValidationHeaderStyle}>
+          <div>
+            <div style={finalValidationEyebrowStyle}>Final Validation</div>
+            <h3 style={finalValidationTitleStyle}>Power BI Toolkit Final Validation Checklist</h3>
+          </div>
+          <button type="button" onClick={loadPowerBiFinalValidation} style={finalValidationButtonStyle}>
+            Refresh Validation
+          </button>
+        </div>
+
+        {finalValidationError ? (
+          <div style={finalValidationErrorStyle}>{finalValidationError}</div>
+        ) : null}
+
+        {finalValidation ? (
+          <>
+            <div style={finalValidationStatusRowStyle}>
+              <span style={finalValidationBadgeStyle(finalValidation.final_status)}>
+                {finalValidation.final_status}
+              </span>
+              <span style={finalValidationGeneratedStyle}>
+                Generated: {finalValidation.generated_at ? new Date(finalValidation.generated_at).toLocaleString() : "Not available"}
+              </span>
+            </div>
+
+            <div style={finalValidationGridStyle}>
+              <ValidationMetric label="Toolkit Version" value={finalValidation.toolkit_version} />
+              <ValidationMetric label="Readiness Model" value={finalValidation.readiness_model_version} />
+              <ValidationMetric label="Dataset" value={finalValidation.dataset_name} />
+              <ValidationMetric label="Total Items" value={String(finalValidation.total_items)} />
+              <ValidationMetric label="Passed" value={String(finalValidation.passed_items)} />
+              <ValidationMetric label="Failed" value={String(finalValidation.failed_items)} />
+            </div>
+
+            <div style={finalValidationSummaryStyle}>
+              <strong>Executive Summary</strong>
+              <p>{finalValidation.executive_summary}</p>
+            </div>
+
+            <div style={finalValidationNextStepStyle}>
+              <strong>Recommended Next Step</strong>
+              <p>{finalValidation.recommended_next_step}</p>
+            </div>
+
+            <details style={finalValidationDetailsStyle}>
+              <summary style={finalValidationDetailsSummaryStyle}>View validation checklist</summary>
+              <div style={finalValidationListStyle}>
+                {(finalValidation.validation_items || []).map((item) => (
+                  <div key={item.key} style={finalValidationItemStyle}>
+                    <span style={finalValidationItemBadgeStyle(item.status)}>{item.status}</span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </>
+        ) : (
+          <p style={finalValidationEmptyStyle}>Final validation has not loaded yet.</p>
+        )}
       </div>
 
       <div style={toolkitHealthCardStyle}>
@@ -1023,6 +1144,15 @@ const exportStatusDescriptionStyle: React.CSSProperties = {
   lineHeight: 1.45,
   fontSize: "13px",
 };
+
+function ValidationMetric({ label, value }: { label: string; value?: string }) {
+  return (
+    <div style={validationMetricStyle}>
+      <span style={validationMetricLabelStyle}>{label}</span>
+      <strong style={validationMetricValueStyle}>{value || "Not available"}</strong>
+    </div>
+  );
+}
 
 function HealthMetric({ label, value }: { label: string; value?: string }) {
   return (
@@ -1828,4 +1958,179 @@ const executiveSummaryButtonStyle: React.CSSProperties = {
   textDecoration: "none",
   whiteSpace: "nowrap",
   cursor: "pointer",
+};
+
+
+
+const finalValidationCardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #c4b5fd",
+  background: "linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(91, 33, 182, 0.08)",
+};
+
+const finalValidationHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const finalValidationEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#6d28d9",
+};
+
+const finalValidationTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#3b0764",
+};
+
+const finalValidationButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#7c3aed",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const finalValidationStatusRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "14px",
+};
+
+function finalValidationBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+  const isReady = normalized === "ready";
+
+  return {
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: isReady ? "#dcfce7" : "#fee2e2",
+    color: isReady ? "#166534" : "#991b1b",
+  };
+}
+
+const finalValidationGeneratedStyle: React.CSSProperties = {
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const finalValidationGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const validationMetricStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #ddd6fe",
+  background: "#ffffff",
+};
+
+const validationMetricLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  color: "#64748b",
+};
+
+const validationMetricValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#0f172a",
+  fontSize: "13px",
+};
+
+const finalValidationSummaryStyle: React.CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#ffffff",
+  border: "1px solid #ddd6fe",
+  color: "#3b0764",
+};
+
+const finalValidationNextStepStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#f0fdf4",
+  border: "1px solid #bbf7d0",
+  color: "#14532d",
+};
+
+const finalValidationDetailsStyle: React.CSSProperties = {
+  marginTop: "12px",
+};
+
+const finalValidationDetailsSummaryStyle: React.CSSProperties = {
+  cursor: "pointer",
+  fontWeight: 900,
+  color: "#6d28d9",
+};
+
+const finalValidationListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  marginTop: "10px",
+};
+
+const finalValidationItemStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+function finalValidationItemBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+
+  return {
+    alignSelf: "flex-start",
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "11px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: normalized === "pass" ? "#dcfce7" : "#fee2e2",
+    color: normalized === "pass" ? "#166534" : "#991b1b",
+  };
+}
+
+const finalValidationErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
+const finalValidationEmptyStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#64748b",
 };
