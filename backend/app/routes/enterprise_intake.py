@@ -6505,3 +6505,164 @@ def get_enterprise_export_readiness_powerbi_toolkit_production_lock(
         db.rollback()
 
     return lock_response
+
+
+@router.get("/export-readiness-history.powerbi-toolkit.release-notes.pdf")
+def get_enterprise_export_readiness_powerbi_toolkit_release_notes_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    production_lock = get_enterprise_export_readiness_powerbi_toolkit_production_lock(
+        request=request,
+        db=db,
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Power BI Toolkit v1.0.0 Release Notes", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Release Summary", styles["Heading2"]))
+    story.append(Paragraph(
+        "The LumenAI Power BI Export Toolkit v1.0.0 provides a validated analytics package for export-readiness "
+        "reporting, baseline evidence maturity, audit-readiness review, quality committee reporting, and leadership "
+        "dashboard development.",
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 12))
+
+    release_data = [
+        ["Release Item", "Value"],
+        ["Release Status", production_lock.get("release_status", "").upper()],
+        ["Toolkit Version", production_lock.get("toolkit_version", "")],
+        ["Toolkit Release", production_lock.get("toolkit_release", "")],
+        ["Readiness Model Version", production_lock.get("readiness_model_version", "")],
+        ["Dataset Name", production_lock.get("dataset_name", "")],
+        ["Health Status", production_lock.get("health_status", "")],
+        ["Health Failed Checks", str(production_lock.get("health_failed_checks", ""))],
+        ["Final Validation Status", production_lock.get("final_validation_status", "")],
+        ["Final Validation Failed Items", str(production_lock.get("final_validation_failed_items", ""))],
+    ]
+
+    release_table = Table(release_data, colWidths=[190, 300])
+    release_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(release_table)
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Completed Toolkit Assets", styles["Heading2"]))
+
+    assets = production_lock.get("locked_assets", [])
+    if assets:
+        asset_data = [["Locked Asset"]]
+        for asset in assets:
+            asset_data.append([asset])
+
+        asset_table = Table(asset_data, colWidths=[490])
+        asset_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(asset_table)
+    else:
+        story.append(Paragraph("No locked assets were returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Major Capabilities Delivered", styles["Heading2"]))
+
+    capabilities = [
+        ["Capability", "Description"],
+        ["Persistent Readiness History", "Export readiness checks are stored and retrievable for audit review."],
+        ["CSV Export", "Standard history CSV export supports Excel, audit logs, and reporting workflows."],
+        ["Power BI CSV Export", "Power BI-ready CSV includes derived fields such as readiness date, month, score, status, and baseline approval rate."],
+        ["Data Dictionary", "Power BI fields, data types, examples, recommended visuals, and DAX measures are documented."],
+        ["Dashboard Spec", "Starter Power BI dashboard structure includes pages, visuals, slicers, measures, formatting, and refresh plan."],
+        ["Toolkit ZIP", "Complete Power BI package is downloadable as one bundled ZIP."],
+        ["Toolkit Metadata", "Version, model, dataset, assets, and refresh guidance are available through metadata."],
+        ["Health Check", "Backend verifies toolkit health, required assets, and endpoint availability."],
+        ["Final Validation", "Validation checklist confirms the toolkit is ready for dashboard build and pilot review."],
+        ["Production Lock", "Toolkit v1.0.0 is marked as production-locked when all criteria pass."],
+    ]
+
+    capability_table = Table(capabilities, colWidths=[160, 330])
+    capability_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 6.8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(capability_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Executive Message", styles["Heading2"]))
+    story.append(Paragraph(
+        production_lock.get("executive_message", "No executive message available."),
+        styles["BodyText"],
+    ))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Next Step", styles["Heading2"]))
+    story.append(Paragraph(
+        production_lock.get("recommended_next_step", "No recommended next step available."),
+        styles["BodyText"],
+    ))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Release Notes", styles["Heading2"]))
+    story.append(Paragraph(
+        "This v1 release establishes the Power BI export-readiness analytics foundation. "
+        "Recommended next work includes Power BI dashboard build, pilot review with leadership or quality stakeholders, "
+        "and future production hardening for authenticated API refresh and role-based access controls.",
+        styles["BodyText"],
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="export_readiness_powerbi_toolkit_release_notes_pdf_exported",
+            resource_type="enterprise_export_readiness_powerbi_toolkit_release_notes_pdf",
+            resource_id="powerbi_toolkit_release_notes_v1",
+            details={
+                "release_status": production_lock.get("release_status", ""),
+                "toolkit_version": production_lock.get("toolkit_version", ""),
+                "health_status": production_lock.get("health_status", ""),
+                "final_validation_status": production_lock.get("final_validation_status", ""),
+                "workflow_status": "export_readiness_powerbi_toolkit_release_notes_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-powerbi-toolkit-v1-release-notes.pdf"
+        },
+    )
