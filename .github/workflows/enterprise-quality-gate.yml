@@ -15,6 +15,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup environment file
+        run: |
+          cp backend/.env.example backend/.env
+
       - name: Prepare artifact folders
         run: |
           mkdir -p generated_portfolio_briefings
