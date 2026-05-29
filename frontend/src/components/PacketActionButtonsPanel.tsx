@@ -407,6 +407,7 @@ export default function PacketActionButtonsPanel() {
   const powerBiToolkitReadmePdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf`;
   const powerBiExecutiveSummaryPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.executive-summary.pdf`;
   const powerBiReleaseNotesPdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.release-notes.pdf`;
+  const powerBiCompletionCertificatePdfUrl = `${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.completion-certificate.pdf`;
 
 
   async function downloadHistoryCsv() {
@@ -642,6 +643,35 @@ export default function PacketActionButtonsPanel() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Release Notes PDF download error");
+    }
+  }
+
+
+  async function downloadPowerBiCompletionCertificatePdf() {
+    try {
+      const response = await fetch(powerBiCompletionCertificatePdfUrl, {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Power BI Completion Certificate PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-powerbi-toolkit-v1-completion-certificate.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unknown Power BI Completion Certificate PDF download error");
     }
   }
 
@@ -1095,6 +1125,10 @@ export default function PacketActionButtonsPanel() {
 
             <button type="button" onClick={downloadPowerBiReleaseNotesPdf} style={releaseNotesButtonStyle}>
               Download Release Notes PDF
+            </button>
+
+            <button type="button" onClick={downloadPowerBiCompletionCertificatePdf} style={completionCertificateButtonStyle}>
+              Download Completion Certificate PDF
             </button>
           </div>
         </div>
@@ -2512,6 +2546,19 @@ const releaseNotesButtonStyle: React.CSSProperties = {
   padding: "9px 12px",
   background: "#fce7f3",
   color: "#9d174d",
+  fontWeight: 900,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+
+const completionCertificateButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  background: "#dcfce7",
+  color: "#166534",
   fontWeight: 900,
   textDecoration: "none",
   whiteSpace: "nowrap",
