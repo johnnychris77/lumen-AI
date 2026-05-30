@@ -234,6 +234,58 @@ def capa_summary() -> Dict:
     }
 
 
+
+def update_capa(
+    capa_id: str,
+    status: Optional[str] = None,
+    owner: Optional[str] = None,
+    due_date: Optional[str] = None,
+    risk_level: Optional[str] = None,
+    description: Optional[str] = None,
+    corrective_action: Optional[str] = None,
+    preventive_action: Optional[str] = None,
+) -> Optional[Dict]:
+    init_capa_db()
+
+    existing = get_capa(capa_id)
+    if not existing:
+        return None
+
+    updates = {}
+    if status is not None:
+        updates["status"] = status
+    if owner is not None:
+        updates["owner"] = owner
+    if due_date is not None:
+        updates["due_date"] = due_date
+    if risk_level is not None:
+        updates["risk_level"] = risk_level
+    if description is not None:
+        updates["description"] = description
+    if corrective_action is not None:
+        updates["corrective_action"] = corrective_action
+    if preventive_action is not None:
+        updates["preventive_action"] = preventive_action
+
+    updates["updated_at"] = _utc_now()
+
+    set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
+    values = list(updates.values())
+    values.append(capa_id)
+
+    with _connect() as conn:
+        conn.execute(
+            f"""
+            UPDATE capas
+            SET {set_clause}
+            WHERE id = ?
+            """,
+            values,
+        )
+        conn.commit()
+
+    return get_capa(capa_id)
+
 def create_capa_from_audit_signal(signal: Dict) -> Dict:
     event_type = signal.get("event_type") or "Audit Signal"
     risk_level = signal.get("risk_level") or "medium"

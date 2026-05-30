@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 from app.services.capa_service import (
@@ -8,6 +8,8 @@ from app.services.capa_service import (
     create_capa,
     create_capa_from_audit_signal,
     list_capas,
+    get_capa,
+    update_capa,
 )
 
 
@@ -24,6 +26,16 @@ class CapaCreateRequest(BaseModel):
     corrective_action: Optional[str] = None
     preventive_action: Optional[str] = None
     status: Optional[str] = "open"
+
+
+class CapaUpdateRequest(BaseModel):
+    status: Optional[str] = None
+    owner: Optional[str] = None
+    due_date: Optional[str] = None
+    risk_level: Optional[str] = None
+    description: Optional[str] = None
+    corrective_action: Optional[str] = None
+    preventive_action: Optional[str] = None
 
 
 class AuditSignalCapaRequest(BaseModel):
@@ -86,5 +98,37 @@ def post_capa_from_audit_signal(payload: AuditSignalCapaRequest):
         "status": "success",
         "module": "capa_workflow",
         "message": "CAPA created from audit signal.",
+        "capa": capa,
+    }
+
+
+@router.get("/capa/{capa_id}")
+def get_capa_by_id(capa_id: str):
+    capa = get_capa(capa_id)
+    if not capa:
+        raise HTTPException(status_code=404, detail="CAPA not found")
+
+    return {
+        "status": "success",
+        "module": "capa_workflow",
+        "capa": capa,
+    }
+
+
+@router.patch("/capa/{capa_id}")
+def patch_capa(capa_id: str, payload: CapaUpdateRequest):
+    updates = payload.model_dump(exclude_unset=True)
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No update fields provided")
+
+    capa = update_capa(capa_id=capa_id, **updates)
+    if not capa:
+        raise HTTPException(status_code=404, detail="CAPA not found")
+
+    return {
+        "status": "success",
+        "module": "capa_workflow",
+        "message": "CAPA updated successfully.",
         "capa": capa,
     }
