@@ -401,6 +401,59 @@ def build_capa_powerbi_rows(limit: int = 500) -> List[Dict]:
 
     return rows
 
+
+def capa_governance_scorecard(days_until_due: int = 7) -> Dict:
+    """
+    Builds an executive CAPA governance scorecard using summary,
+    escalation, and Power BI export readiness.
+    """
+    summary = capa_summary()
+    escalation = capa_escalation_summary(days_until_due=days_until_due)
+
+    total = summary.get("total", 0)
+    open_count = summary.get("open", 0)
+    closed_count = summary.get("closed", 0)
+    high_risk = summary.get("high_risk", 0)
+
+    overdue = escalation.get("summary", {}).get("overdue", 0)
+    due_soon = escalation.get("summary", {}).get("due_soon", 0)
+    high_risk_overdue = escalation.get("summary", {}).get("high_risk_overdue", 0)
+    requires_escalation = escalation.get("summary", {}).get("requires_escalation", 0)
+
+    closure_rate = round((closed_count / total) * 100, 2) if total else 0
+
+    if requires_escalation > 0 or high_risk_overdue > 0:
+        governance_status = "action_required"
+    elif overdue > 0 or due_soon > 0:
+        governance_status = "watch"
+    else:
+        governance_status = "healthy"
+
+    return {
+        "status": "success",
+        "module": "capa_governance_scorecard",
+        "version": "1.0.0",
+        "governance_status": governance_status,
+        "scorecard": {
+            "total_capas": total,
+            "open_capas": open_count,
+            "closed_capas": closed_count,
+            "high_risk_capas": high_risk,
+            "overdue_capas": overdue,
+            "due_soon_capas": due_soon,
+            "high_risk_overdue_capas": high_risk_overdue,
+            "requires_escalation": requires_escalation,
+            "closure_rate_percent": closure_rate,
+            "powerbi_export_ready": True,
+        },
+        "signals": {
+            "overdue": escalation.get("overdue", []),
+            "due_soon": escalation.get("due_soon", []),
+            "high_risk_overdue": escalation.get("high_risk_overdue", []),
+        },
+        "message": "CAPA governance scorecard generated successfully.",
+    }
+
 def create_capa_from_audit_signal(signal: Dict) -> Dict:
     event_type = signal.get("event_type") or "Audit Signal"
     risk_level = signal.get("risk_level") or "medium"

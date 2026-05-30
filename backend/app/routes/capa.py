@@ -10,6 +10,7 @@ from app.services.capa_service import (
     capa_summary,
     build_capa_powerbi_rows,
     capa_escalation_summary,
+    capa_governance_scorecard,
     create_capa,
     create_capa_from_audit_signal,
     list_capas,
@@ -154,6 +155,12 @@ def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000)):
             "Content-Disposition": "attachment; filename=lumenai-capa-powerbi.csv"
         },
     )
+
+
+
+@router.get("/capa/governance-scorecard")
+def get_capa_governance_scorecard(days_until_due: int = Query(default=7, ge=0, le=90)):
+    return capa_governance_scorecard(days_until_due=days_until_due)
 
 @router.get("/capa/{capa_id}")
 def get_capa_by_id(capa_id: str):
