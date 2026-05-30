@@ -42,6 +42,11 @@ function buildAuditCommandCenterPdfUrl(limit = 25) {
   return `${API_BASE}/api/enterprise/audit-command-center.pdf?limit=${safeLimit}`;
 }
 
+function buildAuditCommandCenterCsvUrl(limit = 100) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 1000));
+  return `${API_BASE}/api/enterprise/audit-command-center.csv?limit=${safeLimit}`;
+}
+
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
     headers: {
@@ -111,6 +116,36 @@ export default function EnterpriseAuditCommandCenter() {
     }
   }
 
+  async function downloadAuditCommandCenterCsv() {
+    setError("");
+
+    try {
+      const response = await fetch(buildAuditCommandCenterCsvUrl(Number(limit) || 100), {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Audit Command Center CSV download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-enterprise-audit-command-center.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown Audit Command Center CSV download error");
+    }
+  }
+
   useEffect(() => {
     loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,6 +173,10 @@ export default function EnterpriseAuditCommandCenter() {
 
           <button type="button" onClick={downloadAuditCommandCenterPdf} style={pdfButtonStyle}>
             Download Audit PDF
+          </button>
+
+          <button type="button" onClick={downloadAuditCommandCenterCsv} style={csvButtonStyle}>
+            Download Audit CSV
           </button>
         </div>
       </div>
@@ -552,6 +591,17 @@ const pdfButtonStyle: React.CSSProperties = {
   borderRadius: "14px",
   padding: "10px 14px",
   background: "#0f172a",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+
+const csvButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "14px",
+  padding: "10px 14px",
+  background: "#16a34a",
   color: "#ffffff",
   fontWeight: 900,
   cursor: "pointer",
