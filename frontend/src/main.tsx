@@ -12,6 +12,7 @@ import InfectionPreventionReviewPanel from "./components/InfectionPreventionRevi
 import ManufacturerBaselinePanel from "./components/ManufacturerBaselinePanel";
 import EnterpriseAuditCommandCenter from "./components/EnterpriseAuditCommandCenter";
 import CapaWorkflowPanel from "./components/CapaWorkflowPanel";
+import AuditToCapaIntegrationCard from "./components/AuditToCapaIntegrationCard";
 import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePage";
 
 const API_BASE =
@@ -773,6 +774,7 @@ function DashboardHome() {
         <InfectionPreventionReviewPanel />
         <EnterpriseGovernanceCommandCenter />
         <CapaWorkflowPanel />
+        <AuditToCapaIntegrationCard />
         <EnterpriseAuditCommandCenter />
 
         <ManufacturerBaselinePanel />
