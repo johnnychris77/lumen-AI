@@ -307,6 +307,30 @@ export default function EnterpriseAuditCommandCenter() {
         </div>
       </div>
 
+      <div style={auditCommandSummaryCardStyle}>
+        <div style={auditCommandSummaryHeaderStyle}>
+          <div>
+            <div style={auditCommandSummaryEyebrowStyle}>Audit Toolkit</div>
+            <h3 style={auditCommandSummaryTitleStyle}>Enterprise Audit Command Center Package</h3>
+          </div>
+          <span style={auditCommandSummaryBadgeStyle}>Complete</span>
+        </div>
+
+        <div style={auditCommandSummaryGridStyle}>
+          <AuditToolkitAsset label="Dashboard" status="Ready" />
+          <AuditToolkitAsset label="Audit PDF" status="Ready" />
+          <AuditToolkitAsset label="Audit CSV" status="Ready" />
+          <AuditToolkitAsset label="Power BI CSV" status="Ready" />
+          <AuditToolkitAsset label="Data Dictionary PDF" status="Ready" />
+          <AuditToolkitAsset label="Toolkit ZIP" status="Ready" />
+        </div>
+
+        <p style={auditCommandSummaryTextStyle}>
+          The Audit Command Center supports survey readiness, export traceability,
+          audit-log review, Power BI analytics, leadership reporting, and compliance evidence review.
+        </p>
+      </div>
+
       <div style={controlRowStyle}>
         <label style={labelStyle}>
           Limit
@@ -420,6 +444,15 @@ export default function EnterpriseAuditCommandCenter() {
         <p style={emptyStyle}>Audit Command Center has not loaded yet.</p>
       )}
     </section>
+  );
+}
+
+function AuditToolkitAsset({ label, status }: { label: string; status: string }) {
+  return (
+    <div style={auditToolkitAssetStyle}>
+      <span style={auditToolkitAssetLabelStyle}>{label}</span>
+      <strong style={auditToolkitAssetStatusStyle}>{status}</strong>
+    </div>
   );
 }
 
@@ -798,5 +831,83 @@ const auditCommandCompletionTextStyle: React.CSSProperties = {
   margin: "4px 0 0",
   color: "#166534",
   lineHeight: 1.45,
+  fontSize: "13px",
+};
+
+
+
+const auditCommandSummaryCardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #bfdbfe",
+  background: "linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(37, 99, 235, 0.08)",
+};
+
+const auditCommandSummaryHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const auditCommandSummaryEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#2563eb",
+};
+
+const auditCommandSummaryTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#1e3a8a",
+};
+
+const auditCommandSummaryBadgeStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "6px 10px",
+  background: "#dcfce7",
+  color: "#166534",
+  fontWeight: 900,
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+};
+
+const auditCommandSummaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const auditToolkitAssetStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #dbeafe",
+  background: "#ffffff",
+};
+
+const auditToolkitAssetLabelStyle: React.CSSProperties = {
+  display: "block",
+  color: "#1e3a8a",
+  fontWeight: 800,
+  fontSize: "13px",
+};
+
+const auditToolkitAssetStatusStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#166534",
+  fontSize: "12px",
+};
+
+const auditCommandSummaryTextStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#475569",
+  lineHeight: 1.5,
   fontSize: "13px",
 };
