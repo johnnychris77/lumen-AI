@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.services.capa_service import (
     capa_summary,
+    capa_escalation_summary,
     create_capa,
     create_capa_from_audit_signal,
     list_capas,
@@ -101,6 +102,12 @@ def post_capa_from_audit_signal(payload: AuditSignalCapaRequest):
         "capa": capa,
     }
 
+
+
+
+@router.get("/capa/escalation-summary")
+def get_capa_escalation_summary(days_until_due: int = Query(default=7, ge=0, le=90)):
+    return capa_escalation_summary(days_until_due=days_until_due)
 
 @router.get("/capa/{capa_id}")
 def get_capa_by_id(capa_id: str):

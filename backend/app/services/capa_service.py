@@ -286,6 +286,66 @@ def update_capa(
 
     return get_capa(capa_id)
 
+
+def capa_escalation_summary(days_until_due: int = 7) -> Dict:
+    """
+    Returns overdue and due-soon CAPA counts for governance escalation.
+    Uses ISO date strings in due_date where possible.
+    """
+    init_capa_db()
+
+    today = datetime.now(timezone.utc).date()
+    due_soon = []
+    overdue = []
+    high_risk_overdue = []
+
+    open_capas = [
+        capa
+        for capa in list_capas(limit=500)
+        if capa.get("status") not in {"closed", "cancelled"}
+    ]
+
+    for capa in open_capas:
+        due_date_value = capa.get("due_date")
+        if not due_date_value:
+            continue
+
+        try:
+            due_date = datetime.fromisoformat(str(due_date_value)).date()
+        except ValueError:
+            try:
+                due_date = datetime.strptime(str(due_date_value), "%Y-%m-%d").date()
+            except ValueError:
+                continue
+
+        days_remaining = (due_date - today).days
+        enriched = dict(capa)
+        enriched["days_remaining"] = days_remaining
+
+        if days_remaining < 0:
+            overdue.append(enriched)
+            if capa.get("risk_level") in {"high", "critical"}:
+                high_risk_overdue.append(enriched)
+        elif days_remaining <= days_until_due:
+            due_soon.append(enriched)
+
+    return {
+        "status": "success",
+        "module": "capa_workflow",
+        "escalation_window_days": days_until_due,
+        "summary": {
+            "open_capas": len(open_capas),
+            "overdue": len(overdue),
+            "due_soon": len(due_soon),
+            "high_risk_overdue": len(high_risk_overdue),
+            "requires_escalation": len(overdue) + len(high_risk_overdue),
+        },
+        "overdue": overdue,
+        "due_soon": due_soon,
+        "high_risk_overdue": high_risk_overdue,
+        "message": "CAPA escalation summary generated successfully.",
+    }
+
 def create_capa_from_audit_signal(signal: Dict) -> Dict:
     event_type = signal.get("event_type") or "Audit Signal"
     risk_level = signal.get("risk_level") or "medium"
