@@ -8193,3 +8193,196 @@ def get_enterprise_audit_command_center_powerbi_data_dictionary(
         db.rollback()
 
     return response
+
+
+@router.get("/audit-command-center.powerbi.data-dictionary.pdf")
+def get_enterprise_audit_command_center_powerbi_data_dictionary_pdf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    dictionary = get_enterprise_audit_command_center_powerbi_data_dictionary(
+        request=request,
+        db=db,
+    )
+
+    fields = dictionary.get("fields", [])
+    measures = dictionary.get("recommended_measures", [])
+    visuals = dictionary.get("recommended_visuals", [])
+    slicers = dictionary.get("recommended_slicers", [])
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("LumenAI Enterprise Audit Command Center", styles["Title"]))
+    story.append(Paragraph("Power BI Data Dictionary", styles["Title"]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Purpose", styles["Heading2"]))
+    story.append(Paragraph(
+        "This data dictionary documents the Power BI-ready Audit Command Center CSV dataset. "
+        "It supports audit analytics, export traceability, compliance review, leadership reporting, "
+        "survey-readiness evidence, and Power BI dashboard development.",
+        styles["BodyText"],
+    ))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Dataset Summary", styles["Heading2"]))
+    summary_data = [
+        ["Item", "Value"],
+        ["Dataset Name", dictionary.get("dataset_name", "EnterpriseAuditCommandCenter")],
+        ["Dictionary Type", dictionary.get("dictionary_type", "")],
+        ["Field Count", str(dictionary.get("field_count", len(fields)))],
+    ]
+
+    summary_table = Table(summary_data, colWidths=[170, 320])
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Recommended Power BI Measures", styles["Heading2"]))
+
+    if measures:
+        measure_data = [["Measure", "DAX"]]
+        for measure in measures:
+            measure_data.append([
+                measure.get("measure_name", ""),
+                measure.get("dax", ""),
+            ])
+
+        measure_table = Table(measure_data, colWidths=[160, 330])
+        measure_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 6.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(measure_table)
+    else:
+        story.append(Paragraph("No recommended measures returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Visuals", styles["Heading2"]))
+
+    if visuals:
+        visual_data = [["Visual Recommendation"]]
+        for visual in visuals:
+            visual_data.append([visual])
+
+        visual_table = Table(visual_data, colWidths=[490])
+        visual_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(visual_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Recommended Slicers", styles["Heading2"]))
+
+    if slicers:
+        slicer_data = [["Slicer Field"]]
+        for slicer in slicers:
+            slicer_data.append([slicer])
+
+        slicer_table = Table(slicer_data, colWidths=[490])
+        slicer_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ede9fe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(slicer_table)
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Field Dictionary", styles["Heading2"]))
+
+    if fields:
+        field_data = [[
+            "Field",
+            "Display Name",
+            "Type",
+            "Description",
+            "Power BI Usage",
+            "Example",
+        ]]
+
+        for field in fields:
+            field_data.append([
+                field.get("field_name", ""),
+                field.get("display_name", ""),
+                field.get("data_type", ""),
+                field.get("description", ""),
+                field.get("power_bi_usage", ""),
+                field.get("example_value", ""),
+            ])
+
+        field_table = Table(field_data, colWidths=[70, 75, 52, 130, 120, 52])
+        field_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e0f2fe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
+            ("FONTSIZE", (0, 0), (-1, -1), 5.2),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(field_table)
+    else:
+        story.append(Paragraph("No fields returned.", styles["BodyText"]))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Governance Note", styles["Heading2"]))
+    story.append(Paragraph(
+        "This data dictionary is generated from the LumenAI Enterprise Audit Command Center backend and should be used "
+        "as the reference guide for Power BI report design, Excel review, and audit-readiness analytics.",
+        styles["BodyText"],
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_powerbi_data_dictionary_pdf_exported",
+            resource_type="enterprise_audit_command_center_powerbi_data_dictionary_pdf",
+            resource_id="audit_command_center_powerbi_data_dictionary_pdf",
+            details={
+                "field_count": len(fields),
+                "measure_count": len(measures),
+                "visual_count": len(visuals),
+                "slicer_count": len(slicers),
+                "workflow_status": "enterprise_audit_command_center_powerbi_data_dictionary_pdf_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-audit-command-center-powerbi-data-dictionary.pdf"
+        },
+    )
