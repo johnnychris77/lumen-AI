@@ -7902,3 +7902,294 @@ def get_enterprise_audit_command_center_powerbi_csv(
             "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center-powerbi.csv"
         },
     )
+
+
+@router.get("/audit-command-center.powerbi.data-dictionary")
+def get_enterprise_audit_command_center_powerbi_data_dictionary(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    fields = [
+        {
+            "field_name": "audit_id",
+            "display_name": "Audit ID",
+            "data_type": "integer",
+            "description": "Unique audit log record identifier.",
+            "power_bi_usage": "Use as the unique row key or drill-through identifier.",
+            "example_value": "141",
+        },
+        {
+            "field_name": "tenant_id",
+            "display_name": "Tenant ID",
+            "data_type": "text",
+            "description": "Tenant or organization identifier associated with the audit event.",
+            "power_bi_usage": "Use as an organization or system filter.",
+            "example_value": "bonsecours",
+        },
+        {
+            "field_name": "tenant_name",
+            "display_name": "Tenant Name",
+            "data_type": "text",
+            "description": "Human-readable tenant or organization name.",
+            "power_bi_usage": "Use as an organization label or slicer.",
+            "example_value": "Bon Secours",
+        },
+        {
+            "field_name": "action_type",
+            "display_name": "Action Type",
+            "data_type": "text",
+            "description": "Specific audit action performed by the system or user.",
+            "power_bi_usage": "Use in tables, filters, and activity trend visuals.",
+            "example_value": "enterprise_audit_command_center_viewed",
+        },
+        {
+            "field_name": "resource_type",
+            "display_name": "Resource Type",
+            "data_type": "text",
+            "description": "System resource associated with the audit action.",
+            "power_bi_usage": "Use to group audit activity by functional area.",
+            "example_value": "enterprise_audit_command_center",
+        },
+        {
+            "field_name": "resource_id",
+            "display_name": "Resource ID",
+            "data_type": "text",
+            "description": "Identifier for the specific resource involved in the audit event.",
+            "power_bi_usage": "Use for drill-through and traceability.",
+            "example_value": "audit_command_center",
+        },
+        {
+            "field_name": "actor",
+            "display_name": "Actor",
+            "data_type": "text",
+            "description": "User, service, or actor that triggered the audit event.",
+            "power_bi_usage": "Use to analyze activity by user or system actor.",
+            "example_value": "john-demo",
+        },
+        {
+            "field_name": "role",
+            "display_name": "Role",
+            "data_type": "text",
+            "description": "Role supplied with the audit request.",
+            "power_bi_usage": "Use for role-based audit activity analysis.",
+            "example_value": "viewer",
+        },
+        {
+            "field_name": "status",
+            "display_name": "Status",
+            "data_type": "text",
+            "description": "Outcome status of the audited action.",
+            "power_bi_usage": "Use to identify successful or failed events.",
+            "example_value": "success",
+        },
+        {
+            "field_name": "compliance_flag",
+            "display_name": "Compliance Flag",
+            "data_type": "boolean",
+            "description": "Indicates whether the event is compliance-relevant.",
+            "power_bi_usage": "Use as a compliance filter or KPI flag.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "created_at",
+            "display_name": "Created At",
+            "data_type": "datetime",
+            "description": "Timestamp when the audit event was created.",
+            "power_bi_usage": "Use for timeline, trend, and freshness analysis.",
+            "example_value": "2026-05-29T23:46:40.724922",
+        },
+        {
+            "field_name": "audit_date",
+            "display_name": "Audit Date",
+            "data_type": "date",
+            "description": "Date portion derived from created_at.",
+            "power_bi_usage": "Use in date slicers and daily trend charts.",
+            "example_value": "2026-05-29",
+        },
+        {
+            "field_name": "audit_month",
+            "display_name": "Audit Month",
+            "data_type": "text/date period",
+            "description": "Year-month period derived from created_at.",
+            "power_bi_usage": "Use for monthly audit activity trend charts.",
+            "example_value": "2026-05",
+        },
+        {
+            "field_name": "audit_year",
+            "display_name": "Audit Year",
+            "data_type": "text/integer",
+            "description": "Year derived from created_at.",
+            "power_bi_usage": "Use for annual filtering and trend reporting.",
+            "example_value": "2026",
+        },
+        {
+            "field_name": "action_category",
+            "display_name": "Action Category",
+            "data_type": "text/category",
+            "description": "Derived category such as Export, PDF Export, Health Check, Validation, Production Lock, Metadata, View, or Other.",
+            "power_bi_usage": "Use as a legend, slicer, or stacked bar category.",
+            "example_value": "Health Check",
+        },
+        {
+            "field_name": "export_type",
+            "display_name": "Export Type",
+            "data_type": "text/category",
+            "description": "Derived export type such as PDF, CSV, ZIP, Archive, Other Export, or blank.",
+            "power_bi_usage": "Use to compare export activity by file type.",
+            "example_value": "PDF",
+        },
+        {
+            "field_name": "is_export_event",
+            "display_name": "Is Export Event",
+            "data_type": "boolean",
+            "description": "True when the audit event is export-related.",
+            "power_bi_usage": "Use as a filter or export activity KPI.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "is_pdf_event",
+            "display_name": "Is PDF Event",
+            "data_type": "boolean",
+            "description": "True when the audit event is PDF-related.",
+            "power_bi_usage": "Use to count or filter PDF export activity.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "is_csv_event",
+            "display_name": "Is CSV Event",
+            "data_type": "boolean",
+            "description": "True when the audit event is CSV-related.",
+            "power_bi_usage": "Use to count or filter CSV export activity.",
+            "example_value": "False",
+        },
+        {
+            "field_name": "is_zip_event",
+            "display_name": "Is ZIP Event",
+            "data_type": "boolean",
+            "description": "True when the audit event is ZIP or archive-related.",
+            "power_bi_usage": "Use to count ZIP bundle or archive export activity.",
+            "example_value": "False",
+        },
+        {
+            "field_name": "is_health_event",
+            "display_name": "Is Health Event",
+            "data_type": "boolean",
+            "description": "True when the event relates to a health check.",
+            "power_bi_usage": "Use for toolkit and governance health-check monitoring.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "is_validation_event",
+            "display_name": "Is Validation Event",
+            "data_type": "boolean",
+            "description": "True when the event relates to validation or final validation.",
+            "power_bi_usage": "Use for validation activity KPIs.",
+            "example_value": "False",
+        },
+        {
+            "field_name": "is_production_lock_event",
+            "display_name": "Is Production Lock Event",
+            "data_type": "boolean",
+            "description": "True when the event relates to production lock activity.",
+            "power_bi_usage": "Use to track locked release governance events.",
+            "example_value": "False",
+        },
+        {
+            "field_name": "is_powerbi_event",
+            "display_name": "Is Power BI Event",
+            "data_type": "boolean",
+            "description": "True when the event is related to Power BI toolkit workflows.",
+            "power_bi_usage": "Use to isolate Power BI workstream audit activity.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "is_high_value_compliance_event",
+            "display_name": "Is High-Value Compliance Event",
+            "data_type": "boolean",
+            "description": "True when the event matches high-value compliance keywords such as production lock, final validation, health, executive summary, archive, governance, vendor, infection, CAPA, or Power BI.",
+            "power_bi_usage": "Use as a priority compliance review filter.",
+            "example_value": "True",
+        },
+        {
+            "field_name": "details",
+            "display_name": "Details",
+            "data_type": "json/text",
+            "description": "Serialized audit event details payload.",
+            "power_bi_usage": "Use in drill-through tables or detailed audit review pages.",
+            "example_value": "{\"workflow_status\":\"enterprise_audit_command_center_viewed\"}",
+        },
+    ]
+
+    response = {
+        "status": "success",
+        "dictionary_type": "enterprise_audit_command_center_powerbi_data_dictionary",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "dataset_name": "EnterpriseAuditCommandCenter",
+        "field_count": len(fields),
+        "recommended_measures": [
+            {
+                "measure_name": "Total Audit Events",
+                "dax": "Total Audit Events = COUNTROWS('EnterpriseAuditCommandCenter')",
+            },
+            {
+                "measure_name": "Export Events",
+                "dax": "Export Events = COUNTROWS(FILTER('EnterpriseAuditCommandCenter', 'EnterpriseAuditCommandCenter'[is_export_event] = TRUE()))",
+            },
+            {
+                "measure_name": "High-Value Compliance Events",
+                "dax": "High-Value Compliance Events = COUNTROWS(FILTER('EnterpriseAuditCommandCenter', 'EnterpriseAuditCommandCenter'[is_high_value_compliance_event] = TRUE()))",
+            },
+            {
+                "measure_name": "Production Lock Events",
+                "dax": "Production Lock Events = COUNTROWS(FILTER('EnterpriseAuditCommandCenter', 'EnterpriseAuditCommandCenter'[is_production_lock_event] = TRUE()))",
+            },
+            {
+                "measure_name": "Health Check Events",
+                "dax": "Health Check Events = COUNTROWS(FILTER('EnterpriseAuditCommandCenter', 'EnterpriseAuditCommandCenter'[is_health_event] = TRUE()))",
+            },
+        ],
+        "recommended_visuals": [
+            "Card: Total Audit Events",
+            "Card: High-Value Compliance Events",
+            "Card: Export Events",
+            "Stacked bar: Audit Events by Action Category",
+            "Line chart: Audit Events by Audit Date",
+            "Donut chart: Export Type Distribution",
+            "Table: Recent Audit Events",
+            "Table: High-Value Compliance Events",
+        ],
+        "recommended_slicers": [
+            "audit_date",
+            "audit_month",
+            "audit_year",
+            "action_category",
+            "export_type",
+            "actor",
+            "resource_type",
+            "is_high_value_compliance_event",
+        ],
+        "fields": fields,
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_powerbi_data_dictionary_viewed",
+            resource_type="enterprise_audit_command_center_powerbi_data_dictionary",
+            resource_id="audit_command_center_powerbi_data_dictionary",
+            details={
+                "field_count": len(fields),
+                "dataset_name": response["dataset_name"],
+                "workflow_status": "enterprise_audit_command_center_powerbi_data_dictionary_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
