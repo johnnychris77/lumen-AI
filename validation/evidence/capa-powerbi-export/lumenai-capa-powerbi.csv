@@ -1,0 +1,2 @@
+capa_id,title,source,risk_level,status,owner,due_date,created_at,updated_at,days_to_due,is_overdue,is_high_risk,is_open,corrective_action,preventive_action,description
+2e48ac09-8c27-4f12-a291-676a257e0e4e,CAPA Review: CAPA Power BI Export Validation,audit_signal,high,open,Quality / Operations,2026-07-30,2026-05-30T23:04:57.653197+00:00,2026-05-30T23:04:57.653197+00:00,61,false,true,true,"Contain issue, review affected workflow, and document immediate correction.","Perform root cause review, define process control, and monitor recurrence.",Testing CAPA Power BI CSV export.
