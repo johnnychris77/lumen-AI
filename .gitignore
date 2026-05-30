@@ -60,3 +60,4 @@ backend/.env
 evidence/
 tmp/
 baselines/
+.venv-pdf/
