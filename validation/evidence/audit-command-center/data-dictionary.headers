@@ -1,0 +1,12 @@
+HTTP/2 200 
+date: Sat, 30 May 2026 03:01:57 GMT
+content-type: application/pdf
+content-length: 576
+content-disposition: attachment; filename=lumenai-audit-command-center-data-dictionary.pdf
+rndr-id: 4193cf95-79fa-459d
+server: cloudflare
+x-render-origin-server: uvicorn
+cf-cache-status: DYNAMIC
+cf-ray: a03a7f460ce2609d-IAD
+alt-svc: h3=":443"; ma=86400
+

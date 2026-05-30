@@ -1,0 +1,13 @@
+metric,value,category
+total_checks,18,health
+passed,18,health
+failed,0,health
+warnings,0,health
+audit_events,696,audit_activity
+high_value_events,196,audit_activity
+dashboard_ready,1,capability
+audit_pdf_ready,1,capability
+audit_csv_ready,1,capability
+powerbi_csv_ready,1,capability
+data_dictionary_pdf_ready,1,capability
+toolkit_zip_ready,1,capability

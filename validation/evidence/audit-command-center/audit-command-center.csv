@@ -1,0 +1,2 @@
+module,status,total_checks,passed,failed,warnings,audit_events,high_value_events
+enterprise_audit_command_center,healthy,18,18,0,0,696,196
