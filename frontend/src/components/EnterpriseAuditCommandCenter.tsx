@@ -37,6 +37,11 @@ type AuditCommandCenterResponse = {
   high_value_compliance_events: AuditEvent[];
 };
 
+function buildAuditCommandCenterPdfUrl(limit = 25) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 25, 100));
+  return `${API_BASE}/api/enterprise/audit-command-center.pdf?limit=${safeLimit}`;
+}
+
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
     headers: {
@@ -76,6 +81,36 @@ export default function EnterpriseAuditCommandCenter() {
     }
   }
 
+  async function downloadAuditCommandCenterPdf() {
+    setError("");
+
+    try {
+      const response = await fetch(buildAuditCommandCenterPdfUrl(Number(limit) || 25), {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Audit Command Center PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-enterprise-audit-command-center.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown Audit Command Center PDF download error");
+    }
+  }
+
   useEffect(() => {
     loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,9 +131,15 @@ export default function EnterpriseAuditCommandCenter() {
           </p>
         </div>
 
-        <button type="button" onClick={loadDashboard} style={refreshButtonStyle}>
-          {loading ? "Refreshing..." : "Refresh Audit"}
-        </button>
+        <div style={buttonGroupStyle}>
+          <button type="button" onClick={loadDashboard} style={refreshButtonStyle}>
+            {loading ? "Refreshing..." : "Refresh Audit"}
+          </button>
+
+          <button type="button" onClick={downloadAuditCommandCenterPdf} style={pdfButtonStyle}>
+            Download Audit PDF
+          </button>
+        </div>
       </div>
 
       <div style={controlRowStyle}>
@@ -497,4 +538,21 @@ const eventResourceStyle: React.CSSProperties = {
 const emptyStyle: React.CSSProperties = {
   margin: "16px 0 0",
   color: "#64748b",
+};
+
+const buttonGroupStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
+const pdfButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "14px",
+  padding: "10px 14px",
+  background: "#0f172a",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
 };
