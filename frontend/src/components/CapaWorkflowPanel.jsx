@@ -47,6 +47,11 @@ export default function CapaWorkflowPanel() {
     }
   }
 
+
+  function downloadPowerBiCsv() {
+    window.open(`${API_BASE}/api/capa/powerbi-csv?limit=500`, "_blank");
+  }
+
   async function createAuditSignalCapa() {
     try {
       setCreating(true);
@@ -138,22 +143,47 @@ export default function CapaWorkflowPanel() {
           </p>
         </div>
 
-        <button
-          onClick={createAuditSignalCapa}
-          disabled={creating}
+        <div
           style={{
-            border: "none",
-            borderRadius: "999px",
-            background: creating ? "#94a3b8" : "#047857",
-            color: "#ffffff",
-            padding: "12px 18px",
-            fontWeight: 800,
-            cursor: creating ? "not-allowed" : "pointer",
-            boxShadow: "0 8px 20px rgba(4, 120, 87, 0.22)",
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
           }}
         >
-          {creating ? "Creating CAPA..." : "Create CAPA from Audit Signal"}
-        </button>
+          <button
+            onClick={downloadPowerBiCsv}
+            style={{
+              border: "1px solid #bfdbfe",
+              borderRadius: "999px",
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              padding: "12px 18px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 8px 20px rgba(37, 99, 235, 0.12)",
+            }}
+          >
+            Download Power BI CSV
+          </button>
+
+          <button
+            onClick={createAuditSignalCapa}
+            disabled={creating}
+            style={{
+              border: "none",
+              borderRadius: "999px",
+              background: creating ? "#94a3b8" : "#047857",
+              color: "#ffffff",
+              padding: "12px 18px",
+              fontWeight: 800,
+              cursor: creating ? "not-allowed" : "pointer",
+              boxShadow: "0 8px 20px rgba(4, 120, 87, 0.22)",
+            }}
+          >
+            {creating ? "Creating CAPA..." : "Create CAPA from Audit Signal"}
+          </button>
+        </div>
       </div>
 
       {loading && (
