@@ -7708,3 +7708,197 @@ def get_enterprise_audit_command_center_csv(
             "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center.csv"
         },
     )
+
+
+@router.get("/audit-command-center.powerbi.csv")
+def get_enterprise_audit_command_center_powerbi_csv(
+    limit: int = 1000,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 5000))
+
+    audit_events = (
+        db.query(AuditLog)
+        .order_by(AuditLog.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    high_value_keywords = [
+        "production_lock",
+        "final_validation",
+        "health",
+        "executive_summary",
+        "completion_certificate",
+        "release_notes",
+        "archive",
+        "governance",
+        "vendor",
+        "infection",
+        "capa",
+        "powerbi",
+    ]
+
+    def safe_text(value):
+        return value or ""
+
+    def classify_action(action_type: str, resource_type: str) -> str:
+        combined = f"{action_type} {resource_type}".lower()
+
+        if "production_lock" in combined or "production" in combined:
+            return "Production Lock"
+        if "final_validation" in combined or "validation" in combined or "validated" in combined:
+            return "Validation"
+        if "health" in combined:
+            return "Health Check"
+        if "pdf" in combined:
+            return "PDF Export"
+        if "csv" in combined:
+            return "CSV Export"
+        if "zip" in combined or "archive" in combined:
+            return "ZIP/Archive Export"
+        if "export" in combined:
+            return "Export"
+        if "metadata" in combined:
+            return "Metadata"
+        if "viewed" in combined:
+            return "View"
+        return "Other"
+
+    def classify_export_type(action_type: str, resource_type: str) -> str:
+        combined = f"{action_type} {resource_type}".lower()
+
+        if "pdf" in combined:
+            return "PDF"
+        if "csv" in combined:
+            return "CSV"
+        if "zip" in combined:
+            return "ZIP"
+        if "archive" in combined:
+            return "Archive"
+        if "export" in combined:
+            return "Other Export"
+        return ""
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "audit_id",
+        "tenant_id",
+        "tenant_name",
+        "action_type",
+        "resource_type",
+        "resource_id",
+        "actor",
+        "role",
+        "status",
+        "compliance_flag",
+        "created_at",
+        "audit_date",
+        "audit_month",
+        "audit_year",
+        "action_category",
+        "export_type",
+        "is_export_event",
+        "is_pdf_event",
+        "is_csv_event",
+        "is_zip_event",
+        "is_health_event",
+        "is_validation_event",
+        "is_production_lock_event",
+        "is_powerbi_event",
+        "is_high_value_compliance_event",
+        "details",
+    ])
+
+    for event in audit_events:
+        action_type = safe_text(getattr(event, "action_type", ""))
+        resource_type = safe_text(getattr(event, "resource_type", ""))
+        combined = f"{action_type} {resource_type}".lower()
+
+        created_at = getattr(event, "created_at", None)
+        audit_date = created_at.date().isoformat() if created_at else ""
+        audit_month = created_at.strftime("%Y-%m") if created_at else ""
+        audit_year = created_at.strftime("%Y") if created_at else ""
+
+        is_export_event = "export" in combined
+        is_pdf_event = "pdf" in combined
+        is_csv_event = "csv" in combined
+        is_zip_event = "zip" in combined or "archive" in combined
+        is_health_event = "health" in combined
+        is_validation_event = "validation" in combined or "validated" in combined
+        is_production_lock_event = "production_lock" in combined or "production" in combined
+        is_powerbi_event = "powerbi" in combined
+        is_high_value_compliance_event = any(keyword in combined for keyword in high_value_keywords)
+
+        details = getattr(event, "details", None)
+        if isinstance(details, dict):
+            details_value = json.dumps(details, default=str)
+        elif details is None:
+            details_value = ""
+        else:
+            details_value = str(details)
+
+        writer.writerow([
+            getattr(event, "id", ""),
+            getattr(event, "tenant_id", "") or "",
+            getattr(event, "tenant_name", "") or "",
+            action_type,
+            resource_type,
+            getattr(event, "resource_id", "") or "",
+            getattr(event, "actor", "") or "",
+            getattr(event, "role", "") or "",
+            getattr(event, "status", "") or "",
+            getattr(event, "compliance_flag", "") if getattr(event, "compliance_flag", None) is not None else "",
+            created_at.isoformat() if created_at else "",
+            audit_date,
+            audit_month,
+            audit_year,
+            classify_action(action_type, resource_type),
+            classify_export_type(action_type, resource_type),
+            is_export_event,
+            is_pdf_event,
+            is_csv_event,
+            is_zip_event,
+            is_health_event,
+            is_validation_event,
+            is_production_lock_event,
+            is_powerbi_event,
+            is_high_value_compliance_event,
+            details_value,
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8")
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_powerbi_csv_exported",
+            resource_type="enterprise_audit_command_center_powerbi_csv",
+            resource_id="audit_command_center_powerbi_csv",
+            details={
+                "limit": safe_limit,
+                "exported_rows": len(audit_events),
+                "workflow_status": "enterprise_audit_command_center_powerbi_csv_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        iter([csv_bytes]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center-powerbi.csv"
+        },
+    )
