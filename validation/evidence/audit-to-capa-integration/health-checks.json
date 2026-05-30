@@ -1,0 +1,8 @@
+{
+  "audit_command_center_health_endpoint": "https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/health",
+  "capa_health_endpoint": "https://lumen-ai-53u4.onrender.com/api/capa/health",
+  "audit_to_capa_summary_endpoint": "https://lumen-ai-53u4.onrender.com/api/enterprise/audit-to-capa/summary",
+  "frontend_main_app": "https://lumen-ai-1.onrender.com",
+  "audit_command_center_portfolio_page": "https://lumen-ai-1.onrender.com/portfolio/audit-command-center",
+  "capa_workflow_portfolio_page": "https://lumen-ai-1.onrender.com/portfolio/capa-workflow"
+}
