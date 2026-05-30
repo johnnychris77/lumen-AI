@@ -61,6 +61,55 @@ function buildAuditCommandCenterToolkitZipUrl(limit = 1000) {
   return `${API_BASE}/api/enterprise/audit-command-center.toolkit.zip?limit=${safeLimit}`;
 }
 
+
+type AuditCommandCenterHealthCheck = {
+  check_name: string;
+  status: string;
+  message: string;
+  endpoint?: string;
+};
+
+type AuditCommandCenterHealth = {
+  status: string;
+  health_type: string;
+  overall_status: string;
+  generated_at: string;
+  toolkit_name: string;
+  toolkit_version: string;
+  dataset_name: string;
+  total_checks: number;
+  passed_checks: number;
+  failed_checks: number;
+  warning_checks: number;
+  total_audit_events: number;
+  export_event_count: number;
+  pdf_export_count: number;
+  csv_export_count: number;
+  zip_export_count: number;
+  powerbi_event_count: number;
+  high_value_compliance_event_count: number;
+  checks: AuditCommandCenterHealthCheck[];
+  recommended_action: string;
+};
+
+async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth> {
+  const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center.health`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "viewer",
+      "X-LumenAI-Actor": "john-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Audit Command Center health check failed (${response.status})`);
+  }
+
+  return data;
+}
+
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
     headers: {
@@ -81,9 +130,12 @@ async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterRe
 
 export default function EnterpriseAuditCommandCenter() {
   const [dashboard, setDashboard] = useState<AuditCommandCenterResponse | null>(null);
+  const [health, setHealth] = useState<AuditCommandCenterHealth | null>(null);
   const [limit, setLimit] = useState("25");
   const [loading, setLoading] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
   const [error, setError] = useState("");
+  const [healthError, setHealthError] = useState("");
 
   async function loadDashboard() {
     setLoading(true);
@@ -250,8 +302,23 @@ export default function EnterpriseAuditCommandCenter() {
     }
   }
 
+  async function loadHealth() {
+    setHealthLoading(true);
+    setHealthError("");
+
+    try {
+      const data = await fetchAuditCommandCenterHealth();
+      setHealth(data);
+    } catch (err) {
+      setHealthError(err instanceof Error ? err.message : "Unknown Audit Command Center health error");
+    } finally {
+      setHealthLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadDashboard();
+    loadHealth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -283,6 +350,10 @@ export default function EnterpriseAuditCommandCenter() {
         <div style={buttonGroupStyle}>
           <button type="button" onClick={loadDashboard} style={refreshButtonStyle}>
             {loading ? "Refreshing..." : "Refresh Audit"}
+          </button>
+
+          <button type="button" onClick={loadHealth} style={healthButtonStyle}>
+            {healthLoading ? "Checking..." : "Refresh Health"}
           </button>
 
           <button type="button" onClick={downloadAuditCommandCenterPdf} style={pdfButtonStyle}>
@@ -357,6 +428,65 @@ export default function EnterpriseAuditCommandCenter() {
 
       {dashboard ? (
         <>
+          <div style={auditHealthCardStyle}>
+            <div style={auditHealthHeaderStyle}>
+              <div>
+                <div style={auditHealthEyebrowStyle}>Toolkit Health</div>
+                <h3 style={auditHealthTitleStyle}>Audit Command Center Health Check</h3>
+              </div>
+              {health ? (
+                <span style={auditHealthBadgeStyle(health.overall_status)}>
+                  {health.overall_status}
+                </span>
+              ) : (
+                <span style={auditHealthBadgeStyle("pending")}>pending</span>
+              )}
+            </div>
+
+            {healthError ? <div style={auditHealthErrorStyle}>{healthError}</div> : null}
+
+            {health ? (
+              <>
+                <div style={auditHealthGridStyle}>
+                  <AuditHealthMetric label="Toolkit Version" value={health.toolkit_version} />
+                  <AuditHealthMetric label="Dataset" value={health.dataset_name} />
+                  <AuditHealthMetric label="Total Checks" value={String(health.total_checks)} />
+                  <AuditHealthMetric label="Passed" value={String(health.passed_checks)} />
+                  <AuditHealthMetric label="Failed" value={String(health.failed_checks)} />
+                  <AuditHealthMetric label="Warnings" value={String(health.warning_checks)} />
+                  <AuditHealthMetric label="Audit Events" value={String(health.total_audit_events)} />
+                  <AuditHealthMetric label="High-Value Events" value={String(health.high_value_compliance_event_count)} />
+                </div>
+
+                <div style={auditHealthActionStyle}>
+                  <strong>Recommended Action</strong>
+                  <p>{health.recommended_action}</p>
+                </div>
+
+                <details style={auditHealthDetailsStyle}>
+                  <summary style={auditHealthSummaryStyle}>
+                    View health checks ({health.checks?.length || 0})
+                  </summary>
+
+                  <div style={auditHealthCheckListStyle}>
+                    {(health.checks || []).map((check) => (
+                      <div key={check.check_name} style={auditHealthCheckItemStyle}>
+                        <span style={auditHealthCheckBadgeStyle(check.status)}>{check.status}</span>
+                        <div>
+                          <strong>{check.check_name}</strong>
+                          <p>{check.message}</p>
+                          {check.endpoint ? <code style={auditHealthEndpointStyle}>{check.endpoint}</code> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </>
+            ) : (
+              <p style={auditHealthEmptyStyle}>Audit Command Center health has not loaded yet.</p>
+            )}
+          </div>
+
           <div style={metricGridStyle}>
             <MetricCard label="Total Audit Events" value={dashboard.total_audit_events} />
             <MetricCard label="Export Events" value={dashboard.export_event_count} />
@@ -452,6 +582,15 @@ function AuditToolkitAsset({ label, status }: { label: string; status: string })
     <div style={auditToolkitAssetStyle}>
       <span style={auditToolkitAssetLabelStyle}>{label}</span>
       <strong style={auditToolkitAssetStatusStyle}>{status}</strong>
+    </div>
+  );
+}
+
+function AuditHealthMetric({ label, value }: { label: string; value?: string }) {
+  return (
+    <div style={auditHealthMetricStyle}>
+      <span style={auditHealthMetricLabelStyle}>{label}</span>
+      <strong style={auditHealthMetricValueStyle}>{value || "Not available"}</strong>
     </div>
   );
 }
@@ -910,4 +1049,165 @@ const auditCommandSummaryTextStyle: React.CSSProperties = {
   color: "#475569",
   lineHeight: 1.5,
   fontSize: "13px",
+};
+
+
+
+const healthButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "14px",
+  padding: "10px 14px",
+  background: "#15803d",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const auditHealthCardStyle: React.CSSProperties = {
+  marginTop: "18px",
+  padding: "16px",
+  borderRadius: "20px",
+  border: "1px solid #bbf7d0",
+  background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)",
+  boxShadow: "0 8px 24px rgba(22, 101, 52, 0.08)",
+};
+
+const auditHealthHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start",
+};
+
+const auditHealthEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#15803d",
+};
+
+const auditHealthTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+  color: "#14532d",
+};
+
+function auditHealthBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+  const isHealthy = normalized === "healthy";
+  const isWarning = normalized === "warning";
+  const isPending = normalized === "pending";
+
+  return {
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: isHealthy ? "#dcfce7" : isWarning ? "#ffedd5" : isPending ? "#e2e8f0" : "#fee2e2",
+    color: isHealthy ? "#166534" : isWarning ? "#9a3412" : isPending ? "#334155" : "#991b1b",
+    whiteSpace: "nowrap",
+  };
+}
+
+const auditHealthGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const auditHealthMetricStyle: React.CSSProperties = {
+  padding: "10px",
+  borderRadius: "14px",
+  border: "1px solid #bbf7d0",
+  background: "#ffffff",
+};
+
+const auditHealthMetricLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  color: "#64748b",
+};
+
+const auditHealthMetricValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: "4px",
+  color: "#0f172a",
+  fontSize: "13px",
+};
+
+const auditHealthActionStyle: React.CSSProperties = {
+  marginTop: "14px",
+  padding: "12px",
+  borderRadius: "14px",
+  background: "#ffffff",
+  border: "1px solid #bbf7d0",
+  color: "#14532d",
+};
+
+const auditHealthDetailsStyle: React.CSSProperties = {
+  marginTop: "12px",
+};
+
+const auditHealthSummaryStyle: React.CSSProperties = {
+  cursor: "pointer",
+  fontWeight: 900,
+  color: "#166534",
+};
+
+const auditHealthCheckListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  marginTop: "10px",
+};
+
+const auditHealthCheckItemStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+function auditHealthCheckBadgeStyle(status: string): React.CSSProperties {
+  const normalized = (status || "").toLowerCase();
+
+  return {
+    alignSelf: "flex-start",
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "11px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    background: normalized === "pass" ? "#dcfce7" : normalized === "warning" ? "#ffedd5" : "#fee2e2",
+    color: normalized === "pass" ? "#166534" : normalized === "warning" ? "#9a3412" : "#991b1b",
+  };
+}
+
+const auditHealthEndpointStyle: React.CSSProperties = {
+  display: "inline-block",
+  marginTop: "4px",
+  fontSize: "11px",
+  color: "#334155",
+};
+
+const auditHealthErrorStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px",
+  borderRadius: "12px",
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#991b1b",
+  fontWeight: 800,
+};
+
+const auditHealthEmptyStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#64748b",
 };
