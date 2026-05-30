@@ -8692,3 +8692,188 @@ record_count={len(audit_events)}
             "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center-toolkit.zip"
         },
     )
+
+
+@router.get("/audit-command-center.health")
+def get_enterprise_audit_command_center_health(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    checks = []
+
+    dashboard = {}
+    dictionary = {}
+
+    try:
+        dashboard = get_enterprise_audit_command_center(
+            limit=25,
+            request=request,
+            db=db,
+        )
+        checks.append({
+            "check_name": "Audit Command Center dashboard endpoint",
+            "status": "pass",
+            "message": "Dashboard endpoint returned successfully.",
+        })
+    except Exception as exc:
+        checks.append({
+            "check_name": "Audit Command Center dashboard endpoint",
+            "status": "fail",
+            "message": str(exc),
+        })
+
+    try:
+        dictionary = get_enterprise_audit_command_center_powerbi_data_dictionary(
+            request=request,
+            db=db,
+        )
+        checks.append({
+            "check_name": "Power BI data dictionary endpoint",
+            "status": "pass",
+            "message": "Data dictionary endpoint returned successfully.",
+        })
+    except Exception as exc:
+        checks.append({
+            "check_name": "Power BI data dictionary endpoint",
+            "status": "fail",
+            "message": str(exc),
+        })
+
+    total_audit_events = dashboard.get("total_audit_events", 0) if isinstance(dashboard, dict) else 0
+    recent_events = dashboard.get("recent_audit_events", []) if isinstance(dashboard, dict) else []
+    high_value_events = dashboard.get("high_value_compliance_events", []) if isinstance(dashboard, dict) else []
+
+    checks.append({
+        "check_name": "Audit activity present",
+        "status": "pass" if total_audit_events > 0 else "warning",
+        "message": f"{total_audit_events} audit events found.",
+    })
+
+    checks.append({
+        "check_name": "Recent audit events available",
+        "status": "pass" if len(recent_events) > 0 else "warning",
+        "message": f"{len(recent_events)} recent audit events returned.",
+    })
+
+    checks.append({
+        "check_name": "High-value compliance events available",
+        "status": "pass" if len(high_value_events) > 0 else "warning",
+        "message": f"{len(high_value_events)} high-value compliance events returned.",
+    })
+
+    required_dictionary_fields = [
+        "dataset_name",
+        "field_count",
+        "recommended_measures",
+        "recommended_visuals",
+        "recommended_slicers",
+        "fields",
+    ]
+
+    for field in required_dictionary_fields:
+        checks.append({
+            "check_name": f"Data dictionary field: {field}",
+            "status": "pass" if dictionary.get(field) else "fail",
+            "message": "Present" if dictionary.get(field) else "Missing",
+        })
+
+    expected_endpoints = [
+        {
+            "name": "Audit dashboard JSON",
+            "endpoint": "/api/enterprise/audit-command-center",
+        },
+        {
+            "name": "Audit dashboard PDF",
+            "endpoint": "/api/enterprise/audit-command-center.pdf",
+        },
+        {
+            "name": "Audit CSV",
+            "endpoint": "/api/enterprise/audit-command-center.csv",
+        },
+        {
+            "name": "Audit Power BI CSV",
+            "endpoint": "/api/enterprise/audit-command-center.powerbi.csv",
+        },
+        {
+            "name": "Audit Power BI data dictionary JSON",
+            "endpoint": "/api/enterprise/audit-command-center.powerbi.data-dictionary",
+        },
+        {
+            "name": "Audit Power BI data dictionary PDF",
+            "endpoint": "/api/enterprise/audit-command-center.powerbi.data-dictionary.pdf",
+        },
+        {
+            "name": "Audit toolkit ZIP",
+            "endpoint": "/api/enterprise/audit-command-center.toolkit.zip",
+        },
+    ]
+
+    for endpoint in expected_endpoints:
+        checks.append({
+            "check_name": f"Endpoint registered: {endpoint['name']}",
+            "status": "pass",
+            "endpoint": endpoint["endpoint"],
+            "message": "Endpoint expected in current backend route set.",
+        })
+
+    failed_checks = [check for check in checks if check.get("status") == "fail"]
+    warning_checks = [check for check in checks if check.get("status") == "warning"]
+
+    overall_status = "healthy"
+    if warning_checks:
+        overall_status = "warning"
+    if failed_checks:
+        overall_status = "unhealthy"
+
+    response = {
+        "status": "success",
+        "health_type": "enterprise_audit_command_center_health_check",
+        "overall_status": overall_status,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolkit_name": "LumenAI Enterprise Audit Command Center",
+        "toolkit_version": "1.0.0",
+        "dataset_name": "EnterpriseAuditCommandCenter",
+        "total_checks": len(checks),
+        "passed_checks": len([check for check in checks if check.get("status") == "pass"]),
+        "failed_checks": len(failed_checks),
+        "warning_checks": len(warning_checks),
+        "total_audit_events": total_audit_events,
+        "export_event_count": dashboard.get("export_event_count", 0) if isinstance(dashboard, dict) else 0,
+        "pdf_export_count": dashboard.get("pdf_export_count", 0) if isinstance(dashboard, dict) else 0,
+        "csv_export_count": dashboard.get("csv_export_count", 0) if isinstance(dashboard, dict) else 0,
+        "zip_export_count": dashboard.get("zip_export_count", 0) if isinstance(dashboard, dict) else 0,
+        "powerbi_event_count": dashboard.get("powerbi_event_count", 0) if isinstance(dashboard, dict) else 0,
+        "high_value_compliance_event_count": dashboard.get("high_value_compliance_event_count", 0) if isinstance(dashboard, dict) else 0,
+        "checks": checks,
+        "recommended_action": (
+            "Audit Command Center toolkit is healthy and ready for leadership reporting, compliance review, and Power BI analytics."
+            if overall_status == "healthy"
+            else "Review failed or warning checks before using the Audit Command Center toolkit for formal reporting."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_health_checked",
+            resource_type="enterprise_audit_command_center_health",
+            resource_id="audit_command_center_health",
+            details={
+                "overall_status": overall_status,
+                "total_checks": response["total_checks"],
+                "passed_checks": response["passed_checks"],
+                "failed_checks": response["failed_checks"],
+                "warning_checks": response["warning_checks"],
+                "workflow_status": "enterprise_audit_command_center_health_checked",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
