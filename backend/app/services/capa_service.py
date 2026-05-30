@@ -346,6 +346,61 @@ def capa_escalation_summary(days_until_due: int = 7) -> Dict:
         "message": "CAPA escalation summary generated successfully.",
     }
 
+
+def build_capa_powerbi_rows(limit: int = 500) -> List[Dict]:
+    """
+    Builds flat CAPA rows for Power BI / analytics export.
+    """
+    init_capa_db()
+
+    today = datetime.now(timezone.utc).date()
+    rows = []
+
+    for capa in list_capas(limit=limit):
+        due_date_value = capa.get("due_date")
+        days_to_due = None
+        is_overdue = False
+
+        if due_date_value:
+            try:
+                due_date = datetime.fromisoformat(str(due_date_value)).date()
+                days_to_due = (due_date - today).days
+                is_overdue = days_to_due < 0 and capa.get("status") not in {"closed", "cancelled"}
+            except ValueError:
+                try:
+                    due_date = datetime.strptime(str(due_date_value), "%Y-%m-%d").date()
+                    days_to_due = (due_date - today).days
+                    is_overdue = days_to_due < 0 and capa.get("status") not in {"closed", "cancelled"}
+                except ValueError:
+                    days_to_due = None
+                    is_overdue = False
+
+        risk_level = capa.get("risk_level") or ""
+        status = capa.get("status") or ""
+
+        rows.append(
+            {
+                "capa_id": capa.get("id"),
+                "title": capa.get("title"),
+                "source": capa.get("source"),
+                "risk_level": risk_level,
+                "status": status,
+                "owner": capa.get("owner"),
+                "due_date": capa.get("due_date"),
+                "created_at": capa.get("created_at"),
+                "updated_at": capa.get("updated_at"),
+                "days_to_due": days_to_due,
+                "is_overdue": "true" if is_overdue else "false",
+                "is_high_risk": "true" if risk_level in {"high", "critical"} else "false",
+                "is_open": "true" if status not in {"closed", "cancelled"} else "false",
+                "corrective_action": capa.get("corrective_action"),
+                "preventive_action": capa.get("preventive_action"),
+                "description": capa.get("description"),
+            }
+        )
+
+    return rows
+
 def create_capa_from_audit_signal(signal: Dict) -> Dict:
     event_type = signal.get("event_type") or "Audit Signal"
     risk_level = signal.get("risk_level") or "medium"

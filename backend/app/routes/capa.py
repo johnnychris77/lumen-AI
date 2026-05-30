@@ -1,10 +1,14 @@
+import csv
+import io
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
+from fastapi.responses import Response
 
 from app.services.capa_service import (
     capa_summary,
+    build_capa_powerbi_rows,
     capa_escalation_summary,
     create_capa,
     create_capa_from_audit_signal,
@@ -108,6 +112,48 @@ def post_capa_from_audit_signal(payload: AuditSignalCapaRequest):
 @router.get("/capa/escalation-summary")
 def get_capa_escalation_summary(days_until_due: int = Query(default=7, ge=0, le=90)):
     return capa_escalation_summary(days_until_due=days_until_due)
+
+
+
+@router.get("/capa/powerbi-csv")
+def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000)):
+    rows = build_capa_powerbi_rows(limit=limit)
+
+    fieldnames = [
+        "capa_id",
+        "title",
+        "source",
+        "risk_level",
+        "status",
+        "owner",
+        "due_date",
+        "created_at",
+        "updated_at",
+        "days_to_due",
+        "is_overdue",
+        "is_high_risk",
+        "is_open",
+        "corrective_action",
+        "preventive_action",
+        "description",
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for row in rows:
+        writer.writerow(row)
+
+    csv_content = output.getvalue()
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-capa-powerbi.csv"
+        },
+    )
 
 @router.get("/capa/{capa_id}")
 def get_capa_by_id(capa_id: str):
