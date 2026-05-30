@@ -7614,3 +7614,97 @@ def get_enterprise_audit_command_center_pdf(
             "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center.pdf"
         },
     )
+
+
+@router.get("/audit-command-center.csv")
+def get_enterprise_audit_command_center_csv(
+    limit: int = 100,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 1000))
+
+    audit_events = (
+        db.query(AuditLog)
+        .order_by(AuditLog.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "audit_id",
+        "tenant_id",
+        "tenant_name",
+        "action_type",
+        "resource_type",
+        "resource_id",
+        "actor",
+        "role",
+        "status",
+        "compliance_flag",
+        "created_at",
+        "details",
+    ])
+
+    for event in audit_events:
+        details = getattr(event, "details", None)
+
+        if isinstance(details, dict):
+            details_value = json.dumps(details, default=str)
+        elif details is None:
+            details_value = ""
+        else:
+            details_value = str(details)
+
+        created_at = getattr(event, "created_at", None)
+
+        writer.writerow([
+            getattr(event, "id", ""),
+            getattr(event, "tenant_id", "") or "",
+            getattr(event, "tenant_name", "") or "",
+            getattr(event, "action_type", "") or "",
+            getattr(event, "resource_type", "") or "",
+            getattr(event, "resource_id", "") or "",
+            getattr(event, "actor", "") or "",
+            getattr(event, "role", "") or "",
+            getattr(event, "status", "") or "",
+            getattr(event, "compliance_flag", "") if getattr(event, "compliance_flag", None) is not None else "",
+            created_at.isoformat() if created_at else "",
+            details_value,
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8")
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_csv_exported",
+            resource_type="enterprise_audit_command_center_csv",
+            resource_id="audit_command_center_csv",
+            details={
+                "limit": safe_limit,
+                "exported_rows": len(audit_events),
+                "workflow_status": "enterprise_audit_command_center_csv_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        iter([csv_bytes]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center.csv"
+        },
+    )
