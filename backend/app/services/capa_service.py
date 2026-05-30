@@ -1,13 +1,102 @@
+import os
+import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional
 from uuid import uuid4
 
 
-_CAPA_STORE: List[Dict] = []
-
-
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _database_path() -> str:
+    """
+    Supports common SQLite DATABASE_URL values:
+    - sqlite:///./lumenai.db
+    - sqlite:////tmp/lumenai.db
+    If DATABASE_URL is not SQLite, falls back to a local SQLite file.
+    """
+    database_url = os.getenv("DATABASE_URL", "").strip()
+
+    if database_url.startswith("sqlite:///"):
+        raw_path = database_url.replace("sqlite:///", "", 1)
+
+        if raw_path.startswith("/"):
+            db_path = Path(raw_path)
+        else:
+            db_path = Path(raw_path).resolve()
+
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return str(db_path)
+
+    fallback = Path(os.getenv("CAPA_DB_PATH", "data/lumenai_capa.db")).resolve()
+    fallback.parent.mkdir(parents=True, exist_ok=True)
+    return str(fallback)
+
+
+DB_PATH = _database_path()
+
+
+def _connect():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_capa_db() -> None:
+    with _connect() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS capas (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                source TEXT NOT NULL,
+                description TEXT,
+                risk_level TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                due_date TEXT,
+                corrective_action TEXT,
+                preventive_action TEXT,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_capas_status
+            ON capas(status)
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_capas_risk_level
+            ON capas(risk_level)
+            """
+        )
+
+        conn.commit()
+
+
+def _row_to_dict(row: sqlite3.Row) -> Dict:
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "source": row["source"],
+        "description": row["description"] or "",
+        "risk_level": row["risk_level"],
+        "owner": row["owner"],
+        "due_date": row["due_date"],
+        "corrective_action": row["corrective_action"] or "",
+        "preventive_action": row["preventive_action"] or "",
+        "status": row["status"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
 
 
 def create_capa(
@@ -21,45 +110,127 @@ def create_capa(
     preventive_action: Optional[str] = None,
     status: str = "open",
 ) -> Dict:
+    init_capa_db()
+
+    now = _utc_now()
     capa = {
         "id": str(uuid4()),
         "title": title,
-        "source": source,
+        "source": source or "manual",
         "description": description or "",
-        "risk_level": risk_level,
+        "risk_level": risk_level or "medium",
         "owner": owner or "Unassigned",
         "due_date": due_date,
         "corrective_action": corrective_action or "",
         "preventive_action": preventive_action or "",
-        "status": status,
-        "created_at": _utc_now(),
-        "updated_at": _utc_now(),
+        "status": status or "open",
+        "created_at": now,
+        "updated_at": now,
     }
 
-    _CAPA_STORE.insert(0, capa)
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO capas (
+                id,
+                title,
+                source,
+                description,
+                risk_level,
+                owner,
+                due_date,
+                corrective_action,
+                preventive_action,
+                status,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                capa["id"],
+                capa["title"],
+                capa["source"],
+                capa["description"],
+                capa["risk_level"],
+                capa["owner"],
+                capa["due_date"],
+                capa["corrective_action"],
+                capa["preventive_action"],
+                capa["status"],
+                capa["created_at"],
+                capa["updated_at"],
+            ),
+        )
+        conn.commit()
+
     return capa
 
 
 def list_capas(limit: int = 50) -> List[Dict]:
-    return _CAPA_STORE[:limit]
+    init_capa_db()
+
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM capas
+            ORDER BY datetime(created_at) DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    return [_row_to_dict(row) for row in rows]
+
+
+def get_capa(capa_id: str) -> Optional[Dict]:
+    init_capa_db()
+
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM capas
+            WHERE id = ?
+            """,
+            (capa_id,),
+        ).fetchone()
+
+    return _row_to_dict(row) if row else None
 
 
 def capa_summary() -> Dict:
-    total = len(_CAPA_STORE)
-    open_count = len([item for item in _CAPA_STORE if item.get("status") == "open"])
-    high_risk = len(
-        [
-            item
-            for item in _CAPA_STORE
-            if item.get("risk_level") in {"high", "critical"}
-        ]
-    )
+    init_capa_db()
+
+    with _connect() as conn:
+        total = conn.execute("SELECT COUNT(*) AS count FROM capas").fetchone()["count"]
+
+        open_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM capas WHERE status = ?",
+            ("open",),
+        ).fetchone()["count"]
+
+        closed_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM capas WHERE status = ?",
+            ("closed",),
+        ).fetchone()["count"]
+
+        high_risk = conn.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM capas
+            WHERE risk_level IN ('high', 'critical')
+            """
+        ).fetchone()["count"]
 
     return {
         "total": total,
         "open": open_count,
         "high_risk": high_risk,
-        "closed": len([item for item in _CAPA_STORE if item.get("status") == "closed"]),
+        "closed": closed_count,
+        "database": "sqlite",
+        "database_path": DB_PATH,
     }
 
 
@@ -89,3 +260,6 @@ def create_capa_from_audit_signal(signal: Dict) -> Dict:
         preventive_action=preventive_action,
         status="open",
     )
+
+
+init_capa_db()

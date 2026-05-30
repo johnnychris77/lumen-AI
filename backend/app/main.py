@@ -18,6 +18,7 @@ from app.routes.stream import router as stream_router
 from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
 from app.routes.capa import router as capa_router
+from app.services.capa_service import capa_summary as persistent_capa_summary
 from app.db import Base, engine
 
 app = FastAPI(title="LumenAI API")
@@ -88,13 +89,8 @@ def direct_capa_health():
             "audit_signal_to_capa": "ready",
             "governance_summary": "ready"
         },
-        "summary": {
-            "total": 0,
-            "open": 0,
-            "high_risk": 0,
-            "closed": 0
-        },
-        "message": "CAPA workflow backend module is deployed and healthy."
+        "summary": persistent_capa_summary(),
+        "message": "CAPA workflow backend module is deployed and healthy with persistent database storage."
     }
 
 

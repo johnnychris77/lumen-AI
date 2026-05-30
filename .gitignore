@@ -61,3 +61,5 @@ evidence/
 tmp/
 baselines/
 .venv-pdf/
+data/
+*.sqlite
