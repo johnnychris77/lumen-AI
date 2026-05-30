@@ -1,0 +1,1 @@
+{"status":"healthy","module":"capa_workflow","version":"1.0.0","capabilities":{"create_capa":"ready","list_capas":"ready","audit_signal_to_capa":"ready","governance_summary":"ready"},"summary":{"total":0,"open":0,"high_risk":0,"closed":0},"message":"CAPA workflow backend module is deployed and healthy."}
