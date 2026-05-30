@@ -56,6 +56,11 @@ function buildAuditCommandCenterDataDictionaryPdfUrl() {
   return `${API_BASE}/api/enterprise/audit-command-center.powerbi.data-dictionary.pdf`;
 }
 
+function buildAuditCommandCenterToolkitZipUrl(limit = 1000) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 1000, 5000));
+  return `${API_BASE}/api/enterprise/audit-command-center.toolkit.zip?limit=${safeLimit}`;
+}
+
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
     headers: {
@@ -215,6 +220,36 @@ export default function EnterpriseAuditCommandCenter() {
     }
   }
 
+  async function downloadAuditCommandCenterToolkitZip() {
+    setError("");
+
+    try {
+      const response = await fetch(buildAuditCommandCenterToolkitZipUrl(Number(limit) || 1000), {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Audit Command Center Toolkit ZIP download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-enterprise-audit-command-center-toolkit.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown Audit Command Center Toolkit ZIP download error");
+    }
+  }
+
   useEffect(() => {
     loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,6 +289,10 @@ export default function EnterpriseAuditCommandCenter() {
 
           <button type="button" onClick={downloadAuditCommandCenterDataDictionaryPdf} style={dataDictionaryButtonStyle}>
             Download Data Dictionary PDF
+          </button>
+
+          <button type="button" onClick={downloadAuditCommandCenterToolkitZip} style={toolkitZipButtonStyle}>
+            Download Toolkit ZIP
           </button>
         </div>
       </div>
@@ -701,6 +740,17 @@ const dataDictionaryButtonStyle: React.CSSProperties = {
   borderRadius: "14px",
   padding: "10px 14px",
   background: "#0ea5e9",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+
+const toolkitZipButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "14px",
+  padding: "10px 14px",
+  background: "#111827",
   color: "#ffffff",
   fontWeight: 900,
   cursor: "pointer",
