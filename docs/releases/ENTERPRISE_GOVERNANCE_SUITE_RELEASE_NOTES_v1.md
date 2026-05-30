@@ -241,3 +241,18 @@ This release positions LumenAI as more than an inspection tool. It demonstrates 
 
 The LumenAI Enterprise Governance Suite v1.0.0 is production validated, evidence backed, demo ready, portfolio ready, stakeholder ready, and investor ready.
 
+---
+
+# Executive PDF Distribution Note
+
+The GitHub release for `enterprise-governance-suite-v1.0.0` is immutable, so the Executive PDF One-Pager is distributed through the public hosted portfolio URL rather than uploaded as a release asset.
+
+Executive PDF One-Pager:
+https://lumen-ai-1.onrender.com/downloads/LumenAI_Enterprise_Governance_Suite_Executive_One_Pager_v1.pdf
+
+Portfolio Hub:
+https://lumen-ai-1.onrender.com/portfolio/governance-hub
+
+See:
+docs/releases/IMMUTABLE_RELEASE_DISTRIBUTION_NOTE_v1.md
+
