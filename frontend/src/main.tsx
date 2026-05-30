@@ -1325,6 +1325,39 @@ function DashboardHome() {
 function Layout() {
   return (
     <BrowserRouter>
+
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "#020617",
+          borderBottom: "1px solid #1e293b",
+          padding: "12px 20px",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <Link
+          to="/portfolio/audit-command-center"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 16px",
+            borderRadius: "999px",
+            border: "1px solid rgba(16, 185, 129, 0.45)",
+            background: "rgba(16, 185, 129, 0.12)",
+            color: "#6ee7b7",
+            fontWeight: 800,
+            fontSize: "14px",
+            textDecoration: "none",
+            boxShadow: "0 8px 24px rgba(16, 185, 129, 0.15)",
+          }}
+        >
+          Portfolio Evidence · Audit Command Center
+        </Link>
+      </div>
       <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
         <div style={{ maxWidth: "1360px", margin: "0 auto", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
           <Link to="/" style={{ fontWeight: 700, textDecoration: "none", color: "#111827" }}>LumenAI</Link>
