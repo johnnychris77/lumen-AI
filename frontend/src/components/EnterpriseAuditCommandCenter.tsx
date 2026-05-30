@@ -268,6 +268,16 @@ export default function EnterpriseAuditCommandCenter() {
             Centralized audit visibility for exports, health checks, validation events,
             production locks, and high-value compliance activity.
           </p>
+
+          <div style={auditCommandCompletionBadgeStyle}>
+            <span style={auditCommandCompletionIconStyle}>✓</span>
+            <div>
+              <strong>Audit Command Center Toolkit Complete</strong>
+              <p style={auditCommandCompletionTextStyle}>
+                Dashboard, PDF export, CSV export, Power BI CSV, Data Dictionary PDF, and Toolkit ZIP are available.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div style={buttonGroupStyle}>
@@ -754,4 +764,39 @@ const toolkitZipButtonStyle: React.CSSProperties = {
   color: "#ffffff",
   fontWeight: 900,
   cursor: "pointer",
+};
+
+
+
+const auditCommandCompletionBadgeStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  alignItems: "flex-start",
+  marginTop: "14px",
+  padding: "12px 14px",
+  borderRadius: "16px",
+  border: "1px solid #bbf7d0",
+  background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)",
+  color: "#166534",
+  maxWidth: "820px",
+};
+
+const auditCommandCompletionIconStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "24px",
+  height: "24px",
+  borderRadius: "999px",
+  background: "#16a34a",
+  color: "#ffffff",
+  fontWeight: 900,
+  flex: "0 0 auto",
+};
+
+const auditCommandCompletionTextStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#166534",
+  lineHeight: 1.45,
+  fontSize: "13px",
 };
