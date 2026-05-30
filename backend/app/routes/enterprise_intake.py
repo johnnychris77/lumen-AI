@@ -8386,3 +8386,309 @@ def get_enterprise_audit_command_center_powerbi_data_dictionary_pdf(
             "Content-Disposition": "attachment; filename=lumenai-audit-command-center-powerbi-data-dictionary.pdf"
         },
     )
+
+
+@router.get("/audit-command-center.toolkit.zip")
+def get_enterprise_audit_command_center_toolkit_zip(
+    limit: int = 1000,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    import csv
+    import json
+    import zipfile
+    from datetime import datetime, timezone
+    from io import BytesIO, StringIO
+    from fastapi.responses import StreamingResponse
+
+    safe_limit = max(1, min(limit, 5000))
+
+    audit_events = (
+        db.query(AuditLog)
+        .order_by(AuditLog.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    dictionary = get_enterprise_audit_command_center_powerbi_data_dictionary(
+        request=request,
+        db=db,
+    )
+
+    high_value_keywords = [
+        "production_lock",
+        "final_validation",
+        "health",
+        "executive_summary",
+        "completion_certificate",
+        "release_notes",
+        "archive",
+        "governance",
+        "vendor",
+        "infection",
+        "capa",
+        "powerbi",
+    ]
+
+    def safe_text(value):
+        return value or ""
+
+    def serialize_details(event):
+        details = getattr(event, "details", None)
+
+        if isinstance(details, dict):
+            return json.dumps(details, default=str)
+        if details is None:
+            return ""
+        return str(details)
+
+    def classify_action(action_type: str, resource_type: str) -> str:
+        combined = f"{action_type} {resource_type}".lower()
+
+        if "production_lock" in combined or "production" in combined:
+            return "Production Lock"
+        if "final_validation" in combined or "validation" in combined or "validated" in combined:
+            return "Validation"
+        if "health" in combined:
+            return "Health Check"
+        if "pdf" in combined:
+            return "PDF Export"
+        if "csv" in combined:
+            return "CSV Export"
+        if "zip" in combined or "archive" in combined:
+            return "ZIP/Archive Export"
+        if "export" in combined:
+            return "Export"
+        if "metadata" in combined:
+            return "Metadata"
+        if "viewed" in combined:
+            return "View"
+        return "Other"
+
+    def classify_export_type(action_type: str, resource_type: str) -> str:
+        combined = f"{action_type} {resource_type}".lower()
+
+        if "pdf" in combined:
+            return "PDF"
+        if "csv" in combined:
+            return "CSV"
+        if "zip" in combined:
+            return "ZIP"
+        if "archive" in combined:
+            return "Archive"
+        if "export" in combined:
+            return "Other Export"
+        return ""
+
+    def build_standard_csv() -> str:
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "audit_id",
+            "tenant_id",
+            "tenant_name",
+            "action_type",
+            "resource_type",
+            "resource_id",
+            "actor",
+            "role",
+            "status",
+            "compliance_flag",
+            "created_at",
+            "details",
+        ])
+
+        for event in audit_events:
+            created_at = getattr(event, "created_at", None)
+
+            writer.writerow([
+                getattr(event, "id", ""),
+                getattr(event, "tenant_id", "") or "",
+                getattr(event, "tenant_name", "") or "",
+                getattr(event, "action_type", "") or "",
+                getattr(event, "resource_type", "") or "",
+                getattr(event, "resource_id", "") or "",
+                getattr(event, "actor", "") or "",
+                getattr(event, "role", "") or "",
+                getattr(event, "status", "") or "",
+                getattr(event, "compliance_flag", "") if getattr(event, "compliance_flag", None) is not None else "",
+                created_at.isoformat() if created_at else "",
+                serialize_details(event),
+            ])
+
+        return output.getvalue()
+
+    def build_powerbi_csv() -> str:
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "audit_id",
+            "tenant_id",
+            "tenant_name",
+            "action_type",
+            "resource_type",
+            "resource_id",
+            "actor",
+            "role",
+            "status",
+            "compliance_flag",
+            "created_at",
+            "audit_date",
+            "audit_month",
+            "audit_year",
+            "action_category",
+            "export_type",
+            "is_export_event",
+            "is_pdf_event",
+            "is_csv_event",
+            "is_zip_event",
+            "is_health_event",
+            "is_validation_event",
+            "is_production_lock_event",
+            "is_powerbi_event",
+            "is_high_value_compliance_event",
+            "details",
+        ])
+
+        for event in audit_events:
+            action_type = safe_text(getattr(event, "action_type", ""))
+            resource_type = safe_text(getattr(event, "resource_type", ""))
+            combined = f"{action_type} {resource_type}".lower()
+
+            created_at = getattr(event, "created_at", None)
+            audit_date = created_at.date().isoformat() if created_at else ""
+            audit_month = created_at.strftime("%Y-%m") if created_at else ""
+            audit_year = created_at.strftime("%Y") if created_at else ""
+
+            writer.writerow([
+                getattr(event, "id", ""),
+                getattr(event, "tenant_id", "") or "",
+                getattr(event, "tenant_name", "") or "",
+                action_type,
+                resource_type,
+                getattr(event, "resource_id", "") or "",
+                getattr(event, "actor", "") or "",
+                getattr(event, "role", "") or "",
+                getattr(event, "status", "") or "",
+                getattr(event, "compliance_flag", "") if getattr(event, "compliance_flag", None) is not None else "",
+                created_at.isoformat() if created_at else "",
+                audit_date,
+                audit_month,
+                audit_year,
+                classify_action(action_type, resource_type),
+                classify_export_type(action_type, resource_type),
+                "export" in combined,
+                "pdf" in combined,
+                "csv" in combined,
+                "zip" in combined or "archive" in combined,
+                "health" in combined,
+                "validation" in combined or "validated" in combined,
+                "production_lock" in combined or "production" in combined,
+                "powerbi" in combined,
+                any(keyword in combined for keyword in high_value_keywords),
+                serialize_details(event),
+            ])
+
+        return output.getvalue()
+
+    manifest = {
+        "status": "success",
+        "toolkit_type": "enterprise_audit_command_center_toolkit",
+        "toolkit_version": "1.0.0",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "dataset_name": "EnterpriseAuditCommandCenter",
+        "record_count": len(audit_events),
+        "limit": safe_limit,
+        "included_files": [
+            "README.txt",
+            "audit-command-center-manifest.json",
+            "audit-command-center.csv",
+            "audit-command-center-powerbi.csv",
+            "audit-command-center-data-dictionary.json",
+        ],
+        "purpose": (
+            "Toolkit package for LumenAI Enterprise Audit Command Center analytics, "
+            "Excel review, Power BI dashboard development, leadership reporting, "
+            "quality governance, and compliance evidence review."
+        ),
+    }
+
+    readme = f"""LumenAI Enterprise Audit Command Center Toolkit
+
+Purpose
+This toolkit provides the core files needed to analyze LumenAI enterprise audit activity in Excel or Power BI.
+
+Files Included
+1. audit-command-center.csv
+   Standard audit log export for Excel or compliance review.
+
+2. audit-command-center-powerbi.csv
+   Power BI-ready audit dataset with derived fields such as audit_date, audit_month, audit_year, action_category, export_type, and event flags.
+
+3. audit-command-center-data-dictionary.json
+   Machine-readable data dictionary with field descriptions, recommended measures, visuals, and slicers.
+
+4. audit-command-center-manifest.json
+   Toolkit manifest with record count, version, generated timestamp, and included files.
+
+Recommended Power BI Dataset Name
+EnterpriseAuditCommandCenter
+
+Recommended Slicers
+- audit_date
+- audit_month
+- audit_year
+- action_category
+- export_type
+- actor
+- resource_type
+- is_high_value_compliance_event
+
+Recommended Use
+Use this toolkit for audit command center reporting, export traceability, survey readiness, compliance evidence review, and leadership governance reporting.
+
+Generated Parameters
+limit={safe_limit}
+record_count={len(audit_events)}
+"""
+
+    buffer = BytesIO()
+
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr("README.txt", readme)
+        zip_file.writestr("audit-command-center-manifest.json", json.dumps(manifest, indent=2, default=str))
+        zip_file.writestr("audit-command-center.csv", build_standard_csv())
+        zip_file.writestr("audit-command-center-powerbi.csv", build_powerbi_csv())
+        zip_file.writestr("audit-command-center-data-dictionary.json", json.dumps(dictionary, indent=2, default=str))
+
+    buffer.seek(0)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="enterprise_audit_command_center_toolkit_zip_exported",
+            resource_type="enterprise_audit_command_center_toolkit_zip",
+            resource_id="audit_command_center_toolkit",
+            details={
+                "limit": safe_limit,
+                "record_count": len(audit_events),
+                "toolkit_version": manifest["toolkit_version"],
+                "workflow_status": "enterprise_audit_command_center_toolkit_zip_exported",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-enterprise-audit-command-center-toolkit.zip"
+        },
+    )
