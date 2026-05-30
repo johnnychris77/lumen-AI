@@ -11,6 +11,7 @@ import PacketActionButtonsPanel from "./components/PacketActionButtonsPanel";
 import InfectionPreventionReviewPanel from "./components/InfectionPreventionReviewPanel";
 import ManufacturerBaselinePanel from "./components/ManufacturerBaselinePanel";
 import EnterpriseAuditCommandCenter from "./components/EnterpriseAuditCommandCenter";
+import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePage";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -1334,6 +1335,11 @@ function Layout() {
       <Routes>
         <Route path="/" element={<DashboardHome />} />
         <Route path="/api/history" element={<InspectionHistory />} />
+
+        <Route
+          path="/portfolio/audit-command-center"
+          element={<AuditCommandCenterEvidencePage />}
+        />
       </Routes>
     </BrowserRouter>
   );
