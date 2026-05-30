@@ -52,6 +52,10 @@ function buildAuditCommandCenterPowerBiCsvUrl(limit = 1000) {
   return `${API_BASE}/api/enterprise/audit-command-center.powerbi.csv?limit=${safeLimit}`;
 }
 
+function buildAuditCommandCenterDataDictionaryPdfUrl() {
+  return `${API_BASE}/api/enterprise/audit-command-center.powerbi.data-dictionary.pdf`;
+}
+
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
     headers: {
@@ -181,6 +185,36 @@ export default function EnterpriseAuditCommandCenter() {
     }
   }
 
+  async function downloadAuditCommandCenterDataDictionaryPdf() {
+    setError("");
+
+    try {
+      const response = await fetch(buildAuditCommandCenterDataDictionaryPdfUrl(), {
+        headers: {
+          Authorization: "Bearer dev-token",
+          "X-LumenAI-Role": "viewer",
+          "X-LumenAI-Actor": "john-demo",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Audit Command Center Data Dictionary PDF download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lumenai-audit-command-center-powerbi-data-dictionary.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown Audit Command Center Data Dictionary PDF download error");
+    }
+  }
+
   useEffect(() => {
     loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,6 +250,10 @@ export default function EnterpriseAuditCommandCenter() {
 
           <button type="button" onClick={downloadAuditCommandCenterPowerBiCsv} style={powerBiCsvButtonStyle}>
             Download Power BI CSV
+          </button>
+
+          <button type="button" onClick={downloadAuditCommandCenterDataDictionaryPdf} style={dataDictionaryButtonStyle}>
+            Download Data Dictionary PDF
           </button>
         </div>
       </div>
@@ -652,6 +690,17 @@ const powerBiCsvButtonStyle: React.CSSProperties = {
   borderRadius: "14px",
   padding: "10px 14px",
   background: "#7c3aed",
+  color: "#ffffff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+
+const dataDictionaryButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: "14px",
+  padding: "10px 14px",
+  background: "#0ea5e9",
   color: "#ffffff",
   fontWeight: 900,
   cursor: "pointer",
