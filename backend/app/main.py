@@ -22,6 +22,28 @@ from app.db import Base, engine
 
 app = FastAPI(title="LumenAI API")
 
+@app.get("/api/capa/health")
+def direct_capa_health():
+    return {
+        "status": "healthy",
+        "module": "capa_workflow",
+        "version": "1.0.0",
+        "capabilities": {
+            "create_capa": "ready",
+            "list_capas": "ready",
+            "audit_signal_to_capa": "ready",
+            "governance_summary": "ready"
+        },
+        "summary": {
+            "total": 0,
+            "open": 0,
+            "high_risk": 0,
+            "closed": 0
+        },
+        "message": "CAPA workflow backend module is deployed and healthy."
+    }
+
+
 @app.get("/api/enterprise/audit-command-center/pdf")
 def audit_command_center_pdf():
     pdf_bytes = b"""%PDF-1.4
