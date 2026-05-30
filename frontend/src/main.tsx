@@ -11,6 +11,7 @@ import PacketActionButtonsPanel from "./components/PacketActionButtonsPanel";
 import InfectionPreventionReviewPanel from "./components/InfectionPreventionReviewPanel";
 import ManufacturerBaselinePanel from "./components/ManufacturerBaselinePanel";
 import EnterpriseAuditCommandCenter from "./components/EnterpriseAuditCommandCenter";
+import CapaWorkflowPanel from "./components/CapaWorkflowPanel";
 import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePage";
 
 const API_BASE =
@@ -771,6 +772,7 @@ function DashboardHome() {
         <PacketActionButtonsPanel />
         <InfectionPreventionReviewPanel />
         <EnterpriseGovernanceCommandCenter />
+        <CapaWorkflowPanel />
         <EnterpriseAuditCommandCenter />
 
         <ManufacturerBaselinePanel />
