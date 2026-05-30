@@ -1338,6 +1338,8 @@ function Layout() {
           padding: "12px 20px",
           display: "flex",
           justifyContent: "center",
+          gap: "12px",
+          flexWrap: "wrap",
         }}
       >
         <Link
@@ -1358,6 +1360,26 @@ function Layout() {
           }}
         >
           Portfolio Evidence · Audit Command Center
+        </Link>
+
+        <Link
+          to="/portfolio/capa-workflow"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 16px",
+            borderRadius: "999px",
+            border: "1px solid rgba(59, 130, 246, 0.45)",
+            background: "rgba(59, 130, 246, 0.12)",
+            color: "#93c5fd",
+            fontWeight: 800,
+            fontSize: "14px",
+            textDecoration: "none",
+            boxShadow: "0 8px 24px rgba(59, 130, 246, 0.15)",
+          }}
+        >
+          Portfolio Evidence · CAPA Workflow
         </Link>
       </div>
       <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
