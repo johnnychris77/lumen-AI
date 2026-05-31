@@ -1,0 +1,8 @@
+538:https://lumen-ai-1.onrender.com/portfolio/enterprise-governance-investor-demo
+561:| Investor Demo Evidence Package | validation/evidence/enterprise-governance-investor-demo/VALIDATION_SUMMARY.md |
+609:validation/evidence/enterprise-governance-investor-demo/
+662:# 13. Enterprise Governance Suite Final Product Launch Summary
+671:docs/releases/ENTERPRISE_GOVERNANCE_SUITE_FINAL_PRODUCT_LAUNCH_SUMMARY_v1.md
+679:https://lumen-ai-1.onrender.com/portfolio/enterprise-governance-investor-demo
+716:- validation/evidence/enterprise-governance-investor-demo/
+723:- docs/releases/ENTERPRISE_GOVERNANCE_SUITE_FINAL_PRODUCT_LAUNCH_SUMMARY_v1.md

@@ -1,0 +1,12 @@
+HTTP/2 200 
+date: Sun, 31 May 2026 20:17:33 GMT
+content-type: text/csv; charset=utf-8
+content-length: 1138
+content-disposition: attachment; filename=lumenai-capa-powerbi.csv
+rndr-id: 3da19d3d-fdf5-444e
+server: cloudflare
+x-render-origin-server: uvicorn
+cf-cache-status: DYNAMIC
+cf-ray: a048a9a6184a277b-IAD
+alt-svc: h3=":443"; ma=86400
+

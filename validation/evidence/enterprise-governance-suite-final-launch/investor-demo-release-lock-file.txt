@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 5.8K May 31 15:34 docs/release-locks/ENTERPRISE_GOVERNANCE_SUITE_INVESTOR_DEMO_RELEASE_LOCK_v1.md
