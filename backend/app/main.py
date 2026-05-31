@@ -18,6 +18,7 @@ from app.routes.stream import router as stream_router
 from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
 from app.routes.capa import router as capa_router
+from app.routes.vendor_governance import router as vendor_governance_router
 from app.services.capa_service import capa_summary as persistent_capa_summary
 from app.db import Base, engine
 
@@ -321,6 +322,7 @@ app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
 app.include_router(capa_router, prefix=settings.API_PREFIX)
+app.include_router(vendor_governance_router, prefix=settings.API_PREFIX)
 
 app.include_router(qa_review_router, prefix=settings.API_PREFIX)
 
