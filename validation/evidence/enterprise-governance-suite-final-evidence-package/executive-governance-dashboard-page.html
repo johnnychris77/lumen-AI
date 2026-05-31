@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LumenAI Executive Governance Dashboard Evidence</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #020617;
+      color: #ffffff;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .hero {
+      border: 1px solid rgba(168, 85, 247, 0.40);
+      background: linear-gradient(135deg, #1e1b4b, #020617);
+      border-radius: 28px;
+      padding: 34px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid rgba(168, 85, 247, 0.55);
+      background: rgba(168, 85, 247, 0.12);
+      color: #d8b4fe;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: 44px;
+      line-height: 1.05;
+      margin: 0;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    p {
+      color: #cbd5e1;
+      line-height: 1.65;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .card {
+      border: 1px solid #1e293b;
+      background: #0f172a;
+      border-radius: 22px;
+      padding: 22px;
+    }
+    a.card {
+      display: block;
+      color: #ffffff;
+      text-decoration: none;
+      transition: 0.2s ease;
+    }
+    a.card:hover {
+      border-color: #c084fc;
+      transform: translateY(-2px);
+    }
+    .metric-label {
+      color: #94a3b8;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+    }
+    .metric-value {
+      font-size: 30px;
+      font-weight: 900;
+      margin-top: 8px;
+      color: #d8b4fe;
+    }
+    .helper {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .ready {
+      display: inline-block;
+      color: #d8b4fe;
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      background: rgba(168, 85, 247, 0.12);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    .link {
+      color: #d8b4fe;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 18px;
+    }
+    code {
+      color: #e9d5ff;
+      background: rgba(168, 85, 247, 0.10);
+      padding: 2px 5px;
+      border-radius: 6px;
+    }
+    ul {
+      color: #cbd5e1;
+      line-height: 1.9;
+      padding-left: 20px;
+    }
+    @media (max-width: 900px) {
+      .metrics, .three, .two {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <div class="badge">Portfolio Evidence · Executive Governance Dashboard</div>
+      <h1>LumenAI Executive Governance Dashboard</h1>
+      <p>
+        The Executive Governance Dashboard consolidates audit readiness, CAPA governance,
+        vendor governance, Power BI export readiness, portfolio evidence, and executive
+        interpretation into one enterprise governance view.
+      </p>
+
+      <div class="grid metrics">
+        <div class="card">
+          <div class="metric-label">Dashboard Status</div>
+          <div class="metric-value">READY</div>
+          <div class="helper">Frontend integrated</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Governance Domains</div>
+          <div class="metric-value">3</div>
+          <div class="helper">Audit, CAPA, Vendor</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Power BI Exports</div>
+          <div class="metric-value">READY</div>
+          <div class="helper">CAPA + Vendor</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Portfolio Links</div>
+          <div class="metric-value">LIVE</div>
+          <div class="helper">Evidence-backed</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid three">
+      <div class="card">
+        <span class="ready">DOMAIN 1</span>
+        <h2>Audit Governance</h2>
+        <p>
+          Connects the Enterprise Audit Command Center, audit validation checks,
+          audit event tracking, high-value events, and evidence exports into the
+          executive governance view.
+        </p>
+      </div>
+
+      <div class="card">
+        <span class="ready">DOMAIN 2</span>
+        <h2>CAPA Governance</h2>
+        <p>
+          Displays CAPA scorecard status, open CAPAs, escalation needs, overdue
+          signals, closure rate, and CAPA Power BI export readiness.
+        </p>
+      </div>
+
+      <div class="card">
+        <span class="ready">DOMAIN 3</span>
+        <h2>Vendor Governance</h2>
+        <p>
+          Displays vendor quality events, high-risk vendor signals, vendor CAPA
+          linkage, vendor trend visibility, and vendor Power BI export readiness.
+        </p>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <h2>Executive Dashboard Capabilities</h2>
+      <div class="grid three">
+        <div class="card">
+          <strong>Enterprise Status</strong>
+          <p>Summarizes whether governance is executive-ready, in watch status, or requires action.</p>
+        </div>
+
+        <div class="card">
+          <strong>Integrated Metrics</strong>
+          <p>Combines audit health, audit events, high-value events, CAPA status, vendor activity, and Power BI readiness.</p>
+        </div>
+
+        <div class="card">
+          <strong>Executive Interpretation</strong>
+          <p>Provides leadership-facing interpretation of escalation signals, vendor risk, and governance readiness.</p>
+        </div>
+
+        <div class="card">
+          <strong>Evidence Links</strong>
+          <p>Provides direct access to Audit, CAPA, and Vendor portfolio pages and production endpoints.</p>
+        </div>
+
+        <div class="card">
+          <strong>Power BI Readiness</strong>
+          <p>Shows readiness for CAPA and Vendor Governance Power BI exports.</p>
+        </div>
+
+        <div class="card">
+          <strong>Release Demonstration</strong>
+          <p>Connects production modules into a portfolio-ready executive demonstration layer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>Production Backend Sources</h2>
+        <ul>
+          <li><code>GET /api/enterprise/audit-command-center/health</code></li>
+          <li><code>GET /api/capa/governance-scorecard?days_until_due=7</code></li>
+          <li><code>GET /api/enterprise/vendor-governance/summary</code></li>
+          <li><code>GET /api/enterprise/vendor-governance/capa-linkage-summary</code></li>
+          <li><code>GET /api/capa/powerbi-csv?limit=500</code></li>
+          <li><code>GET /api/enterprise/vendor-governance/powerbi-csv?limit=500</code></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Business Value</h2>
+        <ul>
+          <li>Executive governance visibility</li>
+          <li>Audit readiness monitoring</li>
+          <li>CAPA performance oversight</li>
+          <li>Vendor accountability</li>
+          <li>High-risk signal prioritization</li>
+          <li>Power BI analytics readiness</li>
+          <li>Portfolio evidence demonstration</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="grid three">
+      <a class="card" href="https://lumen-ai-1.onrender.com/portfolio/audit-command-center">
+        <span class="ready">AUDIT</span>
+        <h2>Audit Evidence</h2>
+        <p>Open the Enterprise Audit Command Center portfolio evidence page.</p>
+        <div class="link">Open Portfolio →</div>
+      </a>
+
+      <a class="card" href="https://lumen-ai-1.onrender.com/portfolio/capa-workflow">
+        <span class="ready">CAPA</span>
+        <h2>CAPA Evidence</h2>
+        <p>Open the CAPA Workflow and Governance Scorecard evidence page.</p>
+        <div class="link">Open Portfolio →</div>
+      </a>
+
+      <a class="card" href="https://lumen-ai-1.onrender.com/portfolio/vendor-governance">
+        <span class="ready">VENDOR</span>
+        <h2>Vendor Evidence</h2>
+        <p>Open the Vendor Governance portfolio evidence page.</p>
+        <div class="link">Open Portfolio →</div>
+      </a>
+    </section>
+
+    <section class="grid three">
+      <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/health">
+        <span class="ready">JSON</span>
+        <h2>Audit Health</h2>
+        <p>Open production Audit Command Center health JSON.</p>
+        <div class="link">Open JSON →</div>
+      </a>
+
+      <a class="card" href="https://lumen-ai-53u4.onrender.com/api/capa/governance-scorecard?days_until_due=7">
+        <span class="ready">JSON</span>
+        <h2>CAPA Scorecard</h2>
+        <p>Open production CAPA Governance Scorecard JSON.</p>
+        <div class="link">Open JSON →</div>
+      </a>
+
+      <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/summary">
+        <span class="ready">JSON</span>
+        <h2>Vendor Summary</h2>
+        <p>Open production Vendor Governance summary JSON.</p>
+        <div class="link">Open JSON →</div>
+      </a>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <h2>Portfolio Statement</h2>
+      <p>
+        Built and validated an Executive Governance Dashboard that connects Audit,
+        CAPA, Vendor Governance, Power BI exports, production endpoints, portfolio
+        evidence pages, and executive interpretation into one enterprise-ready quality
+        governance layer for sterile processing and surgical quality operations.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

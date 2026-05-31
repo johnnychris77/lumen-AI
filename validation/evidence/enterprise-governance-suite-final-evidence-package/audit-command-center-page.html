@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LumenAI Audit Command Center Evidence</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #020617;
+      color: #ffffff;
+    }
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .hero {
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      background: linear-gradient(135deg, #0f172a, #020617);
+      border-radius: 28px;
+      padding: 34px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      background: rgba(52, 211, 153, 0.10);
+      color: #6ee7b7;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: 44px;
+      line-height: 1.05;
+      margin: 0;
+    }
+    p {
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .five {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-top: 20px;
+    }
+    .card {
+      border: 1px solid #1e293b;
+      background: #0f172a;
+      border-radius: 22px;
+      padding: 22px;
+    }
+    .metric-label {
+      color: #94a3b8;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .metric-value {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+    .helper {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    a.card {
+      display: block;
+      color: white;
+      text-decoration: none;
+      transition: 0.2s ease;
+    }
+    a.card:hover {
+      border-color: #34d399;
+      transform: translateY(-2px);
+    }
+    .download {
+      color: #6ee7b7;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 18px;
+    }
+    .capability {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid #1e293b;
+      background: #020617;
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      color: #cbd5e1;
+    }
+    .ready {
+      color: #6ee7b7;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    ul {
+      color: #cbd5e1;
+      line-height: 1.9;
+      padding-left: 20px;
+    }
+    @media (max-width: 900px) {
+      .metrics, .two, .five {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <div class="badge">Portfolio Evidence Page · Production Validated</div>
+      <h1>LumenAI Enterprise Audit Command Center</h1>
+      <p>
+        A production-validated governance and audit-readiness module for centralized visibility,
+        export traceability, Power BI analytics, compliance evidence review, and leadership reporting.
+      </p>
+
+      <div class="grid metrics">
+        <div class="card">
+          <div class="metric-label">Validation Status</div>
+          <div class="metric-value" id="status">HEALTHY</div>
+          <div class="helper">Production health endpoint</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Checks Passed</div>
+          <div class="metric-value" id="checks">18/18</div>
+          <div class="helper">Automated readiness checks</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Failed / Warnings</div>
+          <div class="metric-value" id="failedWarnings">0 / 0</div>
+          <div class="helper">Expected: 0 / 0</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Toolkit Version</div>
+          <div class="metric-value" id="version">1.0.0</div>
+          <div class="helper">Validation package</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>Audit Activity</h2>
+        <p>Production evidence demonstrates active governance visibility and high-value event tracking.</p>
+        <div class="grid two">
+          <div class="card">
+            <div class="metric-label">Audit Events</div>
+            <div class="metric-value" id="auditEvents">696</div>
+          </div>
+          <div class="card">
+            <div class="metric-label">High-Value Events</div>
+            <div class="metric-value" id="highValueEvents">196</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Validated Capabilities</h2>
+        <div id="capabilities">
+          <div class="capability"><span>Dashboard</span><span class="ready">READY</span></div>
+          <div class="capability"><span>Audit PDF</span><span class="ready">READY</span></div>
+          <div class="capability"><span>Audit CSV</span><span class="ready">READY</span></div>
+          <div class="capability"><span>Power BI CSV</span><span class="ready">READY</span></div>
+          <div class="capability"><span>Data Dictionary PDF</span><span class="ready">READY</span></div>
+          <div class="capability"><span>Toolkit ZIP</span><span class="ready">READY</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <h2>Production Export Evidence</h2>
+      <p>These endpoints were validated with HTTP 200 responses and committed as evidence in GitHub.</p>
+
+      <div class="grid five">
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/pdf">
+          <strong>Audit PDF</strong>
+          <p>application/pdf</p>
+          <div class="download">Download Evidence →</div>
+        </a>
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/csv">
+          <strong>Audit CSV</strong>
+          <p>text/csv</p>
+          <div class="download">Download Evidence →</div>
+        </a>
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/powerbi-csv">
+          <strong>Power BI CSV</strong>
+          <p>text/csv</p>
+          <div class="download">Download Evidence →</div>
+        </a>
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/data-dictionary/pdf">
+          <strong>Data Dictionary PDF</strong>
+          <p>application/pdf</p>
+          <div class="download">Download Evidence →</div>
+        </a>
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/toolkit.zip">
+          <strong>Toolkit ZIP</strong>
+          <p>application/zip</p>
+          <div class="download">Download Evidence →</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>Executive Readiness</h2>
+        <ul>
+          <li>Centralized audit command visibility</li>
+          <li>Governance health status</li>
+          <li>Exportable audit evidence</li>
+          <li>Power BI-ready dataset</li>
+          <li>Data dictionary for analytics governance</li>
+          <li>Packaged toolkit for review and validation</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Portfolio Statement</h2>
+        <p>
+          Built and validated a production-ready Enterprise Audit Command Center for LumenAI,
+          including health monitoring, audit event visibility, high-value event tracking,
+          executive reporting exports, Power BI CSV output, data dictionary documentation,
+          and a downloadable toolkit ZIP. Final validation evidence was captured, committed,
+          and pushed to GitHub.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    fetch("https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/health")
+      .then((res) => res.json())
+      .then((data) => {
+        document.getElementById("status").textContent = String(data.status || "healthy").toUpperCase();
+        document.getElementById("checks").textContent = `${data.passed}/${data.total_checks}`;
+        document.getElementById("failedWarnings").textContent = `${data.failed} / ${data.warnings}`;
+        document.getElementById("version").textContent = data.toolkit_version || "1.0.0";
+        document.getElementById("auditEvents").textContent = data.audit_events;
+        document.getElementById("highValueEvents").textContent = data.high_value_events;
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

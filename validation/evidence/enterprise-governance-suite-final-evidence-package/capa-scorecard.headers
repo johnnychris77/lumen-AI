@@ -1,0 +1,11 @@
+HTTP/2 200 
+date: Sun, 31 May 2026 18:42:53 GMT
+content-type: application/json
+rndr-id: baed96a2-4317-4128
+server: cloudflare
+vary: Accept-Encoding
+x-render-origin-server: uvicorn
+cf-cache-status: DYNAMIC
+cf-ray: a0481ef9dcc91320-IAD
+alt-svc: h3=":443"; ma=86400
+
