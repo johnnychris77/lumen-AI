@@ -1,0 +1,17 @@
+HTTP/2 200 
+date: Sun, 31 May 2026 21:11:33 GMT
+content-type: application/pdf
+content-length: 4676
+cache-control: public, max-age=0, s-maxage=300
+accept-ranges: bytes
+etag: "39ae30f3c3889a7ac781b8cfa57467cc"
+last-modified: Sun, 31 May 2026 20:40:17 UTC
+rndr-id: e49a7767-5f9a-4bb5
+server: cloudflare
+strict-transport-security: max-age=315360000; includeSubdomains; preload
+vary: Accept-Encoding
+x-content-type-options: nosniff
+cf-cache-status: EXPIRED
+cf-ray: a048f8c0bdc6f282-IAD
+alt-svc: h3=":443"; ma=86400
+
