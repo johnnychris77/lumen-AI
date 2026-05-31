@@ -1,7 +1,10 @@
+import csv
+import io
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
+from fastapi.responses import Response
 
 from app.services.vendor_governance_service import (
     create_vendor_event,
@@ -11,6 +14,7 @@ from app.services.vendor_governance_service import (
     link_vendor_event_to_capa,
     create_capa_from_vendor_event,
     vendor_capa_linkage_summary,
+    build_vendor_governance_powerbi_rows,
 )
 
 
@@ -135,3 +139,40 @@ def create_capa_for_vendor_event(event_id: str):
         "vendor_event": result["vendor_event"],
         "capa": result["capa"],
     }
+
+
+@router.get("/enterprise/vendor-governance/powerbi-csv")
+def get_vendor_governance_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000)):
+    rows = build_vendor_governance_powerbi_rows(limit=limit)
+
+    fieldnames = [
+        "vendor_event_id",
+        "vendor_name",
+        "event_type",
+        "event_summary",
+        "risk_level",
+        "site",
+        "device_or_tray",
+        "owner",
+        "status",
+        "capa_id",
+        "is_high_risk",
+        "is_linked_to_capa",
+        "created_at",
+        "updated_at",
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for row in rows:
+        writer.writerow(row)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=lumenai-vendor-governance-powerbi.csv"
+        },
+    )

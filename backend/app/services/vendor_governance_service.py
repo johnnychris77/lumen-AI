@@ -173,3 +173,35 @@ def vendor_capa_linkage_summary() -> Dict:
         "linked_events": linked[:25],
         "unlinked_high_risk_events": high_risk_unlinked[:25],
     }
+
+
+def build_vendor_governance_powerbi_rows(limit: int = 500) -> List[Dict]:
+    """
+    Builds flat Vendor Governance rows for Power BI / analytics export.
+    """
+    rows = []
+
+    for event in list_vendor_events(limit=limit):
+        risk_level = event.get("risk_level") or ""
+        capa_id = event.get("capa_id")
+
+        rows.append(
+            {
+                "vendor_event_id": event.get("id"),
+                "vendor_name": event.get("vendor_name"),
+                "event_type": event.get("event_type"),
+                "event_summary": event.get("event_summary"),
+                "risk_level": risk_level,
+                "site": event.get("site"),
+                "device_or_tray": event.get("device_or_tray"),
+                "owner": event.get("owner"),
+                "status": event.get("status"),
+                "capa_id": capa_id or "",
+                "is_high_risk": "true" if risk_level in {"high", "critical"} else "false",
+                "is_linked_to_capa": "true" if capa_id else "false",
+                "created_at": event.get("created_at"),
+                "updated_at": event.get("updated_at"),
+            }
+        )
+
+    return rows
