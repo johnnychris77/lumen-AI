@@ -250,3 +250,110 @@ Release: `LumenAI CAPA Governance Scorecard v1.0.0`
 ## CAPA Governance Final Status
 
 The CAPA Governance Scorecard v1.0.0 release is production validated, portfolio updated, evidence backed, GitHub tagged, GitHub released, and ready for executive governance demonstration.
+
+---
+
+# LumenAI Vendor Governance Module v1.0.0
+
+## Release Status
+
+**Released · Production Validated · Portfolio Linked · Evidence Backed · CAPA-Linked · Frontend Integrated · Executive Governance Ready**
+
+The Vendor Governance Module extends the LumenAI Enterprise Governance Suite beyond internal audit and CAPA workflow into vendor accountability, vendor quality signal tracking, vendor risk visibility, and vendor-linked CAPA review.
+
+## Vendor Governance Capabilities
+
+### Vendor Quality Event Tracking
+
+Vendor quality signals can be captured as structured governance events.
+
+Supported fields:
+
+- vendor_name
+- event_type
+- event_summary
+- risk_level
+- site
+- device_or_tray
+- owner
+- capa_id
+- status
+- created_at
+- updated_at
+
+### Vendor Risk Summary
+
+The module summarizes vendor activity and risk concentration.
+
+Validated summary fields:
+
+- total_vendor_events
+- open_vendor_events
+- high_risk_vendor_events
+- vendor_events_linked_to_capa
+- top_vendors
+
+### Vendor CAPA Linkage
+
+Vendor quality events can be linked to CAPA records or used to create a new CAPA.
+
+Production endpoints:
+
+| Capability | Endpoint |
+|---|---|
+| Vendor CAPA Linkage Summary | `GET /api/enterprise/vendor-governance/capa-linkage-summary` |
+| Create CAPA from Vendor Event | `POST /api/enterprise/vendor-governance/events/{event_id}/create-capa` |
+| Link Vendor Event to CAPA | `POST /api/enterprise/vendor-governance/events/{event_id}/link-capa` |
+
+### Vendor Governance Frontend Panel
+
+The main LumenAI dashboard includes:
+
+- Vendor Governance · Quality Accountability
+- Vendor Governance Panel
+- Total Vendor Events
+- Open Vendor Events
+- High-Risk Vendor Events
+- Linked to CAPA
+- Without CAPA
+- High-Risk Without CAPA
+- Top Vendors
+- Recent Vendor Quality Signals
+- Create Vendor Event
+- Create CAPA
+- Linked CAPA visibility
+
+## Vendor Governance Production URLs
+
+| Capability | URL |
+|---|---|
+| Vendor Governance Health | https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/health |
+| Vendor Governance Summary | https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/summary |
+| Vendor Governance Events | https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/events?limit=10 |
+| Vendor CAPA Linkage Summary | https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/capa-linkage-summary |
+| Vendor Governance Portfolio Page | https://lumen-ai-1.onrender.com/portfolio/vendor-governance |
+
+## Vendor Governance Documentation
+
+| Artifact | Path |
+|---|---|
+| Vendor Governance Release Notes | docs/releases/VENDOR_GOVERNANCE_RELEASE_NOTES_v1.md |
+| Vendor Governance Release Lock | docs/release-locks/VENDOR_GOVERNANCE_RELEASE_LOCK_v1.md |
+| Vendor Governance Evidence Package | validation/evidence/vendor-governance/VALIDATION_SUMMARY.md |
+
+## Vendor Governance Business Value
+
+This release supports:
+
+- Vendor accountability
+- Vendor quality signal tracking
+- Vendor trend visibility
+- High-risk vendor event monitoring
+- Vendor-linked CAPA review
+- SPD / OR vendor issue evidence
+- Executive governance reporting
+- Portfolio-ready vendor quality demonstration
+
+## Vendor Governance Final Status
+
+The LumenAI Vendor Governance Module v1.0.0 is production validated, portfolio linked, evidence backed, CAPA-linked, frontend integrated, and ready for executive governance demonstration.
