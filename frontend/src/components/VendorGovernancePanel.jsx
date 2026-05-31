@@ -6,6 +6,7 @@ const API_BASE =
 export default function VendorGovernancePanel() {
   const [summary, setSummary] = useState(null);
   const [events, setEvents] = useState([]);
+  const [linkageSummary, setLinkageSummary] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -13,9 +14,10 @@ export default function VendorGovernancePanel() {
     try {
       setErrorMessage("");
 
-      const [summaryResponse, eventsResponse] = await Promise.all([
+      const [summaryResponse, eventsResponse, linkageResponse] = await Promise.all([
         fetch(`${API_BASE}/api/enterprise/vendor-governance/summary`),
         fetch(`${API_BASE}/api/enterprise/vendor-governance/events?limit=10`),
+        fetch(`${API_BASE}/api/enterprise/vendor-governance/capa-linkage-summary`),
       ]);
 
       if (!summaryResponse.ok) {
@@ -26,14 +28,44 @@ export default function VendorGovernancePanel() {
         throw new Error(`Vendor events returned ${eventsResponse.status}`);
       }
 
+      if (!linkageResponse.ok) {
+        throw new Error(`Vendor CAPA linkage returned ${linkageResponse.status}`);
+      }
+
       const summaryJson = await summaryResponse.json();
       const eventsJson = await eventsResponse.json();
+      const linkageJson = await linkageResponse.json();
 
       setSummary(summaryJson.summary || {});
       setEvents(eventsJson.items || []);
+      setLinkageSummary(linkageJson.summary || {});
     } catch (error) {
       setErrorMessage(
         error.message || "Unable to load Vendor Governance data."
+      );
+    }
+  }
+
+
+  async function createCapaFromVendorEvent(eventId) {
+    try {
+      setErrorMessage("");
+
+      const response = await fetch(
+        `${API_BASE}/api/enterprise/vendor-governance/events/${eventId}/create-capa`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Create CAPA from vendor event returned ${response.status}`);
+      }
+
+      await loadVendorGovernance();
+    } catch (error) {
+      setErrorMessage(
+        error.message || "Unable to create CAPA from vendor event."
       );
     }
   }
@@ -87,6 +119,13 @@ export default function VendorGovernancePanel() {
     high_risk_vendor_events: 0,
     vendor_events_linked_to_capa: 0,
     top_vendors: [],
+  };
+
+  const safeLinkageSummary = linkageSummary || {
+    total_vendor_events: 0,
+    vendor_events_linked_to_capa: 0,
+    vendor_events_without_capa: 0,
+    high_risk_vendor_events_without_capa: 0,
   };
 
   return (
@@ -202,6 +241,16 @@ export default function VendorGovernancePanel() {
               value={safeSummary.vendor_events_linked_to_capa}
               tone="good"
             />
+            <MetricCard
+              label="Without CAPA"
+              value={safeLinkageSummary.vendor_events_without_capa}
+              tone={safeLinkageSummary.vendor_events_without_capa > 0 ? "warning" : "good"}
+            />
+            <MetricCard
+              label="High-Risk Without CAPA"
+              value={safeLinkageSummary.high_risk_vendor_events_without_capa}
+              tone={safeLinkageSummary.high_risk_vendor_events_without_capa > 0 ? "danger" : "good"}
+            />
           </div>
 
           <div
@@ -213,7 +262,7 @@ export default function VendorGovernancePanel() {
             }}
           >
             <TopVendors vendors={safeSummary.top_vendors || []} />
-            <VendorEvents events={events} />
+            <VendorEvents events={events} onCreateCapa={createCapaFromVendorEvent} />
           </div>
         </>
       )}
@@ -328,7 +377,7 @@ function TopVendors({ vendors }) {
   );
 }
 
-function VendorEvents({ events }) {
+function VendorEvents({ events, onCreateCapa }) {
   return (
     <div
       style={{
@@ -369,6 +418,35 @@ function VendorEvents({ events }) {
                 {event.risk_level || "medium"} · Owner:{" "}
                 {event.owner || "Quality / Operations"}
               </div>
+
+              {event.capa_id ? (
+                <div
+                  style={{
+                    marginTop: "10px",
+                    color: "#15803d",
+                    fontWeight: 800,
+                    fontSize: "13px",
+                  }}
+                >
+                  Linked CAPA: {event.capa_id}
+                </div>
+              ) : (
+                <button
+                  onClick={() => onCreateCapa(event.id)}
+                  style={{
+                    marginTop: "10px",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "999px",
+                    background: "#f0fdf4",
+                    color: "#15803d",
+                    padding: "8px 12px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Create CAPA
+                </button>
+              )}
             </div>
           ))}
         </div>
