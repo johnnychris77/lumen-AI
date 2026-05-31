@@ -47,6 +47,14 @@ export default function VendorGovernancePanel() {
   }
 
 
+
+  function downloadVendorPowerBiCsv() {
+    window.open(
+      `${API_BASE}/api/enterprise/vendor-governance/powerbi-csv?limit=500`,
+      "_blank"
+    );
+  }
+
   async function createCapaFromVendorEvent(eventId) {
     try {
       setErrorMessage("");
@@ -175,22 +183,47 @@ export default function VendorGovernancePanel() {
           </p>
         </div>
 
-        <button
-          onClick={createSampleVendorEvent}
-          disabled={creating}
+        <div
           style={{
-            border: "none",
-            borderRadius: "999px",
-            background: creating ? "#94a3b8" : "#0369a1",
-            color: "#ffffff",
-            padding: "12px 18px",
-            fontWeight: 800,
-            cursor: creating ? "not-allowed" : "pointer",
-            boxShadow: "0 8px 20px rgba(3, 105, 161, 0.22)",
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
           }}
         >
-          {creating ? "Creating Event..." : "Create Vendor Event"}
-        </button>
+          <button
+            onClick={downloadVendorPowerBiCsv}
+            style={{
+              border: "1px solid #bae6fd",
+              borderRadius: "999px",
+              background: "#f0f9ff",
+              color: "#0369a1",
+              padding: "12px 18px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 8px 20px rgba(3, 105, 161, 0.12)",
+            }}
+          >
+            Download Vendor Power BI CSV
+          </button>
+
+          <button
+            onClick={createSampleVendorEvent}
+            disabled={creating}
+            style={{
+              border: "none",
+              borderRadius: "999px",
+              background: creating ? "#94a3b8" : "#0369a1",
+              color: "#ffffff",
+              padding: "12px 18px",
+              fontWeight: 800,
+              cursor: creating ? "not-allowed" : "pointer",
+              boxShadow: "0 8px 20px rgba(3, 105, 161, 0.22)",
+            }}
+          >
+            {creating ? "Creating Event..." : "Create Vendor Event"}
+          </button>
+        </div>
       </div>
 
       {errorMessage && (
