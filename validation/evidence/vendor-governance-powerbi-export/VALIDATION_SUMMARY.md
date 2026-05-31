@@ -1,4 +1,4 @@
-# LumenAI Vendor Governance Power BI Export v1 Validation Summary
+# LumenAI Vendor Governance Power BI Export Evidence Lock v1
 
 ## Validation Status
 PASSED
@@ -34,8 +34,25 @@ text/csv
 - created_at
 - updated_at
 
+## Frontend Integration
+The Vendor Governance Panel includes a visible frontend button:
+
+Download Vendor Power BI CSV
+
+The button opens:
+
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500
+
+## Validation Note
+The endpoint should be validated using a GET request. Browser downloads and standard curl GET requests work as expected.
+
+## Evidence Files
+- headers.txt
+- lumenai-vendor-governance-powerbi.csv
+- VALIDATION_SUMMARY.md
+
 ## Business Value
-This export enables vendor governance data to be used in Power BI, vendor trend dashboards, high-risk vendor event reporting, CAPA linkage reporting, and executive governance scorecards.
+The Vendor Governance Power BI export enables vendor quality event data to be used in Power BI, vendor trend dashboards, high-risk vendor event reporting, CAPA linkage reporting, and executive governance scorecards.
 
 ## Final Result
-Vendor Governance Power BI Export v1 is production validated.
+LumenAI Vendor Governance Power BI Export Evidence Lock v1 is complete.
