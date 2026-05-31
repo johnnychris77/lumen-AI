@@ -1,0 +1,3 @@
+212:# Vendor Governance Power BI Export Addendum
+221:GET /api/enterprise/vendor-governance/powerbi-csv?limit=500
+224:https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500

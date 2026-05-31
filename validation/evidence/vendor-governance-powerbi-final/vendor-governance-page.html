@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LumenAI Vendor Governance Evidence</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #020617;
+      color: #ffffff;
+    }
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .hero {
+      border: 1px solid rgba(14, 165, 233, 0.35);
+      background: linear-gradient(135deg, #0f172a, #020617);
+      border-radius: 28px;
+      padding: 34px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid rgba(14, 165, 233, 0.45);
+      background: rgba(14, 165, 233, 0.10);
+      color: #7dd3fc;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: 44px;
+      line-height: 1.05;
+      margin: 0;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    p {
+      color: #cbd5e1;
+      line-height: 1.65;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .card {
+      border: 1px solid #1e293b;
+      background: #0f172a;
+      border-radius: 22px;
+      padding: 22px;
+    }
+    a.card {
+      display: block;
+      color: #ffffff;
+      text-decoration: none;
+      transition: 0.2s ease;
+    }
+    a.card:hover {
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }
+    .metric-label {
+      color: #94a3b8;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+    }
+    .metric-value {
+      font-size: 30px;
+      font-weight: 900;
+      margin-top: 8px;
+      color: #7dd3fc;
+    }
+    .helper {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .ready {
+      display: inline-block;
+      color: #7dd3fc;
+      border: 1px solid rgba(14, 165, 233, 0.35);
+      background: rgba(14, 165, 233, 0.10);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    .link {
+      color: #7dd3fc;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 18px;
+    }
+    code {
+      color: #bae6fd;
+      background: rgba(14, 165, 233, 0.08);
+      padding: 2px 5px;
+      border-radius: 6px;
+    }
+    ul {
+      color: #cbd5e1;
+      line-height: 1.9;
+      padding-left: 20px;
+    }
+    @media (max-width: 900px) {
+      .metrics, .three, .two {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <div class="badge">Portfolio Evidence · Vendor Governance</div>
+      <h1>LumenAI Vendor Governance Module</h1>
+      <p>
+        The Vendor Governance module extends LumenAI’s enterprise quality governance
+        suite into vendor accountability, vendor quality signal tracking, vendor trend
+        visibility, and vendor-linked CAPA review.
+      </p>
+
+      <div class="grid metrics">
+        <div class="card">
+          <div class="metric-label">Module Status</div>
+          <div class="metric-value">READY</div>
+          <div class="helper">Production deployed</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Event Tracking</div>
+          <div class="metric-value">LIVE</div>
+          <div class="helper">Vendor quality signals</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">CAPA Linkage</div>
+          <div class="metric-value">READY</div>
+          <div class="helper">Vendor event to CAPA</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Governance Summary</div>
+          <div class="metric-value">READY</div>
+          <div class="helper">Vendor risk visibility</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid three">
+      <div class="card">
+        <span class="ready">CAPABILITY 1</span>
+        <h2>Vendor Quality Event Tracking</h2>
+        <p>
+          Captures vendor quality signals such as tray quality issues, missing instruments,
+          documentation gaps, IFU review needs, and site-specific vendor concerns.
+        </p>
+      </div>
+
+      <div class="card">
+        <span class="ready">CAPABILITY 2</span>
+        <h2>Vendor Risk Summary</h2>
+        <p>
+          Summarizes total vendor events, open vendor events, high-risk vendor events,
+          vendor event concentration, and top vendor trends.
+        </p>
+      </div>
+
+      <div class="card">
+        <span class="ready">CAPABILITY 3</span>
+        <h2>Vendor CAPA Linkage</h2>
+        <p>
+          Connects vendor events to CAPA workflow by creating or linking CAPA records
+          from vendor quality signals.
+        </p>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>Production Endpoints</h2>
+        <ul>
+          <li><code>GET /api/enterprise/vendor-governance/health</code></li>
+          <li><code>GET /api/enterprise/vendor-governance/summary</code></li>
+          <li><code>GET /api/enterprise/vendor-governance/events</code></li>
+          <li><code>POST /api/enterprise/vendor-governance/events</code></li>
+          <li><code>GET /api/enterprise/vendor-governance/capa-linkage-summary</code></li>
+          <li><code>POST /api/enterprise/vendor-governance/events/{event_id}/create-capa</code></li>
+          <li><code>POST /api/enterprise/vendor-governance/events/{event_id}/link-capa</code></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Business Value</h2>
+        <ul>
+          <li>Vendor accountability</li>
+          <li>Vendor quality trend visibility</li>
+          <li>High-risk vendor event tracking</li>
+          <li>Vendor-linked CAPA governance</li>
+          <li>SPD / OR vendor issue evidence</li>
+          <li>Executive quality governance reporting</li>
+          <li>Portfolio-ready vendor quality demonstration</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <h2>Vendor Governance Workflow</h2>
+      <div class="grid three">
+        <div class="card">
+          <strong>1. Vendor Signal</strong>
+          <p>Vendor quality signal is captured from tray, device, documentation, IFU, or site-specific issue.</p>
+        </div>
+        <div class="card">
+          <strong>2. Governance Review</strong>
+          <p>Signal is categorized by vendor, risk level, site, owner, and device or tray.</p>
+        </div>
+        <div class="card">
+          <strong>3. CAPA Linkage</strong>
+          <p>Vendor event can trigger or link to a CAPA record for corrective and preventive action.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid three">
+      <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/health">
+        <span class="ready">HEALTH</span>
+        <h2>Vendor Health</h2>
+        <p>Open the production Vendor Governance health endpoint.</p>
+        <div class="link">Open JSON →</div>
+      </a>
+
+      <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/summary">
+        <span class="ready">SUMMARY</span>
+        <h2>Vendor Summary</h2>
+        <p>Open the vendor governance summary endpoint.</p>
+        <div class="link">Open JSON →</div>
+      </a>
+
+      <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/capa-linkage-summary">
+        <span class="ready">CAPA LINKAGE</span>
+        <h2>CAPA Linkage Summary</h2>
+        <p>Open the vendor-to-CAPA linkage summary endpoint.</p>
+        <div class="link">Open JSON →</div>
+      </a>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <h2>Portfolio Statement</h2>
+      <p>
+        Built and validated a Vendor Governance module that extends the LumenAI Enterprise
+        Governance Suite into vendor accountability. The module supports vendor quality
+        signal tracking, risk summaries, top vendor trends, CAPA linkage, and executive
+        governance visibility for sterile processing and surgical quality operations.
+      </p>
+    </section>
+  
+    <section class="card" style="margin-top: 28px;">
+      <span class="ready">POWER BI EXPORT</span>
+      <h2>Vendor Governance Power BI Export</h2>
+      <p>
+        The Vendor Governance module now includes a Power BI-ready CSV export for
+        vendor quality events, risk level, site, device or tray, owner, CAPA linkage,
+        high-risk classification, and vendor trend reporting.
+      </p>
+
+      <div class="grid three">
+        <div class="card">
+          <strong>Vendor Analytics Dataset</strong>
+          <p>Exports structured vendor governance event data for dashboarding, scorecards, and trend analysis.</p>
+          <div class="link">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>CAPA Linkage Reporting</strong>
+          <p>Includes CAPA ID and linkage flags so vendor events can be analyzed against corrective action workflows.</p>
+          <div class="link">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>High-Risk Vendor Monitoring</strong>
+          <p>Includes high-risk flags for vendor issue prioritization and executive governance review.</p>
+          <div class="link">READY</div>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500">
+          <strong>Download Vendor Power BI CSV</strong>
+          <p><code>GET /api/enterprise/vendor-governance/powerbi-csv?limit=500</code></p>
+          <div class="link">Download CSV →</div>
+        </a>
+
+        <div class="card">
+          <strong>Validated CSV Fields</strong>
+          <p>
+            vendor_event_id, vendor_name, event_type, event_summary, risk_level,
+            site, device_or_tray, owner, status, capa_id, is_high_risk,
+            is_linked_to_capa, created_at, updated_at
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>
