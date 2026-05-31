@@ -13,6 +13,7 @@ import ManufacturerBaselinePanel from "./components/ManufacturerBaselinePanel";
 import EnterpriseAuditCommandCenter from "./components/EnterpriseAuditCommandCenter";
 import CapaWorkflowPanel from "./components/CapaWorkflowPanel";
 import CapaEscalationCards from "./components/CapaEscalationCards";
+import CapaGovernanceScorecard from "./components/CapaGovernanceScorecard";
 import AuditToCapaIntegrationCard from "./components/AuditToCapaIntegrationCard";
 import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePage";
 
@@ -776,6 +777,7 @@ function DashboardHome() {
         <EnterpriseGovernanceCommandCenter />
         <CapaWorkflowPanel />
         <CapaEscalationCards />
+        <CapaGovernanceScorecard />
         <AuditToCapaIntegrationCard />
         <EnterpriseAuditCommandCenter />
 
