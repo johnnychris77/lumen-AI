@@ -196,3 +196,52 @@ Vendor Quality Signal
 # 6. Final Release Statement
 
 The LumenAI Vendor Governance Module v1.0.0 is released, production validated, portfolio linked, evidence backed, and ready for executive governance demonstration.
+
+---
+
+# Vendor Governance Power BI Export Update
+
+## Update Status
+RELEASED
+
+## Capability
+Vendor Governance Power BI-ready CSV export
+
+## Production Endpoint
+GET /api/enterprise/vendor-governance/powerbi-csv?limit=500
+
+## Production URL
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500
+
+## Validated CSV Fields
+- vendor_event_id
+- vendor_name
+- event_type
+- event_summary
+- risk_level
+- site
+- device_or_tray
+- owner
+- status
+- capa_id
+- is_high_risk
+- is_linked_to_capa
+- created_at
+- updated_at
+
+## Frontend Integration
+The Vendor Governance Panel includes a visible button:
+
+Download Vendor Power BI CSV
+
+## Portfolio Integration
+The Vendor Governance portfolio page, Governance Hub, and Governance Summary now reference the Vendor Governance Power BI export capability.
+
+## Evidence Package
+validation/evidence/vendor-governance-powerbi-export/
+
+## Business Value
+The Vendor Governance Power BI export enables vendor event analytics, vendor trend dashboards, high-risk vendor monitoring, CAPA linkage reporting, and executive governance scorecards.
+
+## Final Result
+Vendor Governance Power BI Export is released, portfolio-linked, frontend-accessible, and evidence-backed.

@@ -206,3 +206,49 @@ Final status:
 - CAPA-linked
 - Frontend integrated
 - Executive governance demonstration ready
+
+---
+
+# Vendor Governance Power BI Export Addendum
+
+## Addendum Status
+LOCKED
+
+## Capability
+Vendor Governance Power BI-ready CSV export
+
+## Production Endpoint
+GET /api/enterprise/vendor-governance/powerbi-csv?limit=500
+
+## Production URL
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500
+
+## Validated CSV Fields
+- vendor_event_id
+- vendor_name
+- event_type
+- event_summary
+- risk_level
+- site
+- device_or_tray
+- owner
+- status
+- capa_id
+- is_high_risk
+- is_linked_to_capa
+- created_at
+- updated_at
+
+## Frontend Integration
+The Vendor Governance Panel includes a visible button:
+
+Download Vendor Power BI CSV
+
+## Portfolio Integration
+The Vendor Governance portfolio page, Governance Hub, and Governance Summary reference the Vendor Governance Power BI export capability.
+
+## Evidence Package
+validation/evidence/vendor-governance-powerbi-export/
+
+## Final Status
+Vendor Governance Power BI Export is released, evidence-backed, portfolio-linked, frontend-accessible, and executive analytics ready.
