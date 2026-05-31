@@ -208,3 +208,45 @@ This project demonstrates enterprise workflow automation, healthcare operations 
 
 ![LumenAI Vendor Intelligence and Model Performance](docs/assets/screenshots/lumenai-vendor-model-performance.png)
 
+
+---
+
+# LumenAI CAPA Governance Scorecard Final Release
+
+## Release Status
+
+**Released · Production Validated · Evidence Backed · GitHub Released · Portfolio Updated · Power BI Ready · Executive Scorecard Ready**
+
+The CAPA Governance Scorecard release expands the LumenAI CAPA Workflow into an executive governance capability with persistent database architecture, status updates, overdue escalation, Power BI export, frontend scorecards, and final validation evidence.
+
+## CAPA Governance Production URLs
+
+| Capability | URL |
+|---|---|
+| CAPA Health | https://lumen-ai-53u4.onrender.com/api/capa/health |
+| CAPA Governance Scorecard | https://lumen-ai-53u4.onrender.com/api/capa/governance-scorecard?days_until_due=7 |
+| CAPA Escalation Summary | https://lumen-ai-53u4.onrender.com/api/capa/escalation-summary?days_until_due=7 |
+| CAPA Power BI CSV | https://lumen-ai-53u4.onrender.com/api/capa/powerbi-csv?limit=500 |
+| CAPA Workflow Evidence Page | https://lumen-ai-1.onrender.com/portfolio/capa-workflow |
+| Governance Hub | https://lumen-ai-1.onrender.com/portfolio/governance-hub |
+| Governance Summary | https://lumen-ai-1.onrender.com/portfolio/governance-summary |
+
+## CAPA Governance Documentation
+
+| Artifact | Path |
+|---|---|
+| CAPA Governance Release Notes | docs/releases/CAPA_GOVERNANCE_SCORECARD_RELEASE_NOTES_v1.md |
+| CAPA Governance Release Lock | docs/release-locks/CAPA_GOVERNANCE_SCORECARD_RELEASE_LOCK_v1.md |
+| CAPA Governance Final Validation Packet | validation/evidence/capa-governance-final/FINAL_VALIDATION_SUMMARY.md |
+| CAPA Governance Scorecard Evidence | validation/evidence/capa-governance-scorecard/ |
+| CAPA Power BI Export Evidence | validation/evidence/capa-powerbi-export/ |
+
+## CAPA Governance GitHub Release
+
+Tag: `capa-governance-scorecard-v1.0.0`
+
+Release: `LumenAI CAPA Governance Scorecard v1.0.0`
+
+## CAPA Governance Final Status
+
+The CAPA Governance Scorecard v1.0.0 release is production validated, portfolio updated, evidence backed, GitHub tagged, GitHub released, and ready for executive governance demonstration.
