@@ -1,0 +1,2 @@
+24:from app.routes.governance_intelligence import router as governance_intelligence_router
+550:app.include_router(governance_intelligence_router)

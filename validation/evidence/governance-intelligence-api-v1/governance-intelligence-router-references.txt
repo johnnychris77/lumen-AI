@@ -1,0 +1,15 @@
+4:from fastapi import APIRouter
+6:router = APIRouter(
+7:    prefix="/api/enterprise/governance-intelligence",
+24:@router.get("/health")
+36:            "executive_recommendations",
+42:@router.get("/summary")
+50:            "/api/enterprise/audit-command-center/health",
+73:            "/api/enterprise/vendor-governance/summary",
+104:    governance_health_score = round(sum(signal_scores) / len(signal_scores))
+105:    overall_status = _score_status(governance_health_score)
+107:    executive_recommendations: List[str] = [
+114:    next_actions: List[Dict[str, str]] = [
+141:        "governance_health_score": governance_health_score,
+148:        "executive_recommendations": executive_recommendations,
+149:        "next_actions": next_actions,
