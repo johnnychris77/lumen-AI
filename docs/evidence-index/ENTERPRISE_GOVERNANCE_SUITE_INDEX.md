@@ -518,3 +518,141 @@ The LumenAI Executive Governance Suite provides executive visibility across audi
 ## Final Suite Status
 
 The LumenAI Executive Governance Suite v1.0.0 is production validated, evidence backed, portfolio linked, frontend integrated, Power BI ready, GitHub tagged, GitHub released, and executive governance demonstration ready.
+
+---
+
+# 12. Enterprise Governance Suite Investor Demo Layer
+
+## Release Status
+RELEASED AND LOCKED
+
+## Suite Version
+v1.0.0
+
+## Investor Demo Layer Status
+Publicly Accessible · Evidence Backed · PDF Linked · Power BI Linked · GitHub Release Aligned · Investor Ready · Executive Demo Ready
+
+## Public Investor Demo Assets
+
+Investor Demo Page:
+https://lumen-ai-1.onrender.com/portfolio/enterprise-governance-investor-demo
+
+Final Suite Evidence Page:
+https://lumen-ai-1.onrender.com/portfolio/enterprise-governance-suite-final
+
+Governance Hub:
+https://lumen-ai-1.onrender.com/portfolio/governance-hub
+
+Governance Summary:
+https://lumen-ai-1.onrender.com/portfolio/governance-summary
+
+Executive PDF One-Pager:
+https://lumen-ai-1.onrender.com/downloads/ENTERPRISE_GOVERNANCE_SUITE_FINAL_EXECUTIVE_ONE_PAGER_v1.pdf
+
+## Investor Documentation
+
+| Artifact | Path |
+|---|---|
+| Investor Demo Script | docs/investor/ENTERPRISE_GOVERNANCE_SUITE_FINAL_INVESTOR_DEMO_SCRIPT_v1.md |
+| Investor Portfolio Packet | docs/investor/ENTERPRISE_GOVERNANCE_SUITE_FINAL_INVESTOR_PORTFOLIO_PACKET_v1.md |
+| Executive One-Pager Markdown | docs/investor/ENTERPRISE_GOVERNANCE_SUITE_FINAL_EXECUTIVE_ONE_PAGER_v1.md |
+| Executive One-Pager PDF | docs/investor/ENTERPRISE_GOVERNANCE_SUITE_FINAL_EXECUTIVE_ONE_PAGER_v1.pdf |
+| Investor Demo Release Lock | docs/release-locks/ENTERPRISE_GOVERNANCE_SUITE_INVESTOR_DEMO_RELEASE_LOCK_v1.md |
+| Investor Demo Evidence Package | validation/evidence/enterprise-governance-investor-demo/VALIDATION_SUMMARY.md |
+
+## Validated Investor Demo Flow
+
+1. Final Suite Evidence Page
+2. Governance Hub
+3. Audit Command Center
+4. CAPA Governance Scorecard
+5. CAPA Power BI CSV Export
+6. Vendor Governance Module
+7. Vendor CAPA Linkage
+8. Vendor Power BI CSV Export
+9. Executive Governance Dashboard
+10. Executive PDF One-Pager
+11. GitHub release discipline
+12. Investor positioning
+
+## Production Demo Links
+
+Audit Health:
+https://lumen-ai-53u4.onrender.com/api/enterprise/audit-command-center/health
+
+CAPA Scorecard:
+https://lumen-ai-53u4.onrender.com/api/capa/governance-scorecard?days_until_due=7
+
+CAPA Power BI CSV:
+https://lumen-ai-53u4.onrender.com/api/capa/powerbi-csv?limit=500
+
+Vendor Summary:
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/summary
+
+Vendor CAPA Linkage:
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/capa-linkage-summary
+
+Vendor Power BI CSV:
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500
+
+## Release Tags
+
+- enterprise-governance-suite-v1.0.0
+- enterprise-governance-suite-final-v1.0.0
+- capa-governance-scorecard-v1.0.0
+- vendor-governance-v1.0.0
+- executive-governance-dashboard-v1.0.0
+
+## Investor Demo Evidence Package
+
+Evidence folder:
+validation/evidence/enterprise-governance-investor-demo/
+
+Evidence files:
+- investor-demo-page.html
+- final-suite-page.html
+- governance-hub-page.html
+- main-app.html
+- executive-pdf.headers
+- ENTERPRISE_GOVERNANCE_SUITE_FINAL_EXECUTIVE_ONE_PAGER_v1.pdf
+- capa-powerbi.headers
+- lumenai-capa-powerbi.csv
+- vendor-powerbi.headers
+- lumenai-vendor-governance-powerbi.csv
+- release-tags.txt
+- final-suite-github-release.txt
+- investor-demo-script-file.txt
+- investor-portfolio-packet-file.txt
+- executive-one-pager-md-file.txt
+- executive-one-pager-pdf-file.txt
+- VALIDATION_SUMMARY.md
+
+## Investor-Ready Product Narrative
+
+LumenAI began as a sterile processing inspection concept and has expanded into an enterprise healthcare quality governance platform.
+
+The platform now connects:
+
+Audit Governance  
+→ CAPA Governance  
+→ Vendor Governance  
+→ Power BI Analytics  
+→ Portfolio Evidence  
+→ Executive Interpretation  
+→ Investor Demo Story
+
+## Business Value
+
+The Investor Demo Layer supports:
+
+- Investor review
+- Executive leadership demonstration
+- Health system product storytelling
+- Vendor partnership conversations
+- Enterprise SaaS positioning
+- Healthcare quality governance narrative
+- Internal product maturity evidence
+
+## Final Status
+
+The LumenAI Enterprise Governance Suite Investor Demo Layer v1 is publicly accessible, evidence backed, PDF linked, Power BI linked, GitHub release aligned, investor ready, and executive demonstration ready.
