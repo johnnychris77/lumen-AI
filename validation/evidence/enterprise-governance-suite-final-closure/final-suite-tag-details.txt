@@ -1,0 +1,39 @@
+tag enterprise-governance-suite-final-v1.0.0
+
+Final release refresh for LumenAI Enterprise Governance Suite v1.0.0
+681ae99 Add enterprise governance suite final evidence package v1
+ .../FINAL_EVIDENCE_PACKAGE_SUMMARY.md              |  97 +++++
+ .../audit-command-center-page.html                 | 268 ++++++++++++
+ .../audit-health.headers                           |  11 +
+ .../audit-health.json                              |   1 +
+ .../capa-escalation.headers                        |  11 +
+ .../capa-escalation.json                           |   1 +
+ .../capa-github-release.txt                        | 269 ++++++++++++
+ .../capa-health.headers                            |  11 +
+ .../capa-health.json                               |   1 +
+ .../capa-powerbi.headers                           |  12 +
+ .../capa-scorecard.headers                         |  11 +
+ .../capa-scorecard.json                            |   1 +
+ .../capa-workflow-page.html                        | 334 +++++++++++++++
+ .../enterprise-suite-github-release.txt            | 255 ++++++++++++
+ .../evidence-index-suite-references.txt            |   3 +
+ .../executive-github-release.txt                   | 244 +++++++++++
+ .../executive-governance-dashboard-page.html       | 321 +++++++++++++++
+ .../final-suite-page.html                          | 291 +++++++++++++
+ .../governance-hub-page.html                       | 454 +++++++++++++++++++++
+ .../governance-summary-page.html                   | 377 +++++++++++++++++
+ .../lumenai-capa-powerbi.csv                       |   1 +
+ .../lumenai-vendor-governance-powerbi.csv          |   4 +
+ .../readme-suite-references.txt                    |   0
+ .../release-tags.txt                               |   4 +
+ .../suite-release-lock-references.txt              |   3 +
+ .../vendor-github-release.txt                      | 207 ++++++++++
+ .../vendor-governance-page.html                    | 329 +++++++++++++++
+ .../vendor-health.headers                          |  11 +
+ .../vendor-health.json                             |   1 +
+ .../vendor-linkage.headers                         |  11 +
+ .../vendor-linkage.json                            |   1 +
+ .../vendor-powerbi.headers                         |  12 +
+ .../vendor-summary.headers                         |  11 +
+ .../vendor-summary.json                            |   1 +
+ 34 files changed, 3569 insertions(+)
