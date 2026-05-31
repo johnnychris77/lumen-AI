@@ -1,0 +1,7 @@
+tag enterprise-governance-suite-v1.0.0
+
+Release Enterprise Governance Suite v1.0.0
+d4521ad Update README with enterprise governance suite final release
+ README.md     | 115 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ README.md.bak |  95 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 210 insertions(+)

@@ -1,0 +1,6 @@
+tag capa-governance-scorecard-v1.0.0
+
+Release CAPA Governance Scorecard v1.0.0
+a696830 Add CAPA governance scorecard release lock v1
+ .../CAPA_GOVERNANCE_SCORECARD_RELEASE_LOCK_v1.md   | 296 +++++++++++++++++++++
+ 1 file changed, 296 insertions(+)

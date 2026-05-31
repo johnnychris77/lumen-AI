@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LumenAI CAPA Workflow Evidence</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #020617;
+      color: #ffffff;
+    }
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .hero {
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      background: linear-gradient(135deg, #0f172a, #020617);
+      border-radius: 28px;
+      padding: 34px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      background: rgba(52, 211, 153, 0.10);
+      color: #6ee7b7;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: 44px;
+      line-height: 1.05;
+      margin: 0;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    p {
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+    .three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 20px;
+    }
+    .card {
+      border: 1px solid #1e293b;
+      background: #0f172a;
+      border-radius: 22px;
+      padding: 22px;
+    }
+    .metric-label {
+      color: #94a3b8;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .metric-value {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+    .helper {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    a.card {
+      display: block;
+      color: white;
+      text-decoration: none;
+      transition: 0.2s ease;
+    }
+    a.card:hover {
+      border-color: #34d399;
+      transform: translateY(-2px);
+    }
+    .download {
+      color: #6ee7b7;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 18px;
+    }
+    .capability {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid #1e293b;
+      background: #020617;
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      color: #cbd5e1;
+    }
+    .ready {
+      color: #6ee7b7;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    ul {
+      color: #cbd5e1;
+      line-height: 1.9;
+      padding-left: 20px;
+    }
+    code {
+      color: #6ee7b7;
+    }
+    @media (max-width: 900px) {
+      .metrics, .two, .three {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <div class="badge">CAPA Workflow Evidence Page · Production Validated</div>
+      <h1>LumenAI CAPA Workflow</h1>
+      <p>
+        A production-validated corrective and preventive action workflow that converts
+        high-value audit signals into structured CAPA records with ownership, due dates,
+        risk level, corrective action, preventive action, and governance visibility.
+      </p>
+
+      <div class="grid metrics">
+        <div class="card">
+          <div class="metric-label">Validation Status</div>
+          <div class="metric-value" id="status">HEALTHY</div>
+          <div class="helper">Production health endpoint</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Module</div>
+          <div class="metric-value" id="module">CAPA</div>
+          <div class="helper">capa_workflow</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Version</div>
+          <div class="metric-value" id="version">1.0.0</div>
+          <div class="helper">Backend workflow version</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Workflow Status</div>
+          <div class="metric-value">READY</div>
+          <div class="helper">Demo and stakeholder ready</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>Governance Summary</h2>
+        <p>
+          The CAPA workflow provides operational follow-up after high-value audit signals.
+          It supports risk-based prioritization and accountability.
+        </p>
+
+        <div class="grid two">
+          <div class="card">
+            <div class="metric-label">Total CAPAs</div>
+            <div class="metric-value" id="totalCapas">0</div>
+          </div>
+          <div class="card">
+            <div class="metric-label">Open CAPAs</div>
+            <div class="metric-value" id="openCapas">0</div>
+          </div>
+          <div class="card">
+            <div class="metric-label">High Risk</div>
+            <div class="metric-value" id="highRiskCapas">0</div>
+          </div>
+          <div class="card">
+            <div class="metric-label">Closed</div>
+            <div class="metric-value" id="closedCapas">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Validated Capabilities</h2>
+        <div class="capability"><span>Create CAPA</span><span class="ready">READY</span></div>
+        <div class="capability"><span>List CAPAs</span><span class="ready">READY</span></div>
+        <div class="capability"><span>Audit Signal to CAPA</span><span class="ready">READY</span></div>
+        <div class="capability"><span>Governance Summary</span><span class="ready">READY</span></div>
+        <div class="capability"><span>Frontend Panel</span><span class="ready">READY</span></div>
+        <div class="capability"><span>Evidence Package</span><span class="ready">READY</span></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <h2>Production Endpoint Evidence</h2>
+      <p>
+        These endpoints validate the CAPA workflow in production and support demo,
+        portfolio, and stakeholder review.
+      </p>
+
+      <div class="grid three">
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/capa/health">
+          <strong>CAPA Health</strong>
+          <p><code>GET /api/capa/health</code></p>
+          <div class="download">Open Evidence →</div>
+        </a>
+
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/capa?limit=10">
+          <strong>CAPA List</strong>
+          <p><code>GET /api/capa?limit=10</code></p>
+          <div class="download">Open Evidence →</div>
+        </a>
+
+        <a class="card" href="https://lumen-ai-1.onrender.com">
+          <strong>Main Dashboard</strong>
+          <p>Frontend CAPA Workflow Panel</p>
+          <div class="download">Open Dashboard →</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>CAPA Record Fields</h2>
+        <ul>
+          <li>CAPA ID</li>
+          <li>Title and source</li>
+          <li>Description</li>
+          <li>Risk level</li>
+          <li>Owner</li>
+          <li>Due date</li>
+          <li>Corrective action</li>
+          <li>Preventive action</li>
+          <li>Status</li>
+          <li>Created and updated timestamps</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Portfolio Statement</h2>
+        <p>
+          Built and validated a production-ready CAPA Workflow for LumenAI, including
+          backend health validation, CAPA creation from high-value audit signals,
+          CAPA listing, governance summary reporting, frontend dashboard integration,
+          evidence package capture, and demo readiness documentation.
+        </p>
+      </div>
+    </section>
+  
+    <section class="card" style="margin-top: 28px;">
+      <h2>Advanced CAPA Governance Capabilities</h2>
+      <p>
+        The CAPA Workflow has been expanded beyond basic CAPA creation into an executive
+        governance layer for quality follow-up, due-date monitoring, escalation readiness,
+        analytics export, and scorecard visibility.
+      </p>
+
+      <div class="grid three">
+        <div class="card">
+          <strong>Governance Scorecard</strong>
+          <p>Executive view of open CAPAs, closed CAPAs, high-risk CAPAs, overdue items, due-soon items, escalation needs, closure rate, and Power BI readiness.</p>
+          <div class="download">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>Overdue Escalation</strong>
+          <p>Identifies overdue CAPAs, due-soon CAPAs, high-risk overdue CAPAs, and records requiring leadership escalation.</p>
+          <div class="download">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>Power BI Export</strong>
+          <p>Exports CAPA workflow data into Power BI-ready CSV format for dashboards, scorecards, and executive reporting.</p>
+          <div class="download">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>Status Update Workflow</strong>
+          <p>Supports CAPA status updates across open, in-progress, pending-review, and closed workflow states.</p>
+          <div class="download">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>Persistent Database</strong>
+          <p>Moves CAPA records from in-memory storage toward SQLite-backed persistence for improved workflow continuity.</p>
+          <div class="download">READY</div>
+        </div>
+
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/capa/governance-scorecard?days_until_due=7">
+          <strong>Scorecard Endpoint</strong>
+          <p><code>GET /api/capa/governance-scorecard</code></p>
+          <div class="download">Open JSON →</div>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    fetch("https://lumen-ai-53u4.onrender.com/api/capa/health")
+      .then((res) => res.json())
+      .then((data) => {
+        document.getElementById("status").textContent = String(data.status || "healthy").toUpperCase();
+        document.getElementById("module").textContent = "CAPA";
+        document.getElementById("version").textContent = data.version || "1.0.0";
+
+        const summary = data.summary || {};
+        document.getElementById("totalCapas").textContent = summary.total ?? 0;
+        document.getElementById("openCapas").textContent = summary.open ?? 0;
+        document.getElementById("highRiskCapas").textContent = summary.high_risk ?? 0;
+        document.getElementById("closedCapas").textContent = summary.closed ?? 0;
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

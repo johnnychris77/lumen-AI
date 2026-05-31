@@ -1,0 +1,1 @@
+{"status":"success","module":"capa_workflow","escalation_window_days":7,"summary":{"open_capas":0,"overdue":0,"due_soon":0,"high_risk_overdue":0,"requires_escalation":0},"overdue":[],"due_soon":[],"high_risk_overdue":[],"message":"CAPA escalation summary generated successfully."}

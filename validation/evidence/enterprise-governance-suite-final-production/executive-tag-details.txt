@@ -1,0 +1,6 @@
+tag executive-governance-dashboard-v1.0.0
+
+Release Executive Governance Dashboard v1.0.0
+5d74e3f Add executive governance dashboard release lock v1
+ ...ECUTIVE_GOVERNANCE_DASHBOARD_RELEASE_LOCK_v1.md | 240 +++++++++++++++++++++
+ 1 file changed, 240 insertions(+)
