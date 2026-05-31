@@ -1,0 +1,5 @@
+capa-governance-scorecard-v1.0.0
+enterprise-governance-suite-final-v1.0.0
+enterprise-governance-suite-v1.0.0
+executive-governance-dashboard-v1.0.0
+vendor-governance-v1.0.0
