@@ -738,3 +738,62 @@ https://lumen-ai-1.onrender.com/downloads/ENTERPRISE_GOVERNANCE_SUITE_FINAL_EXEC
 ## Final Launch Statement
 
 The LumenAI Enterprise Governance Suite v1.0.0 is officially launched as a production-validated, evidence-backed, portfolio-linked, Power BI-ready, GitHub-released, investor-ready, and executive governance-ready healthcare quality governance platform.
+
+---
+
+# 14. Enterprise Governance Suite Final Archive Index
+
+## Archive Status
+COMPLETE
+
+## Suite Version
+v1.0.0
+
+## Final Archive Index
+
+docs/archive/ENTERPRISE_GOVERNANCE_SUITE_v1_FINAL_ARCHIVE_INDEX.md
+
+## Archive Scope
+
+The final archive index records the completed artifact map for the LumenAI Enterprise Governance Suite v1.0.0, including:
+
+- Released product modules
+- Public portfolio pages
+- Production backend endpoints
+- Power BI export endpoints
+- Investor and executive assets
+- Evidence packages
+- Release locks
+- Repository cleanup records
+- GitHub release tags
+- GitHub releases
+- Final completion records
+
+## Final Public Portfolio Links
+
+Final Suite Evidence Page:
+https://lumen-ai-1.onrender.com/portfolio/enterprise-governance-suite-final
+
+Investor Demo Page:
+https://lumen-ai-1.onrender.com/portfolio/enterprise-governance-investor-demo
+
+Governance Hub:
+https://lumen-ai-1.onrender.com/portfolio/governance-hub
+
+Governance Summary:
+https://lumen-ai-1.onrender.com/portfolio/governance-summary
+
+Executive PDF One-Pager:
+https://lumen-ai-1.onrender.com/downloads/ENTERPRISE_GOVERNANCE_SUITE_FINAL_EXECUTIVE_ONE_PAGER_v1.pdf
+
+## Final Release Tags
+
+- enterprise-governance-suite-v1.0.0
+- enterprise-governance-suite-final-v1.0.0
+- capa-governance-scorecard-v1.0.0
+- vendor-governance-v1.0.0
+- executive-governance-dashboard-v1.0.0
+
+## Final Archive Statement
+
+The LumenAI Enterprise Governance Suite v1.0.0 final archive is complete and serves as the master reference for the released, validated, evidence-backed, investor-ready, and executive-ready suite.
