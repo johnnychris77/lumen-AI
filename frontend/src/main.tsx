@@ -1451,6 +1451,26 @@ function Layout() {
         >
           Portfolio Evidence · Vendor Governance
         </Link>
+
+        <Link
+          to="/portfolio/executive-governance-dashboard"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 16px",
+            borderRadius: "999px",
+            border: "1px solid rgba(168, 85, 247, 0.45)",
+            background: "rgba(168, 85, 247, 0.12)",
+            color: "#d8b4fe",
+            fontWeight: 800,
+            fontSize: "14px",
+            textDecoration: "none",
+            boxShadow: "0 8px 24px rgba(168, 85, 247, 0.15)",
+          }}
+        >
+          Portfolio Evidence · Executive Dashboard
+        </Link>
       </div>
       <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
         <div style={{ maxWidth: "1360px", margin: "0 auto", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
