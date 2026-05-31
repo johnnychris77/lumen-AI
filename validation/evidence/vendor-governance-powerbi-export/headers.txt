@@ -1,0 +1,12 @@
+HTTP/2 200 
+date: Sun, 31 May 2026 15:55:32 GMT
+content-type: text/csv; charset=utf-8
+content-length: 1020
+content-disposition: attachment; filename=lumenai-vendor-governance-powerbi.csv
+rndr-id: 109389a6-26cf-4e48
+server: cloudflare
+x-render-origin-server: uvicorn
+cf-cache-status: DYNAMIC
+cf-ray: a04729d85b3fe613-IAD
+alt-svc: h3=":443"; ma=86400
+
