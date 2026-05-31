@@ -21,6 +21,7 @@ from app.routes.capa import router as capa_router
 from app.routes.vendor_governance import router as vendor_governance_router
 from app.services.capa_service import capa_summary as persistent_capa_summary
 from app.db import Base, engine
+from app.routes.governance_intelligence import router as governance_intelligence_router
 
 app = FastAPI(title="LumenAI API")
 
@@ -546,6 +547,7 @@ from app.routes.enterprise_intake import router as enterprise_intake_router
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
 app.include_router(enterprise_intake_router)
+app.include_router(governance_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
 from app.db.base import Base
