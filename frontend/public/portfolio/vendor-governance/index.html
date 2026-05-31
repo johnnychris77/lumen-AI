@@ -276,6 +276,54 @@
         governance visibility for sterile processing and surgical quality operations.
       </p>
     </section>
+  
+    <section class="card" style="margin-top: 28px;">
+      <span class="ready">POWER BI EXPORT</span>
+      <h2>Vendor Governance Power BI Export</h2>
+      <p>
+        The Vendor Governance module now includes a Power BI-ready CSV export for
+        vendor quality events, risk level, site, device or tray, owner, CAPA linkage,
+        high-risk classification, and vendor trend reporting.
+      </p>
+
+      <div class="grid three">
+        <div class="card">
+          <strong>Vendor Analytics Dataset</strong>
+          <p>Exports structured vendor governance event data for dashboarding, scorecards, and trend analysis.</p>
+          <div class="link">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>CAPA Linkage Reporting</strong>
+          <p>Includes CAPA ID and linkage flags so vendor events can be analyzed against corrective action workflows.</p>
+          <div class="link">READY</div>
+        </div>
+
+        <div class="card">
+          <strong>High-Risk Vendor Monitoring</strong>
+          <p>Includes high-risk flags for vendor issue prioritization and executive governance review.</p>
+          <div class="link">READY</div>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <a class="card" href="https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/powerbi-csv?limit=500">
+          <strong>Download Vendor Power BI CSV</strong>
+          <p><code>GET /api/enterprise/vendor-governance/powerbi-csv?limit=500</code></p>
+          <div class="link">Download CSV →</div>
+        </a>
+
+        <div class="card">
+          <strong>Validated CSV Fields</strong>
+          <p>
+            vendor_event_id, vendor_name, event_type, event_summary, risk_level,
+            site, device_or_tray, owner, status, capa_id, is_high_risk,
+            is_linked_to_capa, created_at, updated_at
+          </p>
+        </div>
+      </div>
+    </section>
+
   </main>
 </body>
 </html>
