@@ -15,6 +15,7 @@ import CapaWorkflowPanel from "./components/CapaWorkflowPanel";
 import CapaEscalationCards from "./components/CapaEscalationCards";
 import CapaGovernanceScorecard from "./components/CapaGovernanceScorecard";
 import VendorGovernancePanel from "./components/VendorGovernancePanel";
+import ExecutiveGovernanceDashboard from "./components/ExecutiveGovernanceDashboard";
 import AuditToCapaIntegrationCard from "./components/AuditToCapaIntegrationCard";
 import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePage";
 
@@ -776,6 +777,7 @@ function DashboardHome() {
         <PacketActionButtonsPanel />
         <InfectionPreventionReviewPanel />
         <EnterpriseGovernanceCommandCenter />
+        <ExecutiveGovernanceDashboard />
         <CapaWorkflowPanel />
         <CapaEscalationCards />
         <CapaGovernanceScorecard />
