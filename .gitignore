@@ -63,3 +63,4 @@ baselines/
 .venv-pdf/
 data/
 *.sqlite
+.venv-backend/
