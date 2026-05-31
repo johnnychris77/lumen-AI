@@ -1471,6 +1471,26 @@ function Layout() {
         >
           Portfolio Evidence · Executive Dashboard
         </Link>
+
+        <Link
+          to="/portfolio/enterprise-governance-suite-final"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 16px",
+            borderRadius: "999px",
+            border: "1px solid rgba(34, 197, 94, 0.45)",
+            background: "rgba(34, 197, 94, 0.12)",
+            color: "#86efac",
+            fontWeight: 800,
+            fontSize: "14px",
+            textDecoration: "none",
+            boxShadow: "0 8px 24px rgba(34, 197, 94, 0.15)",
+          }}
+        >
+          Portfolio Evidence · Final Suite
+        </Link>
       </div>
       <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
         <div style={{ maxWidth: "1360px", margin: "0 auto", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
