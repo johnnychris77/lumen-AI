@@ -1,12 +1,16 @@
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 from app.services.vendor_governance_service import (
     create_vendor_event,
     list_vendor_events,
     vendor_governance_summary,
+    get_vendor_event,
+    link_vendor_event_to_capa,
+    create_capa_from_vendor_event,
+    vendor_capa_linkage_summary,
 )
 
 
@@ -22,6 +26,10 @@ class VendorEventRequest(BaseModel):
     device_or_tray: Optional[str] = None
     owner: Optional[str] = None
     capa_id: Optional[str] = None
+
+
+class VendorCapaLinkRequest(BaseModel):
+    capa_id: str
 
 
 @router.get("/enterprise/vendor-governance/health")
@@ -84,4 +92,46 @@ def get_vendor_governance_summary():
         "version": "1.0.0",
         "summary": vendor_governance_summary(),
         "message": "Vendor governance summary generated successfully.",
+    }
+
+
+@router.get("/enterprise/vendor-governance/capa-linkage-summary")
+def get_vendor_capa_linkage_summary():
+    return {
+        "status": "success",
+        "module": "vendor_governance",
+        "version": "1.0.0",
+        "summary": vendor_capa_linkage_summary(),
+        "message": "Vendor CAPA linkage summary generated successfully.",
+    }
+
+
+@router.post("/enterprise/vendor-governance/events/{event_id}/link-capa")
+def link_vendor_event_to_existing_capa(event_id: str, payload: VendorCapaLinkRequest):
+    event = link_vendor_event_to_capa(event_id=event_id, capa_id=payload.capa_id)
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Vendor event not found")
+
+    return {
+        "status": "success",
+        "module": "vendor_governance",
+        "message": "Vendor event linked to CAPA.",
+        "event": event,
+    }
+
+
+@router.post("/enterprise/vendor-governance/events/{event_id}/create-capa")
+def create_capa_for_vendor_event(event_id: str):
+    result = create_capa_from_vendor_event(event_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Vendor event not found")
+
+    return {
+        "status": "success",
+        "module": "vendor_governance",
+        "message": "CAPA created and linked to vendor event.",
+        "vendor_event": result["vendor_event"],
+        "capa": result["capa"],
     }

@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
 
+from app.services.capa_service import create_capa
+
 
 _VENDOR_EVENTS: List[Dict] = []
 
@@ -108,3 +110,66 @@ def seed_vendor_events_if_empty() -> None:
 
 
 seed_vendor_events_if_empty()
+
+
+def get_vendor_event(event_id: str) -> Optional[Dict]:
+    for event in _VENDOR_EVENTS:
+        if event.get("id") == event_id:
+            return event
+    return None
+
+
+def link_vendor_event_to_capa(event_id: str, capa_id: str) -> Optional[Dict]:
+    event = get_vendor_event(event_id)
+    if not event:
+        return None
+
+    event["capa_id"] = capa_id
+    event["updated_at"] = _utc_now()
+    return event
+
+
+def create_capa_from_vendor_event(event_id: str) -> Optional[Dict]:
+    event = get_vendor_event(event_id)
+    if not event:
+        return None
+
+    capa = create_capa(
+        title=f"Vendor CAPA Review: {event.get('vendor_name')} - {event.get('event_type')}",
+        source="vendor_governance",
+        description=event.get("event_summary") or "",
+        risk_level=event.get("risk_level") or "medium",
+        owner=event.get("owner") or "Quality / Operations",
+        due_date=None,
+        corrective_action="Contain vendor quality signal, review affected trays/devices, and document immediate correction.",
+        preventive_action="Trend vendor events, review recurrence, and define vendor accountability controls.",
+        status="open",
+    )
+
+    link_vendor_event_to_capa(event_id, capa["id"])
+
+    return {
+        "vendor_event": get_vendor_event(event_id),
+        "capa": capa,
+    }
+
+
+def vendor_capa_linkage_summary() -> Dict:
+    total = len(_VENDOR_EVENTS)
+    linked = [event for event in _VENDOR_EVENTS if event.get("capa_id")]
+    unlinked = [event for event in _VENDOR_EVENTS if not event.get("capa_id")]
+
+    high_risk_unlinked = [
+        event
+        for event in unlinked
+        if event.get("risk_level") in {"high", "critical"}
+    ]
+
+    return {
+        "total_vendor_events": total,
+        "vendor_events_linked_to_capa": len(linked),
+        "vendor_events_without_capa": len(unlinked),
+        "high_risk_vendor_events_without_capa": len(high_risk_unlinked),
+        "linked_events": linked[:25],
+        "unlinked_high_risk_events": high_risk_unlinked[:25],
+    }
