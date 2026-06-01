@@ -22,6 +22,7 @@ from app.routes.vendor_governance import router as vendor_governance_router
 from app.services.capa_service import capa_summary as persistent_capa_summary
 from app.db import Base, engine
 from app.routes.governance_intelligence import router as governance_intelligence_router
+from app.routes.capa_predictive_risk import router as capa_predictive_risk_router
 
 app = FastAPI(title="LumenAI API")
 
@@ -322,6 +323,7 @@ app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
+app.include_router(capa_predictive_risk_router)
 app.include_router(capa_router, prefix=settings.API_PREFIX)
 app.include_router(vendor_governance_router, prefix=settings.API_PREFIX)
 
