@@ -1,0 +1,8 @@
+21:export default function GovernanceIntelligenceCards() {
+36:          fetch(`${API_BASE}/api/enterprise/governance-intelligence/health`),
+37:          fetch(`${API_BASE}/api/enterprise/governance-intelligence/summary`),
+116:          Confirm the backend endpoint is available at /api/enterprise/governance-intelligence/summary.
+122:  const score = data?.governance_health_score ?? 0;
+128:          <div style={styles.badge}>v1.1 GOVERNANCE INTELLIGENCE</div>
+129:          <h2 style={styles.title}>Executive Governance Intelligence</h2>
+170:            {(data?.next_actions || []).map((item, index) => (

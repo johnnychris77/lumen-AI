@@ -1,0 +1,1 @@
+{"status":"healthy","module":"enterprise_governance_intelligence","version":"v1","timestamp":"2026-06-01T00:26:59.102638+00:00","capabilities":["audit_signal_interpretation","capa_signal_interpretation","vendor_signal_interpretation","powerbi_readiness_summary","executive_recommendations","next_action_guidance"]}

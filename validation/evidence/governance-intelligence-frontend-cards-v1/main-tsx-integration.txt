@@ -1,0 +1,2 @@
+21:import GovernanceIntelligenceCards from "./components/GovernanceIntelligenceCards";
+1516:      <GovernanceIntelligenceCards />
