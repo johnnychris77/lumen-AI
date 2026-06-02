@@ -1142,3 +1142,78 @@ CAPA Governance
 ## Final Status
 
 The LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1 are released, frontend integrated, API-connected, evidence-backed, roadmap-linked, and executive-ready.
+
+---
+
+# 22. LumenAI Vendor Performance Scorecard Frontend Cards v1
+
+## Release Status
+RELEASED
+
+## Product Phase
+LumenAI v1.1 Strategic Expansion Phase
+
+## Capability
+Vendor Performance Scorecard Frontend Cards
+
+## Frontend Source Files
+
+- frontend/src/components/VendorPerformanceScorecardCards.jsx
+- frontend/src/main.tsx
+
+## Backend API Connection
+
+Health:
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/performance-scorecard/health
+
+Scorecard:
+https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/performance-scorecard/
+
+## Validated Output
+
+- module: vendor_performance_scorecard
+- overall_vendor_performance_status: action_required
+- average_vendor_score: 71
+- high_risk_vendor_count: 2
+- repeat_event_vendor_count: 2
+- capa_linked_vendor_count: 2
+- version: v1
+
+## Release Documentation
+
+- docs/release-locks/VENDOR_PERFORMANCE_SCORECARD_FRONTEND_CARDS_RELEASE_LOCK_v1.md
+
+## Evidence Package
+
+validation/evidence/vendor-performance-scorecard-frontend-cards-v1/VALIDATION_SUMMARY.md
+
+Evidence folder:
+validation/evidence/vendor-performance-scorecard-frontend-cards-v1/
+
+## v1.1 Roadmap Relationship
+
+This release implements the v1.1 roadmap build milestone:
+
+LumenAI Vendor Performance Scorecard Frontend Cards v1
+
+It builds on:
+
+- LumenAI Vendor Performance Scorecard API v1
+- docs/release-locks/VENDOR_PERFORMANCE_SCORECARD_API_RELEASE_LOCK_v1.md
+- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md
+- docs/release-locks/LUMENAI_v1_1_ROADMAP_RELEASE_LOCK_v1.md
+
+## Strategic Theme
+
+Vendor Governance  
+→ Vendor Performance Scoring  
+→ CAPA Linkage  
+→ Executive Vendor Accountability
+
+## Business Value
+
+The Vendor Performance Scorecard Frontend Cards make the v1.1 vendor accountability layer visible in the LumenAI frontend by converting Vendor Performance Scorecard API outputs into leadership-facing dashboard cards.
+
+## Final Status
+
+The LumenAI Vendor Performance Scorecard Frontend Cards v1 are released, frontend integrated, API-connected, evidence-backed, roadmap-linked, and executive-ready.

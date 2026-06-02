@@ -849,3 +849,70 @@ It advances LumenAI from backend CAPA predictive scoring into a visible executiv
 ## Business Value
 
 The CAPA Predictive Risk Scorecard Frontend Cards help leadership quickly identify overdue, high-risk, critical, and watch-level CAPAs requiring action.
+
+---
+
+# LumenAI Vendor Performance Scorecard Frontend Cards v1
+
+## Release Status
+
+**Released · Frontend Integrated · API Connected · Build Validated · Evidence Backed · Roadmap Linked · Executive Ready**
+
+The LumenAI Vendor Performance Scorecard Frontend Cards v1 make the Vendor Performance Scorecard API visible in the LumenAI frontend.
+
+This release converts vendor governance scoring into leadership-facing dashboard cards for executive vendor accountability.
+
+## Frontend Capability
+
+The frontend cards display:
+
+- Overall vendor performance status
+- Average vendor score
+- High-risk vendor count
+- Repeat-event vendor count
+- CAPA-linked vendor count
+- Executive review count
+- Leadership watch count
+- Vendor accountability watchlist
+- Executive recommendations
+- Next actions
+
+## Validated API Connection
+
+| Endpoint | URL |
+|---|---|
+| Vendor Performance Health | https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/performance-scorecard/health |
+| Vendor Performance Scorecard | https://lumen-ai-53u4.onrender.com/api/enterprise/vendor-governance/performance-scorecard/ |
+
+## Validated API Output
+
+| Field | Validated Value |
+|---|---|
+| module | vendor_performance_scorecard |
+| overall_vendor_performance_status | action_required |
+| average_vendor_score | 71 |
+| high_risk_vendor_count | 2 |
+| repeat_event_vendor_count | 2 |
+| capa_linked_vendor_count | 2 |
+| version | v1 |
+
+## Source Files
+
+| Artifact | Path |
+|---|---|
+| Frontend Component | frontend/src/components/VendorPerformanceScorecardCards.jsx |
+| Main Frontend Integration | frontend/src/main.tsx |
+| Release Lock | docs/release-locks/VENDOR_PERFORMANCE_SCORECARD_FRONTEND_CARDS_RELEASE_LOCK_v1.md |
+| Evidence Package | validation/evidence/vendor-performance-scorecard-frontend-cards-v1/VALIDATION_SUMMARY.md |
+
+## v1.1 Roadmap Linkage
+
+This release implements the v1.1 build milestone:
+
+**LumenAI Vendor Performance Scorecard Frontend Cards v1**
+
+It advances LumenAI from backend vendor performance scoring into a visible executive vendor accountability dashboard experience.
+
+## Business Value
+
+The Vendor Performance Scorecard Frontend Cards help leadership quickly identify vendors requiring executive review, leadership watch, CAPA accountability, unresolved-event follow-up, or routine monitoring.
