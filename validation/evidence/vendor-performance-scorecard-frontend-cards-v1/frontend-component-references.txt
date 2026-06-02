@@ -1,0 +1,11 @@
+31:export default function VendorPerformanceScorecardCards() {
+46:          fetch(`${API_BASE}/api/enterprise/vendor-governance/performance-scorecard/health`),
+47:          fetch(`${API_BASE}/api/enterprise/vendor-governance/performance-scorecard/`),
+67:          setErrorMessage(error.message || "Unable to load Vendor Performance Scorecard.");
+93:        <h2 style={styles.title}>Loading Vendor Performance Scorecard...</h2>
+103:        <h2 style={styles.title}>Vendor Performance Scorecard Unavailable</h2>
+106:          Confirm the backend endpoint is available at /api/enterprise/vendor-governance/performance-scorecard/.
+112:  const averageScore = data?.average_vendor_score ?? 0;
+119:          <div style={styles.badge}>v1.1 VENDOR PERFORMANCE</div>
+120:          <h2 style={styles.title}>Vendor Performance Scorecard</h2>
+183:            {(data?.next_actions || []).map((item, index) => (

@@ -1,0 +1,2 @@
+23:import VendorPerformanceScorecardCards from "./components/VendorPerformanceScorecardCards";
+1520:      <VendorPerformanceScorecardCards />

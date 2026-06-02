@@ -1,0 +1,10 @@
+1:# LumenAI Vendor Performance Scorecard API Release Lock v1
+10:Vendor Performance Scorecard API
+16:The LumenAI Vendor Performance Scorecard API v1 is released, validated, evidence-backed, roadmap-linked, and ready for frontend integration.
+67:The Vendor Performance Scorecard API converts Vendor Governance events into executive-ready vendor performance scoring.
+90:- Defines Vendor Performance Scorecard router
+104:- Registers Vendor Performance Scorecard API router with the FastAPI app
+142:LumenAI Vendor Performance Scorecard API v1
+166:The Vendor Performance Scorecard API advances LumenAI from vendor event tracking into vendor performance governance.
+179:# 7. Final Release Lock Statement
+181:The LumenAI Vendor Performance Scorecard API v1 is officially locked.

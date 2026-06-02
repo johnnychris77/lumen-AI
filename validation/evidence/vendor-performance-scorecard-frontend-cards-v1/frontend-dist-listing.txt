@@ -1,0 +1,6 @@
+total 20K
+-rw-r--r--  1 ohna ohna   19 Jun  1 23:52 _redirects
+drwxr-xr-x  2 ohna ohna 4.0K Jun  1 23:52 assets
+drwxr-xr-x  2 ohna ohna 4.0K Jun  1 23:52 downloads
+-rw-r--r--  1 ohna ohna  318 Jun  1 23:52 index.html
+drwxr-xr-x 10 ohna ohna 4.0K Jun  1 23:52 portfolio

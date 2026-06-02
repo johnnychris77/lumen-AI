@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 70K Jun  1 23:45 frontend/src/main.tsx
