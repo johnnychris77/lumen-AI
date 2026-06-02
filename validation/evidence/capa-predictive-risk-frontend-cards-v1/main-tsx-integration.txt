@@ -1,0 +1,2 @@
+22:import CapaPredictiveRiskCards from "./components/CapaPredictiveRiskCards";
+1518:      <CapaPredictiveRiskCards />

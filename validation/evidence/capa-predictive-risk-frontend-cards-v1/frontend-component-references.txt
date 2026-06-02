@@ -1,0 +1,9 @@
+31:export default function CapaPredictiveRiskCards() {
+46:          fetch(`${API_BASE}/api/capa/risk-scorecard/health`),
+47:          fetch(`${API_BASE}/api/capa/risk-scorecard/`),
+93:        <h2 style={styles.title}>Loading CAPA Predictive Risk Scorecard...</h2>
+106:          Confirm the backend endpoint is available at /api/capa/risk-scorecard/.
+112:  const averageScore = data?.average_risk_score ?? 0;
+119:          <div style={styles.badge}>v1.1 CAPA PREDICTIVE RISK</div>
+120:          <h2 style={styles.title}>CAPA Predictive Risk Scorecard</h2>
+180:            {(data?.next_actions || []).map((item, index) => (

@@ -1,0 +1,12 @@
+931:# 19. LumenAI CAPA Predictive Risk Scorecard API v1
+954:- average_risk_score: 77
+970:validation/evidence/capa-predictive-risk-scorecard-api-v1/VALIDATION_SUMMARY.md
+973:validation/evidence/capa-predictive-risk-scorecard-api-v1/
+979:LumenAI CAPA Predictive Risk Scorecard API v1
+1001:The LumenAI CAPA Predictive Risk Scorecard API v1 is released, locally validated, evidence-backed, roadmap-linked, executive-ready, hosted-validation-ready, and frontend-ready.
+1005:# 19. LumenAI CAPA Predictive Risk Scorecard API v1
+1028:- average_risk_score: 77
+1044:validation/evidence/capa-predictive-risk-scorecard-api-v1/VALIDATION_SUMMARY.md
+1047:validation/evidence/capa-predictive-risk-scorecard-api-v1/
+1053:LumenAI CAPA Predictive Risk Scorecard API v1
+1075:The LumenAI CAPA Predictive Risk Scorecard API v1 is released, locally validated, evidence-backed, roadmap-linked, executive-ready, hosted-validation-ready, and frontend-ready.

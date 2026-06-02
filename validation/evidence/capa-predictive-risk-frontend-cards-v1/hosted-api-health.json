@@ -1,0 +1,1 @@
+{"status":"healthy","module":"capa_predictive_risk_scorecard","version":"v1","timestamp":"2026-06-02T02:21:49.539251+00:00","capabilities":["capa_risk_scoring","overdue_risk_detection","executive_priority_assignment","recommended_action_guidance","capa_governance_decision_support"]}
