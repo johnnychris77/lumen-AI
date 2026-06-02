@@ -925,3 +925,77 @@ The Governance Intelligence Frontend Cards make the v1.1 executive decision-supp
 ## Final Status
 
 The LumenAI Governance Intelligence Frontend Cards v1 are released, frontend integrated, API-connected, evidence-backed, roadmap-linked, and executive-ready.
+
+---
+
+# 19. LumenAI CAPA Predictive Risk Scorecard API v1
+
+## Release Status
+RELEASED
+
+## Product Phase
+LumenAI v1.1 Strategic Expansion Phase
+
+## Capability
+CAPA Predictive Risk Scorecard API
+
+## API Endpoints
+
+Health:
+https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/health
+
+Scorecard:
+https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/
+
+## Validated Output
+
+- module: capa_predictive_risk_scorecard
+- overall_capa_risk_status: action_required
+- average_risk_score: 77
+- high_priority_count: 2
+- overdue_count: 1
+- version: v1
+
+## Source Files
+
+- backend/app/routes/capa_predictive_risk.py
+- backend/app/main.py
+
+## Release Documentation
+
+- docs/release-locks/CAPA_PREDICTIVE_RISK_SCORECARD_API_RELEASE_LOCK_v1.md
+
+## Evidence Package
+
+validation/evidence/capa-predictive-risk-scorecard-api-v1/VALIDATION_SUMMARY.md
+
+Evidence folder:
+validation/evidence/capa-predictive-risk-scorecard-api-v1/
+
+## v1.1 Roadmap Relationship
+
+This API implements the v1.1 roadmap milestone:
+
+LumenAI CAPA Predictive Risk Scorecard API v1
+
+It builds on:
+
+- LumenAI Governance Intelligence API v1
+- LumenAI Governance Intelligence Frontend Cards v1
+- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md
+- docs/release-locks/LUMENAI_v1_1_ROADMAP_RELEASE_LOCK_v1.md
+
+## Strategic Theme
+
+CAPA Governance  
+→ Predictive CAPA Risk Scoring  
+→ Executive Prioritization  
+→ Governance Intelligence
+
+## Business Value
+
+The CAPA Predictive Risk Scorecard API creates a risk-prioritized CAPA decision-support layer for executive governance review.
+
+## Final Status
+
+The LumenAI CAPA Predictive Risk Scorecard API v1 is released, locally validated, evidence-backed, roadmap-linked, executive-ready, hosted-validation-ready, and frontend-ready.
