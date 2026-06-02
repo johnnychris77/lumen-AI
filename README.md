@@ -784,3 +784,68 @@ It advances the platform from CAPA governance reporting into predictive CAPA ris
 The CAPA Predictive Risk Scorecard API helps leadership identify which CAPAs need immediate review, leadership watch, manager follow-up, or routine monitoring.
 
 It provides a pathway toward executive CAPA prioritization, Power BI risk filtering, and future CAPA predictive analytics.
+
+---
+
+# LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1
+
+## Release Status
+
+**Released · Frontend Integrated · API Connected · Build Validated · Evidence Backed · Roadmap Linked · Executive Ready**
+
+The LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1 make the CAPA Predictive Risk Scorecard API visible in the LumenAI frontend.
+
+This release converts predictive CAPA risk scoring into leadership-facing dashboard cards for executive review.
+
+## Frontend Capability
+
+The frontend cards display:
+
+- Overall CAPA risk status
+- Average CAPA risk score
+- High-priority CAPA count
+- Overdue CAPA count
+- Critical CAPA count
+- Watch CAPA count
+- Top CAPA risk items
+- Executive recommendations
+- Next actions
+
+## Validated API Connection
+
+| Endpoint | URL |
+|---|---|
+| CAPA Predictive Risk Health | https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/health |
+| CAPA Predictive Risk Scorecard | https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/ |
+
+## Validated API Output
+
+| Field | Validated Value |
+|---|---|
+| module | capa_predictive_risk_scorecard |
+| overall_capa_risk_status | action_required |
+| average_risk_score | 77 |
+| high_priority_count | 2 |
+| overdue_count | 1 |
+| version | v1 |
+
+## Source Files
+
+| Artifact | Path |
+|---|---|
+| Frontend Component | frontend/src/components/CapaPredictiveRiskCards.jsx |
+| Main Frontend Integration | frontend/src/main.tsx |
+| Release Lock | docs/release-locks/CAPA_PREDICTIVE_RISK_FRONTEND_CARDS_RELEASE_LOCK_v1.md |
+| Evidence Package | validation/evidence/capa-predictive-risk-frontend-cards-v1/VALIDATION_SUMMARY.md |
+
+## v1.1 Roadmap Linkage
+
+This release implements the v1.1 build milestone:
+
+**LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1**
+
+It advances LumenAI from backend CAPA predictive scoring into a visible executive dashboard experience.
+
+## Business Value
+
+The CAPA Predictive Risk Scorecard Frontend Cards help leadership quickly identify overdue, high-risk, critical, and watch-level CAPAs requiring action.

@@ -1073,3 +1073,72 @@ The CAPA Predictive Risk Scorecard API creates a risk-prioritized CAPA decision-
 ## Final Status
 
 The LumenAI CAPA Predictive Risk Scorecard API v1 is released, locally validated, evidence-backed, roadmap-linked, executive-ready, hosted-validation-ready, and frontend-ready.
+
+---
+
+# 20. LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1
+
+## Release Status
+RELEASED
+
+## Product Phase
+LumenAI v1.1 Strategic Expansion Phase
+
+## Capability
+CAPA Predictive Risk Scorecard Frontend Cards
+
+## Frontend Source Files
+
+- frontend/src/components/CapaPredictiveRiskCards.jsx
+- frontend/src/main.tsx
+
+## Backend API Connection
+
+Health:
+https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/health
+
+Scorecard:
+https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/
+
+## Validated Output
+
+- module: capa_predictive_risk_scorecard
+- overall_capa_risk_status: action_required
+- average_risk_score: 77
+- high_priority_count: 2
+- overdue_count: 1
+- version: v1
+
+## Release Documentation
+
+- docs/release-locks/CAPA_PREDICTIVE_RISK_FRONTEND_CARDS_RELEASE_LOCK_v1.md
+
+## Evidence Package
+
+validation/evidence/capa-predictive-risk-frontend-cards-v1/VALIDATION_SUMMARY.md
+
+Evidence folder:
+validation/evidence/capa-predictive-risk-frontend-cards-v1/
+
+## v1.1 Roadmap Relationship
+
+This release implements the v1.1 roadmap build milestone:
+
+LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1
+
+It builds on:
+
+- LumenAI CAPA Predictive Risk Scorecard API v1
+- docs/release-locks/CAPA_PREDICTIVE_RISK_SCORECARD_API_RELEASE_LOCK_v1.md
+- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md
+
+## Strategic Theme
+
+CAPA Governance  
+→ Predictive CAPA Risk Scoring  
+→ Executive Prioritization  
+→ Governance Intelligence
+
+## Final Status
+
+The LumenAI CAPA Predictive Risk Scorecard Frontend Cards v1 are released, frontend integrated, API-connected, evidence-backed, roadmap-linked, and executive-ready.
