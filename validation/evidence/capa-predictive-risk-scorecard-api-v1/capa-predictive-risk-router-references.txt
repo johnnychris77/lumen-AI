@@ -1,0 +1,11 @@
+4:from fastapi import APIRouter
+6:router = APIRouter(
+7:    prefix="/api/capa/risk-scorecard",
+36:@router.get("/health")
+128:    average_risk_score = round(sum(scores) / len(scores))
+144:    executive_recommendations = [
+151:    next_actions = [
+174:        "overall_capa_risk_status": overall_status,
+175:        "average_risk_score": average_risk_score,
+181:        "executive_recommendations": executive_recommendations,
+182:        "next_actions": next_actions,

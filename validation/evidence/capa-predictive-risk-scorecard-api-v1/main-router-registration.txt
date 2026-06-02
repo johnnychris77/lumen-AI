@@ -1,0 +1,2 @@
+25:from app.routes.capa_predictive_risk import router as capa_predictive_risk_router
+326:app.include_router(capa_predictive_risk_router)
