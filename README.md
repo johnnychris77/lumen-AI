@@ -720,3 +720,67 @@ It advances the platform from CAPA governance reporting into predictive CAPA ris
 The CAPA Predictive Risk Scorecard API helps leadership identify which CAPAs need immediate review, leadership watch, manager follow-up, or routine monitoring.
 
 It provides a pathway toward executive CAPA prioritization, Power BI risk filtering, and future CAPA predictive analytics.
+
+---
+
+# LumenAI CAPA Predictive Risk Scorecard API v1
+
+## Release Status
+
+**Released · Locally Validated · Evidence Backed · Roadmap Linked · Executive Ready · Hosted Validation Ready · Frontend Ready**
+
+The LumenAI CAPA Predictive Risk Scorecard API v1 is a v1.1 strategic expansion capability that converts CAPA governance signals into predictive risk scoring and executive prioritization.
+
+## API Endpoints
+
+| Endpoint | URL |
+|---|---|
+| CAPA Predictive Risk Health | https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/health |
+| CAPA Predictive Risk Scorecard | https://lumen-ai-53u4.onrender.com/api/capa/risk-scorecard/ |
+
+## Validated Output
+
+| Field | Validated Value |
+|---|---|
+| module | capa_predictive_risk_scorecard |
+| overall_capa_risk_status | action_required |
+| average_risk_score | 77 |
+| high_priority_count | 2 |
+| overdue_count | 1 |
+| version | v1 |
+
+## Capability Summary
+
+The CAPA Predictive Risk Scorecard API provides:
+
+- CAPA risk scoring
+- Overdue CAPA detection
+- Critical CAPA detection
+- Watch CAPA classification
+- Executive priority assignment
+- Recommended action guidance
+- Executive recommendations
+- Next action guidance
+
+## Source Files
+
+| Artifact | Path |
+|---|---|
+| API Router | backend/app/routes/capa_predictive_risk.py |
+| FastAPI Registration | backend/app/main.py |
+| Release Lock | docs/release-locks/CAPA_PREDICTIVE_RISK_SCORECARD_API_RELEASE_LOCK_v1.md |
+| Evidence Package | validation/evidence/capa-predictive-risk-scorecard-api-v1/VALIDATION_SUMMARY.md |
+
+## v1.1 Roadmap Linkage
+
+This API implements the v1.1 build milestone:
+
+**LumenAI CAPA Predictive Risk Scorecard API v1**
+
+It advances the platform from CAPA governance reporting into predictive CAPA risk prioritization and executive decision support.
+
+## Business Value
+
+The CAPA Predictive Risk Scorecard API helps leadership identify which CAPAs need immediate review, leadership watch, manager follow-up, or routine monitoring.
+
+It provides a pathway toward executive CAPA prioritization, Power BI risk filtering, and future CAPA predictive analytics.
