@@ -19,6 +19,7 @@ import ExecutiveGovernanceDashboard from "./components/ExecutiveGovernanceDashbo
 import AuditToCapaIntegrationCard from "./components/AuditToCapaIntegrationCard";
 import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePage";
 import GovernanceIntelligenceCards from "./components/GovernanceIntelligenceCards";
+import CapaPredictiveRiskCards from "./components/CapaPredictiveRiskCards";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -1514,6 +1515,8 @@ function Layout() {
         </Link>
       </div>
       <GovernanceIntelligenceCards />
+      <CapaPredictiveRiskCards />
+
 
       <div style={{ borderBottom: "1px solid #e5e7eb", padding: "12px 24px", background: "#ffffff" }}>
         <div style={{ maxWidth: "1360px", margin: "0 auto", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
