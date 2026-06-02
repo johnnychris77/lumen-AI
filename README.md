@@ -972,3 +972,45 @@ Visual validation confirmed:
 ## Final Closure Statement
 
 The LumenAI v1.1 Executive Governance Intelligence sequence is closed as complete, evidence-backed, archived, release-locked, repository-cleaned, README-indexed, archive-indexed, evidence-indexed, hosted-frontend validated, and executive demonstration ready.
+
+---
+
+# LumenAI v1.1 Executive Governance Intelligence Final Public Portfolio Refresh v1
+
+## Public Portfolio Status
+
+**Refreshed · Complete · Archived · Release Locked · Evidence Backed · Executive Demonstration Ready**
+
+The LumenAI public portfolio has been refreshed to include the completed v1.1 Executive Governance Intelligence sequence.
+
+This refresh positions LumenAI as an enterprise governance intelligence platform for sterile processing, healthcare quality governance, CAPA oversight, vendor accountability, and executive decision support.
+
+## Public Portfolio Page
+
+| Artifact | Path |
+|---|---|
+| Public Portfolio | docs/portfolio/LUMENAI_PUBLIC_PORTFOLIO.md |
+| Final Archive Package | docs/archive/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_ARCHIVE_PACKAGE_v1.md |
+| Final Closure Record | docs/release-locks/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_CLOSURE_v1.md |
+| Final Repository Cleanup | docs/release-locks/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_REPOSITORY_CLEANUP_v1.md |
+
+## Public Capability Stack
+
+- Governance Intelligence API v1
+- Governance Intelligence Frontend Cards v1
+- CAPA Predictive Risk Scorecard API v1
+- CAPA Predictive Risk Scorecard Frontend Cards v1
+- Vendor Performance Scorecard API v1
+- Vendor Performance Scorecard Frontend Cards v1
+
+## Hosted Demonstration
+
+Hosted frontend:
+https://lumen-ai-1.onrender.com
+
+Hosted API:
+https://lumen-ai-53u4.onrender.com
+
+## Final Public Portfolio Statement
+
+LumenAI v1.1 Executive Governance Intelligence is complete, evidence-backed, archived, release-locked, repository-cleaned, hosted-frontend validated, and executive demonstration ready.

@@ -1271,3 +1271,56 @@ Visual validation confirmed the Executive Governance Intelligence dashboard is l
 ## Final Closure Status
 
 The LumenAI v1.1 Executive Governance Intelligence Final Closure v1 is complete, evidence-backed, archived, release-locked, repository-cleaned, README-indexed, archive-indexed, evidence-indexed, hosted-frontend validated, and executive demonstration ready.
+
+---
+
+# 26. LumenAI v1.1 Executive Governance Intelligence Final Public Portfolio Refresh v1
+
+## Portfolio Status
+REFRESHED
+
+## Product Phase
+LumenAI v1.1 Strategic Expansion Phase
+
+## Capability Group
+Executive Governance Intelligence
+
+## Public Portfolio Page
+
+docs/portfolio/LUMENAI_PUBLIC_PORTFOLIO.md
+
+## Related Final Closure Artifacts
+
+- docs/archive/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_ARCHIVE_PACKAGE_v1.md
+- docs/release-locks/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_CLOSURE_v1.md
+- docs/release-locks/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_ARCHIVE_RELEASE_LOCK_v1.md
+- docs/release-locks/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_REPOSITORY_CLEANUP_v1.md
+
+## Public Capability Stack
+
+- Governance Intelligence API v1
+- Governance Intelligence Frontend Cards v1
+- CAPA Predictive Risk Scorecard API v1
+- CAPA Predictive Risk Scorecard Frontend Cards v1
+- Vendor Performance Scorecard API v1
+- Vendor Performance Scorecard Frontend Cards v1
+
+## Hosted Demonstration
+
+Hosted frontend:
+https://lumen-ai-1.onrender.com
+
+Hosted API:
+https://lumen-ai-53u4.onrender.com
+
+## Validated Executive Outputs
+
+- Governance health score: 89
+- Governance status: executive_ready
+- CAPA risk status: action_required
+- Vendor performance status: action_required
+- Vendor average score: 71
+
+## Final Portfolio Status
+
+The LumenAI v1.1 Executive Governance Intelligence public portfolio has been refreshed and is executive demonstration ready.
