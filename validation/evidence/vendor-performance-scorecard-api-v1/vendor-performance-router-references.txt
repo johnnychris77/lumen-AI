@@ -1,0 +1,9 @@
+4:from fastapi import APIRouter
+6:router = APIRouter(
+7:    prefix="/api/enterprise/vendor-governance/performance-scorecard",
+36:@router.get("/health")
+112:    average_vendor_score = round(sum(scores) / len(scores))
+136:        "overall_vendor_performance_status": overall_status,
+137:        "average_vendor_score": average_vendor_score,
+144:        "executive_recommendations": [
+150:        "next_actions": [

@@ -1,0 +1,28 @@
+321:# 7. Vendor Governance Module
+331:Vendor Governance Health:
+334:Vendor Governance Summary:
+337:Vendor Governance Events:
+343:Vendor Governance Portfolio Page:
+376:The Vendor Governance Module extends the Enterprise Governance Suite into vendor accountability by connecting vendor quality signals, risk summaries, trend visibility, and CAPA linkage into one executive governance workflow.
+380:The Vendor Governance Module v1.0.0 is production validated, portfolio linked, evidence backed, CAPA-linked, frontend integrated, and ready for executive governance demonstration.
+401:| Vendor Governance Module | Released | https://lumen-ai-1.onrender.com/portfolio/vendor-governance |
+423:Vendor Governance Health:
+426:Vendor Governance Summary:
+429:Vendor Governance Events:
+449:### Vendor Governance Power BI Export
+464:| Vendor Governance Module | vendor-governance-v1.0.0 |
+473:| Vendor Governance Release Notes | docs/releases/VENDOR_GOVERNANCE_RELEASE_NOTES_v1.md |
+476:| Vendor Governance Release Lock | docs/release-locks/VENDOR_GOVERNANCE_RELEASE_LOCK_v1.md |
+485:| Vendor Governance Evidence | validation/evidence/vendor-governance/VALIDATION_SUMMARY.md |
+486:| Vendor Governance Final Validation | validation/evidence/vendor-governance-final/FINAL_VALIDATION_SUMMARY.md |
+502:- Vendor Governance event tracking
+570:6. Vendor Governance Module
+638:→ Vendor Governance  
+693:Vendor Governance:
+706:- Vendor Governance Module
+910:- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md
+916:→ Vendor Governance  
+919:→ Predictive Governance Intelligence
+985:- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md
+1059:- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md
+1133:- docs/roadmap/LUMENAI_v1_1_STRATEGIC_ROADMAP_KICKOFF.md

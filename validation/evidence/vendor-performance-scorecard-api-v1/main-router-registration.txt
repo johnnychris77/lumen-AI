@@ -1,0 +1,2 @@
+26:from app.routes.vendor_performance_scorecard import router as vendor_performance_scorecard_router
+554:app.include_router(vendor_performance_scorecard_router)
