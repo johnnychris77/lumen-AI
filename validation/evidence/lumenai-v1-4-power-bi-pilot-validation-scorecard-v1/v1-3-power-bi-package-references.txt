@@ -1,0 +1,6 @@
+1:# LumenAI v1.3 Power BI Pilot Export Package v1
+20:The LumenAI v1.3 Power BI Pilot Export Package v1 is drafted.
+28:The purpose of the Power BI Pilot Export Package is to define how LumenAI governance intelligence outputs can support customer analytics and executive reporting during an enterprise pilot.
+140:# 5. Pilot Dataset Structure
+427:# 15. Final Power BI Pilot Export Package Statement
+429:The LumenAI v1.3 Power BI Pilot Export Package v1 is drafted and ready to support enterprise customer analytics review, Power BI export validation, data dictionary review, executive dashboard planning, and pilot reporting cadence alignment.

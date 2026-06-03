@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 14K Jun  3 19:23 docs/pilot/LUMENAI_v1_4_POWER_BI_PILOT_VALIDATION_SCORECARD_v1.md

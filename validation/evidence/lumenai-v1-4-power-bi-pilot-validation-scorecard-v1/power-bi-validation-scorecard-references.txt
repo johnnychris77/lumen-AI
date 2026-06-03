@@ -1,0 +1,5 @@
+3:## Scorecard Status
+85:# 4. Power BI Validation Categories
+287:# 5. Power BI Scorecard Template
+418:# 8. Decision Thresholds
+561:# 11. Final Power BI Pilot Validation Scorecard Statement
