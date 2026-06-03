@@ -1,0 +1,5 @@
+3:## Scorecard Status
+42:# 2. Scoring Model
+66:# 3. Scorecard Categories
+375:# 6. Decision Thresholds
+534:# 10. Final Pilot Success Scorecard Statement
