@@ -1,0 +1,2 @@
+26:import VendorTrendIntelligenceCards from "./components/VendorTrendIntelligenceCards";
+1526:      <VendorTrendIntelligenceCards />

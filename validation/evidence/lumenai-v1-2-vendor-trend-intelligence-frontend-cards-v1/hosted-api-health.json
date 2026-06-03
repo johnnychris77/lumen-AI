@@ -1,0 +1,1 @@
+{"status":"healthy","module":"vendor_trend_intelligence","version":"v1","product_phase":"v1.2","timestamp":"2026-06-03T02:35:01.161450+00:00","capabilities":["vendor_trend_summary","vendor_score_movement","repeat_event_detection","high_risk_vendor_detection","capa_linkage_visibility","csv_export","executive_vendor_review_guidance"]}

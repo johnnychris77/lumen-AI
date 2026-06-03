@@ -1,0 +1,23 @@
+38:export default function VendorTrendIntelligenceCards() {
+44:  const csvUrl = `${API_BASE}/api/v1-2/vendor/trend-intelligence/export.csv`;
+55:          fetch(`${API_BASE}/api/v1-2/vendor/trend-intelligence/health`),
+56:          fetch(`${API_BASE}/api/v1-2/vendor/trend-intelligence/summary`),
+76:          setErrorMessage(error.message || "Unable to load Vendor Trend Intelligence.");
+101:        <div style={styles.badge}>v1.2 VENDOR TREND INTELLIGENCE</div>
+102:        <h2 style={styles.title}>Loading Vendor Trend Intelligence...</h2>
+111:        <div style={styles.badge}>v1.2 VENDOR TREND INTELLIGENCE</div>
+112:        <h2 style={styles.title}>Vendor Trend Intelligence Unavailable</h2>
+115:          Confirm the backend endpoint is available at /api/v1-2/vendor/trend-intelligence/summary.
+121:  const trendStatus = summary?.vendor_trend_status || "unknown";
+122:  const scoreDelta = summary?.vendor_score_delta ?? 0;
+128:          <div style={styles.badge}>v1.2 VENDOR TREND INTELLIGENCE</div>
+129:          <h2 style={styles.title}>Vendor Trend Intelligence</h2>
+148:        <MetricCard label="Repeat Events" value={summary?.repeat_event_vendor_count ?? 0} tone="#ef4444" />
+149:        <MetricCard label="High Risk Vendors" value={summary?.high_risk_vendor_count ?? 0} tone="#ef4444" />
+150:        <MetricCard label="CAPA Linked" value={summary?.capa_linked_vendor_count ?? 0} tone="#f59e0b" />
+170:            <li><strong>Repeat-event vendors:</strong> {summary?.repeat_event_vendor_count ?? 0}</li>
+171:            <li><strong>High-risk vendors:</strong> {summary?.high_risk_vendor_count ?? 0}</li>
+172:            <li><strong>CAPA-linked vendors:</strong> {summary?.capa_linked_vendor_count ?? 0}</li>
+200:                <span>Delta {deltaLabel(item.vendor_score_delta)}</span>
+232:            {(summary?.next_actions || []).map((item, index) => (
+244:        <span>Theme: Vendor Performance Scorecard → Vendor Trend Intelligence → Executive Vendor Review</span>
