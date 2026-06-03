@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+date: Wed, 03 Jun 2026 00:46:31 GMT
+server: uvicorn
+content-disposition: attachment; filename=lumenai_v1_2_power_bi_executive_analytics.csv
+content-length: 1436
+content-type: text/csv; charset=utf-8
+

@@ -1,0 +1,2 @@
+27:from app.routes.power_bi_executive_analytics import router as power_bi_executive_analytics_router
+556:app.include_router(power_bi_executive_analytics_router)

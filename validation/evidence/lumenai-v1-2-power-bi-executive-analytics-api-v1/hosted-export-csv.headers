@@ -1,0 +1,12 @@
+HTTP/2 200 
+date: Wed, 03 Jun 2026 00:46:55 GMT
+content-type: text/csv; charset=utf-8
+content-length: 1436
+content-disposition: attachment; filename=lumenai_v1_2_power_bi_executive_analytics.csv
+rndr-id: a9e5011e-817e-4fc9
+server: cloudflare
+x-render-origin-server: uvicorn
+cf-cache-status: DYNAMIC
+cf-ray: a05aaef98a2b910b-IAD
+alt-svc: h3=":443"; ma=86400
+

@@ -1,0 +1,17 @@
+6:from fastapi import APIRouter
+9:router = APIRouter(
+10:    prefix="/api/v1-2/power-bi/executive-analytics",
+117:def _data_dictionary() -> List[Dict[str, str]]:
+194:@router.get("/health")
+213:@router.get("/summary")
+227:        "dataset_name": "lumenai_v1_2_executive_governance_power_bi_dataset",
+233:        "power_bi_readiness_status": "ready",
+235:            "/api/v1-2/power-bi/executive-analytics/export.csv",
+236:            "/api/v1-2/power-bi/executive-analytics/data-dictionary",
+239:            "Use export.csv as the initial Power BI dataset for executive governance reporting.",
+240:            "Use data-dictionary to map Power BI fields, slicers, cards, and conditional formatting.",
+265:@router.get("/data-dictionary")
+266:def power_bi_executive_analytics_data_dictionary() -> Dict[str, Any]:
+267:    fields = _data_dictionary()
+274:        "dictionary_name": "lumenai_v1_2_power_bi_executive_analytics_data_dictionary",
+280:@router.get("/export.csv", response_class=PlainTextResponse)
