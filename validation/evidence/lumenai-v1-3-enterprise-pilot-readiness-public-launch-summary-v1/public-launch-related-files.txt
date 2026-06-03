@@ -1,0 +1,4 @@
+-rw-r--r-- 1 ohna ohna 8.4K Jun  3 17:09 docs/archive/LUMENAI_v1_3_ENTERPRISE_PILOT_READINESS_FINAL_ARCHIVE_PACKAGE_v1.md
+-rw-r--r-- 1 ohna ohna 7.2K Jun  3 16:43 docs/release-locks/LUMENAI_v1_3_ENTERPRISE_PILOT_READINESS_FINAL_CLOSURE_v1.md
+-rw-r--r-- 1 ohna ohna 5.4K Jun  3 17:23 docs/release-locks/LUMENAI_v1_3_ENTERPRISE_PILOT_READINESS_FINAL_PUBLIC_PORTFOLIO_RELEASE_LOCK_v1.md
+-rw-r--r-- 1 ohna ohna 3.7K Jun  3 17:28 docs/release-locks/LUMENAI_v1_3_ENTERPRISE_PILOT_READINESS_FINAL_PUBLIC_REPOSITORY_CLEANUP_v1.md
