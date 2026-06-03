@@ -21,6 +21,7 @@ import AuditCommandCenterEvidencePage from "./pages/AuditCommandCenterEvidencePa
 import GovernanceIntelligenceCards from "./components/GovernanceIntelligenceCards";
 import CapaPredictiveRiskCards from "./components/CapaPredictiveRiskCards";
 import VendorPerformanceScorecardCards from "./components/VendorPerformanceScorecardCards";
+import PowerBiExecutiveAnalyticsCards from "./components/PowerBiExecutiveAnalyticsCards";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -1518,6 +1519,8 @@ function Layout() {
       <GovernanceIntelligenceCards />
       <CapaPredictiveRiskCards />
       <VendorPerformanceScorecardCards />
+      <PowerBiExecutiveAnalyticsCards />
+
 
 
 
