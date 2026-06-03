@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 9.9K Jun  3 15:31 docs/pilot/LUMENAI_v1_3_SECURITY_PRIVACY_AND_COMPLIANCE_READINESS_v1.md
