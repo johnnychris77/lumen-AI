@@ -1,0 +1,9 @@
+-rw-r--r-- 1 ohna ohna  16K Jun  3 19:26 docs/pilot/LUMENAI_v1_4_CAPA_AND_VENDOR_PILOT_VALIDATION_SCORECARDS_v1.md
+-rw-r--r-- 1 ohna ohna  13K Jun  3 19:33 docs/pilot/LUMENAI_v1_4_COMMERCIAL_CONVERSION_RECOMMENDATION_v1.md
+-rw-r--r-- 1 ohna ohna  14K Jun  3 19:15 docs/pilot/LUMENAI_v1_4_CUSTOMER_IMPLEMENTATION_WORKFLOW_v1.md
+-rw-r--r-- 1 ohna ohna  14K Jun  3 19:12 docs/pilot/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PLAN_v1.md
+-rw-r--r-- 1 ohna ohna  12K Jun  3 19:29 docs/pilot/LUMENAI_v1_4_EXECUTIVE_PILOT_REVIEW_PACKAGE_v1.md
+-rw-r--r-- 1 ohna ohna 6.0K Jun  3 19:18 docs/pilot/LUMENAI_v1_4_PILOT_GOVERNANCE_AND_EVIDENCE_CAPTURE_v1.md
+-rw-r--r-- 1 ohna ohna  13K Jun  3 19:21 docs/pilot/LUMENAI_v1_4_PILOT_SUCCESS_SCORECARD_v1.md
+-rw-r--r-- 1 ohna ohna  14K Jun  3 19:23 docs/pilot/LUMENAI_v1_4_POWER_BI_PILOT_VALIDATION_SCORECARD_v1.md
+-rw-r--r-- 1 ohna ohna 6.8K Jun  3 19:10 docs/roadmap/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_KICKOFF_v1.md
