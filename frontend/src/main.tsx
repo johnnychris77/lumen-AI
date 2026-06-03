@@ -23,6 +23,7 @@ import CapaPredictiveRiskCards from "./components/CapaPredictiveRiskCards";
 import VendorPerformanceScorecardCards from "./components/VendorPerformanceScorecardCards";
 import PowerBiExecutiveAnalyticsCards from "./components/PowerBiExecutiveAnalyticsCards";
 import CapaTrendIntelligenceCards from "./components/CapaTrendIntelligenceCards";
+import VendorTrendIntelligenceCards from "./components/VendorTrendIntelligenceCards";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -1522,6 +1523,8 @@ function Layout() {
       <VendorPerformanceScorecardCards />
       <PowerBiExecutiveAnalyticsCards />
       <CapaTrendIntelligenceCards />
+      <VendorTrendIntelligenceCards />
+
 
 
 
