@@ -105,3 +105,36 @@ This public evidence page provides a concise evidence trail for the completed Lu
 
 ## Final Navigation Status
 The v1.1 Executive Governance Intelligence final public evidence page is linked and ready for executive, investor, portfolio, and technical review.
+
+---
+
+# 8. LumenAI v1.1 Executive Governance Intelligence Public Launch Summary
+
+## Launch Status
+LAUNCHED
+
+## Public Launch Summary
+
+docs/public/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_PUBLIC_LAUNCH_SUMMARY_v1.md
+
+## Launch Evidence
+
+validation/evidence/lumenai-v1-1-executive-governance-intelligence-public-launch-summary-v1/VALIDATION_SUMMARY.md
+
+## Launched Executive Intelligence Layers
+
+- Governance Intelligence
+- CAPA Predictive Risk
+- Vendor Performance Scorecard
+
+## Hosted Demonstration
+
+Hosted frontend:
+https://lumen-ai-1.onrender.com
+
+Hosted API:
+https://lumen-ai-53u4.onrender.com
+
+## Final Launch Status
+
+The LumenAI v1.1 Executive Governance Intelligence public launch summary is complete, evidence-backed, portfolio-linked, and executive demonstration ready.
