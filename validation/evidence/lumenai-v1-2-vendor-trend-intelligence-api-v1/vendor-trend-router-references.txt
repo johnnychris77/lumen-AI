@@ -1,0 +1,26 @@
+6:from fastapi import APIRouter
+9:router = APIRouter(
+10:    prefix="/api/v1-2/vendor/trend-intelligence",
+51:            "vendor_score_delta": -12,
+67:            "vendor_score_delta": -3,
+83:            "vendor_score_delta": 2,
+99:            "vendor_score_delta": 6,
+113:@router.get("/health")
+133:@router.get("/summary")
+139:    vendor_score_delta = average_vendor_score - prior_average_vendor_score
+141:    repeat_event_vendor_count = sum(1 for item in items if item["repeat_event_count"] >= 2)
+142:    high_risk_vendor_count = sum(1 for item in items if item["high_risk_event_count"] >= 2)
+143:    capa_linked_vendor_count = sum(1 for item in items if item["capa_linked_event_count"] > 0)
+152:        vendor_trend_status = "executive_action_required"
+153:    elif leadership_watch_count > 0 or vendor_score_delta < 0:
+154:        vendor_trend_status = "leadership_watch"
+156:        vendor_trend_status = "controlled"
+165:        "vendor_trend_status": vendor_trend_status,
+168:        "vendor_score_delta": vendor_score_delta,
+169:        "vendor_score_trend_band": _score_trend_band(vendor_score_delta),
+170:        "repeat_event_vendor_count": repeat_event_vendor_count,
+171:        "high_risk_vendor_count": high_risk_vendor_count,
+172:        "capa_linked_vendor_count": capa_linked_vendor_count,
+179:            "Use vendor_score_delta and repeat_event_vendor_count as monthly vendor governance indicators.",
+202:@router.get("/export.csv", response_class=PlainTextResponse)
+212:        "vendor_score_delta",

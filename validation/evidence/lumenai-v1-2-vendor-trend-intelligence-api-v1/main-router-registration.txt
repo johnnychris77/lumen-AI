@@ -1,0 +1,2 @@
+29:from app.routes.vendor_trend_intelligence import router as vendor_trend_intelligence_router
+560:app.include_router(vendor_trend_intelligence_router)
