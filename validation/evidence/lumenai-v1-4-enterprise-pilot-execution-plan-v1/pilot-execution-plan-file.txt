@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 14K Jun  3 19:12 docs/pilot/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PLAN_v1.md
