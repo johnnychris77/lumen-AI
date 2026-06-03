@@ -1,0 +1,4 @@
+3:## Scorecard Status
+87:# 4. CAPA Validation Scorecard
+279:# 6. Vendor Validation Scorecard
+649:# 12. Final CAPA and Vendor Pilot Validation Scorecards Statement

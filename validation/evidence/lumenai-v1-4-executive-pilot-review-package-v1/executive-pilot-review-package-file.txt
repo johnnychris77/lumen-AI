@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 12K Jun  3 19:29 docs/pilot/LUMENAI_v1_4_EXECUTIVE_PILOT_REVIEW_PACKAGE_v1.md
