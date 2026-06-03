@@ -1,0 +1,10 @@
+10:Power BI Executive Analytics API
+16:The LumenAI v1.2 Power BI Executive Analytics API v1 is released, validated, evidence-backed, CSV-export ready, data-dictionary ready, roadmap-linked, and ready for frontend integration.
+65:## Data Dictionary Endpoint
+108:The Power BI Executive Analytics API creates a unified Power BI-ready executive analytics dataset across:
+146:- Registers Power BI Executive Analytics API router with the FastAPI app
+192:LumenAI v1.2 Power BI Executive Analytics API v1
+215:The Power BI Executive Analytics API advances LumenAI from executive dashboard cards into Power BI-ready analytics.
+227:# 7. Final Release Lock Statement
+229:The LumenAI v1.2 Power BI Executive Analytics API v1 is officially locked.
+235:- CSV-export ready

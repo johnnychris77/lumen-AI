@@ -1,0 +1,15 @@
+31:export default function PowerBiExecutiveAnalyticsCards() {
+38:  const csvUrl = `${API_BASE}/api/v1-2/power-bi/executive-analytics/export.csv`;
+39:  const dictionaryUrl = `${API_BASE}/api/v1-2/power-bi/executive-analytics/data-dictionary`;
+50:          fetch(`${API_BASE}/api/v1-2/power-bi/executive-analytics/health`),
+51:          fetch(`${API_BASE}/api/v1-2/power-bi/executive-analytics/summary`),
+78:          setErrorMessage(error.message || "Unable to load Power BI Executive Analytics.");
+109:        <div style={styles.badge}>v1.2 POWER BI ANALYTICS</div>
+110:        <h2 style={styles.title}>Loading Power BI Executive Analytics...</h2>
+119:        <div style={styles.badge}>v1.2 POWER BI ANALYTICS</div>
+120:        <h2 style={styles.title}>Power BI Executive Analytics Unavailable</h2>
+123:          Confirm the backend endpoint is available at /api/v1-2/power-bi/executive-analytics/summary.
+129:  const readinessStatus = summary?.power_bi_readiness_status || "unknown";
+135:          <div style={styles.badge}>v1.2 POWER BI ANALYTICS</div>
+136:          <h2 style={styles.title}>Power BI Executive Analytics</h2>
+235:            {(summary?.next_actions || []).map((item, index) => (

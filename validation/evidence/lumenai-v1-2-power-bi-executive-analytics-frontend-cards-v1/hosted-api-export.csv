@@ -1,0 +1,7 @@
+snapshot_month,domain,metric_key,metric_label,metric_value,metric_unit,status,risk_band,executive_priority,trend_direction,power_bi_category,recommended_action
+2026-06,governance_intelligence,governance_health_score,Governance Health Score,89,score,executive_ready,controlled,routine_monitoring,stable,Executive Governance,Maintain governance review cadence and continue monthly executive dashboard validation.
+2026-06,capa_predictive_risk,average_risk_score,Average CAPA Risk Score,77,score,action_required,high,leadership_watch,watch,CAPA Risk,Review high-priority and overdue CAPAs during executive quality huddle.
+2026-06,capa_predictive_risk,overdue_count,Overdue CAPA Count,1,count,action_required,high,manager_follow_up,watch,CAPA Risk,Escalate overdue CAPA owner follow-up and verify closure plan.
+2026-06,vendor_performance,average_vendor_score,Average Vendor Score,71,score,action_required,watch,leadership_watch,watch,Vendor Performance,Review vendor watchlist and link repeat events to CAPA accountability.
+2026-06,vendor_performance,high_risk_vendor_count,High-Risk Vendor Count,2,count,action_required,high,executive_review,watch,Vendor Performance,Prioritize high-risk vendors for executive vendor review.
+2026-06,vendor_performance,capa_linked_vendor_count,CAPA-Linked Vendor Count,2,count,action_required,high,executive_review,watch,Vendor Performance,Track CAPA-linked vendor events through governance closure.
