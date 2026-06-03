@@ -1014,3 +1014,34 @@ https://lumen-ai-53u4.onrender.com
 ## Final Public Portfolio Statement
 
 LumenAI v1.1 Executive Governance Intelligence is complete, evidence-backed, archived, release-locked, repository-cleaned, hosted-frontend validated, and executive demonstration ready.
+
+---
+
+# LumenAI v1.1 Executive Governance Intelligence Final Public Evidence Navigation Link v1
+
+## Navigation Status
+
+**Linked · Public Evidence Discoverable · Portfolio Ready · Executive Demonstration Ready**
+
+The final public evidence page for the LumenAI v1.1 Executive Governance Intelligence sequence is now linked for public portfolio navigation.
+
+## Public Evidence Page
+
+| Artifact | Path |
+|---|---|
+| Final Public Evidence Page | docs/public/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_PUBLIC_EVIDENCE_PAGE_v1.md |
+| Public Portfolio | docs/portfolio/LUMENAI_PUBLIC_PORTFOLIO.md |
+| Final Archive Package | docs/archive/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_ARCHIVE_PACKAGE_v1.md |
+| Final Closure Record | docs/release-locks/LUMENAI_v1_1_EXECUTIVE_GOVERNANCE_INTELLIGENCE_FINAL_CLOSURE_v1.md |
+
+## Hosted Demonstration
+
+Hosted frontend:
+https://lumen-ai-1.onrender.com
+
+Hosted API:
+https://lumen-ai-53u4.onrender.com
+
+## Final Navigation Statement
+
+The LumenAI v1.1 Executive Governance Intelligence final public evidence page is linked, discoverable, evidence-backed, and executive demonstration ready.
