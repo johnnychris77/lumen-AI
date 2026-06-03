@@ -1,0 +1,21 @@
+38:export default function CapaTrendIntelligenceCards() {
+44:  const csvUrl = `${API_BASE}/api/v1-2/capa/trend-intelligence/export.csv`;
+55:          fetch(`${API_BASE}/api/v1-2/capa/trend-intelligence/health`),
+56:          fetch(`${API_BASE}/api/v1-2/capa/trend-intelligence/summary`),
+76:          setErrorMessage(error.message || "Unable to load CAPA Trend Intelligence.");
+101:        <div style={styles.badge}>v1.2 CAPA TREND INTELLIGENCE</div>
+102:        <h2 style={styles.title}>Loading CAPA Trend Intelligence...</h2>
+111:        <div style={styles.badge}>v1.2 CAPA TREND INTELLIGENCE</div>
+112:        <h2 style={styles.title}>CAPA Trend Intelligence Unavailable</h2>
+115:          Confirm the backend endpoint is available at /api/v1-2/capa/trend-intelligence/summary.
+121:  const trendStatus = summary?.capa_trend_status || "unknown";
+122:  const riskDelta = summary?.risk_score_delta ?? 0;
+128:          <div style={styles.badge}>v1.2 CAPA TREND INTELLIGENCE</div>
+129:          <h2 style={styles.title}>CAPA Trend Intelligence</h2>
+149:        <MetricCard label="Recurrence" value={summary?.recurrence_count ?? 0} tone="#ef4444" />
+150:        <MetricCard label="Aging Risk" value={summary?.aging_risk_count ?? 0} tone="#f59e0b" />
+151:        <MetricCard label="Owner Workload" value={summary?.owner_workload_risk_count ?? 0} tone="#38bdf8" />
+201:                <span>Delta {deltaLabel(item.risk_score_delta)}</span>
+203:                <span>{item.recurrence_count} recurrences</span>
+232:            {(summary?.next_actions || []).map((item, index) => (
+244:        <span>Theme: CAPA Predictive Risk → CAPA Trend Intelligence → Executive Escalation</span>

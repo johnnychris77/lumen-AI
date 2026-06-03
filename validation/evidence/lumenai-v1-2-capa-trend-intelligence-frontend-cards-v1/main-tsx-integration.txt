@@ -1,0 +1,2 @@
+25:import CapaTrendIntelligenceCards from "./components/CapaTrendIntelligenceCards";
+1524:      <CapaTrendIntelligenceCards />

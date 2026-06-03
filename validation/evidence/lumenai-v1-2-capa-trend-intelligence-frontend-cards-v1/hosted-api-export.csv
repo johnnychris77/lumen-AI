@@ -1,0 +1,5 @@
+capa_id,title,owner,site,current_risk_score,prior_risk_score,risk_score_delta,trend_band,days_open,overdue_days,recurrence_count,linked_vendor,executive_priority,recommended_action
+CAPA-2026-001,Repeat vendor tray quality defects,Quality Governance,Market,88,76,12,worsening,42,16,4,OrthoTech Instruments,executive_review,Escalate to executive CAPA review and require vendor corrective action linkage.
+CAPA-2026-002,Sterile processing documentation gap,SPD Operations,St Mary,74,70,4,watch,28,3,2,,leadership_watch,Review owner action plan and verify evidence of containment.
+CAPA-2026-003,Inspection finding recurrence,Inspection Governance,ORC,69,72,-3,stable,18,0,2,Precision Spine Systems,leadership_watch,Continue monitoring trend and link inspection recurrence to CAPA closure evidence.
+CAPA-2026-004,Policy review completion delay,Regulatory Readiness,Market,52,60,-8,improving,12,0,1,,routine_monitoring,Maintain routine monitoring and verify policy approval milestone.
