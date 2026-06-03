@@ -26,6 +26,7 @@ from app.routes.capa_predictive_risk import router as capa_predictive_risk_route
 from app.routes.vendor_performance_scorecard import router as vendor_performance_scorecard_router
 from app.routes.power_bi_executive_analytics import router as power_bi_executive_analytics_router
 from app.routes.capa_trend_intelligence import router as capa_trend_intelligence_router
+from app.routes.vendor_trend_intelligence import router as vendor_trend_intelligence_router
 
 app = FastAPI(title="LumenAI API")
 
@@ -556,6 +557,7 @@ app.include_router(governance_intelligence_router)
 app.include_router(vendor_performance_scorecard_router)
 app.include_router(power_bi_executive_analytics_router)
 app.include_router(capa_trend_intelligence_router)
+app.include_router(vendor_trend_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
 from app.db.base import Base
