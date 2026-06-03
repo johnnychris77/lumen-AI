@@ -1,0 +1,2 @@
+28:from app.routes.capa_trend_intelligence import router as capa_trend_intelligence_router
+558:app.include_router(capa_trend_intelligence_router)

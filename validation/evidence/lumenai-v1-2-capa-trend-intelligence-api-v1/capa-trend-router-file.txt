@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 8.5K Jun  2 21:13 backend/app/routes/capa_trend_intelligence.py

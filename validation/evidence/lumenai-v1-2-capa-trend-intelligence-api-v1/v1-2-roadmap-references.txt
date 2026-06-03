@@ -1,0 +1,10 @@
+58:## Objective 2 — Predictive CAPA Trend Intelligence
+64:- CAPA trend summary API
+155:## Phase 1 — Power BI Analytics Foundation
+165:## Phase 2 — CAPA Trend Intelligence
+167:1. LumenAI CAPA Trend Intelligence API v1
+168:2. LumenAI CAPA Trend Intelligence Evidence Package v1
+169:3. LumenAI CAPA Trend Intelligence Release Lock v1
+170:4. LumenAI CAPA Trend Intelligence Frontend Cards v1
+171:5. LumenAI CAPA Trend Intelligence Repository Clean-Up v1
+238:# 6. Final Roadmap Kickoff Statement

@@ -1,0 +1,32 @@
+6:from fastapi import APIRouter
+9:router = APIRouter(
+10:    prefix="/api/v1-2/capa/trend-intelligence",
+29:def _executive_priority(risk_score: int, overdue_days: int, recurrence_count: int) -> str:
+30:    if risk_score >= 85 or overdue_days >= 15 or recurrence_count >= 3:
+32:    if risk_score >= 70 or overdue_days > 0 or recurrence_count >= 2:
+48:            "risk_score_delta": 12,
+52:            "recurrence_count": 4,
+64:            "risk_score_delta": 4,
+68:            "recurrence_count": 2,
+80:            "risk_score_delta": -3,
+84:            "recurrence_count": 2,
+96:            "risk_score_delta": -8,
+100:            "recurrence_count": 1,
+108:@router.get("/health")
+128:@router.get("/summary")
+134:    risk_score_delta = average_risk_score - prior_average_risk_score
+140:    recurrence_count = sum(1 for item in items if item["recurrence_count"] >= 2)
+141:    aging_risk_count = sum(1 for item in items if item["days_open"] >= 30 or item["overdue_days"] > 0)
+142:    owner_workload_risk_count = sum(
+154:    elif leadership_watch_count > 0 or risk_score_delta > 0:
+166:        "capa_trend_status": trend_status,
+169:        "risk_score_delta": risk_score_delta,
+170:        "risk_trend_band": _trend_band(risk_score_delta),
+175:        "recurrence_count": recurrence_count,
+176:        "aging_risk_count": aging_risk_count,
+177:        "owner_workload_risk_count": owner_workload_risk_count,
+183:            "Prioritize CAPAs with worsening risk_score_delta and recurring findings.",
+184:            "Use overdue_delta and aging_risk_count as monthly executive dashboard signals.",
+207:@router.get("/export.csv", response_class=PlainTextResponse)
+219:        "risk_score_delta",
+223:        "recurrence_count",

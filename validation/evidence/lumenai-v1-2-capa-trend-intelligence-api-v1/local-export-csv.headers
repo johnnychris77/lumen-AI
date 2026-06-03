@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+date: Wed, 03 Jun 2026 01:23:38 GMT
+server: uvicorn
+content-disposition: attachment; filename=lumenai_v1_2_capa_trend_intelligence.csv
+content-length: 983
+content-type: text/csv; charset=utf-8
+
