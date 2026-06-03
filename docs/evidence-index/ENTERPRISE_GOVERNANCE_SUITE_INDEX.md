@@ -1944,3 +1944,109 @@ The CAPA Trend Intelligence Frontend Cards make v1.2 CAPA trend intelligence vis
 ## Final Status
 
 The LumenAI v1.2 CAPA Trend Intelligence Frontend Cards v1 are released, frontend integrated, API-connected, CSV-export linked, evidence-backed, roadmap-linked, and executive-ready.
+
+---
+
+# 35. LumenAI v1.2 Vendor Trend Intelligence API v1
+
+## Release Status
+RELEASED
+
+## Product Phase
+LumenAI v1.2 Strategic Expansion Phase
+
+## Capability
+Vendor Trend Intelligence API
+
+## API Endpoints
+
+Health:
+https://lumen-ai-53u4.onrender.com/api/v1-2/vendor/trend-intelligence/health
+
+Summary:
+https://lumen-ai-53u4.onrender.com/api/v1-2/vendor/trend-intelligence/summary
+
+CSV Export:
+https://lumen-ai-53u4.onrender.com/api/v1-2/vendor/trend-intelligence/export.csv
+
+## Validated Output
+
+- module: vendor_trend_intelligence
+- product_phase: v1.2
+- vendor_trend_status: executive_action_required
+- trend_window: current_month_vs_prior_month
+- average_vendor_score: 74
+- prior_average_vendor_score: 76
+- vendor_score_delta: -2
+- repeat_event_vendor_count: 3
+- high_risk_vendor_count: 2
+- capa_linked_vendor_count: 2
+- executive_review_count: 1
+- leadership_watch_count: 1
+
+## Source Files
+
+- backend/app/routes/vendor_trend_intelligence.py
+- backend/app/main.py
+
+## Release Documentation
+
+- docs/release-locks/LUMENAI_v1_2_VENDOR_TREND_INTELLIGENCE_RELEASE_LOCK_v1.md
+
+## Evidence Package
+
+validation/evidence/lumenai-v1-2-vendor-trend-intelligence-api-v1/VALIDATION_SUMMARY.md
+
+Evidence folder:
+validation/evidence/lumenai-v1-2-vendor-trend-intelligence-api-v1/
+
+Evidence files:
+- main-router-registration.txt
+- vendor-trend-router-references.txt
+- vendor-trend-router-file.txt
+- local-health.headers
+- local-health.json
+- local-summary.headers
+- local-summary.json
+- local-export-csv.headers
+- local-export.csv
+- local-openapi.json
+- hosted-health.headers
+- hosted-health.json
+- hosted-summary.headers
+- hosted-summary.json
+- hosted-export-csv.headers
+- hosted-export.csv
+- hosted-openapi.json
+- v1-2-roadmap-references.txt
+- v1-2-roadmap-release-lock-references.txt
+- evidence-index-v1-2-references.txt
+- VALIDATION_SUMMARY.md
+
+## v1.2 Roadmap Relationship
+
+This API implements the v1.2 roadmap milestone:
+
+LumenAI v1.2 Vendor Trend Intelligence API v1
+
+It builds on:
+
+- docs/roadmap/LUMENAI_v1_2_STRATEGIC_ROADMAP_KICKOFF_v1.md
+- docs/release-locks/LUMENAI_v1_2_STRATEGIC_ROADMAP_RELEASE_LOCK_v1.md
+- docs/release-locks/LUMENAI_v1_2_STRATEGIC_ROADMAP_REPOSITORY_CLEANUP_v1.md
+
+## Strategic Theme
+
+Vendor Performance Scorecard  
+→ Vendor Trend Intelligence  
+→ Repeat Event Detection  
+→ CAPA Linkage Visibility  
+→ Executive Vendor Review Guidance
+
+## Business Value
+
+The Vendor Trend Intelligence API creates a trend-based executive vendor oversight layer by converting score movement, repeat events, high-risk events, CAPA linkage, and executive priority into actionable vendor governance intelligence.
+
+## Final Status
+
+The LumenAI v1.2 Vendor Trend Intelligence API v1 is released, validated, evidence-backed, CSV-export ready, roadmap-linked, and ready for frontend integration.
