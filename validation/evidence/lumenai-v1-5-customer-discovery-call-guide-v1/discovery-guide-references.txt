@@ -1,0 +1,7 @@
+3:## Guide Status
+49:# 2. Discovery Call Objectives
+115:# 6. Current-State Workflow Questions
+198:# 9. Data Boundary Questions
+246:# 12. Pilot Success Criteria Questions
+294:# 15. Qualification Interpretation
+429:# 21. Final Customer Discovery Call Guide Statement
