@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 5.1K Jun  4 19:16 docs/badges/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PUBLIC_LAUNCH_FINAL_BADGE_v1.md
