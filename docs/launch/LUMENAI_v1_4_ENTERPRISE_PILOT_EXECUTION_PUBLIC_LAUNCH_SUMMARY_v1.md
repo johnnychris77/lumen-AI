@@ -40,16 +40,7 @@ https://lumen-ai-53u4.onrender.com
 
 ## Executive Value Proposition
 
-LumenAI v1.4 helps healthcare leaders move from pilot interest into structured pilot execution by providing a defined implementation workflow, evidence-backed governance cadence, validation scorecards, executive review structure, and commercial conversion pathway.
-
-## Final Governance Records
-
-- docs/release-locks/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_FINAL_CLOSURE_v1.md
-- docs/release-locks/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_FINAL_PUBLIC_PORTFOLIO_RELEASE_LOCK_v1.md
-- docs/release-locks/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_FINAL_PUBLIC_REPOSITORY_CLEANUP_v1.md
-- docs/archive/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_FINAL_ARCHIVE_PACKAGE_v1.md
-- docs/completion/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_COMPLETION_PACKAGE_v1.md
-- docs/release-locks/LUMENAI_v1_3_ENTERPRISE_PILOT_READINESS_PUBLIC_LAUNCH_FINAL_REPOSITORY_SEAL_v1.md
+LumenAI v1.4 helps healthcare leaders move from pilot interest into structured pilot execution through a defined implementation workflow, evidence-backed governance cadence, validation scorecards, executive review structure, and commercial conversion pathway.
 
 ## Public Launch Statement
 

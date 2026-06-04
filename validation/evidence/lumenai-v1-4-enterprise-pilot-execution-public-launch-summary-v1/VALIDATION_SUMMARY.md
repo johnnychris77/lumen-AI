@@ -18,12 +18,7 @@ docs/launch/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PUBLIC_LAUNCH_SUMMARY_v1.md
 - Hosted API reference
 - Enterprise pilot execution stack
 - Executive value proposition
-- Final governance records
 - Final public launch statement
-
-## Hosted References
-- https://lumen-ai-1.onrender.com
-- https://lumen-ai-53u4.onrender.com
 
 ## Evidence Files
 - public-launch-summary-references.txt
