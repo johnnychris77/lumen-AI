@@ -1,5 +1,5 @@
 3:## Launch Status
 12:## Public Positioning
-17:## Public Demonstration Foundation
-41:## Executive Value Proposition
-45:## Public Launch Statement
+41:# 2. Public Demonstration Foundation
+190:# 4. Executive Value Proposition
+287:# 9. Public Launch Statement

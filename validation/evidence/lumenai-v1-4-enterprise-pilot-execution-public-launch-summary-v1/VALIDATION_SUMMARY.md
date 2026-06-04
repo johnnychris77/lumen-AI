@@ -16,9 +16,22 @@ docs/launch/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PUBLIC_LAUNCH_SUMMARY_v1.md
 - Public positioning
 - Hosted frontend reference
 - Hosted API reference
-- Enterprise pilot execution stack
+- Enterprise pilot execution plan summary
+- Customer implementation workflow summary
+- Pilot governance and evidence capture summary
+- Pilot success scorecard summary
+- Power BI validation scorecard summary
+- CAPA and vendor validation scorecards summary
+- Executive pilot review package summary
+- Commercial conversion recommendation summary
 - Executive value proposition
+- Target audience narrative
+- Evidence-backed governance summary
 - Final public launch statement
+
+## Hosted References
+- https://lumen-ai-1.onrender.com
+- https://lumen-ai-53u4.onrender.com
 
 ## Evidence Files
 - public-launch-summary-references.txt
