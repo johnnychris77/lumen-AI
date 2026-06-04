@@ -1,0 +1,7 @@
+3:## Script Status
+77:# 3. Demo Objective
+89:# 4. Demo Time Structure
+166:# 9. Demo Section 1 — Executive Dashboard
+282:# 13. Demo Section 5 — Non-PHI Pilot Model
+384:# 16. Objection Handling
+493:# 21. Final Hospital Pilot Demo Script Statement

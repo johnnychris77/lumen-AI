@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 14K Jun  4 19:50 docs/outreach/LUMENAI_v1_5_HOSPITAL_PILOT_DEMO_SCRIPT_v1.md
