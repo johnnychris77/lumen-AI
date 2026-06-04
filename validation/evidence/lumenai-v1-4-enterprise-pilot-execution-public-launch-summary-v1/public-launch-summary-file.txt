@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 1.7K Jun  3 22:17 docs/launch/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PUBLIC_LAUNCH_SUMMARY_v1.md
