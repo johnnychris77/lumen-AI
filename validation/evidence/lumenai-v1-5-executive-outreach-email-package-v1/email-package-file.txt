@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 14K Jun  4 19:47 docs/outreach/LUMENAI_v1_5_EXECUTIVE_OUTREACH_EMAIL_PACKAGE_v1.md
