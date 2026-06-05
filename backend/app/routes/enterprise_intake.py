@@ -71,6 +71,102 @@ def _audit_actor_from_request(request: Request) -> tuple[str, str]:
     return actor, role
 
 
+
+
+def _calculate_baseline_aware_score(
+    *,
+    finding_type: str | None = None,
+    risk_level: str | None = None,
+    vendor_baseline_id: int | None = None,
+    hospital_baseline_id: int | None = None,
+    historical_match_count: int = 0,
+    baseline_status: str | None = None,
+) -> dict:
+    """
+    Baseline-aware scoring engine.
+
+    Scoring hierarchy:
+    1. Approved vendor baseline = highest confidence
+    2. Approved hospital baseline = high confidence
+    3. Historical pattern match = medium confidence
+    4. No baseline = provisional, low confidence, review required
+    """
+
+    normalized_risk = (risk_level or "").lower()
+    normalized_finding = (finding_type or "").lower()
+    normalized_baseline_status = (baseline_status or "").lower()
+
+    base_score = 50
+
+    if normalized_risk in ["critical", "high"]:
+        base_score = 85
+    elif normalized_risk in ["medium", "moderate"]:
+        base_score = 65
+    elif normalized_risk in ["low"]:
+        base_score = 35
+
+    high_risk_keywords = [
+        "bioburden",
+        "blood",
+        "tissue",
+        "bone",
+        "contamination",
+        "broken",
+        "crack",
+        "rust",
+        "failed indicator",
+        "missing lock",
+        "no lock",
+        "wet tray",
+    ]
+
+    if any(keyword in normalized_finding for keyword in high_risk_keywords):
+        base_score = max(base_score, 75)
+
+    if vendor_baseline_id and normalized_baseline_status in ["approved", "active", "vendor_approved"]:
+        return {
+            "score": min(100, base_score + 10),
+            "score_confidence": "high",
+            "score_basis": "Compared against approved vendor baseline.",
+            "baseline_source": "vendor",
+            "baseline_status": "approved",
+            "requires_baseline_review": False,
+            "manual_review_required": False,
+        }
+
+    if hospital_baseline_id and normalized_baseline_status in ["approved", "active", "hospital_approved"]:
+        return {
+            "score": min(95, base_score + 5),
+            "score_confidence": "medium_high",
+            "score_basis": "Compared against approved hospital baseline.",
+            "baseline_source": "hospital",
+            "baseline_status": "approved",
+            "requires_baseline_review": False,
+            "manual_review_required": False,
+        }
+
+    if historical_match_count >= 3:
+        return {
+            "score": base_score,
+            "score_confidence": "medium",
+            "score_basis": "No approved baseline available. Score based on historical similar findings and inspection risk metadata.",
+            "baseline_source": "historical_pattern",
+            "baseline_status": "missing",
+            "requires_baseline_review": True,
+            "manual_review_required": False,
+        }
+
+    return {
+        "score": base_score,
+        "score_confidence": "low",
+        "score_basis": "No approved baseline available. Score is provisional and based only on finding type, risk level, and inspection metadata.",
+        "baseline_source": "none",
+        "baseline_status": "missing",
+        "requires_baseline_review": True,
+        "manual_review_required": True,
+    }
+
+
 def _record_enterprise_audit(
     db: Session,
     request: Request,
@@ -8870,6 +8966,71 @@ def get_enterprise_audit_command_center_health(
                 "failed_checks": response["failed_checks"],
                 "warning_checks": response["warning_checks"],
                 "workflow_status": "enterprise_audit_command_center_health_checked",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
+
+
+@router.post("/baseline-aware-score")
+def calculate_enterprise_baseline_aware_score(
+    payload: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    finding_type = payload.get("finding_type")
+    risk_level = payload.get("risk_level")
+    vendor_baseline_id = payload.get("vendor_baseline_id")
+    hospital_baseline_id = payload.get("hospital_baseline_id")
+    historical_match_count = int(payload.get("historical_match_count") or 0)
+    baseline_status = payload.get("baseline_status")
+
+    result = _calculate_baseline_aware_score(
+        finding_type=finding_type,
+        risk_level=risk_level,
+        vendor_baseline_id=vendor_baseline_id,
+        hospital_baseline_id=hospital_baseline_id,
+        historical_match_count=historical_match_count,
+        baseline_status=baseline_status,
+    )
+
+    response = {
+        "status": "success",
+        "scoring_type": "baseline_aware_scoring",
+        "input": {
+            "finding_type": finding_type,
+            "risk_level": risk_level,
+            "vendor_baseline_id": vendor_baseline_id,
+            "hospital_baseline_id": hospital_baseline_id,
+            "historical_match_count": historical_match_count,
+            "baseline_status": baseline_status,
+        },
+        "scoring_result": result,
+        "recommended_action": (
+            "Use score for reporting and governance."
+            if not result.get("requires_baseline_review")
+            else "Route finding to baseline review queue before treating score as final."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="baseline_aware_score_calculated",
+            resource_type="baseline_aware_scoring_engine",
+            resource_id="baseline_aware_score",
+            details={
+                "score": result.get("score"),
+                "score_confidence": result.get("score_confidence"),
+                "baseline_source": result.get("baseline_source"),
+                "requires_baseline_review": result.get("requires_baseline_review"),
+                "workflow_status": "baseline_aware_score_calculated",
             },
         )
         db.commit()
