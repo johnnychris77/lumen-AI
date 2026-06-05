@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 7.0K Jun  4 20:12 docs/outreach/LUMENAI_v1_5_INVESTOR_AND_STRATEGIC_PARTNER_BRIEF_v1.md
