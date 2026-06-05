@@ -22,6 +22,7 @@ from app.models.enterprise_quality import (
     EnterpriseInstrumentBaseline,
     EnterpriseRiskScore,
     EnterpriseVendor,
+    EnterpriseVendorBaselineSubscription,
 )
 from app.schemas.enterprise_intake import (
     EnterpriseInspectionIntakeRequest,
@@ -71,6 +72,36 @@ def _audit_actor_from_request(request: Request) -> tuple[str, str]:
     return actor, role
 
 
+
+
+
+
+def _vendor_baseline_record_to_dict(record) -> dict:
+    return {
+        "baseline_id": getattr(record, "id", None),
+        "vendor_name": getattr(record, "vendor_name", "") or "",
+        "instrument_name": getattr(record, "instrument_name", "") or "",
+        "instrument_category": getattr(record, "instrument_category", "") or "",
+        "catalog_number": getattr(record, "catalog_number", "") or "",
+        "model_number": getattr(record, "model_number", "") or "",
+        "barcode_value": getattr(record, "barcode_value", "") or "",
+        "qr_code_value": getattr(record, "qr_code_value", "") or "",
+        "key_dot_value": getattr(record, "key_dot_value", "") or "",
+        "tray_name": getattr(record, "tray_name", "") or "",
+        "baseline_image_url": getattr(record, "baseline_image_url", "") or "",
+        "acceptable_condition_notes": getattr(record, "acceptable_condition_notes", "") or "",
+        "unacceptable_condition_examples": getattr(record, "unacceptable_condition_examples", "") or "",
+        "ifu_reference": getattr(record, "ifu_reference", "") or "",
+        "subscription_tier": getattr(record, "subscription_tier", "") or "",
+        "baseline_source": getattr(record, "baseline_source", "") or "",
+        "baseline_status": getattr(record, "baseline_status", "") or "",
+        "approval_status": getattr(record, "approval_status", "") or "",
+        "baseline_version": getattr(record, "baseline_version", "") or "",
+        "approved_by": getattr(record, "approved_by", "") or "",
+        "approval_notes": getattr(record, "approval_notes", "") or "",
+        "created_at": record.created_at.isoformat() if getattr(record, "created_at", None) else "",
+        "updated_at": record.updated_at.isoformat() if getattr(record, "updated_at", None) else "",
+    }
 
 
 def _calculate_baseline_aware_score(
@@ -9166,33 +9197,34 @@ def create_enterprise_vendor_baseline_record(
     ifu_reference = payload.get("ifu_reference") or ""
     subscription_tier = payload.get("subscription_tier") or "vendor_standard"
 
-    baseline_id = len(VENDOR_BASELINE_LIBRARY) + 1
+    db_record = EnterpriseVendorBaselineSubscription(
+        vendor_name=vendor_name,
+        instrument_name=instrument_name,
+        instrument_category=instrument_category,
+        catalog_number=catalog_number,
+        model_number=model_number,
+        barcode_value=barcode_value,
+        qr_code_value=qr_code_value,
+        key_dot_value=key_dot_value,
+        tray_name=tray_name,
+        baseline_image_url=baseline_image_url,
+        acceptable_condition_notes=acceptable_condition_notes,
+        unacceptable_condition_examples=unacceptable_condition_examples,
+        ifu_reference=ifu_reference,
+        subscription_tier=subscription_tier,
+        baseline_source="vendor",
+        baseline_status="vendor_submitted",
+        approval_status="pending_hospital_review",
+        baseline_version="v1.0",
+    )
 
-    record = {
-        "baseline_id": baseline_id,
-        "vendor_name": vendor_name,
-        "instrument_name": instrument_name,
-        "instrument_category": instrument_category,
-        "catalog_number": catalog_number,
-        "model_number": model_number,
-        "barcode_value": barcode_value,
-        "qr_code_value": qr_code_value,
-        "key_dot_value": key_dot_value,
-        "tray_name": tray_name,
-        "baseline_image_url": baseline_image_url,
-        "acceptable_condition_notes": acceptable_condition_notes,
-        "unacceptable_condition_examples": unacceptable_condition_examples,
-        "ifu_reference": ifu_reference,
-        "subscription_tier": subscription_tier,
-        "baseline_source": "vendor",
-        "baseline_status": "vendor_submitted",
-        "approval_status": "pending_hospital_review",
-        "baseline_version": "v1.0",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
+    db.add(db_record)
+    db.commit()
+    db.refresh(db_record)
 
-    VENDOR_BASELINE_LIBRARY.append(record)
+    baseline_id = db_record.id
+
+    record = _vendor_baseline_record_to_dict(db_record)
 
     try:
         _record_enterprise_audit(
@@ -9239,7 +9271,8 @@ def list_enterprise_vendor_baseline_records(
 
     safe_limit = max(1, min(limit, 200))
 
-    records = VENDOR_BASELINE_LIBRARY
+    db_records = db.query(EnterpriseVendorBaselineSubscription).order_by(EnterpriseVendorBaselineSubscription.id.desc()).all()
+    records = [_vendor_baseline_record_to_dict(record) for record in db_records]
 
     if vendor_name:
         records = [
@@ -9278,7 +9311,7 @@ def list_enterprise_vendor_baseline_records(
         "library_type": "vendor_baseline_subscription_library",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "record_count": len(records),
-        "total_library_count": len(VENDOR_BASELINE_LIBRARY),
+        "total_library_count": db.query(EnterpriseVendorBaselineSubscription).count(),
         "filters": {
             "vendor_name": vendor_name,
             "instrument_name": instrument_name,
@@ -9323,22 +9356,29 @@ def approve_enterprise_vendor_baseline_record(
 
     payload = payload or {}
 
-    record = next(
-        (item for item in VENDOR_BASELINE_LIBRARY if item.get("baseline_id") == baseline_id),
-        None,
+    db_record = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(EnterpriseVendorBaselineSubscription.id == baseline_id)
+        .first()
     )
 
-    if not record:
+    if not db_record:
         return {
             "status": "not_found",
             "message": f"Vendor baseline record #{baseline_id} was not found.",
         }
 
-    record["baseline_status"] = "approved"
-    record["approval_status"] = "hospital_approved"
-    record["approved_by"] = request.headers.get("x-lumenai-actor", "unknown") if request else "unknown"
-    record["approval_notes"] = payload.get("approval_notes") or ""
-    record["updated_at"] = datetime.now(timezone.utc).isoformat()
+    db_record.baseline_status = "approved"
+    db_record.approval_status = "hospital_approved"
+    db_record.approved_by = request.headers.get("x-lumenai-actor", "unknown") if request else "unknown"
+    db_record.approval_notes = payload.get("approval_notes") or ""
+    db_record.updated_at = datetime.utcnow()
+
+    db.add(db_record)
+    db.commit()
+    db.refresh(db_record)
+
+    record = _vendor_baseline_record_to_dict(db_record)
 
     try:
         _record_enterprise_audit(
@@ -9380,7 +9420,10 @@ def match_enterprise_vendor_baseline_record(
 
     matches = []
 
-    for record in VENDOR_BASELINE_LIBRARY:
+    db_records = db.query(EnterpriseVendorBaselineSubscription).all()
+    records = [_vendor_baseline_record_to_dict(record) for record in db_records]
+
+    for record in records:
         haystack = [
             (record.get("barcode_value") or "").lower(),
             (record.get("qr_code_value") or "").lower(),
@@ -9586,7 +9629,7 @@ def list_enterprise_vendor_baseline_records(
         "library_type": "vendor_baseline_subscription_library",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "record_count": len(records),
-        "total_library_count": len(VENDOR_BASELINE_LIBRARY),
+        "total_library_count": db.query(EnterpriseVendorBaselineSubscription).count(),
         "filters": {
             "vendor_name": vendor_name,
             "instrument_name": instrument_name,

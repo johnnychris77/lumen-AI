@@ -207,3 +207,38 @@ class EnterpriseExportReadinessHistory(Base):
 
     readiness_summary = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EnterpriseVendorBaselineSubscription(Base):
+    __tablename__ = "enterprise_vendor_baseline_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    vendor_name = Column(String, nullable=True)
+    instrument_name = Column(String, nullable=True)
+    instrument_category = Column(String, nullable=True)
+
+    catalog_number = Column(String, nullable=True)
+    model_number = Column(String, nullable=True)
+    barcode_value = Column(String, nullable=True)
+    qr_code_value = Column(String, nullable=True)
+    key_dot_value = Column(String, nullable=True)
+
+    tray_name = Column(String, nullable=True)
+    baseline_image_url = Column(Text, nullable=True)
+
+    acceptable_condition_notes = Column(Text, nullable=True)
+    unacceptable_condition_examples = Column(Text, nullable=True)
+    ifu_reference = Column(Text, nullable=True)
+
+    subscription_tier = Column(String, nullable=True, default="vendor_standard")
+    baseline_source = Column(String, nullable=True, default="vendor")
+    baseline_status = Column(String, nullable=True, default="vendor_submitted")
+    approval_status = Column(String, nullable=True, default="pending_hospital_review")
+    baseline_version = Column(String, nullable=True, default="v1.0")
+
+    approved_by = Column(String, nullable=True)
+    approval_notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
