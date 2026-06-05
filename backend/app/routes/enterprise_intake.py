@@ -9138,3 +9138,311 @@ def get_enterprise_baseline_review_queue(
         db.rollback()
 
     return response
+
+
+VENDOR_BASELINE_LIBRARY: list[dict] = []
+
+
+@router.post("/vendor-baseline-subscription/baselines")
+def create_enterprise_vendor_baseline_record(
+    payload: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    vendor_name = payload.get("vendor_name") or payload.get("vendor") or ""
+    instrument_name = payload.get("instrument_name") or ""
+    instrument_category = payload.get("instrument_category") or ""
+    catalog_number = payload.get("catalog_number") or ""
+    model_number = payload.get("model_number") or ""
+    barcode_value = payload.get("barcode_value") or ""
+    qr_code_value = payload.get("qr_code_value") or ""
+    key_dot_value = payload.get("key_dot_value") or ""
+    tray_name = payload.get("tray_name") or ""
+    baseline_image_url = payload.get("baseline_image_url") or ""
+    acceptable_condition_notes = payload.get("acceptable_condition_notes") or ""
+    unacceptable_condition_examples = payload.get("unacceptable_condition_examples") or ""
+    ifu_reference = payload.get("ifu_reference") or ""
+    subscription_tier = payload.get("subscription_tier") or "vendor_standard"
+
+    baseline_id = len(VENDOR_BASELINE_LIBRARY) + 1
+
+    record = {
+        "baseline_id": baseline_id,
+        "vendor_name": vendor_name,
+        "instrument_name": instrument_name,
+        "instrument_category": instrument_category,
+        "catalog_number": catalog_number,
+        "model_number": model_number,
+        "barcode_value": barcode_value,
+        "qr_code_value": qr_code_value,
+        "key_dot_value": key_dot_value,
+        "tray_name": tray_name,
+        "baseline_image_url": baseline_image_url,
+        "acceptable_condition_notes": acceptable_condition_notes,
+        "unacceptable_condition_examples": unacceptable_condition_examples,
+        "ifu_reference": ifu_reference,
+        "subscription_tier": subscription_tier,
+        "baseline_source": "vendor",
+        "baseline_status": "vendor_submitted",
+        "approval_status": "pending_hospital_review",
+        "baseline_version": "v1.0",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    VENDOR_BASELINE_LIBRARY.append(record)
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name=vendor_name,
+            action_type="vendor_baseline_record_created",
+            resource_type="vendor_baseline_subscription_baseline",
+            resource_id=str(baseline_id),
+            details={
+                "vendor_name": vendor_name,
+                "instrument_name": instrument_name,
+                "catalog_number": catalog_number,
+                "baseline_status": record["baseline_status"],
+                "approval_status": record["approval_status"],
+                "workflow_status": "vendor_baseline_record_created",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return {
+        "status": "success",
+        "baseline_type": "vendor_baseline_subscription_record",
+        "message": "Vendor baseline record created and routed for hospital review.",
+        "baseline": record,
+        "recommended_next_step": "Hospital or enterprise reviewer should approve, reject, or request clarification before using this baseline for final scoring.",
+    }
+
+
+@router.get("/vendor-baseline-subscription/baselines")
+def list_enterprise_vendor_baseline_records(
+    vendor_name: str | None = None,
+    instrument_name: str | None = None,
+    identifier_value: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    safe_limit = max(1, min(limit, 200))
+
+    records = VENDOR_BASELINE_LIBRARY
+
+    if vendor_name:
+        records = [
+            record for record in records
+            if vendor_name.lower() in (record.get("vendor_name") or "").lower()
+        ]
+
+    if instrument_name:
+        records = [
+            record for record in records
+            if instrument_name.lower() in (record.get("instrument_name") or "").lower()
+        ]
+
+    if identifier_value:
+        needle = identifier_value.lower()
+        records = [
+            record for record in records
+            if needle in (record.get("barcode_value") or "").lower()
+            or needle in (record.get("qr_code_value") or "").lower()
+            or needle in (record.get("key_dot_value") or "").lower()
+            or needle in (record.get("catalog_number") or "").lower()
+            or needle in (record.get("model_number") or "").lower()
+        ]
+
+    if status:
+        records = [
+            record for record in records
+            if status.lower() in (record.get("baseline_status") or "").lower()
+            or status.lower() in (record.get("approval_status") or "").lower()
+        ]
+
+    records = records[:safe_limit]
+
+    response = {
+        "status": "success",
+        "library_type": "vendor_baseline_subscription_library",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "record_count": len(records),
+        "total_library_count": len(VENDOR_BASELINE_LIBRARY),
+        "filters": {
+            "vendor_name": vendor_name,
+            "instrument_name": instrument_name,
+            "identifier_value": identifier_value,
+            "status": status,
+            "limit": safe_limit,
+        },
+        "records": records,
+        "recommended_use": "Use vendor-approved baseline records to improve instrument matching, baseline comparison, and score confidence.",
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name=vendor_name or "",
+            action_type="vendor_baseline_library_viewed",
+            resource_type="vendor_baseline_subscription_library",
+            resource_id="vendor_baseline_library",
+            details={
+                "record_count": response["record_count"],
+                "total_library_count": response["total_library_count"],
+                "workflow_status": "vendor_baseline_library_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
+
+
+@router.post("/vendor-baseline-subscription/baselines/{baseline_id}/approve")
+def approve_enterprise_vendor_baseline_record(
+    baseline_id: int,
+    payload: dict | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    payload = payload or {}
+
+    record = next(
+        (item for item in VENDOR_BASELINE_LIBRARY if item.get("baseline_id") == baseline_id),
+        None,
+    )
+
+    if not record:
+        return {
+            "status": "not_found",
+            "message": f"Vendor baseline record #{baseline_id} was not found.",
+        }
+
+    record["baseline_status"] = "approved"
+    record["approval_status"] = "hospital_approved"
+    record["approved_by"] = request.headers.get("x-lumenai-actor", "unknown") if request else "unknown"
+    record["approval_notes"] = payload.get("approval_notes") or ""
+    record["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name=record.get("vendor_name", ""),
+            action_type="vendor_baseline_record_approved",
+            resource_type="vendor_baseline_subscription_baseline",
+            resource_id=str(baseline_id),
+            details={
+                "vendor_name": record.get("vendor_name"),
+                "instrument_name": record.get("instrument_name"),
+                "baseline_status": record.get("baseline_status"),
+                "approval_status": record.get("approval_status"),
+                "workflow_status": "vendor_baseline_record_approved",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return {
+        "status": "success",
+        "message": "Vendor baseline record approved for scoring use.",
+        "baseline": record,
+    }
+
+
+@router.post("/vendor-baseline-subscription/match")
+def match_enterprise_vendor_baseline_record(
+    payload: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    identifier_value = (payload.get("identifier_value") or "").lower()
+    instrument_name = (payload.get("instrument_name") or "").lower()
+    vendor_name = (payload.get("vendor_name") or payload.get("vendor") or "").lower()
+
+    matches = []
+
+    for record in VENDOR_BASELINE_LIBRARY:
+        haystack = [
+            (record.get("barcode_value") or "").lower(),
+            (record.get("qr_code_value") or "").lower(),
+            (record.get("key_dot_value") or "").lower(),
+            (record.get("catalog_number") or "").lower(),
+            (record.get("model_number") or "").lower(),
+            (record.get("instrument_name") or "").lower(),
+            (record.get("vendor_name") or "").lower(),
+        ]
+
+        identifier_match = bool(identifier_value and any(identifier_value in value for value in haystack))
+        instrument_match = bool(instrument_name and instrument_name in (record.get("instrument_name") or "").lower())
+        vendor_match = bool(vendor_name and vendor_name in (record.get("vendor_name") or "").lower())
+
+        if identifier_match or (instrument_match and (vendor_match or not vendor_name)):
+            matches.append(record)
+
+    approved_matches = [
+        record for record in matches
+        if record.get("baseline_status") == "approved"
+        or record.get("approval_status") == "hospital_approved"
+    ]
+
+    best_match = approved_matches[0] if approved_matches else (matches[0] if matches else None)
+
+    match_status = "approved_match" if approved_matches else "pending_match" if matches else "no_match"
+
+    response = {
+        "status": "success",
+        "match_type": "vendor_baseline_subscription_match",
+        "match_status": match_status,
+        "match_count": len(matches),
+        "approved_match_count": len(approved_matches),
+        "best_match": best_match,
+        "matches": matches,
+        "recommended_action": (
+            "Use approved vendor baseline for high-confidence scoring."
+            if match_status == "approved_match"
+            else "Review pending vendor baseline before using for final scoring."
+            if match_status == "pending_match"
+            else "No vendor baseline match found. Route to baseline review queue or request vendor baseline."
+        ),
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name=vendor_name,
+            action_type="vendor_baseline_match_requested",
+            resource_type="vendor_baseline_subscription_match",
+            resource_id=str(best_match.get("baseline_id")) if best_match else "no_match",
+            details={
+                "match_status": match_status,
+                "match_count": len(matches),
+                "approved_match_count": len(approved_matches),
+                "workflow_status": "vendor_baseline_match_requested",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
