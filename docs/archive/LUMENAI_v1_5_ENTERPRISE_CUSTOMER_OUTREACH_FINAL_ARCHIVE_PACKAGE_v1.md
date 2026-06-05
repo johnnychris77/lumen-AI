@@ -315,3 +315,22 @@ Final status:
 - Investor-ready
 - Strategic-partner-ready
 - Final archive complete
+
+---
+
+# 17. Final Closure Reference
+
+## Final Closure Status
+CLOSED
+
+## Final Closure Record
+
+docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_FINAL_CLOSURE_v1.md
+
+## Final Archive Release Lock
+
+docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_FINAL_ARCHIVE_RELEASE_LOCK_v1.md
+
+## Archive Closure Statement
+
+This archive now references the formal final closure of the LumenAI v1.5 Enterprise Customer Outreach and Pilot Activation sequence.
