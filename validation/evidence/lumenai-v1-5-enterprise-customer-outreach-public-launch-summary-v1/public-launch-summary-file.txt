@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 6.5K Jun  4 21:07 docs/launch/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_PUBLIC_LAUNCH_SUMMARY_v1.md
