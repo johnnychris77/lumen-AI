@@ -1,0 +1,8 @@
+-rw-r--r-- 1 ohna ohna  12K Jun  4 20:08 docs/outreach/LUMENAI_v1_5_COMMERCIAL_PILOT_PROPOSAL_TEMPLATE_v1.md
+-rw-r--r-- 1 ohna ohna  12K Jun  4 19:54 docs/outreach/LUMENAI_v1_5_CUSTOMER_DISCOVERY_CALL_GUIDE_v1.md
+-rw-r--r-- 1 ohna ohna  14K Jun  4 19:47 docs/outreach/LUMENAI_v1_5_EXECUTIVE_OUTREACH_EMAIL_PACKAGE_v1.md
+-rw-r--r-- 1 ohna ohna  14K Jun  4 19:50 docs/outreach/LUMENAI_v1_5_HOSPITAL_PILOT_DEMO_SCRIPT_v1.md
+-rw-r--r-- 1 ohna ohna 7.0K Jun  4 20:12 docs/outreach/LUMENAI_v1_5_INVESTOR_AND_STRATEGIC_PARTNER_BRIEF_v1.md
+-rw-r--r-- 1 ohna ohna  12K Jun  4 20:05 docs/outreach/LUMENAI_v1_5_PILOT_QUALIFICATION_SCORECARD_v1.md
+-rw-r--r-- 1 ohna ohna  14K Jun  4 19:43 docs/outreach/LUMENAI_v1_5_TARGET_CUSTOMER_LIST_AND_OUTREACH_STRATEGY_v1.md
+-rw-r--r-- 1 ohna ohna 8.7K Jun  4 19:41 docs/roadmap/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_AND_PILOT_ACTIVATION_KICKOFF_v1.md
