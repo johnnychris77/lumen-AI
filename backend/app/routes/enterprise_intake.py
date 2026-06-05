@@ -9038,3 +9038,103 @@ def calculate_enterprise_baseline_aware_score(
         db.rollback()
 
     return response
+
+
+@router.get("/baseline-review-queue")
+def get_enterprise_baseline_review_queue(
+    limit: int = 50,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    safe_limit = max(1, min(limit, 200))
+
+    findings = (
+        db.query(EnterpriseFinding)
+        .order_by(EnterpriseFinding.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    queue_items = []
+
+    for finding in findings:
+        finding_type = getattr(finding, "finding_type", "") or getattr(finding, "defect_type", "") or ""
+        risk_level = getattr(finding, "risk_level", "") or ""
+        vendor = getattr(finding, "vendor", "") or ""
+        instrument_name = getattr(finding, "instrument_name", "") or ""
+        tray_name = getattr(finding, "tray_name", "") or ""
+        facility = getattr(finding, "facility", "") or ""
+        department = getattr(finding, "department", "") or ""
+
+        score_result = _calculate_baseline_aware_score(
+            finding_type=finding_type,
+            risk_level=risk_level,
+            vendor_baseline_id=None,
+            hospital_baseline_id=None,
+            historical_match_count=0,
+            baseline_status=None,
+        )
+
+        if score_result.get("requires_baseline_review"):
+            queue_items.append({
+                "finding_id": getattr(finding, "id", None),
+                "facility": facility,
+                "department": department,
+                "vendor": vendor,
+                "instrument_name": instrument_name,
+                "tray_name": tray_name,
+                "finding_type": finding_type,
+                "risk_level": risk_level,
+                "score": score_result.get("score"),
+                "score_confidence": score_result.get("score_confidence"),
+                "baseline_source": score_result.get("baseline_source"),
+                "baseline_status": score_result.get("baseline_status"),
+                "score_basis": score_result.get("score_basis"),
+                "requires_baseline_review": score_result.get("requires_baseline_review"),
+                "manual_review_required": score_result.get("manual_review_required"),
+                "recommended_action": "Review finding, confirm baseline source, attach approved baseline image, or request vendor baseline.",
+            })
+
+    response = {
+        "status": "success",
+        "queue_type": "baseline_review_queue",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "queue_count": len(queue_items),
+        "review_priority_count": len([
+            item for item in queue_items
+            if item.get("score_confidence") == "low"
+            or item.get("manual_review_required") is True
+        ]),
+        "queue_summary": (
+            f"{len(queue_items)} findings require baseline review before their scores should be treated as final."
+        ),
+        "recommended_next_step": (
+            "Review unmatched or low-confidence findings, attach hospital/vendor baseline images, and approve baseline status."
+            if queue_items
+            else "No baseline review items are currently pending."
+        ),
+        "items": queue_items,
+    }
+
+    try:
+        _record_enterprise_audit(
+            db,
+            request,
+            tenant_id="",
+            tenant_name="",
+            action_type="baseline_review_queue_viewed",
+            resource_type="baseline_review_queue",
+            resource_id="baseline_review_queue",
+            details={
+                "queue_count": response["queue_count"],
+                "review_priority_count": response["review_priority_count"],
+                "workflow_status": "baseline_review_queue_viewed",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
