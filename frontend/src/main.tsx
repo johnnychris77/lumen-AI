@@ -25,6 +25,7 @@ import PowerBiExecutiveAnalyticsCards from "./components/PowerBiExecutiveAnalyti
 import CapaTrendIntelligenceCards from "./components/CapaTrendIntelligenceCards";
 import VendorTrendIntelligenceCards from "./components/VendorTrendIntelligenceCards";
 import BaselineReviewQueue from "./components/BaselineReviewQueue";
+import VendorBaselineSubscriptionPortal from "./components/VendorBaselineSubscriptionPortal";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -792,6 +793,7 @@ function DashboardHome() {
         <AuditToCapaIntegrationCard />
         <EnterpriseAuditCommandCenter />
         <BaselineReviewQueue />
+        <VendorBaselineSubscriptionPortal />
 
         <ManufacturerBaselinePanel />
 
