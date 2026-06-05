@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 12K Jun  4 20:08 docs/outreach/LUMENAI_v1_5_COMMERCIAL_PILOT_PROPOSAL_TEMPLATE_v1.md
