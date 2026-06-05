@@ -1825,3 +1825,72 @@ This final closure confirms that the v1.5 package is complete, evidence-backed, 
 ## Final Closure Statement
 
 LumenAI v1.5 Enterprise Customer Outreach is formally closed and preserved as customer-activation-ready, demo-pipeline-ready, pilot-qualification-ready, commercial-pilot-proposal-ready, investor-ready, and strategic-partner-ready.
+
+---
+
+# LumenAI v1.5 Enterprise Customer Outreach Final Public Portfolio Refresh v1
+
+## Public Portfolio Status
+
+**Refreshed · Customer Activation Ready · Demo Pipeline Ready · Pilot Qualification Ready · Commercial Pilot Proposal Ready · Investor Ready · Strategic Partner Ready · Archived · Final Closed · Repository Cleaned**
+
+The LumenAI v1.5 Enterprise Customer Outreach public portfolio has been refreshed after final closure and final repository clean-up.
+
+This refresh updates the public-facing narrative to show that LumenAI has moved from the sealed v1.4 Enterprise Pilot Execution Public Launch into a completed v1.5 customer outreach and pilot activation package.
+
+## Public Portfolio Summary
+
+LumenAI v1.5 provides a complete enterprise customer outreach and pilot activation stack, including:
+
+- Target customer strategy
+- Executive outreach emails
+- Hospital pilot demo script
+- Customer discovery guide
+- Pilot qualification scorecard
+- Commercial pilot proposal template
+- Investor and strategic partner brief
+- Completion package
+- Release lock
+- Repository clean-up
+- Final archive package
+- Final closure
+- Final repository clean-up
+
+## Public Portfolio Records
+
+| Artifact | Path |
+|---|---|
+| v1.5 Completion Package | docs/completion/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_COMPLETION_PACKAGE_v1.md |
+| v1.5 Release Lock | docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_RELEASE_LOCK_v1.md |
+| v1.5 Repository Clean-Up | docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_REPOSITORY_CLEANUP_v1.md |
+| v1.5 Final Archive Package | docs/archive/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_FINAL_ARCHIVE_PACKAGE_v1.md |
+| v1.5 Final Archive Release Lock | docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_FINAL_ARCHIVE_RELEASE_LOCK_v1.md |
+| v1.5 Final Closure | docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_FINAL_CLOSURE_v1.md |
+| v1.5 Final Repository Clean-Up | docs/release-locks/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_FINAL_REPOSITORY_CLEANUP_v1.md |
+| v1.4 Final Repository Seal | docs/release-locks/LUMENAI_v1_4_ENTERPRISE_PILOT_EXECUTION_PUBLIC_LAUNCH_FINAL_REPOSITORY_SEAL_v1.md |
+
+## Public-Facing v1.5 Customer Activation Stack
+
+- Enterprise customer outreach
+- Warm network outreach
+- Executive outreach
+- LinkedIn outreach
+- Strategic partner outreach
+- Hospital demo conversations
+- Discovery calls
+- Pilot qualification
+- Commercial pilot proposal development
+- Investor and strategic partner conversations
+- Customer follow-up workflow
+
+## Hosted Demonstration Foundation
+
+Hosted frontend:  
+https://lumen-ai-1.onrender.com
+
+Hosted API:  
+https://lumen-ai-53u4.onrender.com
+
+## Final Public Portfolio Statement
+
+LumenAI v1.5 Enterprise Customer Outreach is public-portfolio-refreshed, customer-activation-ready, demo-pipeline-ready, pilot-qualification-ready, commercial-pilot-proposal-ready, investor-ready, strategic-partner-ready, archived, final-closed, and repository-cleaned.
