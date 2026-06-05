@@ -1,0 +1,7 @@
+3:## Scorecard Status
+62:# 3. Scoring Model
+79:# 4. Qualification Categories
+322:# 5. Scorecard Template
+340:# 6. Qualification Interpretation
+413:# 8. Minimum Pilot Activation Requirements
+492:# 12. Final Pilot Qualification Scorecard Statement
