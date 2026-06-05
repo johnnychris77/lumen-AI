@@ -1,0 +1,1 @@
+-rw-r--r-- 1 ohna ohna 6.2K Jun  4 21:30 docs/badges/LUMENAI_v1_5_ENTERPRISE_CUSTOMER_OUTREACH_PUBLIC_LAUNCH_FINAL_BADGE_v1.md
