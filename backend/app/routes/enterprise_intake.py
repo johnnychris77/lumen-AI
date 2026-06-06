@@ -3,7 +3,7 @@ import shutil
 import os
 from datetime import datetime, timezone
 import json
-from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
@@ -9797,3 +9797,146 @@ def match_enterprise_vendor_baseline_record(
         db.rollback()
 
     return response
+
+@router.get("/vendor-baseline-subscription/baselines/{baseline_id}/audit")
+def get_enterprise_vendor_baseline_audit_trail(baseline_id: int):
+    baseline_id_str = str(baseline_id)
+    candidate_records = []
+
+    for value in list(globals().values()):
+        if isinstance(value, list):
+            for item in value:
+                if not isinstance(item, dict):
+                    continue
+
+                looks_like_vendor_baseline = (
+                    "vendor_name" in item
+                    and "instrument_name" in item
+                    and (
+                        "baseline_status" in item
+                        or "approval_status" in item
+                        or "workflow_status" in item
+                    )
+                )
+
+                if not looks_like_vendor_baseline:
+                    continue
+
+                item_id = item.get("id") or item.get("baseline_id")
+                if str(item_id) == baseline_id_str:
+                    candidate_records.append(item)
+
+    if not candidate_records:
+        raise HTTPException(status_code=404, detail="Vendor baseline not found")
+
+    record = candidate_records[0]
+
+    approval_status = (
+        record.get("approval_status")
+        or record.get("baseline_status")
+        or record.get("workflow_status")
+        or "unknown"
+    )
+
+    events = [
+        {
+            "event_type": "baseline_submitted",
+            "actor": record.get("submitted_by") or record.get("vendor_name") or "vendor",
+            "actor_role": "vendor",
+            "decision": "submitted",
+            "notes": "Vendor submitted baseline reference record.",
+            "evidence_source": "Vendor baseline subscription portal",
+            "finding_id": record.get("finding_id"),
+            "inspection_id": record.get("inspection_id"),
+            "matched_identifier_type": None,
+            "matched_identifier_value": None,
+            "previous_status": None,
+            "new_status": approval_status,
+            "created_at": record.get("created_at") or record.get("submitted_at"),
+        }
+    ]
+
+    if approval_status == "approved":
+        matched_identifier_type = None
+        matched_identifier_value = None
+
+        for key in [
+            "barcode_value",
+            "qr_code_value",
+            "key_dot_value",
+            "catalog_number",
+            "model_number",
+        ]:
+            if record.get(key):
+                matched_identifier_type = key
+                matched_identifier_value = record.get(key)
+                break
+
+        events.append(
+            {
+                "event_type": "baseline_approved",
+                "actor": record.get("approved_by") or "hospital-reviewer-demo",
+                "actor_role": "hospital_admin",
+                "decision": "approved",
+                "notes": record.get("approval_reason")
+                or record.get("review_notes")
+                or "Hospital reviewed and approved vendor baseline for scoring use.",
+                "evidence_source": record.get("evidence_source")
+                or "Vendor submitted baseline image and identifier match.",
+                "finding_id": record.get("finding_id"),
+                "inspection_id": record.get("inspection_id"),
+                "matched_identifier_type": matched_identifier_type,
+                "matched_identifier_value": matched_identifier_value,
+                "previous_status": "pending_hospital_review",
+                "new_status": "approved",
+                "created_at": record.get("approved_at"),
+            }
+        )
+
+        events.append(
+            {
+                "event_type": "baseline_used_in_scoring",
+                "actor": "scoring-engine",
+                "actor_role": "system",
+                "decision": "used_in_scoring",
+                "notes": "Approved vendor baseline available for baseline-supported scoring.",
+                "evidence_source": "Approved vendor baseline match",
+                "finding_id": record.get("finding_id"),
+                "inspection_id": record.get("inspection_id"),
+                "matched_identifier_type": matched_identifier_type,
+                "matched_identifier_value": matched_identifier_value,
+                "previous_status": "provisional_low_confidence",
+                "new_status": "baseline_supported",
+                "created_at": record.get("approved_at"),
+            }
+        )
+
+    if approval_status == "rejected":
+        events.append(
+            {
+                "event_type": "baseline_rejected",
+                "actor": record.get("rejected_by") or "hospital-reviewer-demo",
+                "actor_role": "hospital_admin",
+                "decision": "rejected",
+                "notes": record.get("rejection_reason")
+                or record.get("review_notes")
+                or "Hospital rejected vendor baseline record.",
+                "evidence_source": record.get("evidence_source") or "Hospital review",
+                "finding_id": record.get("finding_id"),
+                "inspection_id": record.get("inspection_id"),
+                "matched_identifier_type": None,
+                "matched_identifier_value": None,
+                "previous_status": "pending_hospital_review",
+                "new_status": "rejected",
+                "created_at": record.get("rejected_at"),
+            }
+        )
+
+    return {
+        "baseline_id": baseline_id,
+        "vendor": record.get("vendor_name"),
+        "instrument": record.get("instrument_name"),
+        "approval_status": approval_status,
+        "audit_event_count": len(events),
+        "events": events,
+    }
