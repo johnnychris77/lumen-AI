@@ -9829,15 +9829,29 @@ def get_enterprise_vendor_baseline_audit_trail(
     # Fallback source: database-backed vendor baseline subscription table if available.
     if record is None:
         try:
-            db_record = (
-                db.query(EnterpriseVendorBaselineSubscription)
-                .filter(EnterpriseVendorBaselineSubscription.baseline_id == baseline_id)
-                .first()
-            )
+            db_record = None
+
+            # Some versions expose baseline_id in the API response from row.id,
+            # not from a physical baseline_id column.
+            query = db.query(EnterpriseVendorBaselineSubscription)
+
+            if hasattr(EnterpriseVendorBaselineSubscription, "baseline_id"):
+                db_record = (
+                    query
+                    .filter(EnterpriseVendorBaselineSubscription.baseline_id == baseline_id)
+                    .first()
+                )
+
+            if db_record is None and hasattr(EnterpriseVendorBaselineSubscription, "id"):
+                db_record = (
+                    query
+                    .filter(EnterpriseVendorBaselineSubscription.id == baseline_id)
+                    .first()
+                )
 
             if db_record:
                 record = {
-                    "baseline_id": getattr(db_record, "baseline_id", baseline_id),
+                    "baseline_id": getattr(db_record, "baseline_id", None) or getattr(db_record, "id", baseline_id),
                     "vendor_name": getattr(db_record, "vendor_name", None),
                     "instrument_name": getattr(db_record, "instrument_name", None),
                     "instrument_category": getattr(db_record, "instrument_category", None),
