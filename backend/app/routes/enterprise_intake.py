@@ -9798,45 +9798,97 @@ def match_enterprise_vendor_baseline_record(
 
     return response
 
+
 @router.get("/vendor-baseline-subscription/baselines/{baseline_id}/audit")
-def get_enterprise_vendor_baseline_audit_trail(baseline_id: int):
-    baseline_id_str = str(baseline_id)
-    candidate_records = []
+def get_enterprise_vendor_baseline_audit_trail(
+    baseline_id: int,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Return a derived audit trail for a vendor baseline record.
 
-    for value in list(globals().values()):
-        if isinstance(value, list):
-            for item in value:
-                if not isinstance(item, dict):
-                    continue
+    This route supports the current vendor baseline library workflow and
+    produces audit events for submit, approval, rejection, and scoring-use readiness.
+    """
 
-                looks_like_vendor_baseline = (
-                    "vendor_name" in item
-                    and "instrument_name" in item
-                    and (
-                        "baseline_status" in item
-                        or "approval_status" in item
-                        or "workflow_status" in item
-                    )
-                )
+    record = None
 
-                if not looks_like_vendor_baseline:
-                    continue
+    # Primary source: active in-memory/demo vendor baseline library used by approve route.
+    try:
+        record = next(
+            (
+                item for item in VENDOR_BASELINE_LIBRARY
+                if int(item.get("baseline_id", -1)) == int(baseline_id)
+            ),
+            None,
+        )
+    except Exception:
+        record = None
 
-                item_id = item.get("id") or item.get("baseline_id")
-                if str(item_id) == baseline_id_str:
-                    candidate_records.append(item)
+    # Fallback source: database-backed vendor baseline subscription table if available.
+    if record is None:
+        try:
+            db_record = (
+                db.query(EnterpriseVendorBaselineSubscription)
+                .filter(EnterpriseVendorBaselineSubscription.baseline_id == baseline_id)
+                .first()
+            )
 
-    if not candidate_records:
+            if db_record:
+                record = {
+                    "baseline_id": getattr(db_record, "baseline_id", baseline_id),
+                    "vendor_name": getattr(db_record, "vendor_name", None),
+                    "instrument_name": getattr(db_record, "instrument_name", None),
+                    "instrument_category": getattr(db_record, "instrument_category", None),
+                    "catalog_number": getattr(db_record, "catalog_number", None),
+                    "model_number": getattr(db_record, "model_number", None),
+                    "barcode_value": getattr(db_record, "barcode_value", None),
+                    "qr_code_value": getattr(db_record, "qr_code_value", None),
+                    "key_dot_value": getattr(db_record, "key_dot_value", None),
+                    "tray_name": getattr(db_record, "tray_name", None),
+                    "baseline_status": getattr(db_record, "baseline_status", None),
+                    "approval_status": getattr(db_record, "approval_status", None),
+                    "approved_by": getattr(db_record, "approved_by", None),
+                    "approval_notes": getattr(db_record, "approval_notes", None),
+                    "created_at": str(getattr(db_record, "created_at", "")),
+                    "updated_at": str(getattr(db_record, "updated_at", "")),
+                }
+        except Exception:
+            record = None
+
+    if not record:
         raise HTTPException(status_code=404, detail="Vendor baseline not found")
 
-    record = candidate_records[0]
+    baseline_status = record.get("baseline_status") or ""
+    approval_status_raw = record.get("approval_status") or ""
 
-    approval_status = (
-        record.get("approval_status")
-        or record.get("baseline_status")
-        or record.get("workflow_status")
-        or "unknown"
+    is_approved = (
+        baseline_status == "approved"
+        or approval_status_raw in ["approved", "hospital_approved"]
     )
+
+    is_rejected = (
+        baseline_status == "rejected"
+        or approval_status_raw in ["rejected", "hospital_rejected"]
+    )
+
+    audit_status = "approved" if is_approved else approval_status_raw or baseline_status or "unknown"
+
+    matched_identifier_type = None
+    matched_identifier_value = None
+
+    for key in [
+        "barcode_value",
+        "qr_code_value",
+        "key_dot_value",
+        "catalog_number",
+        "model_number",
+    ]:
+        if record.get(key):
+            matched_identifier_type = key
+            matched_identifier_value = record.get(key)
+            break
 
     events = [
         {
@@ -9848,38 +9900,25 @@ def get_enterprise_vendor_baseline_audit_trail(baseline_id: int):
             "evidence_source": "Vendor baseline subscription portal",
             "finding_id": record.get("finding_id"),
             "inspection_id": record.get("inspection_id"),
-            "matched_identifier_type": None,
-            "matched_identifier_value": None,
+            "matched_identifier_type": matched_identifier_type,
+            "matched_identifier_value": matched_identifier_value,
             "previous_status": None,
-            "new_status": approval_status,
-            "created_at": record.get("created_at") or record.get("submitted_at"),
+            "new_status": "pending_hospital_review",
+            "created_at": record.get("created_at"),
         }
     ]
 
-    if approval_status == "approved":
-        matched_identifier_type = None
-        matched_identifier_value = None
-
-        for key in [
-            "barcode_value",
-            "qr_code_value",
-            "key_dot_value",
-            "catalog_number",
-            "model_number",
-        ]:
-            if record.get(key):
-                matched_identifier_type = key
-                matched_identifier_value = record.get(key)
-                break
-
+    if is_approved:
         events.append(
             {
                 "event_type": "baseline_approved",
-                "actor": record.get("approved_by") or "hospital-reviewer-demo",
+                "actor": record.get("approved_by") or (
+                    request.headers.get("x-lumenai-actor") if request else "hospital-reviewer-demo"
+                ),
                 "actor_role": "hospital_admin",
                 "decision": "approved",
-                "notes": record.get("approval_reason")
-                or record.get("review_notes")
+                "notes": record.get("approval_notes")
+                or record.get("approval_reason")
                 or "Hospital reviewed and approved vendor baseline for scoring use.",
                 "evidence_source": record.get("evidence_source")
                 or "Vendor submitted baseline image and identifier match.",
@@ -9889,7 +9928,7 @@ def get_enterprise_vendor_baseline_audit_trail(baseline_id: int):
                 "matched_identifier_value": matched_identifier_value,
                 "previous_status": "pending_hospital_review",
                 "new_status": "approved",
-                "created_at": record.get("approved_at"),
+                "created_at": record.get("updated_at") or record.get("approved_at"),
             }
         )
 
@@ -9907,36 +9946,41 @@ def get_enterprise_vendor_baseline_audit_trail(baseline_id: int):
                 "matched_identifier_value": matched_identifier_value,
                 "previous_status": "provisional_low_confidence",
                 "new_status": "baseline_supported",
-                "created_at": record.get("approved_at"),
+                "created_at": record.get("updated_at") or record.get("approved_at"),
             }
         )
 
-    if approval_status == "rejected":
+    if is_rejected:
         events.append(
             {
                 "event_type": "baseline_rejected",
-                "actor": record.get("rejected_by") or "hospital-reviewer-demo",
+                "actor": record.get("rejected_by") or (
+                    request.headers.get("x-lumenai-actor") if request else "hospital-reviewer-demo"
+                ),
                 "actor_role": "hospital_admin",
                 "decision": "rejected",
                 "notes": record.get("rejection_reason")
-                or record.get("review_notes")
+                or record.get("approval_notes")
                 or "Hospital rejected vendor baseline record.",
                 "evidence_source": record.get("evidence_source") or "Hospital review",
                 "finding_id": record.get("finding_id"),
                 "inspection_id": record.get("inspection_id"),
-                "matched_identifier_type": None,
-                "matched_identifier_value": None,
+                "matched_identifier_type": matched_identifier_type,
+                "matched_identifier_value": matched_identifier_value,
                 "previous_status": "pending_hospital_review",
                 "new_status": "rejected",
-                "created_at": record.get("rejected_at"),
+                "created_at": record.get("updated_at") or record.get("rejected_at"),
             }
         )
 
     return {
+        "status": "success",
         "baseline_id": baseline_id,
         "vendor": record.get("vendor_name"),
         "instrument": record.get("instrument_name"),
-        "approval_status": approval_status,
+        "baseline_status": baseline_status,
+        "approval_status": audit_status,
         "audit_event_count": len(events),
         "events": events,
     }
+
