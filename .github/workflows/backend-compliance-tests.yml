@@ -1,0 +1,51 @@
+name: Backend Compliance Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend-compliance-tests:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: sqlite:///./lumenai.db
+      PYTHONPATH: .
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install fastapi uvicorn sqlalchemy pydantic pytest httpx reportlab requests python-multipart
+          fi
+
+      - name: Run enterprise compliance route smoke tests
+        run: |
+          python -m pytest tests/test_enterprise_compliance_routes.py -q
+
+      - name: Run vendor baseline persistent audit workflow tests
+        run: |
+          python -m pytest tests/test_vendor_baseline_persistent_workflow.py -q
+
+      - name: Run governance packet hash workflow tests
+        run: |
+          python -m pytest tests/test_governance_packet_hash_workflow.py -q
