@@ -11,7 +11,6 @@ class VendorBaselineAuditEvent(Base):
     __tablename__ = "vendor_baseline_audit_events"
 
     id = Column(Integer, primary_key=True, index=True)
-
     baseline_id = Column(Integer, index=True, nullable=False)
 
     event_type = Column(String(100), nullable=False)
