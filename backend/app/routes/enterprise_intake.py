@@ -1094,6 +1094,8 @@ def get_enterprise_governance_packet_pdf(
             "packet_type": "enterprise_intake_governance_packet",
             "export_format": "pdf",
             "filename": filename,
+            "included_vendor_baseline_audit_trail": True,
+            "vendor_baseline_audit_trail_section": "Vendor Baseline Audit Trail",
         },
     )
     db.commit()
@@ -1103,6 +1105,78 @@ def get_enterprise_governance_packet_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+
+@router.get("/intake/{finding_id}/governance-export-history")
+def get_enterprise_governance_export_history(
+    finding_id: int,
+    db: Session = Depends(get_db),
+):
+    import json
+
+    audit_model = AuditLog if "AuditLog" in globals() else EnterpriseAuditTrail
+
+    rows = (
+        db.query(audit_model)
+        .filter(audit_model.resource_id == str(finding_id))
+        .filter(
+            audit_model.action_type.in_(
+                [
+                    "governance_packet_exported_json",
+                    "governance_packet_exported_pdf",
+                    "governance_export_package_generated",
+                ]
+            )
+        )
+        .order_by(audit_model.created_at.desc())
+        .limit(25)
+        .all()
+    )
+
+    exports = []
+
+    for row in rows:
+        details = getattr(row, "details", {}) or {}
+
+        if isinstance(details, str):
+            try:
+                details = json.loads(details)
+            except Exception:
+                details = {}
+
+        included_vendor_baseline_audit_trail = bool(
+            details.get("included_vendor_baseline_audit_trail")
+        ) or row.action_type in [
+            "governance_packet_exported_pdf",
+            "governance_export_package_generated",
+        ]
+
+        exports.append(
+            {
+                "event_id": row.id,
+                "action_type": row.action_type,
+                "actor": getattr(row, "actor_email", "") or getattr(row, "actor", ""),
+                "actor_role": getattr(row, "actor_role", ""),
+                "resource_type": getattr(row, "resource_type", ""),
+                "resource_id": getattr(row, "resource_id", ""),
+                "packet_type": details.get("packet_type", ""),
+                "export_format": details.get("export_format", ""),
+                "filename": details.get("filename", ""),
+                "included_vendor_baseline_audit_trail": included_vendor_baseline_audit_trail,
+                "audit_event_count": details.get("audit_event_count"),
+                "vendor_baseline_audit_event_count": details.get("vendor_baseline_audit_event_count"),
+                "created_at": row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+            }
+        )
+
+    return {
+        "status": "success",
+        "finding_id": finding_id,
+        "export_count": len(exports),
+        "last_exported_at": exports[0]["created_at"] if exports else "",
+        "exports": exports,
+    }
 
 
 @router.get("/audit-trail", response_model=EnterpriseAuditTrailResponse)
