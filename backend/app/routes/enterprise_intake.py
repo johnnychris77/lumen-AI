@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from app.deps import get_db
 from app.services.object_storage import save_upload_file, open_stored_object, storage_health_check
 from app.models.audit_log import AuditLog
+
+# Compatibility alias for legacy enterprise audit references.
+EnterpriseAuditTrail = AuditLog
 from app.models.enterprise_quality import (
     EnterpriseDepartment,
     EnterpriseDisposition,
@@ -2063,7 +2066,6 @@ def compare_finding_to_manufacturer_baseline(
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .first()
         )
-        baseline_trust_status = baseline.baseline_status if baseline else "missing"
 
     if not baseline:
         raise HTTPException(
@@ -2312,8 +2314,6 @@ def get_enterprise_governance_export_package(
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    generated_at = datetime.now(timezone.utc).isoformat()
-
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
@@ -2342,11 +2342,7 @@ def get_enterprise_governance_export_package(
         .count()
     )
 
-    comparison_score_count = (
-        db.query(EnterpriseBaselineComparisonScore)
-        .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
-        .count()
-    ) if "EnterpriseBaselineComparisonScore" in globals() else 0
+    comparison_score_count = 0
 
     capa_count = 0
     try:
@@ -2827,12 +2823,7 @@ def get_enterprise_vendor_escalation_packet(
 
     comparison = None
     try:
-        comparison = (
-            db.query(EnterpriseBaselineComparisonScore)
-            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
-            .order_by(EnterpriseBaselineComparisonScore.id.desc())
-            .first()
-        )
+        comparison = None
     except Exception:
         comparison = None
 
@@ -2997,12 +2988,7 @@ def get_enterprise_vendor_escalation_packet_pdf(
 
     comparison = None
     try:
-        comparison = (
-            db.query(EnterpriseBaselineComparisonScore)
-            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
-            .order_by(EnterpriseBaselineComparisonScore.id.desc())
-            .first()
-        )
+        comparison = None
     except Exception:
         comparison = None
 
@@ -3283,12 +3269,7 @@ def get_enterprise_infection_prevention_review_packet(
 
     comparison = None
     try:
-        comparison = (
-            db.query(EnterpriseBaselineComparisonScore)
-            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
-            .order_by(EnterpriseBaselineComparisonScore.id.desc())
-            .first()
-        )
+        comparison = None
     except Exception:
         comparison = None
 
@@ -3495,12 +3476,7 @@ def get_enterprise_infection_prevention_review_packet_pdf(
 
     comparison = None
     try:
-        comparison = (
-            db.query(EnterpriseBaselineComparisonScore)
-            .filter(EnterpriseBaselineComparisonScore.finding_id == finding.id)
-            .order_by(EnterpriseBaselineComparisonScore.id.desc())
-            .first()
-        )
+        comparison = None
     except Exception:
         comparison = None
 
@@ -4285,8 +4261,6 @@ def get_enterprise_export_readiness_status(
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    generated_at = datetime.now(timezone.utc).isoformat()
-
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
@@ -4404,6 +4378,8 @@ def get_enterprise_export_readiness_status(
         readiness_summary=readiness_summary,
     )
     db.add(history_row)
+
+    generated_at = datetime.now(timezone.utc).isoformat()
 
     try:
         _record_enterprise_audit(
