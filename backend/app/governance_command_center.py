@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import models
 from app.governance_sla import sla_dashboard
 from app.governance_sla_scanner import scanner_recommendations, run_scanner_once
-from app.release_governance_dashboard import dashboard_summary, exceptions, packet_status
+from app.release_governance_dashboard import dashboard_summary, exceptions
 
 
 def _now():

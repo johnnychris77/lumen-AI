@@ -90,7 +90,7 @@ def alerts_channel_health(
 
         last_success = (
             db.query(models.AlertEvent)
-            .filter(models.AlertEvent.channel == channel, models.AlertEvent.sent == True)
+            .filter(models.AlertEvent.channel == channel, models.AlertEvent.sent)
             .order_by(models.AlertEvent.id.desc())
             .first()
         )

@@ -6,7 +6,8 @@ build/
 .vscode/
 
 # local artifacts
-cookies.txtsample.bin
+cookies.txt
+sample.bin
 
 
 # Python
@@ -38,7 +39,6 @@ main
 .ai/*.local.md
 
 =
-{ok
 origin
 naming
 resolving

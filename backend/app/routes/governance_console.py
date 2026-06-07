@@ -23,7 +23,7 @@ def governance_console_summary(
         db.query(models.RetentionPolicy)
         .filter(
             models.RetentionPolicy.tenant_id == tenant["tenant_id"],
-            models.RetentionPolicy.is_enabled == True,
+            models.RetentionPolicy.is_enabled,
         )
         .order_by(models.RetentionPolicy.id.desc())
         .all()
@@ -31,7 +31,7 @@ def governance_console_summary(
 
     subscription_rows = (
         db.query(models.DigestSubscription)
-        .filter(models.DigestSubscription.is_enabled == True)
+        .filter(models.DigestSubscription.is_enabled)
         .order_by(models.DigestSubscription.id.desc())
         .all()
     )

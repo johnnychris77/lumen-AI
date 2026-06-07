@@ -4,7 +4,7 @@ from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column
 
 
 class EnterpriseFacility(Base):

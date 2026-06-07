@@ -24,7 +24,7 @@ def _now() -> str:
 def _tenant_rows(db):
     rows = (
         db.query(models.GovernanceSlaPolicy.tenant_id, models.GovernanceSlaPolicy.tenant_name)
-        .filter(models.GovernanceSlaPolicy.is_enabled == True)
+        .filter(models.GovernanceSlaPolicy.is_enabled)
         .distinct()
         .all()
     )

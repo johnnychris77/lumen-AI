@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import os, jwt
+import os
+import jwt
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from pydantic import BaseModel
 from passlib.hash import bcrypt

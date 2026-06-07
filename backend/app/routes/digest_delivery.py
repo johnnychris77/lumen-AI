@@ -5,7 +5,7 @@ from io import StringIO
 import csv
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.authz import require_roles

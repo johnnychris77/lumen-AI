@@ -186,7 +186,7 @@ def build_retention_exception_report(db: Session, limit: int = 200) -> dict:
         .filter(
             (models.RetentionEvent.status == "blocked") |
             (models.RetentionEvent.status == "failed") |
-            (models.RetentionEvent.legal_hold_blocked == True)
+            (models.RetentionEvent.legal_hold_blocked)
         )
         .order_by(models.RetentionEvent.id.desc())
         .limit(limit)

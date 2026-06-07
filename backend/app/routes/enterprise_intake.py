@@ -2,8 +2,6 @@
 from app.models.vendor_baseline_audit import VendorBaselineAuditEvent
 from app.services.vendor_baseline_audit_service import log_vendor_baseline_audit_event
 
-import traceback
-import shutil
 import os
 from datetime import datetime, timezone
 import json
@@ -42,7 +40,6 @@ from app.schemas.enterprise_intake import (
     EnterpriseExportReadinessHistoryResponse,
     EnterpriseExportReadinessHistoryItem,
     EnterpriseGovernanceEvidenceItem,
-    EnterpriseGovernanceBaselineEvidence,
     EnterpriseAuditTrailItem,
     EnterpriseAuditTrailResponse,
     EnterpriseHumanReviewRequest,
@@ -9498,7 +9495,6 @@ def create_enterprise_vendor_baseline_record(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    from datetime import datetime, timezone
 
     vendor_name = payload.get("vendor_name") or payload.get("vendor") or ""
     instrument_name = payload.get("instrument_name") or ""
@@ -9709,7 +9705,7 @@ def approve_enterprise_vendor_baseline_record(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     payload = payload or {}
 

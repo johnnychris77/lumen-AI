@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user

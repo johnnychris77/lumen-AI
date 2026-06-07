@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
 from app.db import models
-from app.metering import check_quota, get_monthly_usage
+from app.metering import check_quota
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
 

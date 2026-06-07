@@ -176,7 +176,7 @@ def run_renewal_risk(db: Session, tenant_id: str, tenant_name: str) -> dict:
         db.query(models.CustomerSuccessPlaybook)
         .filter(
             models.CustomerSuccessPlaybook.tenant_id == tenant_id,
-            models.CustomerSuccessPlaybook.is_enabled == True,
+            models.CustomerSuccessPlaybook.is_enabled,
         )
         .order_by(models.CustomerSuccessPlaybook.id.asc())
         .all()

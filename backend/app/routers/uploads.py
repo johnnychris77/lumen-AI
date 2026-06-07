@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-import os, boto3
+import os
+import boto3
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 

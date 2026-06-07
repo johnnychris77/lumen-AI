@@ -10,7 +10,6 @@ from app.services.vendor_governance_service import (
     create_vendor_event,
     list_vendor_events,
     vendor_governance_summary,
-    get_vendor_event,
     link_vendor_event_to_capa,
     create_capa_from_vendor_event,
     vendor_capa_linkage_summary,

@@ -114,7 +114,7 @@ def _get_subscriptions(db: Session, digest_type: str) -> list[models.DigestSubsc
         db.query(models.DigestSubscription)
         .filter(
             models.DigestSubscription.digest_type == digest_type,
-            models.DigestSubscription.is_enabled == True,
+            models.DigestSubscription.is_enabled,
         )
         .order_by(models.DigestSubscription.id.asc())
         .all()

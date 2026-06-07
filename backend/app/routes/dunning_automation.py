@@ -5,7 +5,6 @@ import os
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from app.audit import log_audit_event
 from app.services.dunning_automation import (
     run_dunning_automation_once,
     run_recovery_action_once,

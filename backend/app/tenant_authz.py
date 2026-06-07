@@ -26,7 +26,7 @@ def require_tenant_roles(*allowed_roles: str):
             .filter(
                 models.TenantMembership.user_email == email,
                 models.TenantMembership.tenant_id == tenant["tenant_id"],
-                models.TenantMembership.is_enabled == True,
+                models.TenantMembership.is_enabled,
             )
             .first()
         )

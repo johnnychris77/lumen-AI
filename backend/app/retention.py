@@ -20,7 +20,7 @@ def get_retention_policy(db: Session, tenant_id: str, tenant_name: str, artifact
         .filter(
             models.RetentionPolicy.tenant_id == tenant_id,
             models.RetentionPolicy.artifact_type == artifact_type,
-            models.RetentionPolicy.is_enabled == True,
+            models.RetentionPolicy.is_enabled,
         )
         .order_by(models.RetentionPolicy.id.desc())
         .first()

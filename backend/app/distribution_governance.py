@@ -11,7 +11,7 @@ def get_distribution_list(db: Session, tenant_id: str, list_id: int):
         .filter(
             models.DistributionList.id == list_id,
             models.DistributionList.tenant_id == tenant_id,
-            models.DistributionList.is_enabled == True,
+            models.DistributionList.is_enabled,
         )
         .first()
     )
@@ -23,7 +23,7 @@ def get_enabled_recipients(db: Session, tenant_id: str, list_id: int) -> list[mo
         .filter(
             models.DistributionRecipient.tenant_id == tenant_id,
             models.DistributionRecipient.list_id == list_id,
-            models.DistributionRecipient.is_enabled == True,
+            models.DistributionRecipient.is_enabled,
         )
         .order_by(models.DistributionRecipient.id.asc())
         .all()

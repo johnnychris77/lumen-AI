@@ -13,7 +13,7 @@ from app.dunning import (
     renewal_health_summary,
     suspend_if_past_due,
 )
-from app.billing import build_invoice_preview, billing_month
+from app.billing import build_invoice_preview
 from app.event_dispatcher import dispatch_event
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles

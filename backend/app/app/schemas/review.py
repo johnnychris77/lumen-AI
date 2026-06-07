@@ -1,5 +1,5 @@
 from pydantic import BaseModel, HttpUrl
-from typing import Optional, List
+from typing import Optional
 
 class ReviewItemOut(BaseModel):
     id: int

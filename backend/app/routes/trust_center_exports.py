@@ -9,7 +9,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
-from app.db import models
 from app.retention import compute_retention_metadata
 from app.branding import get_branding
 from app.metering import record_usage_event, check_quota

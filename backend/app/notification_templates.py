@@ -31,7 +31,7 @@ def get_template(db: Session, tenant_id: str, tenant_name: str, template_key: st
             models.NotificationTemplate.tenant_id == tenant_id,
             models.NotificationTemplate.template_key == template_key,
             models.NotificationTemplate.channel == channel,
-            models.NotificationTemplate.is_enabled == True,
+            models.NotificationTemplate.is_enabled,
         )
         .order_by(models.NotificationTemplate.id.desc())
         .first()

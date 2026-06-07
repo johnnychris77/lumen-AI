@@ -29,7 +29,7 @@ def list_enabled_rules(db: Session, tenant_id: str, trigger_type: str) -> list[m
         .filter(
             models.AutomationRule.tenant_id == tenant_id,
             models.AutomationRule.trigger_type == trigger_type,
-            models.AutomationRule.is_enabled == True,
+            models.AutomationRule.is_enabled,
         )
         .order_by(models.AutomationRule.id.desc())
         .all()

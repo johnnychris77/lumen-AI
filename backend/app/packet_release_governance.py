@@ -224,7 +224,7 @@ def active_holds_for_packet(db: Session, tenant_id: str, packet_id: int):
         .filter(
             models.PacketReleaseHold.tenant_id == tenant_id,
             models.PacketReleaseHold.packet_id == packet_id,
-            models.PacketReleaseHold.is_active == True,
+            models.PacketReleaseHold.is_active,
         )
         .order_by(models.PacketReleaseHold.id.desc())
         .all()

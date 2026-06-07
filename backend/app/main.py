@@ -351,10 +351,6 @@ app.include_router(board_reporting_router, prefix=settings.API_PREFIX)
 
 app.include_router(digest_scheduler_router, prefix=settings.API_PREFIX)
 from app.routes.digest_delivery import router as digest_delivery_router
-from app.services.digest_scheduler_service import start_digest_scheduler
-from app.services.retention_scheduler_service import start_retention_scheduler
-from app.services.approval_escalation_service import start_approval_escalation_scheduler
-from app.services.dunning_automation import start_dunning_scheduler
 app.include_router(digest_delivery_router, prefix=settings.API_PREFIX)
 
 from app.routes.digest_subscriptions import router as digest_subscriptions_router
@@ -510,7 +506,6 @@ app.include_router(governance_sla_router, prefix=settings.API_PREFIX)
 
 from app.routes.governance_sla_scanner import router as governance_sla_scanner_router
 
-from app.governance_sla_scanner import start_governance_sla_scanner
 
 app.include_router(governance_sla_scanner_router, prefix=settings.API_PREFIX)
 

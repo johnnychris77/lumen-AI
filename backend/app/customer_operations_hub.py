@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.customer_health import build_customer_health_summary, create_health_snapshot
 from app.customer_success import renewal_risk_summary, run_renewal_risk
-from app.governance_command_center import build_work_items, command_center_summary
+from app.governance_command_center import command_center_summary
 from app.governance_sla_scanner import run_scanner_once
 from app.implementation_readiness import readiness_summary
 from app.release_governance_dashboard import dashboard_summary as release_dashboard_summary

@@ -40,7 +40,7 @@ def get_policy(db: Session, tenant_id: str, tenant_name: str, policy_key: str):
         .filter(
             models.GovernanceSlaPolicy.tenant_id == tenant_id,
             models.GovernanceSlaPolicy.policy_key == policy_key,
-            models.GovernanceSlaPolicy.is_enabled == True,
+            models.GovernanceSlaPolicy.is_enabled,
         )
         .order_by(models.GovernanceSlaPolicy.id.desc())
         .first()
@@ -163,7 +163,7 @@ def evaluate_active_holds(db: Session, tenant_id: str, tenant_name: str) -> list
         db.query(models.PacketReleaseHold)
         .filter(
             models.PacketReleaseHold.tenant_id == tenant_id,
-            models.PacketReleaseHold.is_active == True,
+            models.PacketReleaseHold.is_active,
         )
         .all()
     )
