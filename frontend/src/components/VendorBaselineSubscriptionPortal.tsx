@@ -104,6 +104,18 @@ type GovernanceExportHistoryResponse = {
   exports: GovernanceExportHistoryItem[];
 };
 
+type PacketHashVerificationResponse = {
+  status: string;
+  finding_id: number;
+  verified: boolean;
+  verification_status: string;
+  packet_hash_algorithm?: string;
+  packet_hash?: string;
+  checked_hash_export_count?: number;
+  message?: string;
+  matched_export?: GovernanceExportHistoryItem;
+};
+
 const AUTH_HEADERS = {
   Authorization: "Bearer dev-token",
   "X-LumenAI-Role": "vendor",
@@ -202,6 +214,30 @@ async function fetchGovernanceExportHistory(findingId: string): Promise<Governan
   return data;
 }
 
+async function verifyGovernancePacketHash(
+  findingId: string,
+  packetHash: string
+): Promise<PacketHashVerificationResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet/verify-hash?packet_hash=${encodeURIComponent(packetHash)}`,
+    {
+      headers: {
+        Authorization: "Bearer dev-token",
+        "X-LumenAI-Role": "hospital_admin",
+        "X-LumenAI-Actor": "hospital-reviewer-demo",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Packet hash verification failed (${response.status})`);
+  }
+
+  return data;
+}
+
 async function matchVendorBaseline(identifierValue: string): Promise<VendorBaselineMatchResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/match`, {
     method: "POST",
@@ -241,6 +277,10 @@ export default function VendorBaselineSubscriptionPortal() {
   const [exportHistoryLoading, setExportHistoryLoading] = useState(false);
   const [exportHistoryError, setExportHistoryError] = useState("");
   const [exportHistory, setExportHistory] = useState<GovernanceExportHistoryResponse | null>(null);
+  const [packetHashInput, setPacketHashInput] = useState("");
+  const [packetVerificationLoading, setPacketVerificationLoading] = useState(false);
+  const [packetVerificationError, setPacketVerificationError] = useState("");
+  const [packetVerification, setPacketVerification] = useState<PacketHashVerificationResponse | null>(null);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
@@ -327,6 +367,30 @@ export default function VendorBaselineSubscriptionPortal() {
     window.setTimeout(() => {
       loadExportHistory();
     }, 1200);
+  }
+
+  async function verifyPacketHash() {
+    const safeFindingId = packetFindingId.trim() || "1";
+    const safeHash = packetHashInput.trim();
+
+    setPacketVerificationLoading(true);
+    setPacketVerificationError("");
+    setPacketVerification(null);
+
+    if (!safeHash) {
+      setPacketVerificationError("Enter a packet hash to verify.");
+      setPacketVerificationLoading(false);
+      return;
+    }
+
+    try {
+      const data = await verifyGovernancePacketHash(safeFindingId, safeHash);
+      setPacketVerification(data);
+    } catch (err) {
+      setPacketVerificationError(err instanceof Error ? err.message : "Unknown packet hash verification error");
+    } finally {
+      setPacketVerificationLoading(false);
+    }
   }
 
   async function viewAuditTrail(baselineId: number) {
@@ -475,6 +539,88 @@ export default function VendorBaselineSubscriptionPortal() {
           <button type="button" onClick={loadExportHistory} style={exportHistoryButtonStyle}>
             View Export History
           </button>
+        </div>
+
+        <div style={packetVerifyPanelStyle}>
+          <h4 style={{ margin: 0, color: "#064e3b", fontSize: "15px" }}>
+            Verify Governance Packet Hash
+          </h4>
+
+          <p style={bodyTextStyle}>
+            Paste a SHA-256 packet hash to confirm whether it matches a stored governance PDF export record.
+          </p>
+
+          <div style={packetVerifyRowStyle}>
+            <input
+              value={packetHashInput}
+              onChange={(event) => setPacketHashInput(event.target.value)}
+              style={packetHashInputStyle}
+              placeholder="Paste SHA-256 packet hash"
+            />
+
+            <button type="button" onClick={verifyPacketHash} style={packetVerifyButtonStyle}>
+              {packetVerificationLoading ? "Verifying..." : "Verify Packet"}
+            </button>
+          </div>
+
+          {packetVerificationError ? (
+            <div style={errorStyle}>{packetVerificationError}</div>
+          ) : null}
+
+          {packetVerification ? (
+            <div
+              style={
+                packetVerification.verified
+                  ? packetVerifiedResultStyle
+                  : packetNotVerifiedResultStyle
+              }
+            >
+              <div style={{ fontWeight: 900 }}>
+                {packetVerification.verified ? "Verified Packet" : "Packet Not Verified"}
+              </div>
+
+              <div style={mutedTextStyle}>
+                Status: {packetVerification.verification_status}
+              </div>
+
+              <div style={mutedTextStyle}>
+                Algorithm: {packetVerification.packet_hash_algorithm || "SHA-256"}
+              </div>
+
+              <div style={hashTextStyle}>
+                Hash: {packetVerification.packet_hash || "N/A"}
+              </div>
+
+              <div style={mutedTextStyle}>
+                Checked Export Records: {packetVerification.checked_hash_export_count ?? "N/A"}
+              </div>
+
+              <div style={mutedTextStyle}>
+                Message: {packetVerification.message || "N/A"}
+              </div>
+
+              {packetVerification.matched_export ? (
+                <div style={matchedExportStyle}>
+                  <strong>Matched Export</strong>
+                  <div style={mutedTextStyle}>
+                    Event ID: {packetVerification.matched_export.event_id}
+                  </div>
+                  <div style={mutedTextStyle}>
+                    Actor: {packetVerification.matched_export.actor || "N/A"} ({packetVerification.matched_export.actor_role || "N/A"})
+                  </div>
+                  <div style={mutedTextStyle}>
+                    File: {packetVerification.matched_export.filename || "N/A"}
+                  </div>
+                  <div style={mutedTextStyle}>
+                    Created: {packetVerification.matched_export.created_at || "N/A"}
+                  </div>
+                  <div style={mutedTextStyle}>
+                    Vendor Baseline Audit Trail Included: {packetVerification.matched_export.included_vendor_baseline_audit_trail ? "Yes" : "No"}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {(exportHistoryLoading || exportHistoryError || exportHistory) ? (
@@ -812,6 +958,77 @@ const exportHistoryItemStyle: React.CSSProperties = {
   borderRadius: "14px",
   background: "#f8fafc",
   padding: "12px",
+};
+
+const packetVerifyPanelStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: "14px",
+  border: "1px solid #bbf7d0",
+  borderRadius: "16px",
+  background: "#f0fdf4",
+  padding: "14px",
+};
+
+const packetVerifyRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  alignItems: "center",
+  marginTop: "10px",
+};
+
+const packetHashInputStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: "260px",
+  border: "1px solid #bbf7d0",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontFamily: "monospace",
+  fontSize: "12px",
+};
+
+const packetVerifyButtonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: "999px",
+  background: "#15803d",
+  color: "#ffffff",
+  padding: "12px 18px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const packetVerifiedResultStyle: React.CSSProperties = {
+  marginTop: "12px",
+  border: "1px solid #86efac",
+  borderRadius: "14px",
+  background: "#dcfce7",
+  color: "#14532d",
+  padding: "12px",
+};
+
+const packetNotVerifiedResultStyle: React.CSSProperties = {
+  marginTop: "12px",
+  border: "1px solid #fecaca",
+  borderRadius: "14px",
+  background: "#fef2f2",
+  color: "#7f1d1d",
+  padding: "12px",
+};
+
+const hashTextStyle: React.CSSProperties = {
+  marginTop: "6px",
+  color: "#334155",
+  fontFamily: "monospace",
+  fontSize: "11px",
+  overflowWrap: "anywhere",
+};
+
+const matchedExportStyle: React.CSSProperties = {
+  marginTop: "10px",
+  border: "1px solid #bbf7d0",
+  borderRadius: "12px",
+  background: "#ffffff",
+  padding: "10px",
 };
 
 function fieldLabel(value: string) {
