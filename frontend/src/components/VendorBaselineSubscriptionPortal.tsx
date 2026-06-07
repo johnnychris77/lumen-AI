@@ -195,6 +195,7 @@ export default function VendorBaselineSubscriptionPortal() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState("");
   const [selectedAudit, setSelectedAudit] = useState<VendorBaselineAuditResponse | null>(null);
+  const [packetFindingId, setPacketFindingId] = useState("1");
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
@@ -255,6 +256,13 @@ export default function VendorBaselineSubscriptionPortal() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function downloadGovernancePdf() {
+    const safeFindingId = packetFindingId.trim() || "1";
+    const pdfUrl = `${API_BASE}/api/enterprise/intake/${safeFindingId}/governance-packet.pdf`;
+
+    window.open(pdfUrl, "_blank", "noopener,noreferrer");
   }
 
   async function viewAuditTrail(baselineId: number) {
@@ -375,6 +383,31 @@ export default function VendorBaselineSubscriptionPortal() {
             ) : null}
           </div>
         ) : null}
+      </div>
+
+      <div style={exportCardStyle}>
+        <div>
+          <h3 style={sectionTitleStyle}>Governance Evidence Packet Export</h3>
+          <p style={bodyTextStyle}>
+            Download the governance PDF packet with baseline evidence and persistent vendor baseline audit trail.
+          </p>
+        </div>
+
+        <div style={exportActionRowStyle}>
+          <label style={exportLabelStyle}>
+            Finding ID
+            <input
+              value={packetFindingId}
+              onChange={(event) => setPacketFindingId(event.target.value)}
+              style={exportInputStyle}
+              placeholder="1"
+            />
+          </label>
+
+          <button type="button" onClick={downloadGovernancePdf} style={exportButtonStyle}>
+            Download Governance PDF
+          </button>
+        </div>
       </div>
 
       <div style={libraryCardStyle}>
@@ -565,6 +598,54 @@ const auditEventCardStyle: React.CSSProperties = {
   borderRadius: "14px",
   background: "#ffffff",
   padding: "12px",
+};
+
+const exportCardStyle: React.CSSProperties = {
+  marginTop: "18px",
+  border: "1px solid #c7d2fe",
+  borderRadius: "18px",
+  background: "#eef2ff",
+  padding: "16px",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "16px",
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
+const exportActionRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  alignItems: "end",
+};
+
+const exportLabelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "6px",
+  color: "#3730a3",
+  fontSize: "12px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+const exportInputStyle: React.CSSProperties = {
+  border: "1px solid #c7d2fe",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  minWidth: "100px",
+  fontWeight: 800,
+};
+
+const exportButtonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: "999px",
+  background: "#4f46e5",
+  color: "#ffffff",
+  padding: "12px 18px",
+  fontWeight: 900,
+  cursor: "pointer",
+  boxShadow: "0 8px 20px rgba(79, 70, 229, 0.22)",
 };
 
 function fieldLabel(value: string) {
