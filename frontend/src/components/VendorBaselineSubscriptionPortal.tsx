@@ -600,24 +600,84 @@ export default function VendorBaselineSubscriptionPortal() {
               </div>
 
               {packetVerification.matched_export ? (
-                <div style={matchedExportStyle}>
-                  <strong>Matched Export</strong>
-                  <div style={mutedTextStyle}>
-                    Event ID: {packetVerification.matched_export.event_id}
+                <>
+                  <div style={matchedExportStyle}>
+                    <strong>Matched Export</strong>
+                    <div style={mutedTextStyle}>
+                      Event ID: {packetVerification.matched_export.event_id}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Actor: {packetVerification.matched_export.actor || "N/A"} ({packetVerification.matched_export.actor_role || "N/A"})
+                    </div>
+                    <div style={mutedTextStyle}>
+                      File: {packetVerification.matched_export.filename || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Created: {packetVerification.matched_export.created_at || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Vendor Baseline Audit Trail Included: {packetVerification.matched_export.included_vendor_baseline_audit_trail ? "Yes" : "No"}
+                    </div>
                   </div>
-                  <div style={mutedTextStyle}>
-                    Actor: {packetVerification.matched_export.actor || "N/A"} ({packetVerification.matched_export.actor_role || "N/A"})
+
+                  <div style={immutableCertificateStyle}>
+                    <div style={certificateHeaderStyle}>
+                      <div>
+                        <div style={certificateEyebrowStyle}>Immutable Export Certificate</div>
+                        <h4 style={certificateTitleStyle}>Verified Governance Evidence Packet</h4>
+                      </div>
+                      <div style={certificateSealStyle}>VERIFIED</div>
+                    </div>
+
+                    <div style={certificateGridStyle}>
+                      <div>
+                        <strong>Finding ID</strong>
+                        <div>{packetVerification.finding_id}</div>
+                      </div>
+                      <div>
+                        <strong>Export Event ID</strong>
+                        <div>{packetVerification.matched_export.event_id}</div>
+                      </div>
+                      <div>
+                        <strong>Algorithm</strong>
+                        <div>{packetVerification.packet_hash_algorithm || "SHA-256"}</div>
+                      </div>
+                      <div>
+                        <strong>Tamper Evident</strong>
+                        <div>{packetVerification.matched_export.tamper_evident ? "Yes" : "No"}</div>
+                      </div>
+                      <div>
+                        <strong>Actor</strong>
+                        <div>{packetVerification.matched_export.actor || "N/A"}</div>
+                      </div>
+                      <div>
+                        <strong>Role</strong>
+                        <div>{packetVerification.matched_export.actor_role || "N/A"}</div>
+                      </div>
+                      <div>
+                        <strong>Filename</strong>
+                        <div>{packetVerification.matched_export.filename || "N/A"}</div>
+                      </div>
+                      <div>
+                        <strong>Exported At</strong>
+                        <div>{packetVerification.matched_export.created_at || "N/A"}</div>
+                      </div>
+                      <div>
+                        <strong>Audit Trail Included</strong>
+                        <div>{packetVerification.matched_export.included_vendor_baseline_audit_trail ? "Yes" : "No"}</div>
+                      </div>
+                    </div>
+
+                    <div style={certificateHashBoxStyle}>
+                      <strong>Packet Hash</strong>
+                      <div>{packetVerification.packet_hash || packetVerification.matched_export.packet_hash || "N/A"}</div>
+                    </div>
+
+                    <p style={certificateFootnoteStyle}>
+                      This certificate confirms that the supplied SHA-256 packet hash matches a stored LumenAI governance PDF export record.
+                    </p>
                   </div>
-                  <div style={mutedTextStyle}>
-                    File: {packetVerification.matched_export.filename || "N/A"}
-                  </div>
-                  <div style={mutedTextStyle}>
-                    Created: {packetVerification.matched_export.created_at || "N/A"}
-                  </div>
-                  <div style={mutedTextStyle}>
-                    Vendor Baseline Audit Trail Included: {packetVerification.matched_export.included_vendor_baseline_audit_trail ? "Yes" : "No"}
-                  </div>
-                </div>
+                </>
               ) : null}
             </div>
           ) : null}
@@ -1029,6 +1089,77 @@ const matchedExportStyle: React.CSSProperties = {
   borderRadius: "12px",
   background: "#ffffff",
   padding: "10px",
+};
+
+const immutableCertificateStyle: React.CSSProperties = {
+  marginTop: "12px",
+  border: "2px solid #16a34a",
+  borderRadius: "18px",
+  background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)",
+  color: "#14532d",
+  padding: "16px",
+  boxShadow: "0 10px 24px rgba(22, 163, 74, 0.16)",
+};
+
+const certificateHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
+  alignItems: "center",
+  borderBottom: "1px solid #bbf7d0",
+  paddingBottom: "10px",
+  marginBottom: "12px",
+};
+
+const certificateEyebrowStyle: React.CSSProperties = {
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  color: "#15803d",
+};
+
+const certificateTitleStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#14532d",
+  fontSize: "18px",
+};
+
+const certificateSealStyle: React.CSSProperties = {
+  border: "2px solid #16a34a",
+  borderRadius: "999px",
+  color: "#166534",
+  background: "#dcfce7",
+  padding: "8px 12px",
+  fontWeight: 1000,
+  fontSize: "12px",
+  letterSpacing: "0.08em",
+};
+
+const certificateGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "10px",
+  fontSize: "13px",
+};
+
+const certificateHashBoxStyle: React.CSSProperties = {
+  marginTop: "12px",
+  border: "1px solid #bbf7d0",
+  borderRadius: "12px",
+  background: "#ffffff",
+  padding: "10px",
+  fontFamily: "monospace",
+  fontSize: "11px",
+  overflowWrap: "anywhere",
+};
+
+const certificateFootnoteStyle: React.CSSProperties = {
+  margin: "10px 0 0",
+  color: "#166534",
+  fontSize: "12px",
+  lineHeight: 1.5,
 };
 
 function fieldLabel(value: string) {
