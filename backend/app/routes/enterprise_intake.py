@@ -9230,6 +9230,45 @@ def create_enterprise_vendor_baseline_record(
 
     record = _vendor_baseline_record_to_dict(db_record)
 
+
+    matched_identifier_type = None
+    matched_identifier_value = None
+
+    for key in [
+        "barcode_value",
+        "qr_code_value",
+        "key_dot_value",
+        "catalog_number",
+        "model_number",
+    ]:
+        if record.get(key):
+            matched_identifier_type = key
+            matched_identifier_value = record.get(key)
+            break
+
+    existing_submit_event = (
+        db.query(VendorBaselineAuditEvent)
+        .filter(VendorBaselineAuditEvent.baseline_id == record.get("baseline_id"))
+        .filter(VendorBaselineAuditEvent.event_type == "baseline_submitted")
+        .first()
+    )
+
+    if existing_submit_event is None:
+        log_vendor_baseline_audit_event(
+            db=db,
+            baseline_id=record.get("baseline_id"),
+            event_type="baseline_submitted",
+            actor=request.headers.get("x-lumenai-actor", record.get("vendor_name", "vendor")) if request else record.get("vendor_name", "vendor"),
+            actor_role=request.headers.get("x-lumenai-role", "vendor") if request else "vendor",
+            decision="submitted",
+            notes="Vendor submitted baseline reference record.",
+            evidence_source="Vendor baseline subscription portal",
+            matched_identifier_type=matched_identifier_type,
+            matched_identifier_value=matched_identifier_value,
+            previous_status=None,
+            new_status="pending_hospital_review",
+        )
+
     try:
         _record_enterprise_audit(
             db,
@@ -9417,38 +9456,54 @@ def approve_enterprise_vendor_baseline_record(
                 matched_identifier_value = record.get(key)
                 break
 
-        log_vendor_baseline_audit_event(
-            db=db,
-            baseline_id=baseline_id,
-            event_type="baseline_approved",
-            actor=record.get("approved_by") or (
-                request.headers.get("x-lumenai-actor", "hospital-reviewer-demo")
-                if request else "hospital-reviewer-demo"
-            ),
-            actor_role=request.headers.get("x-lumenai-role", "hospital_admin") if request else "hospital_admin",
-            decision="approved",
-            notes=record.get("approval_notes") or "Hospital reviewed and approved vendor baseline for scoring use.",
-            evidence_source="Vendor submitted baseline image and identifier match.",
-            matched_identifier_type=matched_identifier_type,
-            matched_identifier_value=matched_identifier_value,
-            previous_status="pending_hospital_review",
-            new_status="approved",
+        existing_approval_event = (
+            db.query(VendorBaselineAuditEvent)
+            .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
+            .filter(VendorBaselineAuditEvent.event_type == "baseline_approved")
+            .first()
         )
 
-        log_vendor_baseline_audit_event(
-            db=db,
-            baseline_id=baseline_id,
-            event_type="baseline_used_in_scoring",
-            actor="scoring-engine",
-            actor_role="system",
-            decision="used_in_scoring",
-            notes="Approved vendor baseline available for baseline-supported scoring.",
-            evidence_source="Approved vendor baseline match",
-            matched_identifier_type=matched_identifier_type,
-            matched_identifier_value=matched_identifier_value,
-            previous_status="provisional_low_confidence",
-            new_status="baseline_supported",
+        if existing_approval_event is None:
+            log_vendor_baseline_audit_event(
+                db=db,
+                baseline_id=baseline_id,
+                event_type="baseline_approved",
+                actor=record.get("approved_by") or (
+                    request.headers.get("x-lumenai-actor", "hospital-reviewer-demo")
+                    if request else "hospital-reviewer-demo"
+                ),
+                actor_role=request.headers.get("x-lumenai-role", "hospital_admin") if request else "hospital_admin",
+                decision="approved",
+                notes=record.get("approval_notes") or "Hospital reviewed and approved vendor baseline for scoring use.",
+                evidence_source="Vendor submitted baseline image and identifier match.",
+                matched_identifier_type=matched_identifier_type,
+                matched_identifier_value=matched_identifier_value,
+                previous_status="pending_hospital_review",
+                new_status="approved",
+            )
+
+        existing_scoring_event = (
+            db.query(VendorBaselineAuditEvent)
+            .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
+            .filter(VendorBaselineAuditEvent.event_type == "baseline_used_in_scoring")
+            .first()
         )
+
+        if existing_scoring_event is None:
+            log_vendor_baseline_audit_event(
+                db=db,
+                baseline_id=baseline_id,
+                event_type="baseline_used_in_scoring",
+                actor="scoring-engine",
+                actor_role="system",
+                decision="used_in_scoring",
+                notes="Approved vendor baseline available for baseline-supported scoring.",
+                evidence_source="Approved vendor baseline match",
+                matched_identifier_type=matched_identifier_type,
+                matched_identifier_value=matched_identifier_value,
+                previous_status="provisional_low_confidence",
+                new_status="baseline_supported",
+            )
 
         db.commit()
     except Exception:
