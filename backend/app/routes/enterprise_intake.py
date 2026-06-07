@@ -1,3 +1,7 @@
+
+from app.models.vendor_baseline_audit import VendorBaselineAuditEvent
+from app.services.vendor_baseline_audit_service import log_vendor_baseline_audit_event
+
 import traceback
 import shutil
 import os
@@ -9397,6 +9401,55 @@ def approve_enterprise_vendor_baseline_record(
                 "workflow_status": "vendor_baseline_record_approved",
             },
         )
+
+        matched_identifier_type = None
+        matched_identifier_value = None
+
+        for key in [
+            "barcode_value",
+            "qr_code_value",
+            "key_dot_value",
+            "catalog_number",
+            "model_number",
+        ]:
+            if record.get(key):
+                matched_identifier_type = key
+                matched_identifier_value = record.get(key)
+                break
+
+        log_vendor_baseline_audit_event(
+            db=db,
+            baseline_id=baseline_id,
+            event_type="baseline_approved",
+            actor=record.get("approved_by") or (
+                request.headers.get("x-lumenai-actor", "hospital-reviewer-demo")
+                if request else "hospital-reviewer-demo"
+            ),
+            actor_role=request.headers.get("x-lumenai-role", "hospital_admin") if request else "hospital_admin",
+            decision="approved",
+            notes=record.get("approval_notes") or "Hospital reviewed and approved vendor baseline for scoring use.",
+            evidence_source="Vendor submitted baseline image and identifier match.",
+            matched_identifier_type=matched_identifier_type,
+            matched_identifier_value=matched_identifier_value,
+            previous_status="pending_hospital_review",
+            new_status="approved",
+        )
+
+        log_vendor_baseline_audit_event(
+            db=db,
+            baseline_id=baseline_id,
+            event_type="baseline_used_in_scoring",
+            actor="scoring-engine",
+            actor_role="system",
+            decision="used_in_scoring",
+            notes="Approved vendor baseline available for baseline-supported scoring.",
+            evidence_source="Approved vendor baseline match",
+            matched_identifier_type=matched_identifier_type,
+            matched_identifier_value=matched_identifier_value,
+            previous_status="provisional_low_confidence",
+            new_status="baseline_supported",
+        )
+
         db.commit()
     except Exception:
         db.rollback()
@@ -9904,6 +9957,44 @@ def get_enterprise_vendor_baseline_audit_trail(
             matched_identifier_value = record.get(key)
             break
 
+    persistent_events = (
+        db.query(VendorBaselineAuditEvent)
+        .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
+        .order_by(VendorBaselineAuditEvent.created_at.asc())
+        .all()
+    )
+
+    if persistent_events:
+        return {
+            "status": "success",
+            "baseline_id": baseline_id,
+            "vendor": record.get("vendor_name"),
+            "instrument": record.get("instrument_name"),
+            "baseline_status": baseline_status,
+            "approval_status": audit_status,
+            "audit_source": "persistent_table",
+            "audit_event_count": len(persistent_events),
+            "events": [
+                {
+                    "event_id": event.id,
+                    "event_type": event.event_type,
+                    "actor": event.actor,
+                    "actor_role": event.actor_role,
+                    "decision": event.decision,
+                    "notes": event.notes,
+                    "evidence_source": event.evidence_source,
+                    "finding_id": event.finding_id,
+                    "inspection_id": event.inspection_id,
+                    "matched_identifier_type": event.matched_identifier_type,
+                    "matched_identifier_value": event.matched_identifier_value,
+                    "previous_status": event.previous_status,
+                    "new_status": event.new_status,
+                    "created_at": event.created_at,
+                }
+                for event in persistent_events
+            ],
+        }
+
     events = [
         {
             "event_type": "baseline_submitted",
@@ -9994,6 +10085,7 @@ def get_enterprise_vendor_baseline_audit_trail(
         "instrument": record.get("instrument_name"),
         "baseline_status": baseline_status,
         "approval_status": audit_status,
+        "audit_source": "derived_from_current_state",
         "audit_event_count": len(events),
         "events": events,
     }
