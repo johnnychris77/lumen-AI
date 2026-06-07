@@ -51,6 +51,35 @@ type VendorBaselineMatchResponse = {
   recommended_action: string;
 };
 
+type VendorBaselineAuditEvent = {
+  event_id?: number;
+  event_type: string;
+  actor?: string;
+  actor_role?: string;
+  decision?: string;
+  notes?: string;
+  evidence_source?: string;
+  finding_id?: number | null;
+  inspection_id?: number | null;
+  matched_identifier_type?: string;
+  matched_identifier_value?: string;
+  previous_status?: string | null;
+  new_status?: string;
+  created_at?: string;
+};
+
+type VendorBaselineAuditResponse = {
+  status: string;
+  baseline_id: number;
+  vendor?: string;
+  instrument?: string;
+  baseline_status?: string;
+  approval_status?: string;
+  audit_source?: string;
+  audit_event_count: number;
+  events: VendorBaselineAuditEvent[];
+};
+
 const AUTH_HEADERS = {
   Authorization: "Bearer dev-token",
   "X-LumenAI-Role": "vendor",
@@ -113,6 +142,24 @@ async function approveVendorBaseline(baselineId: number, approvalNotes: string) 
   return data;
 }
 
+async function fetchVendorBaselineAudit(baselineId: number): Promise<VendorBaselineAuditResponse> {
+  const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/audit`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "hospital_admin",
+      "X-LumenAI-Actor": "hospital-reviewer-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Vendor baseline audit failed (${response.status})`);
+  }
+
+  return data;
+}
+
 async function matchVendorBaseline(identifierValue: string): Promise<VendorBaselineMatchResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/match`, {
     method: "POST",
@@ -145,6 +192,9 @@ export default function VendorBaselineSubscriptionPortal() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [matching, setMatching] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
+  const [selectedAudit, setSelectedAudit] = useState<VendorBaselineAuditResponse | null>(null);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
@@ -204,6 +254,21 @@ export default function VendorBaselineSubscriptionPortal() {
       setError(err instanceof Error ? err.message : "Unknown vendor baseline approval error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function viewAuditTrail(baselineId: number) {
+    setAuditLoading(true);
+    setAuditError("");
+    setSelectedAudit(null);
+
+    try {
+      const data = await fetchVendorBaselineAudit(baselineId);
+      setSelectedAudit(data);
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : "Unknown vendor baseline audit error");
+    } finally {
+      setAuditLoading(false);
     }
   }
 
@@ -352,13 +417,23 @@ export default function VendorBaselineSubscriptionPortal() {
                     </td>
                     <td style={tdStyle}>{record.approval_status}</td>
                     <td style={tdStyle}>
-                      {record.baseline_status !== "approved" ? (
-                        <button type="button" onClick={() => approveBaseline(record.baseline_id)} style={approveButtonStyle}>
-                          Approve
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                        {record.baseline_status !== "approved" ? (
+                          <button type="button" onClick={() => approveBaseline(record.baseline_id)} style={approveButtonStyle}>
+                            Approve
+                          </button>
+                        ) : (
+                          <span style={approvedTextStyle}>Approved</span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => viewAuditTrail(record.baseline_id)}
+                          style={auditButtonStyle}
+                        >
+                          View Audit
                         </button>
-                      ) : (
-                        <span style={approvedTextStyle}>Approved</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -369,6 +444,76 @@ export default function VendorBaselineSubscriptionPortal() {
           <p style={emptyStyle}>No vendor baseline records are loaded yet. Create one to begin.</p>
         )}
       </div>
+
+      {(auditLoading || auditError || selectedAudit) ? (
+        <div style={auditPanelStyle}>
+          <h3 style={sectionTitleStyle}>Vendor Baseline Audit Trail</h3>
+
+          {auditLoading ? (
+            <p style={bodyTextStyle}>Loading audit trail...</p>
+          ) : null}
+
+          {auditError ? (
+            <div style={errorStyle}>{auditError}</div>
+          ) : null}
+
+          {selectedAudit ? (
+            <>
+              <div style={auditSummaryStyle}>
+                <div>
+                  <strong>Baseline ID:</strong> {selectedAudit.baseline_id}
+                </div>
+                <div>
+                  <strong>Vendor:</strong> {selectedAudit.vendor || "N/A"}
+                </div>
+                <div>
+                  <strong>Instrument:</strong> {selectedAudit.instrument || "N/A"}
+                </div>
+                <div>
+                  <strong>Status:</strong> {selectedAudit.approval_status || "N/A"}
+                </div>
+                <div>
+                  <strong>Audit Source:</strong> {selectedAudit.audit_source || "N/A"}
+                </div>
+                <div>
+                  <strong>Events:</strong> {selectedAudit.audit_event_count}
+                </div>
+              </div>
+
+              <div style={auditEventGridStyle}>
+                {(selectedAudit.events || []).map((event, index) => (
+                  <div key={event.event_id || index} style={auditEventCardStyle}>
+                    <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                      {event.event_type}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Decision: {event.decision || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Actor: {event.actor || "N/A"} ({event.actor_role || "N/A"})
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Identifier: {event.matched_identifier_type || "N/A"} = {event.matched_identifier_value || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Status: {event.previous_status || "none"} → {event.new_status || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Evidence: {event.evidence_source || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Notes: {event.notes || "N/A"}
+                    </div>
+                    <div style={mutedTextStyle}>
+                      Created: {event.created_at || "N/A"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       <details style={detailsStyle}>
         <summary style={detailsSummaryStyle}>Why this matters</summary>
@@ -381,6 +526,46 @@ export default function VendorBaselineSubscriptionPortal() {
     </section>
   );
 }
+
+const auditButtonStyle: React.CSSProperties = {
+  border: "1px solid #bfdbfe",
+  borderRadius: "999px",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  padding: "8px 12px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const auditPanelStyle: React.CSSProperties = {
+  marginTop: "18px",
+  border: "1px solid #bfdbfe",
+  borderRadius: "18px",
+  background: "#eff6ff",
+  padding: "16px",
+};
+
+const auditSummaryStyle: React.CSSProperties = {
+  marginTop: "12px",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+  color: "#1e3a8a",
+  fontSize: "13px",
+};
+
+const auditEventGridStyle: React.CSSProperties = {
+  marginTop: "14px",
+  display: "grid",
+  gap: "10px",
+};
+
+const auditEventCardStyle: React.CSSProperties = {
+  border: "1px solid #dbeafe",
+  borderRadius: "14px",
+  background: "#ffffff",
+  padding: "12px",
+};
 
 function fieldLabel(value: string) {
   return value
