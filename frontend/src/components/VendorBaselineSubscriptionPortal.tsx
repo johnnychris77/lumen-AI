@@ -80,6 +80,30 @@ type VendorBaselineAuditResponse = {
   events: VendorBaselineAuditEvent[];
 };
 
+type GovernanceExportHistoryItem = {
+  event_id: number;
+  action_type: string;
+  actor?: string;
+  actor_role?: string;
+  resource_type?: string;
+  resource_id?: string;
+  packet_type?: string;
+  export_format?: string;
+  filename?: string;
+  included_vendor_baseline_audit_trail?: boolean;
+  audit_event_count?: number | null;
+  vendor_baseline_audit_event_count?: number | null;
+  created_at?: string;
+};
+
+type GovernanceExportHistoryResponse = {
+  status: string;
+  finding_id: number;
+  export_count: number;
+  last_exported_at: string;
+  exports: GovernanceExportHistoryItem[];
+};
+
 const AUTH_HEADERS = {
   Authorization: "Bearer dev-token",
   "X-LumenAI-Role": "vendor",
@@ -160,6 +184,24 @@ async function fetchVendorBaselineAudit(baselineId: number): Promise<VendorBasel
   return data;
 }
 
+async function fetchGovernanceExportHistory(findingId: string): Promise<GovernanceExportHistoryResponse> {
+  const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/governance-export-history`, {
+    headers: {
+      Authorization: "Bearer dev-token",
+      "X-LumenAI-Role": "hospital_admin",
+      "X-LumenAI-Actor": "hospital-reviewer-demo",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.detail || `Governance export history failed (${response.status})`);
+  }
+
+  return data;
+}
+
 async function matchVendorBaseline(identifierValue: string): Promise<VendorBaselineMatchResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/match`, {
     method: "POST",
@@ -196,6 +238,9 @@ export default function VendorBaselineSubscriptionPortal() {
   const [auditError, setAuditError] = useState("");
   const [selectedAudit, setSelectedAudit] = useState<VendorBaselineAuditResponse | null>(null);
   const [packetFindingId, setPacketFindingId] = useState("1");
+  const [exportHistoryLoading, setExportHistoryLoading] = useState(false);
+  const [exportHistoryError, setExportHistoryError] = useState("");
+  const [exportHistory, setExportHistory] = useState<GovernanceExportHistoryResponse | null>(null);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
@@ -258,11 +303,30 @@ export default function VendorBaselineSubscriptionPortal() {
     }
   }
 
+  async function loadExportHistory() {
+    const safeFindingId = packetFindingId.trim() || "1";
+    setExportHistoryLoading(true);
+    setExportHistoryError("");
+
+    try {
+      const data = await fetchGovernanceExportHistory(safeFindingId);
+      setExportHistory(data);
+    } catch (err) {
+      setExportHistoryError(err instanceof Error ? err.message : "Unknown governance export history error");
+    } finally {
+      setExportHistoryLoading(false);
+    }
+  }
+
   function downloadGovernancePdf() {
     const safeFindingId = packetFindingId.trim() || "1";
     const pdfUrl = `${API_BASE}/api/enterprise/intake/${safeFindingId}/governance-packet.pdf`;
 
     window.open(pdfUrl, "_blank", "noopener,noreferrer");
+
+    window.setTimeout(() => {
+      loadExportHistory();
+    }, 1200);
   }
 
   async function viewAuditTrail(baselineId: number) {
@@ -407,7 +471,68 @@ export default function VendorBaselineSubscriptionPortal() {
           <button type="button" onClick={downloadGovernancePdf} style={exportButtonStyle}>
             Download Governance PDF
           </button>
+
+          <button type="button" onClick={loadExportHistory} style={exportHistoryButtonStyle}>
+            View Export History
+          </button>
         </div>
+
+        {(exportHistoryLoading || exportHistoryError || exportHistory) ? (
+          <div style={exportHistoryPanelStyle}>
+            <h4 style={{ margin: 0, color: "#312e81", fontSize: "15px" }}>
+              Governance Packet Export History
+            </h4>
+
+            {exportHistoryLoading ? (
+              <p style={bodyTextStyle}>Loading export history...</p>
+            ) : null}
+
+            {exportHistoryError ? (
+              <div style={errorStyle}>{exportHistoryError}</div>
+            ) : null}
+
+            {exportHistory ? (
+              <>
+                <div style={exportHistorySummaryStyle}>
+                  <div>
+                    <strong>Finding ID:</strong> {exportHistory.finding_id}
+                  </div>
+                  <div>
+                    <strong>Export Count:</strong> {exportHistory.export_count}
+                  </div>
+                  <div>
+                    <strong>Last Exported:</strong> {exportHistory.last_exported_at || "N/A"}
+                  </div>
+                </div>
+
+                <div style={exportHistoryListStyle}>
+                  {(exportHistory.exports || []).slice(0, 5).map((item) => (
+                    <div key={item.event_id} style={exportHistoryItemStyle}>
+                      <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                        {item.action_type}
+                      </div>
+                      <div style={mutedTextStyle}>
+                        Actor: {item.actor || "N/A"} ({item.actor_role || "N/A"})
+                      </div>
+                      <div style={mutedTextStyle}>
+                        Format: {item.export_format || "N/A"} · Filename: {item.filename || "N/A"}
+                      </div>
+                      <div style={mutedTextStyle}>
+                        Vendor Baseline Audit Trail Included: {item.included_vendor_baseline_audit_trail ? "Yes" : "No"}
+                      </div>
+                      <div style={mutedTextStyle}>
+                        Audit Events: {item.audit_event_count ?? "N/A"} · Vendor Baseline Audit Events: {item.vendor_baseline_audit_event_count ?? "N/A"}
+                      </div>
+                      <div style={mutedTextStyle}>
+                        Created: {item.created_at || "N/A"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div style={libraryCardStyle}>
@@ -646,6 +771,47 @@ const exportButtonStyle: React.CSSProperties = {
   fontWeight: 900,
   cursor: "pointer",
   boxShadow: "0 8px 20px rgba(79, 70, 229, 0.22)",
+};
+
+const exportHistoryButtonStyle: React.CSSProperties = {
+  border: "1px solid #c7d2fe",
+  borderRadius: "999px",
+  background: "#ffffff",
+  color: "#3730a3",
+  padding: "12px 18px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const exportHistoryPanelStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: "14px",
+  border: "1px solid #c7d2fe",
+  borderRadius: "16px",
+  background: "#ffffff",
+  padding: "14px",
+};
+
+const exportHistorySummaryStyle: React.CSSProperties = {
+  marginTop: "10px",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+  color: "#3730a3",
+  fontSize: "13px",
+};
+
+const exportHistoryListStyle: React.CSSProperties = {
+  marginTop: "12px",
+  display: "grid",
+  gap: "10px",
+};
+
+const exportHistoryItemStyle: React.CSSProperties = {
+  border: "1px solid #e0e7ff",
+  borderRadius: "14px",
+  background: "#f8fafc",
+  padding: "12px",
 };
 
 function fieldLabel(value: string) {
