@@ -464,6 +464,75 @@ def list_enterprise_intake_history(
     return EnterpriseIntakeHistoryResponse(items=items)
 
 
+
+def _vendor_baseline_audit_events_for_packet(db: Session, baseline_id: int) -> list[dict]:
+    events = (
+        db.query(VendorBaselineAuditEvent)
+        .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
+        .order_by(VendorBaselineAuditEvent.created_at.asc())
+        .all()
+    )
+
+    return [
+        {
+            "event_id": event.id,
+            "event_type": event.event_type,
+            "actor": event.actor,
+            "actor_role": event.actor_role,
+            "decision": event.decision,
+            "notes": event.notes,
+            "evidence_source": event.evidence_source,
+            "finding_id": event.finding_id,
+            "inspection_id": event.inspection_id,
+            "matched_identifier_type": event.matched_identifier_type,
+            "matched_identifier_value": event.matched_identifier_value,
+            "previous_status": event.previous_status,
+            "new_status": event.new_status,
+            "created_at": event.created_at.isoformat() if event.created_at else "",
+        }
+        for event in events
+    ]
+
+
+def _vendor_baseline_audit_trail_for_packet(db: Session, limit: int = 10) -> list[dict]:
+    rows = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .order_by(EnterpriseVendorBaselineSubscription.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    trail = []
+    for row in rows:
+        baseline_id = getattr(row, "baseline_id", None) or getattr(row, "id", None)
+        if not baseline_id:
+            continue
+
+        audit_events = _vendor_baseline_audit_events_for_packet(db, int(baseline_id))
+
+        if not audit_events:
+            continue
+
+        trail.append(
+            {
+                "baseline_id": int(baseline_id),
+                "vendor_name": getattr(row, "vendor_name", "") or "",
+                "instrument_name": getattr(row, "instrument_name", "") or "",
+                "instrument_category": getattr(row, "instrument_category", "") or "",
+                "catalog_number": getattr(row, "catalog_number", "") or "",
+                "model_number": getattr(row, "model_number", "") or "",
+                "barcode_value": getattr(row, "barcode_value", "") or "",
+                "baseline_status": getattr(row, "baseline_status", "") or "",
+                "approval_status": getattr(row, "approval_status", "") or "",
+                "approved_by": getattr(row, "approved_by", "") or "",
+                "audit_source": "persistent_table",
+                "audit_event_count": len(audit_events),
+                "audit_events": audit_events,
+            }
+        )
+
+    return trail
+
 @router.get("/intake/{finding_id}/governance-packet", response_model=EnterpriseGovernancePacketResponse)
 def get_enterprise_governance_packet(
     finding_id: int,
@@ -578,6 +647,12 @@ def get_enterprise_governance_packet(
             .all()
         )
 
+    vendor_baseline_audit_trail = _vendor_baseline_audit_trail_for_packet(db)
+    vendor_baseline_audit_event_count = sum(
+        item.get("audit_event_count", 0)
+        for item in vendor_baseline_audit_trail
+    )
+
     baseline_evidence_items = [
         {
             "baseline_id": baseline.id,
@@ -643,6 +718,8 @@ def get_enterprise_governance_packet(
             "baseline_lookup_instrument_id": baseline_instrument_id,
             "baseline_lookup_vendor_id": baseline_vendor_id,
             "baseline_evidence_count": len(baseline_evidence_items),
+            "vendor_baseline_audit_event_count": vendor_baseline_audit_event_count,
+            "vendor_baseline_audit_trail_count": len(vendor_baseline_audit_trail),
         },
         evidence_attachments=[
             EnterpriseGovernanceEvidenceItem(
@@ -657,6 +734,7 @@ def get_enterprise_governance_packet(
             for row in evidence_rows
         ],
         baseline_evidence=baseline_evidence_items,
+        vendor_baseline_audit_trail=vendor_baseline_audit_trail,
     )
 
 
@@ -943,6 +1021,54 @@ def get_enterprise_governance_packet_pdf(
             story.append(Paragraph(f"<b>Baseline Notes:</b> {baseline.baseline_notes or 'Not documented.'}", styles["BodyText"]))
     else:
         story.append(Paragraph("No manufacturer baseline evidence is currently attached to this governance packet.", styles["BodyText"]))
+
+    story.append(Spacer(1, 18))
+    story.append(Paragraph("Vendor Baseline Audit Trail", styles["Heading2"]))
+
+    vendor_baseline_audit_trail = _vendor_baseline_audit_trail_for_packet(db)
+
+    if vendor_baseline_audit_trail:
+        for baseline in vendor_baseline_audit_trail[:5]:
+            story.append(Spacer(1, 8))
+            story.append(
+                Paragraph(
+                    f"Vendor Baseline #{baseline.get('baseline_id')} — "
+                    f"{baseline.get('vendor_name', '')} / {baseline.get('instrument_name', '')}",
+                    styles["Heading3"],
+                )
+            )
+
+            audit_rows = [[
+                "Event",
+                "Actor",
+                "Decision",
+                "Status Change",
+                "Evidence",
+                "Created",
+            ]]
+
+            for event in baseline.get("audit_events", []):
+                audit_rows.append([
+                    event.get("event_type", ""),
+                    f"{event.get('actor', '')} ({event.get('actor_role', '')})",
+                    event.get("decision", ""),
+                    f"{event.get('previous_status') or 'none'} -> {event.get('new_status') or ''}",
+                    event.get("evidence_source", ""),
+                    event.get("created_at", ""),
+                ])
+
+            audit_table = Table(audit_rows, colWidths=[90, 90, 70, 105, 95, 90])
+            audit_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DBEAFE")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(audit_table)
+    else:
+        story.append(Paragraph("No persistent vendor baseline audit events are available.", styles["BodyText"]))
 
 
     doc.build(story)
@@ -2068,6 +2194,13 @@ def get_enterprise_governance_export_package(
     except Exception:
         audit_event_count = 0
 
+    vendor_baseline_audit_event_count = 0
+    try:
+        vendor_baseline_audit_event_count = db.query(VendorBaselineAuditEvent).count()
+        audit_event_count += vendor_baseline_audit_event_count
+    except Exception:
+        vendor_baseline_audit_event_count = 0
+
     included_sections = [
         "enterprise finding",
         "risk score",
@@ -2077,6 +2210,9 @@ def get_enterprise_governance_export_package(
         "evidence attachments",
         "audit trail",
     ]
+
+    if vendor_baseline_audit_event_count:
+        included_sections.append("vendor baseline audit trail")
 
     if baseline_rows:
         included_sections.append("manufacturer baseline evidence")
@@ -2116,6 +2252,7 @@ def get_enterprise_governance_export_package(
             "comparison_score_count": comparison_score_count,
             "capa_count": capa_count,
             "audit_event_count": audit_event_count,
+            "vendor_baseline_audit_event_count": vendor_baseline_audit_event_count,
             "readiness_status": readiness_status,
             "workflow_status": "governance_export_package_generated",
         },
