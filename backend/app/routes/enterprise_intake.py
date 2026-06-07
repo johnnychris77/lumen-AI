@@ -1115,6 +1115,99 @@ def get_enterprise_governance_packet_pdf(
 
 
 
+
+@router.get("/intake/{finding_id}/governance-packet/verify-hash")
+def verify_enterprise_governance_packet_hash(
+    finding_id: int,
+    packet_hash: str,
+    db: Session = Depends(get_db),
+):
+    import json
+
+    normalized_hash = (packet_hash or "").strip().lower()
+
+    if not normalized_hash:
+        return {
+            "status": "error",
+            "finding_id": finding_id,
+            "verified": False,
+            "message": "packet_hash is required.",
+        }
+
+    audit_model = AuditLog if "AuditLog" in globals() else EnterpriseAuditTrail
+
+    rows = (
+        db.query(audit_model)
+        .filter(audit_model.resource_id == str(finding_id))
+        .filter(audit_model.action_type == "governance_packet_exported_pdf")
+        .order_by(audit_model.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    matched_export = None
+    checked_count = 0
+
+    for row in rows:
+        details = getattr(row, "details", {}) or {}
+
+        if isinstance(details, str):
+            try:
+                details = json.loads(details)
+            except Exception:
+                details = {}
+
+        stored_hash = (details.get("packet_hash") or "").strip().lower()
+
+        if not stored_hash:
+            continue
+
+        checked_count += 1
+
+        if stored_hash == normalized_hash:
+            matched_export = {
+                "event_id": row.id,
+                "action_type": row.action_type,
+                "actor": getattr(row, "actor_email", "") or getattr(row, "actor", ""),
+                "actor_role": getattr(row, "actor_role", ""),
+                "resource_type": getattr(row, "resource_type", ""),
+                "resource_id": getattr(row, "resource_id", ""),
+                "packet_type": details.get("packet_type", ""),
+                "export_format": details.get("export_format", ""),
+                "filename": details.get("filename", ""),
+                "packet_hash_algorithm": details.get("packet_hash_algorithm", "SHA-256"),
+                "packet_hash": details.get("packet_hash", ""),
+                "tamper_evident": details.get("tamper_evident", False),
+                "included_vendor_baseline_audit_trail": details.get("included_vendor_baseline_audit_trail", False),
+                "created_at": row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+            }
+            break
+
+    if matched_export:
+        return {
+            "status": "success",
+            "finding_id": finding_id,
+            "verified": True,
+            "verification_status": "hash_matched_export_record",
+            "packet_hash_algorithm": matched_export.get("packet_hash_algorithm"),
+            "packet_hash": matched_export.get("packet_hash"),
+            "matched_export": matched_export,
+            "checked_hash_export_count": checked_count,
+            "message": "Packet hash matches a stored governance PDF export record.",
+        }
+
+    return {
+        "status": "success",
+        "finding_id": finding_id,
+        "verified": False,
+        "verification_status": "hash_not_found",
+        "packet_hash_algorithm": "SHA-256",
+        "packet_hash": normalized_hash,
+        "checked_hash_export_count": checked_count,
+        "message": "Packet hash does not match any stored governance PDF export record for this finding.",
+    }
+
+
 @router.get("/intake/{finding_id}/governance-export-history")
 def get_enterprise_governance_export_history(
     finding_id: int,
