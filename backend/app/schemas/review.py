@@ -6,7 +6,8 @@ class ReviewItemOut(BaseModel):
     image_url: HttpUrl | str
     predicted_label: Optional[str] = None
     confidence: Optional[float] = None
-    class Config: from_attributes = True
+    class Config:
+        from_attributes = True
 
 class FeedbackIn(BaseModel):
     item_id: int

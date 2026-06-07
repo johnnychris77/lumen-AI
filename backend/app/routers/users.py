@@ -8,8 +8,10 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 def get_db():
     db = SessionLocal()
-    try: yield db
-    finally: db.close()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @router.post("/seed_admin")
 def seed_admin(db: Session = Depends(get_db)):
