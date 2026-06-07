@@ -745,6 +745,7 @@ def get_enterprise_governance_packet_pdf(
     db: Session = Depends(get_db),
 ):
     from io import BytesIO
+    import hashlib
 
     from fastapi import HTTPException
     from reportlab.lib.pagesizes import letter
@@ -1073,6 +1074,9 @@ def get_enterprise_governance_packet_pdf(
 
     doc.build(story)
 
+    pdf_bytes = buffer.getvalue()
+    packet_hash = hashlib.sha256(pdf_bytes).hexdigest()
+
     buffer.seek(0)
 
     filename = f"lumenai-governance-packet-finding-{finding.id}.pdf"
@@ -1096,6 +1100,9 @@ def get_enterprise_governance_packet_pdf(
             "filename": filename,
             "included_vendor_baseline_audit_trail": True,
             "vendor_baseline_audit_trail_section": "Vendor Baseline Audit Trail",
+            "packet_hash_algorithm": "SHA-256",
+            "packet_hash": packet_hash,
+            "tamper_evident": True,
         },
     )
     db.commit()
@@ -1166,6 +1173,9 @@ def get_enterprise_governance_export_history(
                 "included_vendor_baseline_audit_trail": included_vendor_baseline_audit_trail,
                 "audit_event_count": details.get("audit_event_count"),
                 "vendor_baseline_audit_event_count": details.get("vendor_baseline_audit_event_count"),
+                "packet_hash_algorithm": details.get("packet_hash_algorithm", ""),
+                "packet_hash": details.get("packet_hash", ""),
+                "tamper_evident": details.get("tamper_evident", False),
                 "created_at": row.created_at.isoformat() if getattr(row, "created_at", None) else "",
             }
         )
