@@ -42,6 +42,10 @@ jobs:
         run: |
           python -m pytest tests/test_enterprise_compliance_routes.py -q
 
+      - name: Run centralized enterprise auth tests
+        run: |
+          python -m pytest tests/test_enterprise_auth.py -q
+
       - name: Run vendor baseline persistent audit workflow tests
         run: |
           python -m pytest tests/test_vendor_baseline_persistent_workflow.py -q

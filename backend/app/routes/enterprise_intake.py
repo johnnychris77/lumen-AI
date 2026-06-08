@@ -1,4 +1,5 @@
 
+from app.enterprise_auth import require_hospital_or_enterprise_admin
 from app.models.vendor_baseline_audit import VendorBaselineAuditEvent
 from app.services.vendor_baseline_audit_service import log_vendor_baseline_audit_event
 
@@ -253,50 +254,22 @@ def _risk_scores_for_severity(severity: str) -> tuple[int, int, int, int, int, s
 
 
 def _require_governance_packet_access(request: Request):
-    authorization = request.headers.get("authorization", "") if request else ""
-    role = request.headers.get("x-lumenai-role", "") if request else ""
-
-    if authorization != "Bearer dev-token":
-        raise HTTPException(status_code=401, detail="Authentication required.")
-
-    if role not in {"hospital_admin", "enterprise_admin"}:
-        raise HTTPException(status_code=403, detail="Governance packet access denied.")
+    require_hospital_or_enterprise_admin(request)
 
 
 
 def _require_vendor_baseline_approval_access(request: Request):
-    authorization = request.headers.get("authorization", "") if request else ""
-    role = request.headers.get("x-lumenai-role", "") if request else ""
-
-    if authorization != "Bearer dev-token":
-        raise HTTPException(status_code=401, detail="Authentication required.")
-
-    if role not in {"hospital_admin", "enterprise_admin"}:
-        raise HTTPException(status_code=403, detail="Vendor baseline approval access denied.")
+    require_hospital_or_enterprise_admin(request)
 
 
 
 def _require_vendor_baseline_audit_access(request: Request):
-    authorization = request.headers.get("authorization", "") if request else ""
-    role = request.headers.get("x-lumenai-role", "") if request else ""
-
-    if authorization != "Bearer dev-token":
-        raise HTTPException(status_code=401, detail="Authentication required.")
-
-    if role not in {"hospital_admin", "enterprise_admin"}:
-        raise HTTPException(status_code=403, detail="Vendor baseline audit access denied.")
+    require_hospital_or_enterprise_admin(request)
 
 
 
 def _require_vendor_baseline_library_access(request: Request):
-    authorization = request.headers.get("authorization", "") if request else ""
-    role = request.headers.get("x-lumenai-role", "") if request else ""
-
-    if authorization != "Bearer dev-token":
-        raise HTTPException(status_code=401, detail="Authentication required.")
-
-    if role not in {"hospital_admin", "enterprise_admin"}:
-        raise HTTPException(status_code=403, detail="Vendor baseline library access denied.")
+    require_hospital_or_enterprise_admin(request)
 
 
 
