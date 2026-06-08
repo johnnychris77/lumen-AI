@@ -10340,3 +10340,31 @@ def get_enterprise_compliance_evidence_verification_summary(
         db,
         bundle_hash=bundle_hash,
     )
+
+
+@router.post("/audit/events")
+def create_enterprise_demo_audit_event(
+    payload: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_audit_chain_verify(request)
+
+    event = record_enterprise_audit_event(
+        db,
+        action_type=payload.get("action_type", "demo_audit_event"),
+        resource_type=payload.get("resource_type", "demo_resource"),
+        resource_id=payload.get("resource_id", "demo-resource"),
+        actor=request.headers.get("x-lumenai-actor", "unknown"),
+        actor_role=request.headers.get("x-lumenai-role", "viewer"),
+        details=payload.get("details", {}),
+        request=request,
+    )
+
+    return {
+        "status": "success",
+        "event_id": event.id,
+        "action_type": event.action_type,
+        "resource_type": event.resource_type,
+        "resource_id": event.resource_id,
+    }
