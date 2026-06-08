@@ -6,6 +6,10 @@ from typing import Any
 from fastapi import HTTPException, Request
 
 from app.auth.context import AuthContext, build_dev_auth_context, build_oidc_auth_context
+from app.auth.jwks_validator import (
+    JWKSSignatureValidationError,
+    validate_jwt_signature_with_jwks,
+)
 from app.auth.jwt_validator import (
     JWTValidationError,
     map_claims_to_auth_context_payload,
@@ -126,6 +130,12 @@ def _require_oidc_auth_context(request: Request) -> AuthContext:
         )
 
     token = _extract_bearer_token(request)
+
+    try:
+        validate_jwt_signature_with_jwks(token)
+    except JWKSSignatureValidationError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
     claims = _decode_unverified_jwt_claims(token)
 
     try:

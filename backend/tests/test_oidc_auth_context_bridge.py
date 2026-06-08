@@ -58,6 +58,8 @@ def test_oidc_auth_mode_maps_valid_claims_to_auth_context(monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "oidc")
     monkeypatch.setenv("OIDC_ISSUER_URL", "https://issuer.example.com/")
     monkeypatch.setenv("OIDC_AUDIENCE", "lumenai-api")
+    monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
+    monkeypatch.setenv("OIDC_ALGORITHMS", "RS256")
 
     token = _unsigned_test_jwt()
 
@@ -87,6 +89,7 @@ def test_oidc_auth_mode_rejects_missing_configuration(monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "oidc")
     monkeypatch.delenv("OIDC_ISSUER_URL", raising=False)
     monkeypatch.delenv("OIDC_AUDIENCE", raising=False)
+    monkeypatch.delenv("OIDC_JWKS_URL", raising=False)
 
     token = _unsigned_test_jwt()
 
@@ -108,6 +111,8 @@ def test_oidc_auth_mode_rejects_wrong_issuer(monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "oidc")
     monkeypatch.setenv("OIDC_ISSUER_URL", "https://issuer.example.com/")
     monkeypatch.setenv("OIDC_AUDIENCE", "lumenai-api")
+    monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
+    monkeypatch.setenv("OIDC_ALGORITHMS", "RS256")
 
     token = _unsigned_test_jwt(iss="https://wrong.example.com/")
 
@@ -130,6 +135,8 @@ def test_oidc_auth_mode_rejects_malformed_jwt(monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "oidc")
     monkeypatch.setenv("OIDC_ISSUER_URL", "https://issuer.example.com/")
     monkeypatch.setenv("OIDC_AUDIENCE", "lumenai-api")
+    monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
+    monkeypatch.setenv("OIDC_ALGORITHMS", "RS256")
 
     with pytest.raises(HTTPException) as exc:
         get_auth_context(
@@ -141,4 +148,4 @@ def test_oidc_auth_mode_rejects_malformed_jwt(monkeypatch):
         )
 
     assert exc.value.status_code == 401
-    assert exc.value.detail == "Invalid JWT."
+    assert "JWT must have three segments" in exc.value.detail
