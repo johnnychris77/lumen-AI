@@ -10280,3 +10280,48 @@ def verify_enterprise_compliance_evidence_bundle_hash(
         db,
         bundle_hash=bundle_hash,
     )
+
+
+@router.get("/audit/evidence-bundle/download.json")
+def download_enterprise_compliance_evidence_bundle_json(
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: str | None = None,
+    actor: str | None = None,
+    actor_role: str | None = None,
+    request_id: str | None = None,
+    correlation_id: str | None = None,
+    action_type: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    limit: int = 200,
+):
+    require_audit_chain_verify(request)
+
+    result = build_compliance_evidence_bundle(
+        db,
+        actor=request.headers.get("x-lumenai-actor", "unknown"),
+        actor_role=request.headers.get("x-lumenai-role", "viewer"),
+        tenant_id=tenant_id,
+        actor_filter=actor,
+        actor_role_filter=actor_role,
+        request_id=request_id,
+        correlation_id=correlation_id,
+        action_type=action_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        limit=limit,
+    )
+
+    filename = f"lumenai-compliance-evidence-bundle-{result['bundle_hash'][:12]}.json"
+
+    return Response(
+        content=result["bundle_json"],
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-LumenAI-Bundle-Hash": result["bundle_hash"],
+            "X-LumenAI-Bundle-Hash-Algorithm": result["bundle_hash_algorithm"],
+            "X-LumenAI-Bundle-Event-ID": str(result["bundle_event_id"]),
+        },
+    )
