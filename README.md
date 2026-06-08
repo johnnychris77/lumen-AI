@@ -1973,6 +1973,8 @@ Evidence capabilities include:
 
 Public documentation:
 
+- [Compliance Evidence Release Tag](docs/public/evidence-release-tag.md)
+
 - [Evidence Index](docs/public/evidence-index.md)
 
 - [Compliance Evidence Release Lock](docs/public/compliance-evidence-release-lock.md)
