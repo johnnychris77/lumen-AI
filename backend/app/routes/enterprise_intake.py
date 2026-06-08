@@ -252,6 +252,18 @@ def _risk_scores_for_severity(severity: str) -> tuple[int, int, int, int, int, s
     return 25, 20, 20, 15, 20, "low"
 
 
+def _require_governance_packet_access(request: Request):
+    authorization = request.headers.get("authorization", "") if request else ""
+    role = request.headers.get("x-lumenai-role", "") if request else ""
+
+    if authorization != "Bearer dev-token":
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    if role not in {"hospital_admin", "enterprise_admin"}:
+        raise HTTPException(status_code=403, detail="Governance packet access denied.")
+
+
+
 @router.post("/intake", response_model=EnterpriseInspectionIntakeResponse)
 def create_enterprise_intake(
     payload: EnterpriseInspectionIntakeRequest,
@@ -744,6 +756,8 @@ def get_enterprise_governance_packet_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    _require_governance_packet_access(request)
+
     from io import BytesIO
     import hashlib
 
@@ -1119,9 +1133,12 @@ def get_enterprise_governance_packet_pdf(
 @router.get("/intake/{finding_id}/governance-packet/verify-hash")
 def verify_enterprise_governance_packet_hash(
     finding_id: int,
+    request: Request,
     packet_hash: str,
     db: Session = Depends(get_db),
 ):
+    _require_governance_packet_access(request)
+
     import json
 
     normalized_hash = (packet_hash or "").strip().lower()
@@ -1211,8 +1228,11 @@ def verify_enterprise_governance_packet_hash(
 @router.get("/intake/{finding_id}/governance-export-history")
 def get_enterprise_governance_export_history(
     finding_id: int,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    _require_governance_packet_access(request)
+
     import json
 
     audit_model = AuditLog if "AuditLog" in globals() else EnterpriseAuditTrail
