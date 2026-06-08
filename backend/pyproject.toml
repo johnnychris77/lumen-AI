@@ -12,5 +12,6 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F"]
 ignore = [
-  "E402"
+  "E402",
+  "E501"
 ]

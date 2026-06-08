@@ -555,8 +555,6 @@ app.include_router(capa_trend_intelligence_router)
 app.include_router(vendor_trend_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
-from app.db.base import Base
-from app.db.session import engine
 import importlib
 
 def custom_openapi():

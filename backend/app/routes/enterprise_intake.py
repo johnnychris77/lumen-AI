@@ -2057,8 +2057,6 @@ def compare_finding_to_manufacturer_baseline(
         .first()
     )
 
-    baseline_trust_status = "approved"
-
     if not baseline:
         baseline = (
             db.query(EnterpriseInstrumentBaseline)

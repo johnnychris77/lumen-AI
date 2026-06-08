@@ -63,7 +63,7 @@ def get_release_for_packet(db: Session, tenant_id: str, packet_id: int):
     )
 
 
-def release_allows_delivery(db: Session, tenant_id: str, packet_id: int) -> dict:
+def legacy_release_allows_delivery(db: Session, tenant_id: str, packet_id: int) -> dict:
     row = get_release_for_packet(db, tenant_id, packet_id)
     if not row:
         return {

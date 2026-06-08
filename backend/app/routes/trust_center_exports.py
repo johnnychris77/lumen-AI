@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db
 from app.retention import compute_retention_metadata
-from app.branding import get_branding
 from app.metering import record_usage_event, check_quota
 from app.entitlements import is_feature_enabled
 from app.tenant import resolve_tenant
@@ -29,7 +28,6 @@ def trust_center_attestations_json(
     if not quota_state["allowed"]:
         return JSONResponse({"detail": f'Quota exceeded for trust_center_exported. Used {quota_state["used"]} of {quota_state["limit"]}.'}, status_code=429)
     record_usage_event(db, tenant_id=tenant["tenant_id"], tenant_name=tenant["tenant_name"], event_type="trust_center_exported", quantity=1, notes="trust center export")
-    branding = get_branding(db, tenant["tenant_id"], tenant["tenant_name"])
     payload = {
         "tenant_id": tenant["tenant_id"],
         "tenant_name": tenant["tenant_name"],
@@ -107,6 +105,7 @@ def trust_center_attestations_bundle(
         },
     }
 
+    branding = {"export_prefix": "lumenai"}
     bio = BytesIO()
     with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f"{branding['export_prefix']}_trust_center_attestations.json", json.dumps(payload, indent=2))

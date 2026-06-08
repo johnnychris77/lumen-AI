@@ -169,24 +169,6 @@ class EnterpriseCapaListResponse(BaseModel):
     items: list[EnterpriseCapaListItem]
 
 
-class EnterpriseCapaCreateRequest(BaseModel):
-    title: str = Field(default="CAPA for enterprise quality finding")
-    description: str = Field(default="")
-    owner_id: int | None = Field(default=None)
-    due_date: str = Field(default="")
-    status: str = Field(default="open")
-
-
-class EnterpriseCapaCreateResponse(BaseModel):
-    status: str
-    message: str
-    finding_id: int
-    capa_id: int
-    capa_number: str
-    capa_status: str
-    workflow_status: str
-
-
 class EnterpriseCapaListItem(BaseModel):
     capa_id: int
     finding_id: int | None = None
@@ -198,10 +180,6 @@ class EnterpriseCapaListItem(BaseModel):
     due_date: str = ""
     closed_at: str = ""
     created_at: str = ""
-
-
-class EnterpriseCapaListResponse(BaseModel):
-    items: list[EnterpriseCapaListItem]
 
 
 class EnterpriseCapaStatusUpdateRequest(BaseModel):
@@ -217,19 +195,6 @@ class EnterpriseCapaStatusUpdateResponse(BaseModel):
     capa_status: str
     workflow_status: str
     closed_at: str = ""
-
-
-class EnterpriseCapaSummaryResponse(BaseModel):
-    total_capas: int
-    open_capas: int
-    in_progress_capas: int
-    pending_review_capas: int
-    closed_capas: int
-    overdue_capas: int
-    cancelled_capas: int
-    average_days_open: float
-    closure_rate: float
-    risk_message: str
 
 
 class EnterpriseCapaSummaryResponse(BaseModel):
