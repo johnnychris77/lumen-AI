@@ -1,4 +1,7 @@
-from app.services.audit_export_verification_service import verify_audit_export_hash
+from app.services.audit_export_verification_service import (
+    verify_audit_export_hash,
+    verify_audit_export_manifest_hash,
+)
 from app.services.audit_export_service import export_audit_events_csv, record_audit_export_event
 from app.enterprise_auth import require_audit_chain_verify
 
@@ -10214,4 +10217,18 @@ def verify_enterprise_audit_export_hash(
     return verify_audit_export_hash(
         db,
         audit_export_hash=audit_export_hash,
+    )
+
+
+@router.get("/audit/events/export/manifest/verify")
+def verify_enterprise_audit_export_manifest_hash(
+    manifest_hash: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_audit_chain_verify(request)
+
+    return verify_audit_export_manifest_hash(
+        db,
+        manifest_hash=manifest_hash,
     )

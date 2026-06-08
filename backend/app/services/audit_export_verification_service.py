@@ -84,3 +84,72 @@ def verify_audit_export_hash(
         "filters": details.get("filters", {}),
         "message": "Audit export hash verified." if verified else "Audit export hash mismatch.",
     }
+
+
+def verify_audit_export_manifest_hash(
+    db: Session,
+    *,
+    manifest_hash: str,
+) -> dict[str, Any]:
+    normalized_hash = (manifest_hash or "").strip()
+
+    if not normalized_hash:
+        return {
+            "status": "success",
+            "verified": False,
+            "manifest_hash": normalized_hash,
+            "manifest_hash_algorithm": "SHA-256",
+            "event_id": None,
+            "message": "No audit export manifest hash provided.",
+        }
+
+    events = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.action_type == "audit_events_csv_exported",
+            AuditLog.resource_type == "enterprise_audit_export",
+        )
+        .order_by(AuditLog.id.desc())
+        .limit(500)
+        .all()
+    )
+
+    for event in events:
+        details = _details(event)
+
+        stored_manifest_hash = details.get("manifest_hash")
+
+        if stored_manifest_hash != normalized_hash:
+            continue
+
+        manifest = details.get("manifest") or {}
+
+        return {
+            "status": "success",
+            "verified": True,
+            "manifest_hash": normalized_hash,
+            "manifest_hash_algorithm": details.get("manifest_hash_algorithm", "SHA-256"),
+            "event_id": event.id,
+            "resource_type": event.resource_type,
+            "resource_id": event.resource_id,
+            "action_type": event.action_type,
+            "audit_export_hash": details.get("audit_export_hash", ""),
+            "audit_export_hash_algorithm": details.get("audit_export_hash_algorithm", "SHA-256"),
+            "filename": details.get("filename", ""),
+            "content_type": details.get("content_type", ""),
+            "export_count": details.get("export_count"),
+            "exported_at": details.get("exported_at", ""),
+            "tamper_evident": bool(details.get("tamper_evident", False)),
+            "filters": details.get("filters", {}),
+            "manifest": manifest,
+            "message": "Audit export manifest hash verified.",
+        }
+
+    return {
+        "status": "success",
+        "verified": False,
+        "manifest_hash": normalized_hash,
+        "manifest_hash_algorithm": "SHA-256",
+        "event_id": None,
+        "message": "No matching audit export manifest event found.",
+    }
