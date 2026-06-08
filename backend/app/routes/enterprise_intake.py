@@ -10044,3 +10044,74 @@ def verify_enterprise_audit_chain(
         "status": "success",
         **result,
     }
+
+
+@router.get("/intake/{finding_id}/governance-packet/certificate")
+def get_enterprise_governance_packet_certificate(
+    finding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_governance_packet_access(request)
+
+    latest_export = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.resource_type == "enterprise_governance_packet",
+            AuditLog.resource_id == str(finding_id),
+            AuditLog.action_type == "governance_packet_exported_pdf",
+        )
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
+
+    if not latest_export:
+        raise HTTPException(
+            status_code=404,
+            detail="No governance packet PDF export record found for this finding.",
+        )
+
+    details = latest_export.details or {}
+
+    if isinstance(details, str):
+        try:
+            import json
+
+            details = json.loads(details)
+        except Exception:
+            details = {}
+
+    packet_hash = details.get("packet_hash") or getattr(latest_export, "packet_hash", "")
+    packet_hash_algorithm = (
+        details.get("packet_hash_algorithm")
+        or getattr(latest_export, "packet_hash_algorithm", "")
+        or "SHA-256"
+    )
+
+    return {
+        "status": "success",
+        "certificate_type": "lumenai_governance_packet_certificate",
+        "finding_id": finding_id,
+        "resource_type": "enterprise_governance_packet",
+        "resource_id": str(finding_id),
+        "event_id": latest_export.id,
+        "action_type": latest_export.action_type,
+        "filename": details.get("filename") or f"lumenai-governance-packet-finding-{finding_id}.pdf",
+        "export_format": details.get("export_format") or "pdf",
+        "packet_hash_algorithm": packet_hash_algorithm,
+        "packet_hash": packet_hash,
+        "tamper_evident": bool(details.get("tamper_evident", bool(packet_hash))),
+        "included_vendor_baseline_audit_trail": bool(
+            details.get("included_vendor_baseline_audit_trail", False)
+        ),
+        "audit_event_count": details.get("audit_event_count"),
+        "vendor_baseline_audit_event_count": details.get("vendor_baseline_audit_event_count"),
+        "exported_by": latest_export.actor_email or details.get("actor") or "unknown",
+        "exported_role": latest_export.actor_role or details.get("actor_role") or "unknown",
+        "exported_at": latest_export.created_at.isoformat() if latest_export.created_at else "",
+        "verification_url": (
+            f"/api/enterprise/intake/{finding_id}/governance-packet/verify-hash"
+            f"?packet_hash={packet_hash}"
+        ),
+        "message": "Governance packet certificate generated from latest tamper-evident PDF export record.",
+    }
