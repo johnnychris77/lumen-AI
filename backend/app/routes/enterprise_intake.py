@@ -1,3 +1,4 @@
+from app.services.audit_export_service import export_audit_events_csv
 from app.enterprise_auth import require_audit_chain_verify
 
 from app.services.audit_query_service import query_audit_events
@@ -10,6 +11,7 @@ from app.services.vendor_baseline_audit_service import log_vendor_baseline_audit
 import os
 from datetime import datetime, timezone
 import json
+from fastapi.responses import Response
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
@@ -10146,4 +10148,43 @@ def list_enterprise_audit_events(
         resource_type=resource_type,
         resource_id=resource_id,
         limit=limit,
+    )
+
+
+@router.get("/audit/events/export.csv")
+def export_enterprise_audit_events_csv(
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: str | None = None,
+    actor: str | None = None,
+    actor_role: str | None = None,
+    request_id: str | None = None,
+    correlation_id: str | None = None,
+    action_type: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    limit: int = 200,
+):
+    require_audit_chain_verify(request)
+
+    export = export_audit_events_csv(
+        db,
+        tenant_id=tenant_id,
+        actor=actor,
+        actor_role=actor_role,
+        request_id=request_id,
+        correlation_id=correlation_id,
+        action_type=action_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        limit=limit,
+    )
+
+    return Response(
+        content=export["csv"],
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{export["filename"]}"',
+            "X-LumenAI-Audit-Export-Count": str(export["count"]),
+        },
     )
