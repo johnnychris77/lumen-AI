@@ -53,7 +53,7 @@ jobs:
 
       - name: Python dependency vulnerability scan
         run: |
-          pip-audit || true
+          pip-audit
 
   frontend-security-and-build:
     runs-on: ubuntu-latest
@@ -81,7 +81,7 @@ jobs:
 
       - name: NPM dependency audit
         run: |
-          npm audit --audit-level=high || true
+          npm audit --audit-level=high
 
   secrets-scan:
     runs-on: ubuntu-latest
