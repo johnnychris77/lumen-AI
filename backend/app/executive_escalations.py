@@ -336,7 +336,7 @@ def update_executive_escalation_status(
 
     row = (
         db.execute(
-            text(
+            text(  # nosec B608 - set_extra is built only from explicit server-side allowlisted columns.
                 f"""
                 UPDATE executive_escalations
                 SET status = :status,

@@ -131,7 +131,7 @@ def _get_escalation(db: Session, escalation_id: int) -> dict[str, Any] | None:
 
     row = (
         db.execute(
-            text(
+            text(  # nosec B608 - where_sql is built from server-side filters with bound parameters.
                 """
                 SELECT e.*, t.tenant_name
                 FROM executive_escalations e
@@ -301,7 +301,7 @@ def update_executive_decision(
 
     row = (
         db.execute(
-            text(
+            text(  # nosec B608 - set_parts is built only from explicit server-side allowlisted columns.
                 f"""
                 UPDATE executive_decisions
                 SET {", ".join(set_parts)}

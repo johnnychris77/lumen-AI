@@ -145,7 +145,7 @@ def list_tenant_remediations(
 
     rows = (
         db.execute(
-            text(
+            text(  # nosec B608 - where_sql is built from server-side filters with bound parameters.
                 f"""
                 SELECT
                     r.*,
@@ -246,7 +246,7 @@ def update_tenant_remediation(
 
     row = (
         db.execute(
-            text(
+            text(  # nosec B608 - set_parts is built only from explicit server-side allowlisted columns.
                 f"""
                 UPDATE tenant_remediations
                 SET {", ".join(set_parts)}

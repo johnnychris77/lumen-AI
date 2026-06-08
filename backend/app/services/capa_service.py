@@ -274,7 +274,7 @@ def update_capa(
     values.append(capa_id)
 
     with _connect() as conn:
-        conn.execute(
+        conn.execute(  # nosec B608 - set_clause is built only from explicit server-side allowlisted columns.
             f"""
             UPDATE capas
             SET {set_clause}

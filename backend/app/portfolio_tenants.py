@@ -251,7 +251,7 @@ def update_portfolio_tenant(db: Session, tenant_id: int, updates: dict[str, Any]
 
     row = (
         db.execute(
-            text(
+            text(  # nosec B608 - set_clause is built only from explicit server-side allowlisted columns.
                 f"""
                 UPDATE portfolio_tenants
                 SET {set_clause},

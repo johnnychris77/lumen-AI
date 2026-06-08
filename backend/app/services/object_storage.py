@@ -19,7 +19,7 @@ def _storage_backend() -> str:
 
 
 def _local_root() -> str:
-    return os.environ.get("LUMENAI_LOCAL_STORAGE_DIR", "/tmp/lumenai-storage")
+    return os.environ.get("LUMENAI_LOCAL_STORAGE_DIR", "./data/lumenai-storage")
 
 
 def _s3_client():
