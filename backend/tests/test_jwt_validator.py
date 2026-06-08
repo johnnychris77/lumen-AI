@@ -135,3 +135,34 @@ def test_map_claims_to_auth_context_payload():
     assert payload["tenant_name"] == "Tenant A"
     assert payload["auth_provider"] == "oidc"
     assert payload["issuer"] == "https://issuer.example.com/"
+
+
+def test_map_claims_to_auth_context_payload_requires_tenant_claim():
+    from app.auth.jwt_validator import (
+        JWTValidationError,
+        map_claims_to_auth_context_payload,
+    )
+
+    claims = _claims()
+    claims.pop("tenant_id")
+    claims.pop("tenant_name")
+
+    with pytest.raises(JWTValidationError) as exc:
+        map_claims_to_auth_context_payload(claims)
+
+    assert "Missing required JWT tenant claim" in str(exc.value)
+
+
+def test_map_claims_to_auth_context_payload_can_allow_default_tenant_for_dev_like_use():
+    from app.auth.jwt_validator import map_claims_to_auth_context_payload
+
+    claims = _claims()
+    claims.pop("tenant_id")
+    claims.pop("tenant_name")
+
+    payload = map_claims_to_auth_context_payload(
+        claims,
+        require_tenant_claim=False,
+    )
+
+    assert payload["tenant_id"] == "default-tenant"

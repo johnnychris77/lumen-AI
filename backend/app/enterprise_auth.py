@@ -144,10 +144,9 @@ def _require_oidc_auth_context(request: Request) -> AuthContext:
             expected_issuer=issuer,
             expected_audience=audience,
         )
+        payload = map_claims_to_auth_context_payload(validated_claims)
     except JWTValidationError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    payload = map_claims_to_auth_context_payload(validated_claims)
 
     return build_oidc_auth_context(
         actor=payload["actor"],

@@ -73,6 +73,7 @@ def map_claims_to_auth_context_payload(
     claims: dict[str, Any],
     *,
     default_role: str = "viewer",
+    require_tenant_claim: bool = True,
 ) -> dict[str, Any]:
     roles = claims.get("roles") or claims.get("groups") or []
 
@@ -85,8 +86,12 @@ def map_claims_to_auth_context_payload(
         claims.get("tenant_id")
         or claims.get("lumenai_tenant_id")
         or claims.get("tid")
-        or "default-tenant"
     )
+
+    if require_tenant_claim and not tenant_id:
+        raise JWTValidationError("Missing required JWT tenant claim.")
+
+    tenant_id = tenant_id or "default-tenant"
 
     tenant_name = (
         claims.get("tenant_name")
