@@ -45,7 +45,7 @@ jobs:
 
       - name: Ruff lint check
         run: |
-          ruff check app tests || true
+          ruff check app tests
 
       - name: Bandit security scan
         run: |
