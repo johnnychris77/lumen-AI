@@ -1,8 +1,60 @@
+
+  const [bundleHashToVerify, setBundleHashToVerify] = useState("");
+  const [bundleVerificationLoading, setBundleVerificationLoading] = useState(false);
+  const [bundleVerificationError, setBundleVerificationError] = useState("");
+  const [bundleVerificationResult, setBundleVerificationResult] =
+    useState<ComplianceEvidenceSummaryResponse | null>(null);
 import { useEffect, useState } from "react";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   "https://lumen-ai-53u4.onrender.com";
+
+
+type ComplianceEvidenceBundleResponse = {
+  status: string;
+  bundle_hash: string;
+  bundle_hash_algorithm: string;
+  bundle_event_id?: number;
+  bundle: {
+    bundle_type: string;
+    bundle_version: string;
+    generated_at: string;
+    generated_by: string;
+    generated_role: string;
+    tamper_evident: boolean;
+    audit_export: {
+      count: number;
+      audit_export_hash: string;
+      audit_export_hash_algorithm: string;
+      audit_export_verification_url: string;
+    };
+    manifest: {
+      manifest_hash: string;
+      manifest_hash_algorithm: string;
+      manifest_verification_url: string;
+    };
+    compliance_controls: string[];
+    bundle_verification_url?: string;
+  };
+};
+
+type ComplianceEvidenceSummaryResponse = {
+  status: string;
+  verified: boolean;
+  summary_type?: string;
+  bundle_hash: string;
+  bundle_hash_algorithm: string;
+  generated_at?: string;
+  generated_by?: string;
+  generated_role?: string;
+  audit_export_hash?: string;
+  manifest_hash?: string;
+  export_count?: number;
+  tamper_evident?: boolean;
+  compliance_controls?: string[];
+  message?: string;
+};
 
 type VendorBaselineRecord = {
   baseline_id: number;
@@ -285,6 +337,12 @@ async function matchVendorBaseline(identifierValue: string): Promise<VendorBasel
 }
 
 export default function VendorBaselineSubscriptionPortal() {
+
+  const [evidenceBundleLoading, setEvidenceBundleLoading] = useState(false);
+  const [evidenceBundleError, setEvidenceBundleError] = useState("");
+  const [evidenceBundle, setEvidenceBundle] = useState<ComplianceEvidenceBundleResponse | null>(null);
+  const [evidenceSummaryLoading, setEvidenceSummaryLoading] = useState(false);
+  const [evidenceSummary, setEvidenceSummary] = useState<ComplianceEvidenceSummaryResponse | null>(null);
   const [records, setRecords] = useState<VendorBaselineRecord[]>([]);
   const [summary, setSummary] = useState<VendorBaselineListResponse | null>(null);
   const [matchResult, setMatchResult] = useState<VendorBaselineMatchResponse | null>(null);
@@ -452,7 +510,109 @@ export default function VendorBaselineSubscriptionPortal() {
     loadRecords();
   }, []);
 
-  return (
+  
+  async function handleGenerateComplianceEvidenceBundle() {
+    try {
+      setEvidenceBundleLoading(true);
+      setEvidenceBundleError("");
+      setEvidenceSummary(null);
+
+      const response = await fetch(
+        `${API_BASE}/api/enterprise/audit/evidence-bundle?limit=200`,
+        {
+          headers: {
+            Authorization: "Bearer dev-token",
+            "X-LumenAI-Role": "enterprise_admin",
+            "X-LumenAI-Actor": "frontend-evidence-bundle-admin",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Evidence bundle request returned ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setEvidenceBundle(payload);
+    } catch (error: any) {
+      setEvidenceBundleError(error?.message || "Unable to generate evidence bundle.");
+    } finally {
+      setEvidenceBundleLoading(false);
+    }
+  }
+
+  async function handleViewEvidenceBundleSummary(bundleHash: string) {
+    try {
+      setEvidenceSummaryLoading(true);
+      setEvidenceBundleError("");
+
+      const response = await fetch(
+        `${API_BASE}/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(bundleHash)}`,
+        {
+          headers: {
+            Authorization: "Bearer dev-token",
+            "X-LumenAI-Role": "enterprise_admin",
+            "X-LumenAI-Actor": "frontend-evidence-summary-admin",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Evidence summary request returned ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setEvidenceSummary(payload);
+    } catch (error: any) {
+      setEvidenceBundleError(error?.message || "Unable to load evidence bundle summary.");
+    } finally {
+      setEvidenceSummaryLoading(false);
+    }
+  }
+
+  function handleDownloadEvidenceBundle() {
+    const url = `${API_BASE}/api/enterprise/audit/evidence-bundle/download.json?limit=200`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+
+  async function handleVerifyEvidenceBundleHash() {
+    try {
+      setBundleVerificationLoading(true);
+      setBundleVerificationError("");
+      setBundleVerificationResult(null);
+
+      const cleanHash = bundleHashToVerify.trim();
+
+      if (!cleanHash) {
+        throw new Error("Enter a bundle hash to verify.");
+      }
+
+      const response = await fetch(
+        `${API_BASE}/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(cleanHash)}`,
+        {
+          headers: {
+            Authorization: "Bearer dev-token",
+            "X-LumenAI-Role": "enterprise_admin",
+            "X-LumenAI-Actor": "frontend-bundle-verification-admin",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Bundle verification request returned ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setBundleVerificationResult(payload);
+    } catch (error: any) {
+      setBundleVerificationError(error?.message || "Unable to verify bundle hash.");
+    } finally {
+      setBundleVerificationLoading(false);
+    }
+  }
+
+return (
     <section style={panelStyle}>
       <div style={headerRowStyle}>
         <div>
@@ -1015,7 +1175,268 @@ export default function VendorBaselineSubscriptionPortal() {
         </div>
       )}
 
-    </section>
+    
+      <div
+        style={{
+          marginTop: "24px",
+          borderRadius: "22px",
+          border: "1px solid #c7d2fe",
+          background: "#eef2ff",
+          padding: "20px",
+          color: "#312e81",
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Compliance Evidence Bundle</h3>
+        <p>
+          Generate a tamper-evident enterprise evidence bundle containing audit export hash,
+          manifest hash, verification links, and compliance metadata.
+        </p>
+
+        <button
+          type="button"
+          onClick={handleGenerateComplianceEvidenceBundle}
+          disabled={evidenceBundleLoading}
+          style={{
+            border: "1px solid #4338ca",
+            borderRadius: "999px",
+            background: evidenceBundleLoading ? "#e0e7ff" : "#4338ca",
+            color: evidenceBundleLoading ? "#3730a3" : "#ffffff",
+            padding: "10px 16px",
+            fontWeight: 800,
+            cursor: evidenceBundleLoading ? "not-allowed" : "pointer",
+          }}
+        >
+          {evidenceBundleLoading ? "Generating..." : "Generate Evidence Bundle"}
+        </button>
+
+        {evidenceBundleError && (
+          <div
+            style={{
+              marginTop: "14px",
+              borderRadius: "14px",
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              color: "#991b1b",
+              padding: "12px",
+              fontWeight: 700,
+            }}
+          >
+            {evidenceBundleError}
+          </div>
+        )}
+
+        {evidenceBundle && (
+          <div
+            style={{
+              marginTop: "16px",
+              borderRadius: "18px",
+              border: "1px solid #a5b4fc",
+              background: "#ffffff",
+              padding: "16px",
+            }}
+          >
+            <p>
+              <strong>Status:</strong>{" "}
+              {evidenceBundle.bundle.tamper_evident ? "Tamper-evident" : "Not marked tamper-evident"} |{" "}
+              <strong>Generated By:</strong> {evidenceBundle.bundle.generated_by} |{" "}
+              <strong>Generated At:</strong> {evidenceBundle.bundle.generated_at}
+            </p>
+
+            <p>
+              <strong>Bundle Event ID:</strong> {evidenceBundle.bundle_event_id || "N/A"} |{" "}
+              <strong>Audit Event Count:</strong> {evidenceBundle.bundle.audit_export.count}
+            </p>
+
+            <p style={{ wordBreak: "break-all" }}>
+              <strong>Bundle Hash:</strong> {evidenceBundle.bundle_hash}
+            </p>
+
+            <p style={{ wordBreak: "break-all" }}>
+              <strong>Audit Export Hash:</strong> {evidenceBundle.bundle.audit_export.audit_export_hash}
+            </p>
+
+            <p style={{ wordBreak: "break-all" }}>
+              <strong>Manifest Hash:</strong> {evidenceBundle.bundle.manifest.manifest_hash}
+            </p>
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+              <button
+                type="button"
+                onClick={handleDownloadEvidenceBundle}
+                style={{
+                  border: "1px solid #0f766e",
+                  borderRadius: "999px",
+                  background: "#f0fdfa",
+                  color: "#0f766e",
+                  padding: "9px 13px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Download Bundle JSON
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleViewEvidenceBundleSummary(evidenceBundle.bundle_hash)}
+                disabled={evidenceSummaryLoading}
+                style={{
+                  border: "1px solid #4338ca",
+                  borderRadius: "999px",
+                  background: "#eef2ff",
+                  color: "#4338ca",
+                  padding: "9px 13px",
+                  fontWeight: 800,
+                  cursor: evidenceSummaryLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {evidenceSummaryLoading ? "Verifying..." : "View Verification Summary"}
+              </button>
+            </div>
+
+            {evidenceSummary && (
+              <div
+                style={{
+                  marginTop: "14px",
+                  borderRadius: "16px",
+                  border: "1px solid #bbf7d0",
+                  background: "#f0fdf4",
+                  color: "#14532d",
+                  padding: "14px",
+                }}
+              >
+                <h4 style={{ marginTop: 0 }}>Verification Summary</h4>
+                <p>
+                  <strong>Verified:</strong> {evidenceSummary.verified ? "Yes" : "No"} |{" "}
+                  <strong>Tamper Evident:</strong> {evidenceSummary.tamper_evident ? "Yes" : "No"}
+                </p>
+                <p>{evidenceSummary.message}</p>
+                <p style={{ wordBreak: "break-all" }}>
+                  <strong>Bundle Hash:</strong> {evidenceSummary.bundle_hash}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+
+      <div
+        style={{
+          marginTop: "24px",
+          borderRadius: "22px",
+          border: "1px solid #bfdbfe",
+          background: "#eff6ff",
+          padding: "20px",
+          color: "#1e3a8a",
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Evidence Bundle Verification</h3>
+        <p>
+          Paste a compliance evidence bundle hash to verify that the bundle exists,
+          is tamper-evident, and is tied to a recorded audit event.
+        </p>
+
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <input
+            type="text"
+            value={bundleHashToVerify}
+            onChange={(event) => setBundleHashToVerify(event.target.value)}
+            placeholder="Paste bundle hash"
+            style={{
+              flex: "1 1 360px",
+              border: "1px solid #93c5fd",
+              borderRadius: "14px",
+              padding: "10px 12px",
+              fontFamily: "monospace",
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={handleVerifyEvidenceBundleHash}
+            disabled={bundleVerificationLoading}
+            style={{
+              border: "1px solid #1d4ed8",
+              borderRadius: "999px",
+              background: bundleVerificationLoading ? "#dbeafe" : "#1d4ed8",
+              color: bundleVerificationLoading ? "#1e40af" : "#ffffff",
+              padding: "10px 16px",
+              fontWeight: 800,
+              cursor: bundleVerificationLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {bundleVerificationLoading ? "Verifying..." : "Verify Bundle"}
+          </button>
+        </div>
+
+        {bundleVerificationError && (
+          <div
+            style={{
+              marginTop: "14px",
+              borderRadius: "14px",
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              color: "#991b1b",
+              padding: "12px",
+              fontWeight: 700,
+            }}
+          >
+            {bundleVerificationError}
+          </div>
+        )}
+
+        {bundleVerificationResult && (
+          <div
+            style={{
+              marginTop: "16px",
+              borderRadius: "18px",
+              border: bundleVerificationResult.verified
+                ? "1px solid #86efac"
+                : "1px solid #fecaca",
+              background: bundleVerificationResult.verified ? "#f0fdf4" : "#fef2f2",
+              color: bundleVerificationResult.verified ? "#14532d" : "#991b1b",
+              padding: "16px",
+            }}
+          >
+            <h4 style={{ marginTop: 0 }}>
+              {bundleVerificationResult.verified ? "Bundle Verified" : "Bundle Not Verified"}
+            </h4>
+
+            <p>{bundleVerificationResult.message}</p>
+
+            <p style={{ wordBreak: "break-all" }}>
+              <strong>Bundle Hash:</strong> {bundleVerificationResult.bundle_hash}
+            </p>
+
+            {bundleVerificationResult.verified && (
+              <>
+                <p>
+                  <strong>Generated By:</strong> {bundleVerificationResult.generated_by || "N/A"} |{" "}
+                  <strong>Generated At:</strong> {bundleVerificationResult.generated_at || "N/A"}
+                </p>
+
+                <p>
+                  <strong>Export Count:</strong> {bundleVerificationResult.export_count ?? "N/A"} |{" "}
+                  <strong>Tamper Evident:</strong>{" "}
+                  {bundleVerificationResult.tamper_evident ? "Yes" : "No"}
+                </p>
+
+                <p style={{ wordBreak: "break-all" }}>
+                  <strong>Audit Export Hash:</strong>{" "}
+                  {bundleVerificationResult.audit_export_hash || "N/A"}
+                </p>
+
+                <p style={{ wordBreak: "break-all" }}>
+                  <strong>Manifest Hash:</strong>{" "}
+                  {bundleVerificationResult.manifest_hash || "N/A"}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+\n</section>
   );
 }
 
