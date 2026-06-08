@@ -1,4 +1,5 @@
 
+from app.services.enterprise_audit_service import record_enterprise_audit_event
 from app.enterprise_auth import require_hospital_or_enterprise_admin
 from app.models.vendor_baseline_audit import VendorBaselineAuditEvent
 from app.services.vendor_baseline_audit_service import log_vendor_baseline_audit_event
@@ -1129,6 +1130,28 @@ def get_enterprise_governance_packet_pdf(
         },
     )
     db.commit()
+
+    record_enterprise_audit_event(
+        db,
+        action_type="centralized_governance_packet_exported_pdf",
+        resource_type="enterprise_governance_packet",
+        resource_id=finding.id,
+        actor=request.headers.get("x-lumenai-actor", "unknown"),
+        actor_role=request.headers.get("x-lumenai-role", "viewer"),
+        finding_id=finding.id,
+        packet_hash=packet_hash,
+        packet_hash_algorithm="SHA-256",
+        details={
+            "legacy_action_type": "governance_packet_exported_pdf",
+            "packet_type": "enterprise_intake_governance_packet",
+            "export_format": "pdf",
+            "filename": f"lumenai-governance-packet-finding-{finding.id}.pdf",
+            "included_vendor_baseline_audit_trail": True,
+            "tamper_evident": True,
+            "workflow_status": "governance_packet_exported_pdf",
+        },
+    )
+
 
     return StreamingResponse(
         buffer,
