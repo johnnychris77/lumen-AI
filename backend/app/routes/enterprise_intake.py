@@ -1,3 +1,4 @@
+from app.services.compliance_evidence_bundle_service import build_compliance_evidence_bundle
 from app.services.audit_export_verification_service import (
     verify_audit_export_hash,
     verify_audit_export_manifest_hash,
@@ -10231,4 +10232,36 @@ def verify_enterprise_audit_export_manifest_hash(
     return verify_audit_export_manifest_hash(
         db,
         manifest_hash=manifest_hash,
+    )
+
+
+@router.get("/audit/evidence-bundle")
+def export_enterprise_compliance_evidence_bundle(
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: str | None = None,
+    actor: str | None = None,
+    actor_role: str | None = None,
+    request_id: str | None = None,
+    correlation_id: str | None = None,
+    action_type: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    limit: int = 200,
+):
+    require_audit_chain_verify(request)
+
+    return build_compliance_evidence_bundle(
+        db,
+        actor=request.headers.get("x-lumenai-actor", "unknown"),
+        actor_role=request.headers.get("x-lumenai-role", "viewer"),
+        tenant_id=tenant_id,
+        actor_filter=actor,
+        actor_role_filter=actor_role,
+        request_id=request_id,
+        correlation_id=correlation_id,
+        action_type=action_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        limit=limit,
     )
