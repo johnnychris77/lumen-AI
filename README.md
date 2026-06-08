@@ -1973,6 +1973,8 @@ Evidence capabilities include:
 
 Public documentation:
 
+- [Compliance Evidence Release Lock](docs/public/compliance-evidence-release-lock.md)
+
 - [Compliance Evidence Summary](docs/public/compliance-evidence.md)
 - [Compliance Evidence Badge](docs/public/lumenai-compliance-evidence-badge.md)
 - [Final Launch Summary](docs/public/final-launch-summary.md)
