@@ -1,3 +1,4 @@
+from app.services.compliance_evidence_summary_service import build_compliance_evidence_verification_summary
 from app.services.compliance_evidence_bundle_verification_service import verify_compliance_evidence_bundle_hash
 from app.services.compliance_evidence_bundle_service import build_compliance_evidence_bundle
 from app.services.audit_export_verification_service import (
@@ -10324,4 +10325,18 @@ def download_enterprise_compliance_evidence_bundle_json(
             "X-LumenAI-Bundle-Hash-Algorithm": result["bundle_hash_algorithm"],
             "X-LumenAI-Bundle-Event-ID": str(result["bundle_event_id"]),
         },
+    )
+
+
+@router.get("/audit/evidence-bundle/verification-summary")
+def get_enterprise_compliance_evidence_verification_summary(
+    bundle_hash: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_audit_chain_verify(request)
+
+    return build_compliance_evidence_verification_summary(
+        db,
+        bundle_hash=bundle_hash,
     )
