@@ -219,3 +219,67 @@ def require_permission(
         raise HTTPException(status_code=403, detail=detail)
 
     return auth_context
+
+
+def require_governance_packet_export(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="governance_packet:export",
+        detail="Governance packet export permission required.",
+    )
+
+
+def require_governance_packet_verify(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="governance_packet:verify",
+        detail="Governance packet verification permission required.",
+    )
+
+
+def require_governance_packet_certificate(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="governance_packet:certificate",
+        detail="Governance packet certificate permission required.",
+    )
+
+
+def require_vendor_baseline_submit(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="vendor_baseline:submit",
+        detail="Vendor baseline submission permission required.",
+    )
+
+
+def require_vendor_baseline_approve(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="vendor_baseline:approve",
+        detail="Vendor baseline approval permission required.",
+    )
+
+
+def require_vendor_baseline_audit_read(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="vendor_baseline:audit_read",
+        detail="Vendor baseline audit-read permission required.",
+    )
+
+
+def require_vendor_baseline_library_read(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="vendor_baseline:library_read",
+        detail="Vendor baseline library-read permission required.",
+    )
+
+
+def require_audit_chain_verify(request: Request) -> AuthContext:
+    return require_permission(
+        request,
+        permission="audit:verify_chain",
+        detail="Audit chain verification permission required.",
+    )
