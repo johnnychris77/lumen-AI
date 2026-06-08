@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.services.audit_export_service import export_audit_events_csv, record_audit_export_event
+from app.services.enterprise_audit_service import record_enterprise_audit_event
 
 
 def _canonical_json(payload: dict[str, Any]) -> str:
@@ -101,10 +102,43 @@ def build_compliance_evidence_bundle(
 
     bundle["bundle_hash"] = bundle_hash
     bundle["bundle_hash_algorithm"] = "SHA-256"
-    bundle["bundle_verification_note"] = (
-        "Recompute SHA-256 over canonical bundle JSON excluding bundle_hash "
-        "and bundle_hash_algorithm."
+    bundle["bundle_verification_url"] = (
+        "/api/enterprise/audit/evidence-bundle/verify"
+        f"?bundle_hash={bundle_hash}"
     )
+    bundle["bundle_verification_note"] = (
+        "Recompute SHA-256 over canonical bundle JSON excluding bundle_hash, "
+        "bundle_hash_algorithm, and bundle_verification_url."
+    )
+
+    bundle_event = record_enterprise_audit_event(
+        db,
+        action_type="compliance_evidence_bundle_generated",
+        resource_type="compliance_evidence_bundle",
+        resource_id=bundle_hash,
+        actor=actor,
+        actor_role=actor_role,
+        packet_hash=bundle_hash,
+        packet_hash_algorithm="SHA-256",
+        details={
+            "bundle_hash": bundle_hash,
+            "bundle_hash_algorithm": "SHA-256",
+            "audit_export_hash": export["audit_export_hash"],
+            "audit_export_hash_algorithm": export["audit_export_hash_algorithm"],
+            "manifest_hash": export["manifest_hash"],
+            "manifest_hash_algorithm": export["manifest_hash_algorithm"],
+            "audit_export_event_id": export_event.id,
+            "generated_at": bundle["generated_at"],
+            "generated_by": actor,
+            "generated_role": actor_role,
+            "filters": export["filters"],
+            "export_count": export["count"],
+            "tamper_evident": True,
+            "bundle": bundle,
+        },
+    )
+
+    bundle["bundle_event_id"] = bundle_event.id
 
     return {
         "status": "success",
@@ -112,4 +146,5 @@ def build_compliance_evidence_bundle(
         "bundle_json": _canonical_json(bundle),
         "bundle_hash": bundle_hash,
         "bundle_hash_algorithm": "SHA-256",
+        "bundle_event_id": bundle_event.id,
     }

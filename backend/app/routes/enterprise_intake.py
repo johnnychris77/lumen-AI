@@ -1,3 +1,4 @@
+from app.services.compliance_evidence_bundle_verification_service import verify_compliance_evidence_bundle_hash
 from app.services.compliance_evidence_bundle_service import build_compliance_evidence_bundle
 from app.services.audit_export_verification_service import (
     verify_audit_export_hash,
@@ -10264,4 +10265,18 @@ def export_enterprise_compliance_evidence_bundle(
         resource_type=resource_type,
         resource_id=resource_id,
         limit=limit,
+    )
+
+
+@router.get("/audit/evidence-bundle/verify")
+def verify_enterprise_compliance_evidence_bundle_hash(
+    bundle_hash: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_audit_chain_verify(request)
+
+    return verify_compliance_evidence_bundle_hash(
+        db,
+        bundle_hash=bundle_hash,
     )
