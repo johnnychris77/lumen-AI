@@ -77,7 +77,6 @@ def require_tenant_roles(*allowed_roles: str):
     from fastapi import Depends, Request
 
     from app.deps import get_db
-    from app.tenant import resolve_tenant
 
     allowed = {role for role in allowed_roles if role}
 
@@ -85,9 +84,23 @@ def require_tenant_roles(*allowed_roles: str):
         request: Request,
         db: Session = Depends(get_db),
     ) -> dict:
-        tenant = resolve_tenant(request)
+        tenant_id = (
+            request.headers.get("x-lumenai-tenant-id")
+            or request.headers.get("x-tenant-id")
+            or "default-tenant"
+        ).strip() or "default-tenant"
 
-        tenant_id = tenant.get("tenant_id") or tenant.get("id")
+        tenant_name = (
+            request.headers.get("x-lumenai-tenant-name")
+            or request.headers.get("x-tenant-name")
+            or tenant_id
+        ).strip() or tenant_id
+
+        tenant = {
+            "tenant_id": tenant_id,
+            "tenant_name": tenant_name,
+        }
+
         user_email = (
             request.headers.get("x-lumenai-user-email")
             or request.headers.get("x-user-email")

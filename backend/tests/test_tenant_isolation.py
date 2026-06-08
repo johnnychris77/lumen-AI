@@ -161,3 +161,91 @@ def test_tenant_authorization_denies_cross_tenant_access():
         assert exc.value.status_code == 403
     finally:
         db.close()
+
+
+def test_tenant_role_dependency_allows_authorized_role():
+    from starlette.requests import Request
+
+    from app.db.session import SessionLocal
+    from app.tenant_authz import require_tenant_roles
+
+    tenant_id = f"tenant-{uuid.uuid4()}"
+    user_email = f"role-allowed-{uuid.uuid4()}@example.com"
+
+    db = SessionLocal()
+    try:
+        _make_membership(
+            db,
+            tenant_id=tenant_id,
+            user_email=user_email,
+            is_enabled=True,
+        )
+
+        membership = (
+            db.query(__import__("app.db.models", fromlist=["TenantMembership"]).TenantMembership)
+            .filter_by(tenant_id=tenant_id, user_email=user_email)
+            .first()
+        )
+        membership.role = "tenant_admin"
+        db.commit()
+
+        request = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/test",
+                "headers": [
+                    (b"x-lumenai-tenant-id", tenant_id.encode()),
+                    (b"x-lumenai-actor", user_email.encode()),
+                ],
+            }
+        )
+
+        dependency = require_tenant_roles("tenant_admin", "site_admin")
+        result = dependency(request=request, db=db)
+
+        assert result["tenant_id"] == tenant_id
+        assert result["user_email"] == user_email
+        assert result["role"] == "tenant_admin"
+    finally:
+        db.close()
+
+
+def test_tenant_role_dependency_denies_wrong_role():
+    from starlette.requests import Request
+
+    from app.db.session import SessionLocal
+    from app.tenant_authz import require_tenant_roles
+
+    tenant_id = f"tenant-{uuid.uuid4()}"
+    user_email = f"role-denied-{uuid.uuid4()}@example.com"
+
+    db = SessionLocal()
+    try:
+        _make_membership(
+            db,
+            tenant_id=tenant_id,
+            user_email=user_email,
+            is_enabled=True,
+        )
+
+        request = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/test",
+                "headers": [
+                    (b"x-lumenai-tenant-id", tenant_id.encode()),
+                    (b"x-lumenai-actor", user_email.encode()),
+                ],
+            }
+        )
+
+        dependency = require_tenant_roles("tenant_admin", "site_admin")
+
+        with pytest.raises(HTTPException) as exc:
+            dependency(request=request, db=db)
+
+        assert exc.value.status_code == 403
+    finally:
+        db.close()
