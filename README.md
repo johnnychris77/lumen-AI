@@ -1986,3 +1986,42 @@ Public documentation:
 - [Final Launch Summary](docs/public/final-launch-summary.md)
 - [Evidence Bundle Demo](docs/compliance/evidence-bundle-demo.md)
 
+
+## Public Portfolio Summary
+
+LumenAI is a healthcare operations intelligence platform designed for sterile processing departments, vendor governance, quality review, and enterprise compliance evidence generation.
+
+## Compliance Evidence v1.0
+
+Release tag: compliance-evidence-v1.0
+
+This release includes:
+
+- Centralized enterprise audit logging
+- Filtered audit CSV exports
+- SHA-256 audit export hashes
+- Audit export manifests
+- Compliance evidence bundles
+- Bundle verification endpoints
+- Public verification summaries
+- Frontend evidence bundle verification panel
+
+## Demo Script
+
+Run the local compliance evidence demo:
+
+BASE_URL="http://127.0.0.1:8000" ./scripts/demo_compliance_evidence_bundle.sh
+
+## Final Validation
+
+Backend:
+
+cd backend
+ruff check app tests
+python -m pytest tests/test_public_evidence_index.py tests/test_final_repository_closure_summary.py -q
+
+Frontend:
+
+cd frontend
+npm run build
+
