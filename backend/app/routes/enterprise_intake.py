@@ -1,4 +1,5 @@
 
+from app.services.audit_chain_verification_service import verify_audit_chain
 from app.services.enterprise_audit_service import record_enterprise_audit_event
 from app.enterprise_auth import require_hospital_or_enterprise_admin
 from app.models.vendor_baseline_audit import VendorBaselineAuditEvent
@@ -10022,3 +10023,24 @@ def get_enterprise_vendor_baseline_audit_trail(
         "events": events,
     }
 
+
+
+@router.get("/audit/verify-chain")
+def verify_enterprise_audit_chain(
+    resource_type: str,
+    resource_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_governance_packet_access(request)
+
+    result = verify_audit_chain(
+        db,
+        resource_type=resource_type,
+        resource_id=resource_id,
+    )
+
+    return {
+        "status": "success",
+        **result,
+    }
