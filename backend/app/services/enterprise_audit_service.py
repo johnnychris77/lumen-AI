@@ -8,6 +8,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
+from app.auth.audit_context import merge_auth_context_into_details
+from app.auth.context import AuthContext
 
 
 def _safe_details(details: dict[str, Any] | None) -> dict[str, Any]:
@@ -128,6 +130,7 @@ def record_enterprise_audit_event(
     packet_hash: str | None = None,
     packet_hash_algorithm: str | None = None,
     details: dict[str, Any] | None = None,
+    auth_context: AuthContext | None = None,
     commit: bool = True,
 ) -> AuditLog:
     """
@@ -140,6 +143,7 @@ def record_enterprise_audit_event(
 
     columns = _auditlog_columns()
 
+    details = merge_auth_context_into_details(details, auth_context)
     safe_details = _safe_details(details)
 
     normalized = {
