@@ -57,8 +57,8 @@ def test_enterprise_role_allows_hospital_admin():
 
     result = require_hospital_or_enterprise_admin(request)
 
-    assert result["role"] == "hospital_admin"
-    assert result["actor"] == "hospital-user"
+    assert result.role == "hospital_admin"
+    assert result.actor == "hospital-user"
 
 
 def test_enterprise_role_allows_enterprise_admin():
@@ -74,5 +74,5 @@ def test_enterprise_role_allows_enterprise_admin():
 
     result = require_hospital_or_enterprise_admin(request)
 
-    assert result["role"] == "enterprise_admin"
-    assert result["actor"] == "enterprise-user"
+    assert result.role == "enterprise_admin"
+    assert result.actor == "enterprise-user"
