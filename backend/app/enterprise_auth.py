@@ -1,8 +1,16 @@
+import base64
+import json
 import os
+from typing import Any
 
 from fastapi import HTTPException, Request
 
-from app.auth.context import AuthContext, build_dev_auth_context
+from app.auth.context import AuthContext, build_dev_auth_context, build_oidc_auth_context
+from app.auth.jwt_validator import (
+    JWTValidationError,
+    map_claims_to_auth_context_payload,
+    validate_jwt_claims,
+)
 
 
 DEFAULT_DEV_TOKEN = "dev-token"
@@ -14,6 +22,14 @@ def get_auth_mode() -> str:
 
 def get_dev_token() -> str:
     return os.getenv("DEV_AUTH_TOKEN", DEFAULT_DEV_TOKEN)
+
+
+def get_oidc_issuer() -> str:
+    return os.getenv("OIDC_ISSUER_URL", "").strip()
+
+
+def get_oidc_audience() -> str:
+    return os.getenv("OIDC_AUDIENCE", "").strip()
 
 
 def get_request_actor(request: Request) -> str:
@@ -45,6 +61,45 @@ def get_request_tenant_name(request: Request) -> str:
     )
 
 
+def _extract_bearer_token(request: Request) -> str:
+    authorization = request.headers.get("authorization", "")
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    token = authorization.removeprefix("Bearer ").strip()
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    return token
+
+
+def _decode_unverified_jwt_claims(token: str) -> dict[str, Any]:
+    """
+    Decode JWT claims without signature verification.
+
+    This is an interim bridge for AUTH_MODE=oidc. Full JWKS signature validation
+    is the next hardening step. Do not use this as final production validation.
+    """
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise ValueError("JWT must have three segments.")
+
+        payload_segment = parts[1]
+        padded = payload_segment + "=" * (-len(payload_segment) % 4)
+        payload_bytes = base64.urlsafe_b64decode(padded.encode("utf-8"))
+        claims = json.loads(payload_bytes.decode("utf-8"))
+
+        if not isinstance(claims, dict):
+            raise ValueError("JWT payload must decode to an object.")
+
+        return claims
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Invalid JWT.") from exc
+
+
 def _require_dev_auth_context(request: Request) -> AuthContext:
     authorization = request.headers.get("authorization", "")
     expected = f"Bearer {get_dev_token()}"
@@ -61,9 +116,37 @@ def _require_dev_auth_context(request: Request) -> AuthContext:
 
 
 def _require_oidc_auth_context(request: Request) -> AuthContext:
-    raise HTTPException(
-        status_code=501,
-        detail="OIDC authentication mode is configured but JWT validation is not implemented yet.",
+    issuer = get_oidc_issuer()
+    audience = get_oidc_audience()
+
+    if not issuer or not audience:
+        raise HTTPException(
+            status_code=500,
+            detail="OIDC authentication mode requires OIDC_ISSUER_URL and OIDC_AUDIENCE.",
+        )
+
+    token = _extract_bearer_token(request)
+    claims = _decode_unverified_jwt_claims(token)
+
+    try:
+        validated_claims = validate_jwt_claims(
+            claims,
+            expected_issuer=issuer,
+            expected_audience=audience,
+        )
+    except JWTValidationError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    payload = map_claims_to_auth_context_payload(validated_claims)
+
+    return build_oidc_auth_context(
+        actor=payload["actor"],
+        role=payload["role"],
+        tenant_id=payload["tenant_id"],
+        tenant_name=payload["tenant_name"],
+        subject=payload["subject"],
+        issuer=payload["issuer"],
+        raw_claims=payload["raw_claims"],
     )
 
 

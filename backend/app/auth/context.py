@@ -86,3 +86,26 @@ def role_to_permissions(role: str) -> tuple[str, ...]:
     }
 
     return permissions_by_role.get(role, tuple())
+
+
+def build_oidc_auth_context(
+    *,
+    actor: str,
+    role: str,
+    tenant_id: str,
+    tenant_name: str,
+    subject: str = "",
+    issuer: str = "",
+    raw_claims: dict[str, Any] | None = None,
+) -> AuthContext:
+    return AuthContext(
+        actor=actor or "unknown",
+        role=role or "viewer",
+        tenant_id=tenant_id or "default-tenant",
+        tenant_name=tenant_name or tenant_id or "default-tenant",
+        subject=subject or "",
+        permissions=role_to_permissions(role or "viewer"),
+        auth_provider="oidc",
+        issuer=issuer or "",
+        raw_claims=raw_claims or {},
+    )

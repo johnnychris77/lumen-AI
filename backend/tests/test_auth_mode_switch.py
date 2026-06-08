@@ -60,10 +60,12 @@ def test_dev_auth_mode_denies_wrong_token(monkeypatch):
     assert exc.value.status_code == 401
 
 
-def test_oidc_auth_mode_returns_not_implemented_until_jwt_validator_exists(monkeypatch):
+def test_oidc_auth_mode_requires_oidc_configuration(monkeypatch):
     from app.enterprise_auth import get_auth_context
 
     monkeypatch.setenv("AUTH_MODE", "oidc")
+    monkeypatch.delenv("OIDC_ISSUER_URL", raising=False)
+    monkeypatch.delenv("OIDC_AUDIENCE", raising=False)
 
     request = _request(
         [
@@ -74,7 +76,7 @@ def test_oidc_auth_mode_returns_not_implemented_until_jwt_validator_exists(monke
     with pytest.raises(HTTPException) as exc:
         get_auth_context(request)
 
-    assert exc.value.status_code == 501
+    assert exc.value.status_code == 500
 
 
 def test_invalid_auth_mode_returns_server_error(monkeypatch):
