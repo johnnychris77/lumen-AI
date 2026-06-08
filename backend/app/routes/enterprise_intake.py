@@ -1,4 +1,4 @@
-from app.services.audit_export_service import export_audit_events_csv
+from app.services.audit_export_service import export_audit_events_csv, record_audit_export_event
 from app.enterprise_auth import require_audit_chain_verify
 
 from app.services.audit_query_service import query_audit_events
@@ -10180,11 +10180,21 @@ def export_enterprise_audit_events_csv(
         limit=limit,
     )
 
+    record_audit_export_event(
+        db,
+        actor=request.headers.get("x-lumenai-actor", "unknown"),
+        actor_role=request.headers.get("x-lumenai-role", "viewer"),
+        export_result=export,
+    )
+
     return Response(
         content=export["csv"],
         media_type="text/csv",
         headers={
             "Content-Disposition": f'attachment; filename="{export["filename"]}"',
             "X-LumenAI-Audit-Export-Count": str(export["count"]),
+            "X-LumenAI-Audit-Export-Hash": export["audit_export_hash"],
+            "X-LumenAI-Audit-Export-Hash-Algorithm": export["audit_export_hash_algorithm"],
+            "X-LumenAI-Audit-Exported-At": export["exported_at"],
         },
     )
