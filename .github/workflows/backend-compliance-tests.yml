@@ -54,6 +54,10 @@ jobs:
         run: |
           python -m pytest tests/test_tenant_isolation.py -q
 
+      - name: Run audit immutability regression tests
+        run: |
+          python -m pytest tests/test_audit_immutability.py -q
+
       - name: Run tenant API boundary tests
         run: |
           python -m pytest tests/test_tenant_api_boundaries.py -q
