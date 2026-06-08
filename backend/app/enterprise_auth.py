@@ -4,6 +4,7 @@ import os
 from typing import Any
 
 from fastapi import HTTPException, Request
+from sqlalchemy.orm import Session
 
 from app.auth.context import AuthContext, build_dev_auth_context, build_oidc_auth_context
 from app.auth.jwks_validator import (
@@ -15,6 +16,7 @@ from app.auth.jwt_validator import (
     map_claims_to_auth_context_payload,
     validate_jwt_claims,
 )
+from app.auth.tenant_membership import require_enabled_tenant_membership
 
 
 DEFAULT_DEV_TOKEN = "dev-token"
@@ -80,12 +82,6 @@ def _extract_bearer_token(request: Request) -> str:
 
 
 def _decode_unverified_jwt_claims(token: str) -> dict[str, Any]:
-    """
-    Decode JWT claims without signature verification.
-
-    This is an interim bridge for AUTH_MODE=oidc. Full JWKS signature validation
-    is the next hardening step. Do not use this as final production validation.
-    """
     try:
         parts = token.split(".")
         if len(parts) != 3:
@@ -119,7 +115,10 @@ def _require_dev_auth_context(request: Request) -> AuthContext:
     )
 
 
-def _require_oidc_auth_context(request: Request) -> AuthContext:
+def _require_oidc_auth_context(
+    request: Request,
+    db: Session | None = None,
+) -> AuthContext:
     issuer = get_oidc_issuer()
     audience = get_oidc_audience()
 
@@ -148,6 +147,13 @@ def _require_oidc_auth_context(request: Request) -> AuthContext:
     except JWTValidationError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
+    if db is not None:
+        require_enabled_tenant_membership(
+            db,
+            tenant_id=payload["tenant_id"],
+            user_email=payload["actor"],
+        )
+
     return build_oidc_auth_context(
         actor=payload["actor"],
         role=payload["role"],
@@ -159,14 +165,17 @@ def _require_oidc_auth_context(request: Request) -> AuthContext:
     )
 
 
-def get_auth_context(request: Request) -> AuthContext:
+def get_auth_context(
+    request: Request,
+    db: Session | None = None,
+) -> AuthContext:
     auth_mode = get_auth_mode()
 
     if auth_mode == "dev":
         return _require_dev_auth_context(request)
 
     if auth_mode == "oidc":
-        return _require_oidc_auth_context(request)
+        return _require_oidc_auth_context(request, db=db)
 
     raise HTTPException(
         status_code=500,
@@ -174,8 +183,11 @@ def get_auth_context(request: Request) -> AuthContext:
     )
 
 
-def require_enterprise_auth(request: Request) -> AuthContext:
-    return get_auth_context(request)
+def require_enterprise_auth(
+    request: Request,
+    db: Session | None = None,
+) -> AuthContext:
+    return get_auth_context(request, db=db)
 
 
 def require_enterprise_role(
@@ -183,8 +195,9 @@ def require_enterprise_role(
     *,
     allowed_roles: set[str],
     detail: str = "Access denied.",
+    db: Session | None = None,
 ) -> AuthContext:
-    auth_context = require_enterprise_auth(request)
+    auth_context = require_enterprise_auth(request, db=db)
 
     if not auth_context.has_role(allowed_roles):
         raise HTTPException(status_code=403, detail=detail)
@@ -196,11 +209,13 @@ def require_hospital_or_enterprise_admin(
     request: Request,
     *,
     detail: str = "Hospital or enterprise administrator access required.",
+    db: Session | None = None,
 ) -> AuthContext:
     return require_enterprise_role(
         request,
         allowed_roles={"hospital_admin", "enterprise_admin"},
         detail=detail,
+        db=db,
     )
 
 
@@ -208,11 +223,13 @@ def require_vendor(
     request: Request,
     *,
     detail: str = "Vendor access required.",
+    db: Session | None = None,
 ) -> AuthContext:
     return require_enterprise_role(
         request,
         allowed_roles={"vendor"},
         detail=detail,
+        db=db,
     )
 
 
@@ -221,8 +238,9 @@ def require_permission(
     *,
     permission: str,
     detail: str = "Permission denied.",
+    db: Session | None = None,
 ) -> AuthContext:
-    auth_context = require_enterprise_auth(request)
+    auth_context = require_enterprise_auth(request, db=db)
 
     if not auth_context.has_permission(permission):
         raise HTTPException(status_code=403, detail=detail)
