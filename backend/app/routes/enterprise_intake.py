@@ -264,6 +264,18 @@ def _require_governance_packet_access(request: Request):
 
 
 
+def _require_vendor_baseline_approval_access(request: Request):
+    authorization = request.headers.get("authorization", "") if request else ""
+    role = request.headers.get("x-lumenai-role", "") if request else ""
+
+    if authorization != "Bearer dev-token":
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    if role not in {"hospital_admin", "enterprise_admin"}:
+        raise HTTPException(status_code=403, detail="Vendor baseline approval access denied.")
+
+
+
 @router.post("/intake", response_model=EnterpriseInspectionIntakeResponse)
 def create_enterprise_intake(
     payload: EnterpriseInspectionIntakeRequest,
@@ -9539,6 +9551,8 @@ def approve_enterprise_vendor_baseline_record(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    _require_vendor_baseline_approval_access(request)
+
     from datetime import datetime
 
     payload = payload or {}
