@@ -1,9 +1,19 @@
+import os
+
 from fastapi import HTTPException, Request
 
 from app.auth.context import AuthContext, build_dev_auth_context
 
 
-DEV_TOKEN = "Bearer dev-token"
+DEFAULT_DEV_TOKEN = "dev-token"
+
+
+def get_auth_mode() -> str:
+    return os.getenv("AUTH_MODE", "dev").strip().lower() or "dev"
+
+
+def get_dev_token() -> str:
+    return os.getenv("DEV_AUTH_TOKEN", DEFAULT_DEV_TOKEN)
 
 
 def get_request_actor(request: Request) -> str:
@@ -35,10 +45,11 @@ def get_request_tenant_name(request: Request) -> str:
     )
 
 
-def get_auth_context(request: Request) -> AuthContext:
+def _require_dev_auth_context(request: Request) -> AuthContext:
     authorization = request.headers.get("authorization", "")
+    expected = f"Bearer {get_dev_token()}"
 
-    if authorization != DEV_TOKEN:
+    if authorization != expected:
         raise HTTPException(status_code=401, detail="Authentication required.")
 
     return build_dev_auth_context(
@@ -46,6 +57,28 @@ def get_auth_context(request: Request) -> AuthContext:
         role=get_request_role(request),
         tenant_id=get_request_tenant_id(request),
         tenant_name=get_request_tenant_name(request),
+    )
+
+
+def _require_oidc_auth_context(request: Request) -> AuthContext:
+    raise HTTPException(
+        status_code=501,
+        detail="OIDC authentication mode is configured but JWT validation is not implemented yet.",
+    )
+
+
+def get_auth_context(request: Request) -> AuthContext:
+    auth_mode = get_auth_mode()
+
+    if auth_mode == "dev":
+        return _require_dev_auth_context(request)
+
+    if auth_mode == "oidc":
+        return _require_oidc_auth_context(request)
+
+    raise HTTPException(
+        status_code=500,
+        detail=f"Unsupported AUTH_MODE: {auth_mode}",
     )
 
 

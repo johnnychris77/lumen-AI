@@ -19,6 +19,8 @@ jobs:
     env:
       DATABASE_URL: sqlite:///./lumenai.db
       PYTHONPATH: .
+      AUTH_MODE: dev
+      DEV_AUTH_TOKEN: dev-token
 
     steps:
       - name: Checkout repository
