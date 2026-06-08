@@ -29,3 +29,4 @@ This folder contains enterprise security, compliance readiness, and trust-layer 
 ## Important Note
 
 These documents support readiness and due diligence. They do not represent formal SOC 2, HIPAA, ISO 27001, or third-party certification.
+| `production-oidc-deployment-guide.md` | Provides production OIDC/JWT deployment guidance for enterprise identity providers |
