@@ -58,6 +58,10 @@ jobs:
         run: |
           python -m pytest tests/test_audit_immutability.py -q
 
+      - name: Run packet hash tamper-evidence tests
+        run: |
+          python -m pytest tests/test_packet_hash_tamper_evidence.py -q
+
       - name: Run tenant API boundary tests
         run: |
           python -m pytest tests/test_tenant_api_boundaries.py -q
