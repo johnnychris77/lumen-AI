@@ -140,6 +140,7 @@ def finance_invoice_preview_bundle(
     ]
 
     xlsx = _xlsx_bytes(preview, payments, invoices)
+    branding = {"export_prefix": "lumenai"}
     bio = BytesIO()
     with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f"{branding['export_prefix']}_invoice_preview.json", json.dumps(preview, indent=2))
