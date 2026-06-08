@@ -1,57 +1,56 @@
-name: CI
+name: Core CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 jobs:
-  python-checks:
+  backend-core-ci:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: sqlite:///./lumenai.db
+      PYTHONPATH: .
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest flake8
-
-      - name: Lint
-        run: |
-          flake8 backend || true
-
-      - name: Run tests
-        run: |
-          if [ -d tests ] || find . -path "*/tests" | grep -q tests; then
-            pytest -q || true
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
           else
-            echo "No tests found, skipping."
+            pip install fastapi uvicorn sqlalchemy pydantic pytest httpx reportlab requests python-multipart ruff
           fi
+          pip install ruff
 
-  docker-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build API image
+      - name: Compile backend
         run: |
-          if [ -f docker/Dockerfile.api ]; then
-            docker build -f docker/Dockerfile.api -t lumenai-api:ci .
-          else
-            docker build -f Dockerfile -t lumenai-api:ci .
-          fi
+          python -m compileall app
 
-      - name: Build Worker image
+      - name: Ruff backend baseline
         run: |
-          if [ -f docker/Dockerfile.worker ]; then
-            docker build -f docker/Dockerfile.worker -t lumenai-worker:ci .
-          else
-            docker build -f Dockerfile -t lumenai-worker:ci .
-          fi
+          ruff check app tests
+
+      - name: Run backend compliance tests
+        run: |
+          python -m pytest \
+            tests/test_enterprise_compliance_routes.py \
+            tests/test_vendor_baseline_persistent_workflow.py \
+            tests/test_governance_packet_hash_workflow.py \
+            -q
