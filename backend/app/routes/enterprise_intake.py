@@ -1,3 +1,4 @@
+from app.services.audit_export_verification_service import verify_audit_export_hash
 from app.services.audit_export_service import export_audit_events_csv, record_audit_export_event
 from app.enterprise_auth import require_audit_chain_verify
 
@@ -10197,4 +10198,18 @@ def export_enterprise_audit_events_csv(
             "X-LumenAI-Audit-Export-Hash-Algorithm": export["audit_export_hash_algorithm"],
             "X-LumenAI-Audit-Exported-At": export["exported_at"],
         },
+    )
+
+
+@router.get("/audit/events/export/verify")
+def verify_enterprise_audit_export_hash(
+    audit_export_hash: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_audit_chain_verify(request)
+
+    return verify_audit_export_hash(
+        db,
+        audit_export_hash=audit_export_hash,
     )
