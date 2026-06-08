@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -20,6 +21,81 @@ def _safe_details(details: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+
+
+def _canonical_json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _sha256(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def _deserialize_details(raw_details: Any) -> dict[str, Any]:
+    if not raw_details:
+        return {}
+
+    if isinstance(raw_details, dict):
+        return raw_details
+
+    if isinstance(raw_details, str):
+        try:
+            return json.loads(raw_details)
+        except json.JSONDecodeError:
+            return {"raw_details": raw_details}
+
+    return {"raw_details": str(raw_details)}
+
+
+def _latest_event_hash_for_resource(
+    db: Session,
+    *,
+    resource_type: str,
+    resource_id: str,
+) -> str:
+    if "resource_type" not in _auditlog_columns() or "resource_id" not in _auditlog_columns():
+        return ""
+
+    latest_event = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.resource_type == resource_type,
+            AuditLog.resource_id == resource_id,
+        )
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
+
+    if not latest_event:
+        return ""
+
+    details = _deserialize_details(getattr(latest_event, "details", None))
+    return str(details.get("event_hash") or "")
+
+
+def _build_event_hash_payload(
+    *,
+    action_type: str,
+    resource_type: str,
+    resource_id: str,
+    actor: str,
+    actor_role: str,
+    details: dict[str, Any],
+    previous_event_hash: str,
+) -> dict[str, Any]:
+    payload_details = dict(details)
+    payload_details.pop("event_hash", None)
+    payload_details.pop("previous_event_hash", None)
+
+    return {
+        "action_type": action_type,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "actor": actor,
+        "actor_role": actor_role,
+        "details": payload_details,
+        "previous_event_hash": previous_event_hash,
+    }
 
 def _serialize_details_for_auditlog(details: dict[str, Any]) -> Any:
     details_column = AuditLog.__table__.columns.get("details")
@@ -80,12 +156,33 @@ def record_enterprise_audit_event(
         if value is not None and key not in columns:
             safe_details.setdefault(key, value)
 
+    normalized_resource_id = str(resource_id) if resource_id is not None else ""
+    previous_event_hash = _latest_event_hash_for_resource(
+        db,
+        resource_type=resource_type,
+        resource_id=normalized_resource_id,
+    )
+
+    event_hash_payload = _build_event_hash_payload(
+        action_type=action_type,
+        resource_type=resource_type,
+        resource_id=normalized_resource_id,
+        actor=actor or "system",
+        actor_role=actor_role or "system",
+        details=safe_details,
+        previous_event_hash=previous_event_hash,
+    )
+
+    safe_details.setdefault("previous_event_hash", previous_event_hash)
+    safe_details.setdefault("event_hash", _sha256(event_hash_payload))
+    safe_details.setdefault("event_hash_algorithm", "SHA-256")
+
     kwargs: dict[str, Any] = {}
 
     candidate_values = {
         "action_type": action_type,
         "resource_type": resource_type,
-        "resource_id": str(resource_id) if resource_id is not None else "",
+        "resource_id": normalized_resource_id,
         "actor": actor or "system",
         "actor_role": actor_role or "system",
         "tenant_id": tenant_id,
