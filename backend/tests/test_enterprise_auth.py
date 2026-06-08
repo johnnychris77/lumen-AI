@@ -18,19 +18,17 @@ def _request(headers: list[tuple[bytes, bytes]]) -> Request:
     )
 
 
-def test_require_enterprise_auth_denies_missing_token():
+def test_enterprise_auth_denies_missing_token():
     from app.enterprise_auth import require_enterprise_auth
 
-    request = _request([])
-
     with pytest.raises(HTTPException) as exc:
-        require_enterprise_auth(request)
+        require_enterprise_auth(_request([]))
 
     assert exc.value.status_code == 401
 
 
-def test_require_enterprise_role_denies_wrong_role():
-    from app.enterprise_auth import require_enterprise_role
+def test_enterprise_role_denies_wrong_role():
+    from app.enterprise_auth import require_hospital_or_enterprise_admin
 
     request = _request(
         [
@@ -41,15 +39,12 @@ def test_require_enterprise_role_denies_wrong_role():
     )
 
     with pytest.raises(HTTPException) as exc:
-        require_enterprise_role(
-            request,
-            allowed_roles={"hospital_admin", "enterprise_admin"},
-        )
+        require_hospital_or_enterprise_admin(request)
 
     assert exc.value.status_code == 403
 
 
-def test_require_hospital_or_enterprise_admin_allows_hospital_admin():
+def test_enterprise_role_allows_hospital_admin():
     from app.enterprise_auth import require_hospital_or_enterprise_admin
 
     request = _request(
@@ -66,7 +61,7 @@ def test_require_hospital_or_enterprise_admin_allows_hospital_admin():
     assert result["actor"] == "hospital-user"
 
 
-def test_require_hospital_or_enterprise_admin_allows_enterprise_admin():
+def test_enterprise_role_allows_enterprise_admin():
     from app.enterprise_auth import require_hospital_or_enterprise_admin
 
     request = _request(

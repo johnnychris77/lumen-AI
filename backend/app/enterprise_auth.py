@@ -33,25 +33,35 @@ def require_enterprise_role(
     request: Request,
     *,
     allowed_roles: set[str],
+    detail: str = "Access denied.",
 ) -> dict:
     auth_context = require_enterprise_auth(request)
-    role = auth_context["role"]
 
-    if role not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Access denied.")
+    if auth_context["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail=detail)
 
     return auth_context
 
 
-def require_hospital_or_enterprise_admin(request: Request) -> dict:
+def require_hospital_or_enterprise_admin(
+    request: Request,
+    *,
+    detail: str = "Hospital or enterprise administrator access required.",
+) -> dict:
     return require_enterprise_role(
         request,
         allowed_roles={"hospital_admin", "enterprise_admin"},
+        detail=detail,
     )
 
 
-def require_vendor_role(request: Request) -> dict:
+def require_vendor(
+    request: Request,
+    *,
+    detail: str = "Vendor access required.",
+) -> dict:
     return require_enterprise_role(
         request,
         allowed_roles={"vendor"},
+        detail=detail,
     )
