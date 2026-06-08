@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+
+from fastapi import Request
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -131,6 +133,7 @@ def record_enterprise_audit_event(
     packet_hash_algorithm: str | None = None,
     details: dict[str, Any] | None = None,
     auth_context: AuthContext | None = None,
+    request: Request | None = None,
     commit: bool = True,
 ) -> AuditLog:
     """
@@ -143,7 +146,7 @@ def record_enterprise_audit_event(
 
     columns = _auditlog_columns()
 
-    details = merge_auth_context_into_details(details, auth_context)
+    details = merge_auth_context_into_details(details, auth_context, request=request)
     safe_details = _safe_details(details)
 
     normalized = {
