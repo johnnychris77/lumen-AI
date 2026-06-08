@@ -49,3 +49,7 @@ jobs:
       - name: Run governance packet hash workflow tests
         run: |
           python -m pytest tests/test_governance_packet_hash_workflow.py -q
+
+      - name: Run tenant isolation regression tests
+        run: |
+          python -m pytest tests/test_tenant_isolation.py -q

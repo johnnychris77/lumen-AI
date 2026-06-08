@@ -1,53 +1,127 @@
-from __future__ import annotations
-
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.authz import get_current_user
-from app.deps import get_db
 from app.db import models
-from app.tenant import resolve_tenant
+
+
+def assert_tenant_membership(
+    db: Session,
+    *,
+    tenant_id: str,
+    user_email: str,
+) -> bool:
+    """
+    Enforce tenant boundary access.
+
+    A user is allowed only when:
+    - user_email is present
+    - tenant_id is present
+    - an enabled TenantMembership row exists for that user and tenant
+    """
+
+    if not user_email:
+        raise HTTPException(
+            status_code=403,
+            detail="Unable to resolve current user email for tenant authorization.",
+        )
+
+    if not tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Unable to resolve tenant for authorization.",
+        )
+
+    membership = (
+        db.query(models.TenantMembership)
+        .filter(
+            models.TenantMembership.user_email == user_email,
+            models.TenantMembership.tenant_id == tenant_id,
+            models.TenantMembership.is_enabled,
+        )
+        .first()
+    )
+
+    if not membership:
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized for this tenant.",
+        )
+
+    return True
+
+
+def user_has_tenant_membership(
+    db: Session,
+    *,
+    tenant_id: str,
+    user_email: str,
+) -> bool:
+    try:
+        return assert_tenant_membership(
+            db,
+            tenant_id=tenant_id,
+            user_email=user_email,
+        )
+    except HTTPException:
+        return False
 
 
 def require_tenant_roles(*allowed_roles: str):
-    async def dependency(
-        current_user=Depends(get_current_user),
-        tenant: dict = Depends(resolve_tenant),
-        db: Session = Depends(get_db),
-    ):
-        email = getattr(current_user, "email", None) or getattr(current_user, "username", None) or ""
-        email = str(email).strip().lower()
+    """
+    FastAPI dependency factory for tenant-scoped role enforcement.
 
-        if not email:
-            raise HTTPException(status_code=403, detail="Unable to resolve current user email for tenant authorization.")
+    This preserves compatibility with existing routes that import
+    require_tenant_roles while routing authorization through the newer
+    tenant membership boundary helper.
+    """
+    from fastapi import Depends, Request
+
+    from app.deps import get_db
+    from app.tenant import resolve_tenant
+
+    allowed = {role for role in allowed_roles if role}
+
+    def _dependency(
+        request: Request,
+        db: Session = Depends(get_db),
+    ) -> dict:
+        tenant = resolve_tenant(request)
+
+        tenant_id = tenant.get("tenant_id") or tenant.get("id")
+        user_email = (
+            request.headers.get("x-lumenai-user-email")
+            or request.headers.get("x-user-email")
+            or request.headers.get("x-lumenai-actor")
+            or ""
+        )
+
+        assert_tenant_membership(
+            db,
+            tenant_id=str(tenant_id or ""),
+            user_email=user_email,
+        )
 
         membership = (
             db.query(models.TenantMembership)
             .filter(
-                models.TenantMembership.user_email == email,
-                models.TenantMembership.tenant_id == tenant["tenant_id"],
+                models.TenantMembership.user_email == user_email,
+                models.TenantMembership.tenant_id == str(tenant_id),
                 models.TenantMembership.is_enabled,
             )
             .first()
         )
 
-        if not membership:
+        if allowed and membership and membership.role not in allowed:
             raise HTTPException(
                 status_code=403,
-                detail=f"User '{email}' is not authorized for tenant '{tenant['tenant_id']}'."
-            )
-
-        if membership.role_name not in allowed_roles:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Tenant role '{membership.role_name}' is not permitted for this resource."
+                detail="User does not have the required tenant role.",
             )
 
         return {
-            "user_email": email,
-            "tenant_id": membership.tenant_id,
-            "tenant_name": membership.tenant_name,
-            "role_name": membership.role_name,
+            "tenant": tenant,
+            "tenant_id": tenant_id,
+            "user_email": user_email,
+            "role": membership.role if membership else None,
         }
 
-    return dependency
+    return _dependency
