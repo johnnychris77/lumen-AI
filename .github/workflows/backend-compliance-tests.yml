@@ -53,3 +53,7 @@ jobs:
       - name: Run tenant isolation regression tests
         run: |
           python -m pytest tests/test_tenant_isolation.py -q
+
+      - name: Run tenant API boundary tests
+        run: |
+          python -m pytest tests/test_tenant_api_boundaries.py -q

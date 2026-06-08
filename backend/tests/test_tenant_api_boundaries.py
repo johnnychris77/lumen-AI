@@ -6,7 +6,30 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("DATABASE_URL", "sqlite:///./lumenai.db")
 
 
-def _get_reports_route(app) -> str:
+def _get_protected_report_route(app) -> str:
+    candidates = []
+
+    for route in app.routes:
+        route_path = getattr(route, "path", "")
+        methods = getattr(route, "methods", set()) or set()
+
+        if "GET" not in methods:
+            continue
+
+        if "{" in route_path:
+            continue
+
+        if "report" in route_path.lower():
+            candidates.append(route_path)
+
+    if not candidates:
+        raise AssertionError("No protected GET report route found.")
+
+    return sorted(candidates)[0]
+
+
+
+def _get_protected_report_route(app) -> str:
     for route in app.routes:
         path = getattr(route, "path", "")
         methods = getattr(route, "methods", set()) or set()
@@ -54,7 +77,7 @@ def test_protected_reports_route_denies_user_without_membership():
     user_email = f"missing-{uuid.uuid4()}@example.com"
 
     response = client.get(
-        _get_reports_route(app),
+        _get_protected_report_route(app),
         headers={
             "X-LumenAI-Tenant-ID": tenant_id,
             "X-LumenAI-Actor": user_email,
@@ -86,7 +109,7 @@ def test_protected_reports_route_denies_wrong_role():
     client = TestClient(app)
 
     response = client.get(
-        _get_reports_route(app),
+        _get_protected_report_route(app),
         headers={
             "X-LumenAI-Tenant-ID": tenant_id,
             "X-LumenAI-Actor": user_email,
@@ -119,7 +142,7 @@ def test_protected_reports_route_denies_cross_tenant_user():
     client = TestClient(app)
 
     response = client.get(
-        _get_reports_route(app),
+        _get_protected_report_route(app),
         headers={
             "X-LumenAI-Tenant-ID": blocked_tenant_id,
             "X-LumenAI-Actor": user_email,
