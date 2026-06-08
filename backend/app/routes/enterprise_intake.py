@@ -1,4 +1,6 @@
+from app.enterprise_auth import require_audit_chain_verify
 
+from app.services.audit_query_service import query_audit_events
 from app.services.audit_chain_verification_service import verify_audit_chain
 from app.services.enterprise_audit_service import record_enterprise_audit_event
 from app.enterprise_auth import require_hospital_or_enterprise_admin
@@ -10115,3 +10117,33 @@ def get_enterprise_governance_packet_certificate(
         ),
         "message": "Governance packet certificate generated from latest tamper-evident PDF export record.",
     }
+
+
+@router.get("/audit/events")
+def list_enterprise_audit_events(
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: str | None = None,
+    actor: str | None = None,
+    actor_role: str | None = None,
+    request_id: str | None = None,
+    correlation_id: str | None = None,
+    action_type: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    limit: int = 50,
+):
+    require_audit_chain_verify(request)
+
+    return query_audit_events(
+        db,
+        tenant_id=tenant_id,
+        actor=actor,
+        actor_role=actor_role,
+        request_id=request_id,
+        correlation_id=correlation_id,
+        action_type=action_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        limit=limit,
+    )
