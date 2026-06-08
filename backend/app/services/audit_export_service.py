@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 from datetime import UTC, datetime
 from io import StringIO
 from typing import Any
@@ -68,6 +69,22 @@ def export_audit_events_csv(
     export_hash = hashlib.sha256(csv_text.encode("utf-8")).hexdigest()
     exported_at = datetime.now(UTC).isoformat()
 
+    manifest = {
+        "manifest_type": "lumenai_audit_export_manifest",
+        "filename": "lumenai-audit-events-export.csv",
+        "content_type": "text/csv",
+        "exported_at": exported_at,
+        "export_count": result["count"],
+        "filters": result["filters"],
+        "csv_hash": export_hash,
+        "csv_hash_algorithm": "SHA-256",
+        "verification_url": f"/api/enterprise/audit/events/export/verify?audit_export_hash={export_hash}",
+        "tamper_evident": True,
+    }
+
+    manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"), default=str)
+    manifest_hash = hashlib.sha256(manifest_json.encode("utf-8")).hexdigest()
+
     return {
         "status": "success",
         "content_type": "text/csv",
@@ -78,6 +95,10 @@ def export_audit_events_csv(
         "audit_export_hash": export_hash,
         "audit_export_hash_algorithm": "SHA-256",
         "exported_at": exported_at,
+        "manifest": manifest,
+        "manifest_json": manifest_json,
+        "manifest_hash": manifest_hash,
+        "manifest_hash_algorithm": "SHA-256",
     }
 
 
@@ -104,6 +125,9 @@ def record_audit_export_event(
             "exported_at": export_result["exported_at"],
             "audit_export_hash": export_result["audit_export_hash"],
             "audit_export_hash_algorithm": export_result["audit_export_hash_algorithm"],
+            "manifest_hash": export_result.get("manifest_hash"),
+            "manifest_hash_algorithm": export_result.get("manifest_hash_algorithm"),
+            "manifest": export_result.get("manifest"),
             "filters": export_result["filters"],
             "tamper_evident": True,
         },

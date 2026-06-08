@@ -10196,6 +10196,8 @@ def export_enterprise_audit_events_csv(
             "X-LumenAI-Audit-Export-Count": str(export["count"]),
             "X-LumenAI-Audit-Export-Hash": export["audit_export_hash"],
             "X-LumenAI-Audit-Export-Hash-Algorithm": export["audit_export_hash_algorithm"],
+            "X-LumenAI-Audit-Manifest-Hash": export["manifest_hash"],
+            "X-LumenAI-Audit-Manifest-Hash-Algorithm": export["manifest_hash_algorithm"],
             "X-LumenAI-Audit-Exported-At": export["exported_at"],
         },
     )
