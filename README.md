@@ -1973,6 +1973,8 @@ Evidence capabilities include:
 
 Public documentation:
 
+- [Final Repository Closure Summary](docs/public/final-repository-closure-summary.md)
+
 - [Compliance Evidence Release Tag](docs/public/evidence-release-tag.md)
 
 - [Evidence Index](docs/public/evidence-index.md)
