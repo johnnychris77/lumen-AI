@@ -96,6 +96,29 @@ type GovernanceExportHistoryItem = {
   created_at?: string;
 };
 
+type GovernancePacketCertificate = {
+  status: string;
+  certificate_type: string;
+  finding_id: number;
+  resource_type: string;
+  resource_id: string;
+  event_id: number;
+  action_type: string;
+  filename: string;
+  export_format: string;
+  packet_hash_algorithm: string;
+  packet_hash: string;
+  tamper_evident: boolean;
+  included_vendor_baseline_audit_trail: boolean;
+  audit_event_count?: number | null;
+  vendor_baseline_audit_event_count?: number | null;
+  exported_by: string;
+  exported_role: string;
+  exported_at: string;
+  verification_url: string;
+  message: string;
+};
+
 type GovernanceExportHistoryResponse = {
   status: string;
   finding_id: number;
@@ -276,6 +299,9 @@ export default function VendorBaselineSubscriptionPortal() {
   const [packetFindingId, setPacketFindingId] = useState("1");
   const [exportHistoryLoading, setExportHistoryLoading] = useState(false);
   const [exportHistoryError, setExportHistoryError] = useState("");
+  const [certificateLoading, setCertificateLoading] = useState(false);
+  const [certificateError, setCertificateError] = useState("");
+  const [selectedCertificate, setSelectedCertificate] = useState<GovernancePacketCertificate | null>(null);
   const [exportHistory, setExportHistory] = useState<GovernanceExportHistoryResponse | null>(null);
   const [packetHashInput, setPacketHashInput] = useState("");
   const [packetVerificationLoading, setPacketVerificationLoading] = useState(false);
@@ -536,7 +562,26 @@ export default function VendorBaselineSubscriptionPortal() {
             Download Governance PDF
           </button>
 
-          <button type="button" onClick={loadExportHistory} style={exportHistoryButtonStyle}>
+          <button
+            type="button"
+            onClick={() => handleViewGovernancePacketCertificate(1)}
+            style={{
+              border: "1px solid #0f766e",
+              borderRadius: "999px",
+              background: "#f0fdfa",
+              color: "#0f766e",
+              padding: "10px 14px",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            View Certificate
+          </button>
+
+
+          <button type="button" onClick={loadExportHistory} style=
+
+{exportHistoryButtonStyle}>
             View Export History
           </button>
         </div>
@@ -887,6 +932,89 @@ export default function VendorBaselineSubscriptionPortal() {
           improve scoring confidence and reduce disputes between SPD, OR, infection prevention, and vendors.
         </p>
       </details>
+
+      {certificateLoading && (
+        <div
+          style={{
+            marginTop: "16px",
+            borderRadius: "16px",
+            border: "1px solid #bae6fd",
+            background: "#f0f9ff",
+            color: "#075985",
+            padding: "14px",
+            fontWeight: 700,
+          }}
+        >
+          Loading governance packet certificate...
+        </div>
+      )}
+
+      {certificateError && (
+        <div
+          style={{
+            marginTop: "16px",
+            borderRadius: "16px",
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            color: "#991b1b",
+            padding: "14px",
+            fontWeight: 700,
+          }}
+        >
+          {certificateError}
+        </div>
+      )}
+
+      {selectedCertificate && (
+        <div
+          style={{
+            marginTop: "18px",
+            borderRadius: "20px",
+            border: "1px solid #99f6e4",
+            background: "#f0fdfa",
+            padding: "18px",
+            color: "#134e4a",
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>Governance Packet Certificate</h3>
+
+          <p>
+            <strong>Finding ID:</strong> {selectedCertificate.finding_id} |{" "}
+            <strong>Event ID:</strong> {selectedCertificate.event_id} |{" "}
+            <strong>Format:</strong> {selectedCertificate.export_format}
+          </p>
+
+          <p>
+            <strong>Filename:</strong> {selectedCertificate.filename}
+          </p>
+
+          <p>
+            <strong>Exported By:</strong> {selectedCertificate.exported_by} |{" "}
+            <strong>Role:</strong> {selectedCertificate.exported_role} |{" "}
+            <strong>Exported At:</strong> {selectedCertificate.exported_at}
+          </p>
+
+          <p>
+            <strong>Hash Algorithm:</strong> {selectedCertificate.packet_hash_algorithm}
+          </p>
+
+          <p style={{ wordBreak: "break-all" }}>
+            <strong>Packet Hash:</strong> {selectedCertificate.packet_hash}
+          </p>
+
+          <p>
+            <strong>Tamper Evident:</strong>{" "}
+            {selectedCertificate.tamper_evident ? "Yes" : "No"} |{" "}
+            <strong>Vendor Baseline Audit Included:</strong>{" "}
+            {selectedCertificate.included_vendor_baseline_audit_trail ? "Yes" : "No"}
+          </p>
+
+          <p style={{ wordBreak: "break-all" }}>
+            <strong>Verification URL:</strong> {selectedCertificate.verification_url}
+          </p>
+        </div>
+      )}
+
     </section>
   );
 }
