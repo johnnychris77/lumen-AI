@@ -384,6 +384,11 @@ export default function DashboardApp() {
               Compliance Evidence Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/vendor-accountability">
+              Vendor Accountability Portfolio
+            </a>
+
+
 
 
 

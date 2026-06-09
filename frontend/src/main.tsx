@@ -84,6 +84,11 @@ function PublicLandingHome() {
             Compliance Evidence Portfolio
           </a>
 
+          <a href="/portfolio/vendor-accountability" style={card}>
+            Vendor Accountability Portfolio
+          </a>
+
+
 
 
 
