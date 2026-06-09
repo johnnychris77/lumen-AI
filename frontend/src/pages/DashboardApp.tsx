@@ -376,6 +376,11 @@ export default function DashboardApp() {
               Investor Review Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/sales-readiness">
+              Sales Readiness Portfolio
+            </a>
+
+
 
 
 

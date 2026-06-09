@@ -76,6 +76,11 @@ function PublicLandingHome() {
             Investor Review Portfolio
           </a>
 
+          <a href="/portfolio/sales-readiness" style={card}>
+            Sales Readiness Portfolio
+          </a>
+
+
 
 
 
