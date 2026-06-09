@@ -241,6 +241,58 @@ export default function DashboardApp() {
           </div>
         </section>
 
+
+        <section style={threeColumnGrid}>
+          <div style={modulePanel}>
+            <h2 style={panelTitle}>Vendor Governance Summary</h2>
+            <p style={muted}>
+              Tracks vendor accountability, quality trends, baseline evidence, and governance review paths.
+            </p>
+            <ul style={moduleList}>
+              <li>Vendor performance review</li>
+              <li>Baseline evidence workflow</li>
+              <li>Quality issue escalation</li>
+              <li>Governance documentation</li>
+            </ul>
+            <a style={moduleLink} href="/portfolio/vendor-governance">
+              Open Vendor Governance
+            </a>
+          </div>
+
+          <div style={modulePanel}>
+            <h2 style={panelTitle}>CAPA Workflow Summary</h2>
+            <p style={muted}>
+              Supports corrective action visibility, escalation tracking, and quality improvement review.
+            </p>
+            <ul style={moduleList}>
+              <li>Open CAPA visibility</li>
+              <li>Risk and priority tracking</li>
+              <li>Evidence-linked corrective action</li>
+              <li>Executive review readiness</li>
+            </ul>
+            <a style={moduleLink} href="/portfolio/capa-workflow">
+              Open CAPA Workflow
+            </a>
+          </div>
+
+          <div style={modulePanel}>
+            <h2 style={panelTitle}>Audit Command Center Summary</h2>
+            <p style={muted}>
+              Shows audit readiness, evidence traceability, export verification, and compliance proof paths.
+            </p>
+            <ul style={moduleList}>
+              <li>Audit export readiness</li>
+              <li>Hash-backed evidence</li>
+              <li>Verification summary workflow</li>
+              <li>Compliance evidence review</li>
+            </ul>
+            <a style={moduleLink} href="/portfolio/audit-command-center">
+              Open Audit Command Center
+            </a>
+          </div>
+        </section>
+
+
         <section style={panel}>
           <h2 style={panelTitle}>Governance Modules</h2>
           <div style={linkGrid}>
@@ -443,5 +495,30 @@ const evidenceNote: React.CSSProperties = {
   background: "#ecfeff",
   color: "#155e75",
   border: "1px solid #a5f3fc",
+  fontSize: "14px",
+};
+
+
+const threeColumnGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: "16px",
+  marginTop: "18px",
+};
+
+const modulePanel: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "16px",
+  padding: "18px",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+};
+
+const moduleList: React.CSSProperties = {
+  marginTop: "10px",
+  marginBottom: "16px",
+  paddingLeft: "20px",
+  color: "#334155",
+  lineHeight: 1.7,
   fontSize: "14px",
 };
