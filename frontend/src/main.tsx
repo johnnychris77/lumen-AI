@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import DashboardApp from "./pages/DashboardApp";
 
 const card: React.CSSProperties = {
   display: "block",
