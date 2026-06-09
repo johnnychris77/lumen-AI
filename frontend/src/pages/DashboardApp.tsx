@@ -364,6 +364,11 @@ export default function DashboardApp() {
               Live Dashboard Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/erp-style-governance">
+              ERP-Style Governance Portfolio
+            </a>
+
+
           </div>
 
           <div style={evidenceNote}>

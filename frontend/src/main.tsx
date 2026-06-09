@@ -64,6 +64,11 @@ function PublicLandingHome() {
             Live Dashboard Portfolio
           </a>
 
+          <a href="/portfolio/erp-style-governance" style={card}>
+            ERP-Style Governance Portfolio
+          </a>
+
+
         </div>
 
         <p style={{ marginTop: "28px", color: "#94a3b8" }}>
