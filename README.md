@@ -1973,6 +1973,8 @@ Evidence capabilities include:
 
 Public documentation:
 
+- [Evidence Release Repository Seal](docs/public/evidence-release-repository-seal.md)
+
 - [Evidence Release Completion Summary](docs/public/evidence-release-completion-summary.md)
 
 - [Evidence Release Completion Badge](docs/public/evidence-release-completion-badge.md)
