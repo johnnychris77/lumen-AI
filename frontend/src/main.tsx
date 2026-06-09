@@ -72,6 +72,11 @@ function PublicLandingHome() {
             Enterprise Customer Demo Portfolio
           </a>
 
+          <a href="/portfolio/investor-review" style={card}>
+            Investor Review Portfolio
+          </a>
+
+
 
 
         </div>

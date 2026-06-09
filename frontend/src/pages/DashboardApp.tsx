@@ -372,6 +372,11 @@ export default function DashboardApp() {
               Enterprise Customer Demo Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/investor-review">
+              Investor Review Portfolio
+            </a>
+
+
 
 
           </div>
