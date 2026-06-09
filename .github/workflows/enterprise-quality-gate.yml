@@ -44,8 +44,9 @@ jobs:
           exit 1
 
       - name: Run enterprise smoke test
+        working-directory: backend
         run: |
-          BASE_URL=http://127.0.0.1:18011 TOKEN=dev-token backend/scripts/enterprise-smoke-test.sh
+          BASE_URL=http://127.0.0.1:18011 TOKEN=dev-token scripts/enterprise-smoke-test.sh
 
       - name: Show container logs on success
         if: success()
