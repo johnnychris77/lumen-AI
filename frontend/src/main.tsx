@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import InspectionHistory from "./pages/InspectionHistory";
