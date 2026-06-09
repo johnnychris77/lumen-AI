@@ -269,7 +269,7 @@ function PublicLandingHome() {
   return (
     <main style={{ padding: "32px", fontFamily: "Arial, sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f8fafc" }}>
       <section style={{ maxWidth: "1040px", margin: "0 auto" }}>
-        <h1 style={{ fontSize: "40px", marginBottom: "12px" }}>LumenAI Enterprise Governance Suite</h1>
+        <h1 style={{ fontSize: "40px", marginBottom: "12px" }}>LumenAI Enterprise Governance Suite — Public Landing</h1>
         <p style={{ fontSize: "18px", lineHeight: 1.6, color: "#cbd5e1" }}>
           Healthcare operations intelligence platform for sterile processing governance, vendor accountability,
           audit readiness, CAPA workflow, and tamper-evident compliance evidence.
