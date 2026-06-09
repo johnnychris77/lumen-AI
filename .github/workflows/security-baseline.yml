@@ -37,7 +37,7 @@ jobs:
           else
             pip install fastapi uvicorn sqlalchemy pydantic pytest httpx reportlab requests python-multipart
           fi
-          pip install ruff pip-audit bandit
+          pip install httpx pytest ruff pip-audit bandit
 
       - name: Python syntax compile check
         run: |

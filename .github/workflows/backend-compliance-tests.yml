@@ -27,6 +27,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
+          pip install httpx pytest ruff
           pip install ruff pytest
 
       - name: Run ruff
