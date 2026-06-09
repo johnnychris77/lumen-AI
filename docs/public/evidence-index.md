@@ -237,3 +237,54 @@ Runs compliance and evidence workflow tests as part of backend compliance valida
 Status: Evidence index complete.
 
 The LumenAI repository now contains backend implementation, frontend evidence UI, verification endpoints, public portfolio documentation, demo workflow, release lock, and validation coverage for the enterprise compliance evidence workflow.
+
+
+## Final Public Navigation
+
+Use this section as the fastest public-review path through the LumenAI Compliance Evidence v1.0 release.
+
+### Executive Review Path
+
+- [Executive Summary](evidence-release-executive-summary.md)
+- [Customer Review Packet](evidence-release-customer-review-packet.md)
+- [Sales One-Pager](evidence-release-sales-one-pager.md)
+- [Market Positioning Brief](evidence-release-market-positioning-brief.md)
+
+### Technical Evidence Path
+
+- [Compliance Evidence Summary](compliance-evidence.md)
+- [Evidence Bundle Demo](../compliance/evidence-bundle-demo.md)
+- [Demo Walkthrough Guide](evidence-release-demo-walkthrough-guide.md)
+- [Release Lock](compliance-evidence-release-lock.md)
+
+### Release Closure Path
+
+- [Final Launch Summary](final-launch-summary.md)
+- [Evidence Release Tag](evidence-release-tag.md)
+- [Final Repository Closure Summary](final-repository-closure-summary.md)
+- [Archive Note](evidence-release-archive-note.md)
+- [Completion Badge](evidence-release-completion-badge.md)
+- [Completion Summary](evidence-release-completion-summary.md)
+- [Repository Seal](evidence-release-repository-seal.md)
+
+### Demo and Proof Path
+
+- [Evidence Bundle Demo README](../compliance/evidence-bundle-demo.md)
+- [Demo Walkthrough Guide](evidence-release-demo-walkthrough-guide.md)
+- Demo Script: scripts/demo_compliance_evidence_bundle.sh
+- Frontend UI: frontend/src/components/VendorBaselineSubscriptionPortal.tsx
+
+### Buyer-Facing Short Links
+
+- [Compliance Evidence Badge](lumenai-compliance-evidence-badge.md)
+- [Customer Review Packet](evidence-release-customer-review-packet.md)
+- [Investor Brief](evidence-release-investor-brief.md)
+- [Sales One-Pager](evidence-release-sales-one-pager.md)
+- [Market Positioning Brief](evidence-release-market-positioning-brief.md)
+
+## Final Navigation Status
+
+Status: Public navigation index polished.
+
+The LumenAI evidence index now supports executive review, customer review, technical review, demo review, sales review, investor review, and final release closure review from a single document.
+
