@@ -1973,6 +1973,8 @@ Evidence capabilities include:
 
 Public documentation:
 
+- [Evidence Release Demo Walkthrough Guide](docs/public/evidence-release-demo-walkthrough-guide.md)
+
 - [Evidence Release Market Positioning Brief](docs/public/evidence-release-market-positioning-brief.md)
 
 - [Evidence Release Sales One-Pager](docs/public/evidence-release-sales-one-pager.md)
