@@ -101,3 +101,27 @@ The script will:
 4. Verify the bundle.
 5. Load the public verification summary.
 6. Download the JSON bundle artifact.
+
+
+## Demo Output Artifacts
+
+By default, the demo script writes output files to:
+
+/tmp/lumenai-compliance-evidence-demo
+
+Generated files include:
+
+- audit_event.json
+- bundle_response.json
+- bundle_verify.json
+- bundle_summary.json
+- lumenai-compliance-evidence-bundle.json
+- bundle_download_headers.txt
+- demo_summary.txt
+
+You can override the output directory:
+
+OUTPUT_DIR="/tmp/my-lumenai-demo" ./scripts/demo_compliance_evidence_bundle.sh
+
+The demo script also performs a lightweight backend preflight check against /openapi.json.
+
