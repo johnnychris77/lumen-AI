@@ -1,6 +1,7 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
-import DashboardApp from "./pages/DashboardApp";
+
+const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 
 const card: React.CSSProperties = {
   display: "block",
@@ -68,10 +69,59 @@ function PublicLandingHome() {
   );
 }
 
+
+
+class DashboardErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <main style={{ padding: "32px", fontFamily: "Arial, sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f8fafc" }}>
+          <h1>Dashboard temporarily unavailable</h1>
+          <p>The public LumenAI landing page and portfolio pages are still available.</p>
+          <pre style={{ whiteSpace: "pre-wrap", background: "#1e293b", padding: "16px", borderRadius: "12px" }}>
+            {String(this.state.error.message || this.state.error)}
+          </pre>
+          <p><a href="/" style={{ color: "#93c5fd" }}>Return to public landing page</a></p>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function RootRouter() {
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+
+  if (path === "/dashboard") {
+    return (
+      <DashboardErrorBoundary>
+        <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading dashboard...</main>}>
+          <DashboardApp />
+        </Suspense>
+      </DashboardErrorBoundary>
+    );
+  }
+
+  return <PublicLandingHome />;
+}
+
 const root = document.getElementById("root");
 
 if (!root) {
   throw new Error("Missing root element");
 }
 
-ReactDOM.createRoot(root).render(<PublicLandingHome />);
+ReactDOM.createRoot(root).render(<RootRouter />);
