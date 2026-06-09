@@ -24,6 +24,15 @@ type Inspection = {
   risk_score?: number;
 };
 
+type ModuleStatus = {
+  key: string;
+  label: string;
+  endpoint: string;
+  status: "checking" | "online" | "protected" | "offline";
+  httpStatus?: number;
+  detail: string;
+};
+
 function formatValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
   return String(value);
@@ -47,18 +56,83 @@ function DashboardCard({
   );
 }
 
+const initialModuleStatuses: ModuleStatus[] = [
+  {
+    key: "vendor",
+    label: "Vendor Governance",
+    endpoint: "/api/analytics/vendors",
+    status: "checking",
+    detail: "Vendor analytics and governance readiness",
+  },
+  {
+    key: "capa",
+    label: "CAPA Workflow",
+    endpoint: "/api/capa",
+    status: "checking",
+    detail: "Corrective action workflow availability",
+  },
+  {
+    key: "audit",
+    label: "Audit Command Center",
+    endpoint: "/api/enterprise/audit/events?limit=1",
+    status: "checking",
+    detail: "Enterprise audit trail availability",
+  },
+  {
+    key: "evidence",
+    label: "Compliance Evidence",
+    endpoint: "/api/enterprise/audit/evidence-bundle/verification-summary",
+    status: "checking",
+    detail: "Evidence verification workflow availability",
+  },
+];
+
+function ModuleStatusCard({ item }: { item: ModuleStatus }) {
+  const statusStyle =
+    item.status === "online"
+      ? goodPill
+      : item.status === "protected"
+        ? warnPill
+        : item.status === "offline"
+          ? dangerPill
+          : neutralPill;
+
+  return (
+    <div style={moduleStatusCard}>
+      <div style={moduleStatusHeader}>
+        <h3 style={moduleStatusTitle}>{item.label}</h3>
+        <span style={statusStyle}>
+          {item.status === "protected" ? "protected" : item.status}
+        </span>
+      </div>
+
+      <p style={muted}>{item.detail}</p>
+
+      <div style={moduleEndpoint}>{item.endpoint}</div>
+
+      <p style={moduleHttpStatus}>
+        HTTP Status: {item.httpStatus ?? "pending"}
+      </p>
+    </div>
+  );
+}
+
 export default function DashboardApp() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [health, setHealth] = useState("checking");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [moduleStatuses, setModuleStatuses] =
+    useState<ModuleStatus[]>(initialModuleStatuses);
 
   const headers = useMemo(
     () => ({
       Authorization: `Bearer ${AUTH_TOKEN}`,
       "X-Tenant-Id": "bonsecours",
       "X-Tenant-Name": "Bon Secours",
+      "X-LumenAI-Role": "enterprise_admin",
+      "X-LumenAI-Actor": "dashboard-viewer",
     }),
     []
   );
@@ -109,6 +183,46 @@ export default function DashboardApp() {
     }
 
     loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [headers]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadModuleStatuses() {
+      const results = await Promise.all(
+        initialModuleStatuses.map(async (item) => {
+          try {
+            const response = await fetch(`${API_BASE}${item.endpoint}`, {
+              headers,
+            });
+
+            const protectedStatus = [401, 403, 422].includes(response.status);
+
+            return {
+              ...item,
+              status: response.ok ? "online" : protectedStatus ? "protected" : "offline",
+              httpStatus: response.status,
+            } as ModuleStatus;
+          } catch {
+            return {
+              ...item,
+              status: "offline",
+              httpStatus: undefined,
+            } as ModuleStatus;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setModuleStatuses(results);
+      }
+    }
+
+    loadModuleStatuses();
 
     return () => {
       cancelled = true;
@@ -208,6 +322,19 @@ export default function DashboardApp() {
           )}
         </section>
 
+
+        <section style={panel}>
+          <h2 style={panelTitle}>Live Module Status</h2>
+          <p style={muted}>
+            Real-time reachability checks for core LumenAI dashboard modules.
+          </p>
+
+          <div style={statusGrid}>
+            {moduleStatuses.map((item) => (
+              <ModuleStatusCard key={item.key} item={item} />
+            ))}
+          </div>
+        </section>
 
         <section style={panel}>
           <h2 style={panelTitle}>Compliance Evidence Module</h2>
@@ -521,4 +648,56 @@ const moduleList: React.CSSProperties = {
   color: "#334155",
   lineHeight: 1.7,
   fontSize: "14px",
+};
+
+
+const dangerPill: React.CSSProperties = {
+  ...pillBase,
+  background: "#fee2e2",
+  color: "#991b1b",
+};
+
+const statusGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: "14px",
+  marginTop: "14px",
+};
+
+const moduleStatusCard: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "14px",
+  padding: "16px",
+};
+
+const moduleStatusHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  marginBottom: "8px",
+};
+
+const moduleStatusTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "17px",
+};
+
+const moduleEndpoint: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "8px",
+  borderRadius: "8px",
+  background: "#e2e8f0",
+  color: "#334155",
+  fontFamily: "monospace",
+  fontSize: "12px",
+  overflowWrap: "anywhere",
+};
+
+const moduleHttpStatus: React.CSSProperties = {
+  marginBottom: 0,
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: 700,
 };
