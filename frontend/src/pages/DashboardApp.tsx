@@ -388,6 +388,11 @@ export default function DashboardApp() {
               Vendor Accountability Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/capa-governance">
+              CAPA Governance Portfolio
+            </a>
+
+
 
 
 

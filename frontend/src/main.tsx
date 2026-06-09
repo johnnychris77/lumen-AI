@@ -88,6 +88,11 @@ function PublicLandingHome() {
             Vendor Accountability Portfolio
           </a>
 
+          <a href="/portfolio/capa-governance" style={card}>
+            CAPA Governance Portfolio
+          </a>
+
+
 
 
 
