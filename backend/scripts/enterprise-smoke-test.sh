@@ -29,7 +29,7 @@ assert_contains() {
 wait_for_api() {
   log "Waiting for API at ${BASE_URL}"
   for i in {1..60}; do
-    if curl -fSsS "${BASE_URL}/api/health" >/dev/null 2>&1; then
+    if curl -sSsS "${BASE_URL}/api/health" >/dev/null 2>&1; then
       echo "API is healthy"
       return 0
     fi
@@ -44,11 +44,11 @@ log "Enterprise smoke test starting"
 wait_for_api
 
 log "Health check"
-curl -fSsS "${BASE_URL}/api/health"
+curl -sSsS "${BASE_URL}/api/health"
 echo
 
 log "Route table sanity check"
-OPENAPI="$(curl -fSsS "${BASE_URL}/openapi.json")"
+OPENAPI="$(curl -sSsS "${BASE_URL}/openapi.json")"
 assert_contains "$OPENAPI" "portfolio-tenants"
 assert_contains "$OPENAPI" "tenant-insights"
 assert_contains "$OPENAPI" "tenant-remediations"
@@ -61,7 +61,7 @@ assert_contains "$OPENAPI" "enterprise-access-control"
 echo "Route table contains enterprise routes"
 
 log "RBAC viewer read should pass"
-curl -fSsS "${BASE_URL}/api/portfolio-tenants" \
+curl -sSsS "${BASE_URL}/api/portfolio-tenants" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: viewer" >/dev/null
 echo "Viewer read passed"
@@ -84,7 +84,7 @@ echo "Viewer write denied as expected"
 
 log "Create portfolio tenant as operator"
 TENANT_ID="$(
-  curl -fSsS -X POST "${BASE_URL}/api/portfolio-tenants" \
+  curl -sSsS -X POST "${BASE_URL}/api/portfolio-tenants" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: operator" \
     -H "Content-Type: application/json" \
@@ -94,7 +94,7 @@ TENANT_ID="$(
 echo "TENANT_ID=${TENANT_ID}"
 
 log "Get tenant insight"
-curl -fSsS "${BASE_URL}/api/tenant-insights/${TENANT_ID}" \
+curl -sSsS "${BASE_URL}/api/tenant-insights/${TENANT_ID}" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: operator" | python -m json.tool >/tmp/lumenai_tenant_insight.json
 cat /tmp/lumenai_tenant_insight.json | grep -q "recommended_actions"
@@ -102,7 +102,7 @@ echo "Tenant insight passed"
 
 log "Create remediations from tenant insight"
 REMEDIATION_ID="$(
-  curl -fSsS -X POST "${BASE_URL}/api/tenant-remediations/from-insight/${TENANT_ID}" \
+  curl -sSsS -X POST "${BASE_URL}/api/tenant-remediations/from-insight/${TENANT_ID}" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: operator" \
   | python -c 'import sys,json; data=json.load(sys.stdin); print(data[0]["id"] if data else "")'
@@ -114,7 +114,7 @@ fi
 echo "REMEDIATION_ID=${REMEDIATION_ID}"
 
 log "Escalate remediation"
-curl -fSsS -X PATCH "${BASE_URL}/api/tenant-remediations/${REMEDIATION_ID}" \
+curl -sSsS -X PATCH "${BASE_URL}/api/tenant-remediations/${REMEDIATION_ID}" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: operator" \
   -H "Content-Type: application/json" \
@@ -122,7 +122,7 @@ curl -fSsS -X PATCH "${BASE_URL}/api/tenant-remediations/${REMEDIATION_ID}" \
 echo "Remediation escalated"
 
 log "Run executive escalation scan"
-curl -fSsS -X POST "${BASE_URL}/api/executive-escalations/run" \
+curl -sSsS -X POST "${BASE_URL}/api/executive-escalations/run" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: executive" | python -m json.tool >/tmp/lumenai_escalation_scan.json
 cat /tmp/lumenai_escalation_scan.json
@@ -130,7 +130,7 @@ echo "Escalation scan passed"
 
 log "Get first open escalation"
 ESCALATION_ID="$(
-  curl -fSsS "${BASE_URL}/api/executive-escalations/open" \
+  curl -sSsS "${BASE_URL}/api/executive-escalations/open" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: executive" \
   | python -c 'import sys,json; data=json.load(sys.stdin); print(data[0]["id"] if data else "")'
@@ -143,7 +143,7 @@ echo "ESCALATION_ID=${ESCALATION_ID}"
 
 log "Create executive decision from escalation"
 DECISION_ID="$(
-  curl -fSsS -X POST "${BASE_URL}/api/executive-decisions/from-escalation/${ESCALATION_ID}" \
+  curl -sSsS -X POST "${BASE_URL}/api/executive-decisions/from-escalation/${ESCALATION_ID}" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: executive" \
   | json_field id
@@ -151,18 +151,18 @@ DECISION_ID="$(
 echo "DECISION_ID=${DECISION_ID}"
 
 log "Approve and complete executive decision"
-curl -fSsS -X POST "${BASE_URL}/api/executive-decisions/${DECISION_ID}/approve" \
+curl -sSsS -X POST "${BASE_URL}/api/executive-decisions/${DECISION_ID}/approve" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: executive" >/dev/null
 
-curl -fSsS -X POST "${BASE_URL}/api/executive-decisions/${DECISION_ID}/complete" \
+curl -sSsS -X POST "${BASE_URL}/api/executive-decisions/${DECISION_ID}/complete" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: executive" >/dev/null
 echo "Executive decision workflow passed"
 
 log "Capture KPI snapshot"
 SNAPSHOT_ID="$(
-  curl -fSsS -X POST "${BASE_URL}/api/executive-kpi-snapshots/capture" \
+  curl -sSsS -X POST "${BASE_URL}/api/executive-kpi-snapshots/capture" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: executive" \
     -H "Content-Type: application/json" \
@@ -172,7 +172,7 @@ SNAPSHOT_ID="$(
 echo "SNAPSHOT_ID=${SNAPSHOT_ID}"
 
 log "Generate KPI narrative"
-curl -fSsS "${BASE_URL}/api/executive-kpi-scheduler/narrative" \
+curl -sSsS "${BASE_URL}/api/executive-kpi-scheduler/narrative" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: executive" | python -m json.tool >/tmp/lumenai_kpi_narrative.json
 cat /tmp/lumenai_kpi_narrative.json | grep -q "executive_summary"
@@ -180,7 +180,7 @@ echo "KPI narrative passed"
 
 log "Create governance packet"
 PACKET_ID="$(
-  curl -fSsS -X POST "${BASE_URL}/api/governance-packets" \
+  curl -sSsS -X POST "${BASE_URL}/api/governance-packets" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: executive" \
     -H "Content-Type: application/json" \
@@ -191,7 +191,7 @@ echo "PACKET_ID=${PACKET_ID}"
 
 log "Export governance packet"
 PACKET_EXPORT_ID="$(
-  curl -fSsS -X POST "${BASE_URL}/api/governance-packets/${PACKET_ID}/exports" \
+  curl -sSsS -X POST "${BASE_URL}/api/governance-packets/${PACKET_ID}/exports" \
     -H "$AUTH_HEADER" \
     -H "X-LumenAI-Role: executive" \
   | json_field id
@@ -199,7 +199,7 @@ PACKET_EXPORT_ID="$(
 echo "PACKET_EXPORT_ID=${PACKET_EXPORT_ID}"
 
 log "Deliver governance packet"
-curl -fSsS -X POST "${BASE_URL}/api/governance-packets/${PACKET_ID}/deliver" \
+curl -sSsS -X POST "${BASE_URL}/api/governance-packets/${PACKET_ID}/deliver" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: executive" \
   -H "Content-Type: application/json" \
@@ -209,7 +209,7 @@ cat /tmp/lumenai_packet_delivery.json | grep -q "sent"
 echo "Governance packet export and delivery passed"
 
 log "Validate dashboard summary"
-curl -fSsS "${BASE_URL}/api/executive-briefing-dashboard/summary" \
+curl -sSsS "${BASE_URL}/api/executive-briefing-dashboard/summary" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: executive" | python -m json.tool >/tmp/lumenai_dashboard_summary.json
 cat /tmp/lumenai_dashboard_summary.json | grep -q "enterprise_access"
@@ -218,12 +218,12 @@ cat /tmp/lumenai_dashboard_summary.json | grep -q "executive_decisions"
 echo "Dashboard summary passed"
 
 log "Validate audit and access logs"
-curl -fSsS "${BASE_URL}/api/enterprise-audit-events/rollup" \
+curl -sSsS "${BASE_URL}/api/enterprise-audit-events/rollup" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: admin" | python -m json.tool >/tmp/lumenai_audit_rollup.json
 cat /tmp/lumenai_audit_rollup.json | grep -q "total"
 
-curl -fSsS "${BASE_URL}/api/enterprise-access-control/rollup" \
+curl -sSsS "${BASE_URL}/api/enterprise-access-control/rollup" \
   -H "$AUTH_HEADER" \
   -H "X-LumenAI-Role: admin" | python -m json.tool >/tmp/lumenai_access_rollup.json
 cat /tmp/lumenai_access_rollup.json | grep -q "denied"
