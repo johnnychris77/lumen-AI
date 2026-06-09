@@ -1359,6 +1359,17 @@ function DashboardHome() {
   );
 }
 
+
+function DashboardPlaceholder() {
+  return (
+    <main style={{ padding: "32px", fontFamily: "Arial, sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f8fafc" }}>
+      <h1>LumenAI Dashboard Temporarily Disabled</h1>
+      <p>The public portfolio and evidence pages are available while the live dashboard is being stabilized.</p>
+      <p><a href="/" style={{ color: "#93c5fd" }}>Return to public landing page</a></p>
+    </main>
+  );
+}
+
 function Layout() {
   return (
     <BrowserRouter>
@@ -1558,7 +1569,7 @@ function Layout() {
 
       <Routes>
         <Route path="/" element={<PublicLandingHome />} />
-        <Route path="/dashboard" element={<DashboardHome />} />
+        <Route path="/dashboard" element={<DashboardPlaceholder />} />
         <Route path="/api/history" element={<InspectionHistory />} />
 
         <Route
