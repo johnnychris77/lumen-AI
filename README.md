@@ -1,3 +1,31 @@
+# LumenAI Enterprise Governance Suite v1.0.0
+
+## Compliance Evidence v1.0 — Public Portfolio Ready
+
+**Status:** Complete · Sealed · Tagged · Indexed · Archived · Customer-Ready
+
+**Release Tag:** `compliance-evidence-v1.0`
+
+LumenAI includes a tamper-evident enterprise compliance evidence workflow for healthcare operations, sterile processing governance, vendor accountability, audit readiness, and customer-facing trust review.
+
+### Fast Review Links
+
+- [Portfolio Landing Summary](docs/public/evidence-release-portfolio-landing-summary.md)
+- [Evidence Index](docs/public/evidence-index.md)
+- [Customer Review Packet](docs/public/evidence-release-customer-review-packet.md)
+- [Executive Summary](docs/public/evidence-release-executive-summary.md)
+- [Sales One-Pager](docs/public/evidence-release-sales-one-pager.md)
+- [Investor Brief](docs/public/evidence-release-investor-brief.md)
+- [Demo Walkthrough Guide](docs/public/evidence-release-demo-walkthrough-guide.md)
+- [Repository Seal](docs/public/evidence-release-repository-seal.md)
+
+### Demo
+
+Run the local evidence workflow demo:
+
+BASE_URL="http://127.0.0.1:8000" ./scripts/demo_compliance_evidence_bundle.sh
+
+---
 
 # LumenAI Enterprise Governance Suite v1.0.0
 
