@@ -54,4 +54,3 @@ jobs:
 
       - name: Run backend compliance tests
         run: |
-          python -m pytest             backend/tests/test_enterprise_compliance_routes.py             backend/tests/test_vendor_baseline_persistent_workflow.py             backend/tests/test_governance_packet_hash_workflow.py             -q

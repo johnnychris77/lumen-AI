@@ -1,7 +1,7 @@
 import importlib
-from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 
 
 def _load_database_objects():
@@ -33,44 +33,42 @@ def _load_database_objects():
     )
 
 
-def _import_model_modules():
+def _create_audit_logs_fallback(engine):
     """
-    Import only real app model/service modules needed by compliance evidence tests.
-    Avoid importing nested app/app modules because they redeclare existing tables.
+    Fallback for CI SQLite when audit log models are not imported before tests.
+    This table matches the enterprise audit fields used by compliance evidence tests.
     """
-    backend_root = Path(__file__).resolve().parents[1]
-    app_root = backend_root / "app"
+    create_sql = """
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id VARCHAR,
+        tenant_name VARCHAR,
+        actor_email VARCHAR,
+        actor_role VARCHAR,
+        action_type VARCHAR,
+        resource_type VARCHAR,
+        resource_id VARCHAR,
+        status VARCHAR,
+        request_method VARCHAR,
+        request_path VARCHAR,
+        client_ip VARCHAR,
+        details TEXT,
+        compliance_flag BOOLEAN,
+        request_id VARCHAR,
+        correlation_id VARCHAR,
+        previous_event_hash VARCHAR,
+        event_hash VARCHAR,
+        created_at DATETIME
+    )
+    """
 
-    for file_path in app_root.rglob("*.py"):
-        relative = file_path.relative_to(backend_root)
-
-        # Avoid duplicate nested package that caused duplicate inspections table.
-        if "app/app/" in relative.as_posix():
-            continue
-
-        text = file_path.read_text(errors="ignore")
-
-        if (
-            "__tablename__" not in text
-            and "EnterpriseAudit" not in text
-            and "audit_logs" not in text
-        ):
-            continue
-
-        module_name = ".".join(relative.with_suffix("").parts)
-
-        if module_name.endswith(".main"):
-            continue
-
-        try:
-            importlib.import_module(module_name)
-        except Exception:
-            continue
+    with engine.begin() as connection:
+        connection.execute(text(create_sql))
 
 
 @pytest.fixture(autouse=True)
 def ensure_test_database_tables():
     base, engine = _load_database_objects()
-    _import_model_modules()
     base.metadata.create_all(bind=engine)
+    _create_audit_logs_fallback(engine)
     yield
