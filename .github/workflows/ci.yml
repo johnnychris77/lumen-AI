@@ -36,10 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f backend/requirements.txt ]; then
             pip install -r backend/requirements.txt
+          python -m pip install pytest httpx ruff
           pip install pytest httpx ruff
           pip install httpx pytest ruff
           else
-            pip install fastapi uvicorn sqlalchemy pydantic pytest httpx reportlab requests python-multipart ruff
+            pip install pytest httpx ruff fastapi uvicorn sqlalchemy pydantic pytest httpx reportlab requests python-multipart ruff
           fi
           pip install ruff
 
