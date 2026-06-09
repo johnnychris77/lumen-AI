@@ -59,6 +59,11 @@ function PublicLandingHome() {
           <a href="/portfolio/capa-workflow" style={card}>
             CAPA Workflow Evidence Page
           </a>
+
+          <a href="/portfolio/live-dashboard" style={card}>
+            Live Dashboard Portfolio
+          </a>
+
         </div>
 
         <p style={{ marginTop: "28px", color: "#94a3b8" }}>

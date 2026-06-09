@@ -359,6 +359,11 @@ export default function DashboardApp() {
             <a style={moduleLink} href="/portfolio/capa-workflow">
               CAPA Workflow
             </a>
+
+            <a style={moduleLink} href="/portfolio/live-dashboard">
+              Live Dashboard Portfolio
+            </a>
+
           </div>
 
           <div style={evidenceNote}>
