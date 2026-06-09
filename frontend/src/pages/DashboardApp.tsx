@@ -396,6 +396,11 @@ export default function DashboardApp() {
               Audit Readiness Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio">
+              Portfolio Index
+            </a>
+
+
 
 
 
