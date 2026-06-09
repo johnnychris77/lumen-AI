@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 
 import pytest
 
@@ -32,15 +33,44 @@ def _load_database_objects():
     )
 
 
+def _import_model_modules():
+    """
+    Import only real app model/service modules needed by compliance evidence tests.
+    Avoid importing nested app/app modules because they redeclare existing tables.
+    """
+    backend_root = Path(__file__).resolve().parents[1]
+    app_root = backend_root / "app"
+
+    for file_path in app_root.rglob("*.py"):
+        relative = file_path.relative_to(backend_root)
+
+        # Avoid duplicate nested package that caused duplicate inspections table.
+        if "app/app/" in relative.as_posix():
+            continue
+
+        text = file_path.read_text(errors="ignore")
+
+        if (
+            "__tablename__" not in text
+            and "EnterpriseAudit" not in text
+            and "audit_logs" not in text
+        ):
+            continue
+
+        module_name = ".".join(relative.with_suffix("").parts)
+
+        if module_name.endswith(".main"):
+            continue
+
+        try:
+            importlib.import_module(module_name)
+        except Exception:
+            continue
+
+
 @pytest.fixture(autouse=True)
 def ensure_test_database_tables():
-    """
-    Ensure SQLAlchemy tables exist before each test.
-
-    This intentionally does not import every app module because this repository
-    contains a nested app/app package that can duplicate SQLAlchemy model
-    declarations during test discovery.
-    """
     base, engine = _load_database_objects()
+    _import_model_modules()
     base.metadata.create_all(bind=engine)
     yield
