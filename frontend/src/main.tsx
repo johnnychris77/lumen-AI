@@ -80,6 +80,11 @@ function PublicLandingHome() {
             Sales Readiness Portfolio
           </a>
 
+          <a href="/portfolio/compliance-evidence" style={card}>
+            Compliance Evidence Portfolio
+          </a>
+
+
 
 
 

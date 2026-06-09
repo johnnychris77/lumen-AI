@@ -380,6 +380,11 @@ export default function DashboardApp() {
               Sales Readiness Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/compliance-evidence">
+              Compliance Evidence Portfolio
+            </a>
+
+
 
 
 
