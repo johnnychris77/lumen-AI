@@ -92,6 +92,11 @@ function PublicLandingHome() {
             CAPA Governance Portfolio
           </a>
 
+          <a href="/portfolio/audit-readiness" style={card}>
+            Audit Readiness Portfolio
+          </a>
+
+
 
 
 

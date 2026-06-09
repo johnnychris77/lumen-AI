@@ -392,6 +392,11 @@ export default function DashboardApp() {
               CAPA Governance Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/audit-readiness">
+              Audit Readiness Portfolio
+            </a>
+
+
 
 
 
