@@ -262,30 +262,7 @@ type QAReviewItem = {
   qa_review_status: string;
 };
 
-type ChannelHealthItem = {
-  channel: string;
-  last_attempt_at: string | null;
-  last_attempt_sent: boolean;
-  last_status_code: string;
-  last_failure_reason: string;
-  last_dispatch_batch_id: string;
-  last_success_at: string | null;
-};
 
-type AlertAuditItem = {
-  id: number;
-  inspection_id: number;
-  vendor_name: string;
-  instrument_type: string;
-  detected_issue: string;
-  risk_score: number;
-  channel: string;
-  sent: boolean;
-  status_code: string;
-  failure_reason: string;
-  dispatch_batch_id: string;
-  created_at: string;
-};
 
 function DashboardHome() {
   const [summary, setSummary] = useState<Summary | null>(null);
