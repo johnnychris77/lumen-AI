@@ -1,18 +1,26 @@
-name: Backend Compliance Evidence Tests
+name: Backend Compliance Tests
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 jobs:
   backend-compliance-tests:
     runs-on: ubuntu-latest
 
     env:
-      DATABASE_URL: sqlite:///./backend/lumenai.db
-      PYTHONPATH: backend
+      DATABASE_URL: sqlite:///./lumenai.db
+      PYTHONPATH: .
       AUTH_MODE: dev
       DEV_AUTH_TOKEN: dev-token
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -21,20 +29,51 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-          pip install pytest httpx ruff
-          pip install httpx pytest ruff
-          pip install ruff pytest
+          if [ -f backend/requirements.txt ]; then
+            python -m pip install -r backend/requirements.txt
+          fi
+          python -m pip install pytest httpx ruff
 
       - name: Run ruff
         run: |
-          ruff check backend/app backend/tests
+          cd backend
+          ruff check app tests
 
       - name: Run backend compliance evidence tests
+        working-directory: backend
         run: |
-          python -m pytest             backend/tests/test_readme_top_level_evidence_badge.py             backend/tests/test_evidence_release_completion_lock.py             backend/tests/test_evidence_release_portfolio_landing_summary.py             backend/tests/test_evidence_release_navigation_index_polish.py             backend/tests/test_evidence_release_demo_walkthrough_guide.py             backend/tests/test_evidence_release_demo_script_polish.py             backend/tests/test_evidence_release_market_positioning_brief.py             backend/tests/test_evidence_release_sales_one_pager.py             backend/tests/test_evidence_release_investor_brief.py             backend/tests/test_evidence_release_customer_review_packet.py             backend/tests/test_evidence_release_executive_summary.py             backend/tests/test_evidence_release_repository_seal.py             backend/tests/test_evidence_release_completion_summary.py             backend/tests/test_evidence_release_completion_badge.py             backend/tests/test_evidence_release_archive_note.py             backend/tests/test_public_portfolio_readme_polish.py             backend/tests/test_final_repository_closure_summary.py             backend/tests/test_evidence_release_tag.py             backend/tests/test_public_evidence_index.py             backend/tests/test_compliance_evidence_summary.py             backend/tests/test_compliance_evidence_bundle_download.py             backend/tests/test_compliance_evidence_bundle_verification.py             backend/tests/test_compliance_evidence_bundle.py             backend/tests/test_audit_export_manifest_verification.py             backend/tests/test_audit_export_manifest.py             backend/tests/test_audit_export_verification.py             backend/tests/test_audit_export_hash.py             backend/tests/test_audit_csv_export.py             -q
+          python -m pytest \
+            tests/test_readme_top_level_evidence_badge.py \
+            tests/test_evidence_release_completion_lock.py \
+            tests/test_evidence_release_portfolio_landing_summary.py \
+            tests/test_evidence_release_navigation_index_polish.py \
+            tests/test_evidence_release_demo_walkthrough_guide.py \
+            tests/test_evidence_release_demo_script_polish.py \
+            tests/test_evidence_release_market_positioning_brief.py \
+            tests/test_evidence_release_sales_one_pager.py \
+            tests/test_evidence_release_investor_brief.py \
+            tests/test_evidence_release_customer_review_packet.py \
+            tests/test_evidence_release_executive_summary.py \
+            tests/test_evidence_release_repository_seal.py \
+            tests/test_evidence_release_completion_summary.py \
+            tests/test_evidence_release_completion_badge.py \
+            tests/test_evidence_release_archive_note.py \
+            tests/test_public_portfolio_readme_polish.py \
+            tests/test_final_repository_closure_summary.py \
+            tests/test_evidence_release_tag.py \
+            tests/test_public_evidence_index.py \
+            tests/test_compliance_evidence_summary.py \
+            tests/test_compliance_evidence_bundle_download.py \
+            tests/test_compliance_evidence_bundle_verification.py \
+            tests/test_compliance_evidence_bundle.py \
+            tests/test_audit_export_manifest_verification.py \
+            tests/test_audit_export_manifest.py \
+            tests/test_audit_export_verification.py \
+            tests/test_audit_export_hash.py \
+            tests/test_audit_csv_export.py \
+            -q
