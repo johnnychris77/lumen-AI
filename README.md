@@ -1973,6 +1973,8 @@ Evidence capabilities include:
 
 Public documentation:
 
+- [Evidence Release Completion Summary](docs/public/evidence-release-completion-summary.md)
+
 - [Evidence Release Completion Badge](docs/public/evidence-release-completion-badge.md)
 
 - [Evidence Release Archive Note](docs/public/evidence-release-archive-note.md)
