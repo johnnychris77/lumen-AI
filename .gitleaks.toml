@@ -1,0 +1,19 @@
+title = "LumenAI gitleaks allowlist"
+
+[allowlist]
+description = "Exclude generated demo, evidence, cache, and dependency artifacts from secret scanning."
+paths = [
+  '''artifacts/.*''',
+  '''backend/artifacts/.*''',
+  '''backend/lumenai.db''',
+  '''backend/.*\.db''',
+  '''frontend/node_modules/.*''',
+  '''node_modules/.*''',
+  '''\.pytest_cache/.*''',
+  '''\.venv.*/.*''',
+  '''.*demo_summary\.txt''',
+  '''.*bundle_response\.json''',
+  '''.*bundle_summary\.json''',
+  '''.*bundle_verify\.json''',
+  '''.*lumenai-compliance-evidence-bundle\.json'''
+]

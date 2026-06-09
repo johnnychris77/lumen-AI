@@ -49,7 +49,7 @@ jobs:
 
       - name: Bandit security scan
         run: |
-          bandit -r app -ll
+          bandit -r app --severity-level medium -ll
 
       - name: Python dependency vulnerability scan
         run: |
