@@ -68,6 +68,11 @@ function PublicLandingHome() {
             ERP-Style Governance Portfolio
           </a>
 
+          <a href="/portfolio/customer-demo" style={card}>
+            Enterprise Customer Demo Portfolio
+          </a>
+
+
 
         </div>
 

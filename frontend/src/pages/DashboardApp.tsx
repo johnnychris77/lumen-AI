@@ -368,6 +368,11 @@ export default function DashboardApp() {
               ERP-Style Governance Portfolio
             </a>
 
+            <a style={moduleLink} href="/portfolio/customer-demo">
+              Enterprise Customer Demo Portfolio
+            </a>
+
+
 
           </div>
 
