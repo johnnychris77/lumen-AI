@@ -264,6 +264,44 @@ type QAReviewItem = {
 
 
 
+
+function PublicLandingHome() {
+  return (
+    <main style={{ padding: "32px", fontFamily: "Arial, sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f8fafc" }}>
+      <section style={{ maxWidth: "1040px", margin: "0 auto" }}>
+        <h1 style={{ fontSize: "40px", marginBottom: "12px" }}>LumenAI Enterprise Governance Suite</h1>
+        <p style={{ fontSize: "18px", lineHeight: 1.6, color: "#cbd5e1" }}>
+          Healthcare operations intelligence platform for sterile processing governance, vendor accountability,
+          audit readiness, CAPA workflow, and tamper-evident compliance evidence.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px", marginTop: "28px" }}>
+          <a href="/portfolio/governance-hub" style={landingCard}>Enterprise Governance Portfolio Hub</a>
+          <a href="/portfolio/audit-command-center" style={landingCard}>Audit Command Center Evidence Page</a>
+          <a href="/portfolio/capa-workflow" style={landingCard}>CAPA Workflow Evidence Page</a>
+          <a href="/dashboard" style={landingCard}>Open Live Dashboard</a>
+        </div>
+
+        <p style={{ marginTop: "28px", color: "#94a3b8" }}>
+          Compliance Evidence v1.0: Complete · Sealed · Tagged · Indexed · Archived · Customer-Ready
+        </p>
+      </section>
+    </main>
+  );
+}
+
+const landingCard: React.CSSProperties = {
+  display: "block",
+  padding: "20px",
+  borderRadius: "14px",
+  background: "#1e293b",
+  color: "#93c5fd",
+  textDecoration: "none",
+  fontWeight: 700,
+  border: "1px solid #334155",
+};
+
+
 function DashboardHome() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
@@ -1519,7 +1557,8 @@ function Layout() {
       </div>
 
       <Routes>
-        <Route path="/" element={<DashboardHome />} />
+        <Route path="/" element={<PublicLandingHome />} />
+        <Route path="/dashboard" element={<DashboardHome />} />
         <Route path="/api/history" element={<InspectionHistory />} />
 
         <Route
