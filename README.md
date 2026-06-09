@@ -10,6 +10,8 @@ LumenAI includes a tamper-evident enterprise compliance evidence workflow for he
 
 ### Fast Review Links
 
+- [Evidence Release Completion Lock](docs/public/evidence-release-completion-lock.md)
+
 - [Portfolio Landing Summary](docs/public/evidence-release-portfolio-landing-summary.md)
 - [Evidence Index](docs/public/evidence-index.md)
 - [Customer Review Packet](docs/public/evidence-release-customer-review-packet.md)
