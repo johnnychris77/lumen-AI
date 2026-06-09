@@ -208,6 +208,39 @@ export default function DashboardApp() {
           )}
         </section>
 
+
+        <section style={panel}>
+          <h2 style={panelTitle}>Compliance Evidence Module</h2>
+          <p style={muted}>
+            Evidence workflow links for audit readiness, bundle verification, customer review,
+            and public portfolio proof.
+          </p>
+
+          <div style={linkGrid}>
+            <a style={moduleLink} href="/portfolio/audit-command-center">
+              Audit Command Center Evidence
+            </a>
+            <a style={moduleLink} href="/portfolio/governance-hub">
+              Governance Hub
+            </a>
+            <a style={moduleLink} href="/portfolio/governance-summary">
+              Governance Summary
+            </a>
+            <a style={moduleLink} href="/portfolio/vendor-governance">
+              Vendor Governance
+            </a>
+            <a style={moduleLink} href="/portfolio/capa-workflow">
+              CAPA Workflow
+            </a>
+          </div>
+
+          <div style={evidenceNote}>
+            <strong>Compliance Evidence v1.0:</strong> hash-backed exports, evidence bundles,
+            verification summaries, demo script, customer review packet, investor brief, and
+            portfolio landing page are available.
+          </div>
+        </section>
+
         <section style={panel}>
           <h2 style={panelTitle}>Governance Modules</h2>
           <div style={linkGrid}>
@@ -400,4 +433,15 @@ const moduleLink: React.CSSProperties = {
   borderRadius: "12px",
   textDecoration: "none",
   fontWeight: 700,
+};
+
+
+const evidenceNote: React.CSSProperties = {
+  marginTop: "16px",
+  padding: "14px",
+  borderRadius: "12px",
+  background: "#ecfeff",
+  color: "#155e75",
+  border: "1px solid #a5f3fc",
+  fontSize: "14px",
 };
