@@ -134,61 +134,63 @@
     <script>
       const API_BASE = "https://lumen-ai-53u4.onrender.com";
 
-      const modules = [
-        ["Vendor Governance", "/api/analytics/vendors", "Vendor analytics and governance readiness"],
-        ["CAPA Workflow", "/api/capa", "Corrective action workflow availability"],
-        ["Audit Command Center", "/api/enterprise/audit/events?limit=1", "Enterprise audit trail availability"],
-        ["Compliance Evidence", "/api/enterprise/audit/evidence-bundle/verification-summary", "Evidence verification workflow availability"]
-      ];
+      function classNameFor(status) {
+        if (status === "available") return "online";
+        if (status === "degraded") return "protected";
+        return "offline";
+      }
 
-      const headers = {
-        Authorization: "Bearer dev-token",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
-        "X-LumenAI-Role": "enterprise_admin",
-        "X-LumenAI-Actor": "dashboard-viewer"
-      };
-
-      function classify(status) {
-        if (status >= 200 && status < 300) return ["online", "online"];
-        if ([401, 403, 422].includes(status)) return ["protected", "protected"];
-        return ["offline", "offline"];
+      function labelFor(module) {
+        if (module.public_status === "protected") return "protected";
+        if (module.status === "available") return "online";
+        if (module.status === "degraded") return "degraded";
+        return "offline";
       }
 
       async function render() {
         const grid = document.getElementById("status-grid");
 
-        for (const [label, endpoint, detail] of modules) {
-          const card = document.createElement("article");
-          card.className = "card";
-          card.innerHTML = `
-            <h2>${label}</h2>
+        grid.innerHTML = `
+          <article class="card">
+            <h2>Loading Module Status</h2>
             <span class="pill protected">checking</span>
-            <p>${detail}</p>
-            <div class="endpoint">${endpoint}</div>
-            <p><strong>HTTP Status:</strong> pending</p>
-          `;
-          grid.appendChild(card);
+            <p>Loading public-safe LumenAI module readiness.</p>
+            <div class="endpoint">/api/public/module-status/all</div>
+            <p><strong>Status:</strong> pending</p>
+          </article>
+        `;
 
-          try {
-            const response = await fetch(API_BASE + endpoint, { headers });
-            const [statusText, className] = classify(response.status);
+        try {
+          const response = await fetch(API_BASE + "/api/public/module-status/all");
+          const data = await response.json();
+
+          grid.innerHTML = "";
+
+          for (const module of data.modules) {
+            const card = document.createElement("article");
+            const pillClass = classNameFor(module.status);
+            const label = labelFor(module);
+
+            card.className = "card";
             card.innerHTML = `
-              <h2>${label}</h2>
-              <span class="pill ${className}">${statusText}</span>
-              <p>${detail}</p>
-              <div class="endpoint">${endpoint}</div>
-              <p><strong>HTTP Status:</strong> ${response.status}</p>
+              <h2>${module.module}</h2>
+              <span class="pill ${pillClass}">${label}</span>
+              <p>${module.description}</p>
+              <div class="endpoint">/api/public/module-status/all</div>
+              <p><strong>Enterprise Auth Required:</strong> ${module.requires_authentication ? "Yes" : "No"}</p>
             `;
-          } catch {
-            card.innerHTML = `
-              <h2>${label}</h2>
-              <span class="pill offline">offline</span>
-              <p>${detail}</p>
-              <div class="endpoint">${endpoint}</div>
-              <p><strong>HTTP Status:</strong> unavailable</p>
-            `;
+            grid.appendChild(card);
           }
+        } catch {
+          grid.innerHTML = `
+            <article class="card">
+              <h2>Module Status</h2>
+              <span class="pill offline">offline</span>
+              <p>Public module status is temporarily unavailable.</p>
+              <div class="endpoint">/api/public/module-status/all</div>
+              <p><strong>Status:</strong> unavailable</p>
+            </article>
+          `;
         }
       }
 

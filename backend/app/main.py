@@ -34,6 +34,7 @@ app = FastAPI(title="LumenAI API")
 app.include_router(public_module_status_router)
 
 
+
 @app.get("/api/enterprise/audit-to-capa/summary")
 def audit_to_capa_summary():
     return {
