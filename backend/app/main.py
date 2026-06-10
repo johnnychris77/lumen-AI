@@ -1,3 +1,4 @@
+from app.routers.public_module_status import router as public_module_status_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -29,6 +30,9 @@ from app.routes.capa_trend_intelligence import router as capa_trend_intelligence
 from app.routes.vendor_trend_intelligence import router as vendor_trend_intelligence_router
 
 app = FastAPI(title="LumenAI API")
+
+app.include_router(public_module_status_router)
+
 
 @app.get("/api/enterprise/audit-to-capa/summary")
 def audit_to_capa_summary():
@@ -83,7 +87,6 @@ def audit_to_capa_summary():
         "message": "Audit-to-CAPA integration summary is ready."
     }
 
-
 @app.get("/api/capa/health")
 def direct_capa_health():
     return {
@@ -99,7 +102,6 @@ def direct_capa_health():
         "summary": persistent_capa_summary(),
         "message": "CAPA workflow backend module is deployed and healthy with persistent database storage."
     }
-
 
 @app.get("/api/enterprise/audit-command-center/pdf")
 def audit_command_center_pdf():
@@ -146,7 +148,6 @@ startxref
         headers={"Content-Disposition": "attachment; filename=lumenai-audit-command-center.pdf"}
     )
 
-
 @app.get("/api/enterprise/audit-command-center/csv")
 def audit_command_center_csv():
     csv_content = """module,status,total_checks,passed,failed,warnings,audit_events,high_value_events
@@ -157,7 +158,6 @@ enterprise_audit_command_center,healthy,18,18,0,0,696,196
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=lumenai-audit-command-center.csv"}
     )
-
 
 @app.get("/api/enterprise/audit-command-center/powerbi-csv")
 def audit_command_center_powerbi_csv():
@@ -180,7 +180,6 @@ toolkit_zip_ready,1,capability
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=lumenai-audit-command-center-powerbi.csv"}
     )
-
 
 @app.get("/api/enterprise/audit-command-center/data-dictionary/pdf")
 def audit_command_center_data_dictionary_pdf():
@@ -225,7 +224,6 @@ startxref
         headers={"Content-Disposition": "attachment; filename=lumenai-audit-command-center-data-dictionary.pdf"}
     )
 
-
 @app.get("/api/enterprise/audit-command-center/toolkit.zip")
 def audit_command_center_toolkit_zip():
     import io
@@ -246,7 +244,6 @@ def audit_command_center_toolkit_zip():
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=lumenai-audit-command-center-toolkit.zip"}
     )
-
 
 @app.get("/api/enterprise/audit-command-center/health")
 def audit_command_center_health():
@@ -274,7 +271,6 @@ def audit_command_center_health():
         "message": "Enterprise Audit Command Center final validation passed."
     }
 
-
 @app.on_event("startup")
 def bootstrap_enterprise_tables():
     # Safe startup bootstrap for hosted demo / enterprise workflow tables.
@@ -291,7 +287,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
     last_error = None
     for attempt in range(1, max_attempts + 1):
@@ -306,12 +301,10 @@ def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
             time.sleep(sleep_seconds)
     raise RuntimeError(f"Database did not become ready: {last_error}")
 
-
 @app.on_event("startup")
 async def _startup() -> None:
     wait_for_db()
     Base.metadata.create_all(bind=engine)
-
 
 app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(inspect_router, prefix=settings.API_PREFIX)
@@ -336,7 +329,6 @@ app.include_router(qa_review_router, prefix=settings.API_PREFIX)
 app.include_router(review_analytics_router, prefix=settings.API_PREFIX)
 
 app.include_router(model_performance_router, prefix=settings.API_PREFIX)
-
 
 from app.routes.site_analytics import router as site_analytics_router
 from app.routes.executive_digest import router as executive_digest_router
@@ -505,7 +497,6 @@ from app.routes.governance_sla import router as governance_sla_router
 app.include_router(governance_sla_router, prefix=settings.API_PREFIX)
 
 from app.routes.governance_sla_scanner import router as governance_sla_scanner_router
-
 
 app.include_router(governance_sla_scanner_router, prefix=settings.API_PREFIX)
 
