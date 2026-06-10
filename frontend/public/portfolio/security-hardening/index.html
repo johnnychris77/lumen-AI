@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LumenAI Security Hardening Evidence Trail</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      line-height: 1.6;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border: 1px solid #38bdf8;
+      color: #7dd3fc;
+      border-radius: 999px;
+      font-size: 13px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: 42px;
+      line-height: 1.1;
+      margin: 20px 0 16px;
+      color: #ffffff;
+    }
+    h2 {
+      margin-top: 40px;
+      color: #ffffff;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 8px;
+    }
+    .lead {
+      font-size: 18px;
+      color: #cbd5e1;
+      max-width: 900px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .card h3 {
+      margin-top: 0;
+      color: #f8fafc;
+    }
+    .card p, li {
+      color: #cbd5e1;
+    }
+    a {
+      color: #7dd3fc;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .status {
+      color: #86efac;
+      font-weight: bold;
+    }
+    footer {
+      margin-top: 48px;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <span class="badge">Security Evidence</span>
+  <h1>LumenAI Security Hardening Evidence Trail</h1>
+
+  <p class="lead">
+    LumenAI has completed its first documented security hardening release for public demo safety,
+    investor review, customer confidence, and future enterprise-production readiness.
+  </p>
+
+  <p class="status">Status: Security Hardening Release v1 documented, tested, indexed, CI-validated, and release-locked.</p>
+
+  <h2>Security Hardening Areas</h2>
+
+  <div class="grid">
+    <section class="card">
+      <h3>Public Dashboard Safety</h3>
+      <p>
+        The public dashboard no longer depends on development tokens or protected enterprise endpoints.
+        It uses public-safe module status endpoints.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>Tenant Isolation</h3>
+      <p>
+        Tenant isolation planning and baseline leakage tests were added to prevent public or cross-tenant exposure.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>Evidence Bundle Protection</h3>
+      <p>
+        Evidence bundle authorization hardening was documented for generation, download, verification,
+        manifest integrity, and audit logging.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>Production Error Safety</h3>
+      <p>
+        Standardized production error response policy and safe error helpers were added to reduce
+        stack trace, database, and internal detail exposure.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>CORS Hardening</h3>
+      <p>
+        CORS configuration was hardened with production-safe defaults and validation tests.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>CI Security Validation</h3>
+      <p>
+        GitHub Actions security validation was added to help prevent regression of security controls.
+      </p>
+    </section>
+  </div>
+
+  <h2>Evidence Documents</h2>
+
+  <ul>
+    <li>Security vulnerability reduction plan</li>
+    <li>Security hardening checklist</li>
+    <li>Threat model</li>
+    <li>RBAC matrix</li>
+    <li>Public module status API design</li>
+    <li>CORS hardening plan</li>
+    <li>Tenant isolation plan</li>
+    <li>Enterprise tenant isolation test matrix</li>
+    <li>Evidence bundle authorization hardening plan</li>
+    <li>Production error response policy</li>
+    <li>Production dev-auth removal plan</li>
+    <li>Protected endpoint authentication baseline</li>
+    <li>Security hardening evidence index</li>
+    <li>Security hardening CI validation</li>
+    <li>Security hardening release lock</li>
+  </ul>
+
+  <h2>Validation Snapshot</h2>
+
+  <div class="card">
+    <h3>Security Test Coverage</h3>
+    <p>
+      Security tests validate public module status safety, CORS configuration, public endpoint tenant leakage,
+      safe error responses, protected endpoint authentication baseline, and public dashboard auth safety.
+    </p>
+    <p class="status">Latest local validation: 12 passed.</p>
+  </div>
+
+  <h2>Enterprise Readiness Position</h2>
+
+  <p>
+    This security hardening release does not claim full enterprise-production readiness. It establishes the first
+    formal hardening layer and a clear roadmap toward JWT authentication, server-side tenant claims, object-level
+    authorization, and evidence bundle enforcement.
+  </p>
+
+  <p>
+    <a href="/portfolio/">Back to Portfolio</a>
+  </p>
+
+  <footer>
+    LumenAI Security Hardening Evidence Trail v1
+  </footer>
+</main>
+</body>
+</html>

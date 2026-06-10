@@ -2142,3 +2142,15 @@ Frontend build:
 Portfolio route validation:
 
 - `./scripts/validate_portfolio_routes.sh http://localhost:5173`
+
+
+## Security Hardening Evidence
+
+LumenAI includes a documented security hardening evidence trail for investor review, customer demo safety, and future enterprise-production readiness.
+
+Public security evidence page:
+
+- `/portfolio/security-hardening/`
+
+Security hardening coverage includes public dashboard safety, CORS hardening, tenant isolation planning, evidence bundle authorization hardening, standardized production error responses, production dev-auth removal planning, protected endpoint authentication baseline testing, and GitHub Actions security validation.
+
