@@ -1,200 +1,608 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LumenAI Live Dashboard</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #f8fafc;
-        color: #0f172a;
-      }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LumenAI Enterprise Intelligence Dashboard</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: #0f172a;
+      --panel-2: #111827;
+      --border: #26364f;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --soft: #cbd5e1;
+      --blue: #38bdf8;
+      --green: #86efac;
+      --amber: #facc15;
+      --red: #f87171;
+      --purple: #c084fc;
+    }
 
-      main {
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 32px 24px;
-      }
+    * { box-sizing: border-box; }
 
-      h1 {
-        font-size: 40px;
-        margin-bottom: 8px;
-      }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, .16), transparent 34%),
+        radial-gradient(circle at top right, rgba(192, 132, 252, .12), transparent 30%),
+        var(--bg);
+      color: var(--text);
+    }
 
-      p {
-        color: #475569;
-        font-size: 17px;
-        line-height: 1.6;
-      }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
-      .badge {
-        display: inline-block;
-        background: #dcfce7;
-        color: #166534;
-        padding: 8px 12px;
-        border-radius: 999px;
-        font-weight: 700;
-        margin: 12px 0 24px;
-      }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
 
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
-        margin-top: 20px;
-      }
+    aside {
+      border-right: 1px solid var(--border);
+      background: rgba(15, 23, 42, .82);
+      padding: 28px 20px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
 
-      .card {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-      }
+    .brand {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -.03em;
+      margin-bottom: 6px;
+    }
 
-      .card h2 {
-        margin-top: 0;
-        font-size: 20px;
-      }
+    .brand span { color: var(--blue); }
 
-      .pill {
-        display: inline-block;
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-weight: 700;
-        font-size: 13px;
-      }
+    .subbrand {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
 
-      .online {
-        background: #dcfce7;
-        color: #166534;
-      }
+    nav a {
+      display: block;
+      padding: 11px 12px;
+      border-radius: 12px;
+      color: var(--soft);
+      margin-bottom: 8px;
+      border: 1px solid transparent;
+    }
 
-      .protected {
-        background: #fef3c7;
-        color: #92400e;
-      }
+    nav a:hover {
+      background: #111827;
+      border-color: var(--border);
+      text-decoration: none;
+    }
 
-      .offline {
-        background: #fee2e2;
-        color: #991b1b;
-      }
+    .nav-note {
+      margin-top: 28px;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(56, 189, 248, .08);
+      border: 1px solid rgba(56, 189, 248, .32);
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
 
-      .endpoint {
-        margin-top: 12px;
-        padding: 8px;
-        border-radius: 8px;
-        background: #e2e8f0;
-        font-family: monospace;
-        font-size: 12px;
-        overflow-wrap: anywhere;
-      }
+    main {
+      padding: 34px;
+      max-width: 1500px;
+      width: 100%;
+    }
 
-      .links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 28px;
-      }
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      align-items: flex-start;
+      margin-bottom: 26px;
+    }
 
-      .button {
-        background: #2563eb;
-        color: white;
-        padding: 12px 16px;
-        border-radius: 12px;
-        text-decoration: none;
-        font-weight: 700;
-      }
-    </style>
-  </head>
+    .eyebrow {
+      display: inline-block;
+      padding: 6px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, .5);
+      color: #7dd3fc;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 14px;
+    }
 
-  <body>
-    <main>
-      <h1>LumenAI Live Dashboard</h1>
-      <div class="badge">Static Dashboard Route Active</div>
+    h1 {
+      font-size: 44px;
+      line-height: 1.05;
+      margin: 0 0 12px;
+      letter-spacing: -.04em;
+    }
 
-      <p>
-        This deployed dashboard page confirms that the public `/dashboard` route is reachable.
-        It provides live endpoint reachability checks for the core LumenAI governance modules.
-      </p>
+    .lead {
+      color: var(--soft);
+      max-width: 880px;
+      line-height: 1.65;
+      font-size: 16px;
+      margin: 0;
+    }
 
-      <section class="grid" id="status-grid"></section>
+    .status-box {
+      min-width: 300px;
+      background: rgba(17, 24, 39, .86);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+    }
 
-      <div class="links">
-        <a class="button" href="/">Public Landing</a>
-        <a class="button" href="/portfolio">Portfolio Index</a>
-        <a class="button" href="/portfolio/customer-demo">Customer Demo</a>
-        <a class="button" href="/portfolio/compliance-evidence">Compliance Evidence</a>
-        <a class="button" href="/portfolio/audit-readiness">Audit Readiness</a>
+    .status-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--green);
+    }
+
+    .status-box p {
+      color: var(--muted);
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .kpi {
+      background: rgba(15, 23, 42, .9);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+    }
+
+    .kpi .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .kpi .value {
+      font-size: 30px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .kpi .caption {
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .section-title {
+      margin: 36px 0 14px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .section-title h2 {
+      font-size: 24px;
+      margin: 0;
+    }
+
+    .section-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .module-card, .panel {
+      background: rgba(17, 24, 39, .88);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+    }
+
+    .module-card h3, .panel h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    .module-card p, .panel p, .panel li {
+      color: var(--soft);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(134, 239, 172, .08);
+      color: var(--green);
+      border: 1px solid rgba(134, 239, 172, .28);
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    .pill.protected {
+      background: rgba(250, 204, 21, .08);
+      color: var(--amber);
+      border-color: rgba(250, 204, 21, .28);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .step {
+      background: rgba(15, 23, 42, .72);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 132px;
+    }
+
+    .step .num {
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .step span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .risk-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .risk {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(15, 23, 42, .72);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--soft);
+      font-size: 14px;
+    }
+
+    .risk span:last-child {
+      font-weight: 700;
+      color: var(--amber);
+      white-space: nowrap;
+    }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, .88);
+      color: var(--text);
+    }
+
+    .button.primary {
+      border-color: rgba(56, 189, 248, .45);
+      color: #7dd3fc;
+    }
+
+    footer {
+      margin-top: 42px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: relative; height: auto; }
+      .kpi-grid, .module-grid, .workflow, .evidence-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero, .two-col { grid-template-columns: 1fr; display: grid; }
+    }
+
+    @media (max-width: 700px) {
+      main { padding: 24px 16px; }
+      h1 { font-size: 34px; }
+      .kpi-grid, .module-grid, .workflow, .evidence-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand">Lumen<span>AI</span></div>
+    <div class="subbrand">Enterprise Healthcare Operations Intelligence</div>
+
+    <nav>
+      <a href="#overview">Executive Overview</a>
+      <a href="#modules">Protected Modules</a>
+      <a href="#workflow">Quality Workflow</a>
+      <a href="#risk">Risk Command Center</a>
+      <a href="#evidence">Security Evidence</a>
+      <a href="/portfolio/">Public Portfolio</a>
+      <a href="/portfolio/security-hardening/">Security Trail</a>
+    </nav>
+
+    <div class="nav-note">
+      Public-safe dashboard view. This page does not use development credentials, simulated enterprise headers,
+      protected quality routes, protected audit routes, or tenant data.
+    </div>
+  </aside>
+
+  <main>
+    <section id="overview" class="hero">
+      <div>
+        <span class="eyebrow">Enterprise Dashboard Preview</span>
+        <h1>LumenAI Quality Intelligence Command Center</h1>
+        <p class="lead">
+          A public-safe executive preview of LumenAI’s enterprise operating model for sterile processing,
+          vendor accountability, CAPA governance, audit readiness, and compliance evidence.
+        </p>
       </div>
-    </main>
 
-    <script>
-      const API_BASE = "https://lumen-ai-53u4.onrender.com";
+      <div class="status-box">
+        <strong>Security Mode: Public-Safe</strong>
+        <p id="last-updated">Loading public module status...</p>
+      </div>
+    </section>
 
-      function classNameFor(status) {
-        if (status === "available") return "online";
-        if (status === "degraded") return "protected";
-        return "offline";
+    <section class="kpi-grid">
+      <div class="kpi">
+        <div class="label">Open CAPA Governance</div>
+        <div class="value">Protected</div>
+        <div class="caption">Enterprise workflow requires authenticated access.</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Vendor Accountability</div>
+        <div class="value">Protected</div>
+        <div class="caption">Vendor records remain private and tenant-scoped.</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Audit Readiness</div>
+        <div class="value">Protected</div>
+        <div class="caption">Audit event contents are not exposed publicly.</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Evidence Bundle</div>
+        <div class="value">Protected</div>
+        <div class="caption">Evidence generation and download require authorization.</div>
+      </div>
+    </section>
+
+    <section id="modules">
+      <div class="section-title">
+        <h2>Protected Enterprise Modules</h2>
+        <p>Loaded from public-safe module status endpoint.</p>
+      </div>
+
+      <div id="module-status-grid" class="module-grid">
+        <div class="module-card"><h3>Loading modules...</h3><p>Checking public-safe status endpoint.</p></div>
+      </div>
+    </section>
+
+    <section id="workflow">
+      <div class="section-title">
+        <h2>Quality Intelligence Workflow</h2>
+        <p>Public preview of enterprise workflow logic.</p>
+      </div>
+
+      <div class="panel">
+        <div class="workflow">
+          <div class="step">
+            <div class="num">01</div>
+            <strong>Capture</strong>
+            <span>Inspection, audit, vendor issue, or quality event is recorded.</span>
+          </div>
+          <div class="step">
+            <div class="num">02</div>
+            <strong>Classify</strong>
+            <span>Risk, source, workflow type, and operational impact are categorized.</span>
+          </div>
+          <div class="step">
+            <div class="num">03</div>
+            <strong>Assign</strong>
+            <span>CAPA, vendor, quality, audit, or leadership owner is identified.</span>
+          </div>
+          <div class="step">
+            <div class="num">04</div>
+            <strong>Escalate</strong>
+            <span>SLA, repeat event, or high-risk trend drives executive visibility.</span>
+          </div>
+          <div class="step">
+            <div class="num">05</div>
+            <strong>Evidence</strong>
+            <span>Evidence bundle and audit trail support readiness and accountability.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="risk" class="two-col">
+      <div class="panel">
+        <h3>Risk Command Center</h3>
+        <p>
+          LumenAI’s enterprise dashboard is designed to convert quality events into operational visibility.
+          Protected production views will show tenant-specific trend lines, CAPA aging, vendor issue frequency,
+          repeat defects, evidence status, and audit readiness.
+        </p>
+
+        <div class="risk-list">
+          <div class="risk"><span>Bioburden / foreign material event</span><span>High</span></div>
+          <div class="risk"><span>Vendor tray defect or missing component</span><span>Medium</span></div>
+          <div class="risk"><span>Evidence bundle pending review</span><span>Medium</span></div>
+          <div class="risk"><span>CAPA approaching due date</span><span>High</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Enterprise Readiness</h3>
+        <ul>
+          <li>Public-safe preview is live.</li>
+          <li>Security hardening evidence trail is live.</li>
+          <li>CI validation supports regression control.</li>
+          <li>Protected production data remains behind auth.</li>
+          <li>Future JWT and object-level authorization remain roadmap items.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="evidence">
+      <div class="section-title">
+        <h2>Security & Compliance Evidence</h2>
+        <p>Public-safe evidence trail links.</p>
+      </div>
+
+      <div class="evidence-grid">
+        <div class="panel">
+          <h3>Security Hardening</h3>
+          <p>Public evidence trail for dashboard safety, CORS, tenant isolation, safe errors, and CI validation.</p>
+          <a href="/portfolio/security-hardening/">View Security Evidence</a>
+        </div>
+
+        <div class="panel">
+          <h3>Portfolio Index</h3>
+          <p>Executive portfolio pages for customer demo, investor review, sales readiness, and audit readiness.</p>
+          <a href="/portfolio/">View Portfolio</a>
+        </div>
+
+        <div class="panel">
+          <h3>Protected APIs</h3>
+          <p>Enterprise CAPA, audit, vendor, evidence, and tenant data APIs remain protected and are not called here.</p>
+          <span class="pill protected">Protected by design</span>
+        </div>
+      </div>
+
+      <div class="footer-links">
+        <a class="button primary" href="/portfolio/security-hardening/">Security Hardening Evidence</a>
+        <a class="button" href="/portfolio/customer-demo/">Customer Demo</a>
+        <a class="button" href="/portfolio/investor-review/">Investor Review</a>
+        <a class="button" href="/portfolio/audit-readiness/">Audit Readiness</a>
+      </div>
+    </section>
+
+    <footer>
+      LumenAI Enterprise Intelligence Dashboard Preview · Public-safe static dashboard · No development credentials · No protected enterprise data
+    </footer>
+  </main>
+</div>
+
+<script>
+  const API_BASE = window.location.hostname.includes("localhost")
+    ? "http://localhost:8000"
+    : "https://lumen-ai-53u4.onrender.com";
+
+  const moduleGrid = document.getElementById("module-status-grid");
+  const lastUpdated = document.getElementById("last-updated");
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  async function loadModuleStatus() {
+    try {
+      const response = await fetch(API_BASE + "/api/public/module-status/all");
+      if (!response.ok) throw new Error("status " + response.status);
+
+      const data = await response.json();
+      const modules = Array.isArray(data.modules) ? data.modules : [];
+
+      if (modules.length === 0) {
+        moduleGrid.innerHTML = '<div class="module-card"><h3>No modules returned</h3><p>Public status endpoint returned no module records.</p></div>';
+        return;
       }
 
-      function labelFor(module) {
-        if (module.public_status === "protected") return "protected";
-        if (module.status === "available") return "online";
-        if (module.status === "degraded") return "degraded";
-        return "offline";
-      }
-
-      async function render() {
-        const grid = document.getElementById("status-grid");
-
-        grid.innerHTML = `
-          <article class="card">
-            <h2>Loading Module Status</h2>
-            <span class="pill protected">checking</span>
-            <p>Loading public-safe LumenAI module readiness.</p>
-            <div class="endpoint">/api/public/module-status/all</div>
-            <p><strong>Status:</strong> pending</p>
+      moduleGrid.innerHTML = modules.map((item) => {
+        const name = escapeHtml(item.module_name || item.name || "Protected Module");
+        const description = escapeHtml(item.description || "Enterprise workflow protected behind authentication.");
+        const publicStatus = escapeHtml(item.public_status || "protected");
+        const status = escapeHtml(item.status || "available");
+        return `
+          <article class="module-card">
+            <h3>${name}</h3>
+            <p>${description}</p>
+            <span class="pill protected">${publicStatus}</span>
+            <span class="pill">${status}</span>
           </article>
         `;
+      }).join("");
 
-        try {
-          const response = await fetch(API_BASE + "/api/public/module-status/all");
-          const data = await response.json();
+      const checkedAt = data.checked_at || modules[0]?.checked_at;
+      lastUpdated.textContent = checkedAt
+        ? "Public module status loaded. Last checked: " + checkedAt
+        : "Public module status loaded successfully.";
+    } catch (error) {
+      moduleGrid.innerHTML = `
+        <div class="module-card">
+          <h3>Public Status Temporarily Unavailable</h3>
+          <p>The dashboard remains public-safe. Protected enterprise data is not requested by this page.</p>
+          <span class="pill protected">Protected by design</span>
+        </div>
+      `;
+      lastUpdated.textContent = "Public status endpoint unavailable. Dashboard remains safe.";
+    }
+  }
 
-          grid.innerHTML = "";
-
-          for (const module of data.modules) {
-            const card = document.createElement("article");
-            const pillClass = classNameFor(module.status);
-            const label = labelFor(module);
-
-            card.className = "card";
-            card.innerHTML = `
-              <h2>${module.module}</h2>
-              <span class="pill ${pillClass}">${label}</span>
-              <p>${module.description}</p>
-              <div class="endpoint">/api/public/module-status/all</div>
-              <p><strong>Enterprise Auth Required:</strong> ${module.requires_authentication ? "Yes" : "No"}</p>
-            `;
-            grid.appendChild(card);
-          }
-        } catch {
-          grid.innerHTML = `
-            <article class="card">
-              <h2>Module Status</h2>
-              <span class="pill offline">offline</span>
-              <p>Public module status is temporarily unavailable.</p>
-              <div class="endpoint">/api/public/module-status/all</div>
-              <p><strong>Status:</strong> unavailable</p>
-            </article>
-          `;
-        }
-      }
-
-      render();
-    </script>
-  </body>
+  loadModuleStatus();
+</script>
+</body>
 </html>
