@@ -1,0 +1,62 @@
+name: Security Hardening Validation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  security-hardening-tests:
+    name: Run LumenAI security hardening tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      DATABASE_URL: sqlite:///./lumenai_security_ci.db
+      PYTHONPATH: .
+      AUTH_MODE: dev
+      DEV_AUTH_TOKEN: dev-token
+      APP_ENV: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+          pip install pytest httpx fastapi pydantic sqlalchemy
+
+      - name: Run backend security tests
+        working-directory: backend
+        run: |
+          pytest \
+            tests/test_public_module_status.py \
+            tests/test_cors_config.py \
+            tests/test_public_endpoint_no_tenant_leakage.py \
+            tests/test_safe_error_policy.py \
+            tests/test_protected_endpoint_authentication_baseline.py \
+            -q
+
+      - name: Run frontend public dashboard auth safety test
+        working-directory: frontend
+        run: |
+          python -m pytest tests/test_dashboard_public_auth_safety.py -q
