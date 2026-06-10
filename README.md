@@ -2077,3 +2077,68 @@ Frontend:
 cd frontend
 npm run build
 
+## LumenAI Public Portfolio Directory
+
+The LumenAI public portfolio is now available through a centralized portfolio index:
+
+- `/portfolio`
+
+This portfolio directory provides one clean public review path for enterprise customers, investors, sales enablement, compliance reviewers, audit readiness teams, vendor governance leaders, and CAPA governance stakeholders.
+
+### Core Public Review Paths
+
+- `/`
+- `/dashboard`
+- `/portfolio`
+- `/portfolio/governance-hub`
+- `/portfolio/governance-summary`
+- `/portfolio/vendor-governance`
+- `/portfolio/audit-command-center`
+- `/portfolio/capa-workflow`
+- `/portfolio/live-dashboard`
+- `/portfolio/erp-style-governance`
+- `/portfolio/customer-demo`
+- `/portfolio/investor-review`
+- `/portfolio/sales-readiness`
+- `/portfolio/compliance-evidence`
+- `/portfolio/vendor-accountability`
+- `/portfolio/capa-governance`
+- `/portfolio/audit-readiness`
+
+### Portfolio Expansion v1
+
+The Portfolio Expansion v1 release adds a complete enterprise-facing public review layer for LumenAI, including:
+
+- Investor Review Portfolio
+- Sales Readiness Portfolio
+- Compliance Evidence Portfolio
+- Vendor Accountability Portfolio
+- CAPA Governance Portfolio
+- Audit Readiness Portfolio
+- Portfolio Index Page
+- Portfolio QA Checklist
+- Portfolio Route Validation Script
+- Portfolio Expansion Completion Badge
+
+### Positioning
+
+LumenAI is positioned as a healthcare operations intelligence platform with ERP-style governance for sterile processing, vendor accountability, CAPA workflow, audit readiness, compliance evidence, and executive operational visibility.
+
+### Release Documentation
+
+Portfolio release documentation is available under:
+
+- `docs/public/portfolio-expansion-release-lock.md`
+- `docs/public/portfolio-qa-checklist.md`
+- `docs/public/portfolio-expansion-completion-badge.md`
+
+### Validation
+
+Frontend build:
+
+- `cd frontend`
+- `npm run build`
+
+Portfolio route validation:
+
+- `./scripts/validate_portfolio_routes.sh http://localhost:5173`
