@@ -62,14 +62,27 @@ services:
       - key: LUMENAI_JWT_SECRET
         generateValue: true
 
+  - type: redis
+    name: lumen-ai-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: lumen-ai-1
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /dashboard
+        destination: /index.html
+      - type: rewrite
+        source: /dashboard/*
+        destination: /index.html
+
 databases:
   - name: lumen-ai-db
     plan: starter
     databaseName: lumenai
     user: lumen
-
-services:
-  - type: redis
-    name: lumen-ai-redis
-    plan: starter
-    maxmemoryPolicy: allkeys-lru
