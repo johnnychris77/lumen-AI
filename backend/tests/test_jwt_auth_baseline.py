@@ -42,3 +42,71 @@ def test_role_dependency_exists_and_blocks_missing_auth():
     response = client.get("/admin")
 
     assert response.status_code == 401
+
+
+def test_valid_hs256_jwt_creates_principal(monkeypatch):
+    import time
+    import jwt
+
+    monkeypatch.setenv("AUTH_MODE", "production")
+    monkeypatch.setenv("ENABLE_DEV_AUTH", "false")
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.delenv("JWT_ISSUER", raising=False)
+    monkeypatch.delenv("JWT_AUDIENCE", raising=False)
+
+    app = FastAPI()
+
+    @app.get("/protected-jwt")
+    def protected_route(principal=Depends(require_authenticated_user)):
+        return {
+            "user_id": principal.user_id,
+            "tenant_id": principal.tenant_id,
+            "roles": principal.roles,
+            "auth_mode": principal.auth_mode,
+        }
+
+    token = jwt.encode(
+        {
+            "sub": "user_123",
+            "tenant_id": "tenant_abc",
+            "roles": ["customer_admin"],
+            "email": "user@example.com",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 300,
+        },
+        "test-secret",
+        algorithm="HS256",
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/protected-jwt",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user_id"] == "user_123"
+    assert response.json()["tenant_id"] == "tenant_abc"
+    assert response.json()["roles"] == ["customer_admin"]
+    assert response.json()["auth_mode"] == "jwt"
+
+
+def test_invalid_hs256_jwt_returns_401(monkeypatch):
+    monkeypatch.setenv("AUTH_MODE", "production")
+    monkeypatch.setenv("ENABLE_DEV_AUTH", "false")
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+
+    app = FastAPI()
+
+    @app.get("/protected-jwt")
+    def protected_route(principal=Depends(require_authenticated_user)):
+        return {"user_id": principal.user_id}
+
+    client = TestClient(app)
+    response = client.get(
+        "/protected-jwt",
+        headers={"Authorization": "Bearer invalid.token.value"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["error"]["code"] == "AUTHENTICATION_REQUIRED"

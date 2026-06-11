@@ -27,18 +27,40 @@ def _safe_unauthorized(message: str = "Authentication is required to access this
 
 def _decode_hs256_jwt_without_external_dependency(token: str, secret: str | None) -> dict:
     """
-    Baseline placeholder decoder.
+    Decode and validate HS256 JWT tokens.
 
-    This keeps the project dependency-light for the first implementation step.
-    Production implementation should replace this with PyJWT or python-jose signature validation.
+    This baseline supports signed-token validation for production authentication
+    while keeping public-safe endpoints separate.
     """
+    import jwt
+    from jwt import InvalidTokenError
+
     if not token or token.count(".") != 2:
         raise _safe_unauthorized("Invalid authentication credentials.")
 
     if not secret:
         raise _safe_unauthorized("Authentication configuration is incomplete.")
 
-    raise _safe_unauthorized("JWT signature validation is not fully implemented yet.")
+    config = get_auth_config()
+
+    options = {
+        "verify_signature": True,
+        "verify_exp": True,
+        "verify_aud": bool(config.jwt_audience),
+        "verify_iss": bool(config.jwt_issuer),
+    }
+
+    try:
+        return jwt.decode(
+            token,
+            secret,
+            algorithms=[config.jwt_algorithm],
+            audience=config.jwt_audience,
+            issuer=config.jwt_issuer,
+            options=options,
+        )
+    except InvalidTokenError:
+        raise _safe_unauthorized("Invalid authentication credentials.")
 
 
 def get_current_principal(
