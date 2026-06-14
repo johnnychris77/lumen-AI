@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
+const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 
 const card: React.CSSProperties = {
   display: "block",
@@ -157,6 +158,14 @@ function RootRouter() {
           <DashboardApp />
         </Suspense>
       </DashboardErrorBoundary>
+    );
+  }
+
+  if (path === "/operations") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading operations...</main>}>
+        <OperationsDashboard />
+      </Suspense>
     );
   }
 
