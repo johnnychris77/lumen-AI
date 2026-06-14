@@ -117,6 +117,7 @@ export default function CapaQueuePage() {
           <a href="/operations" style={navLink}>Operations Dashboard</a>
           <a href="/inspection/new" style={navLink}>New Inspection</a>
           <a href="/findings" style={navLink}>Findings Queue</a>
+          <a href="/analytics" style={navLink}>Analytics</a>
           <a href="/" style={navLink}>Public Landing</a>
         </nav>
 
