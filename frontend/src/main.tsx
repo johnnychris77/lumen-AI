@@ -5,6 +5,7 @@ const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
+const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 
 const card: React.CSSProperties = {
   display: "block",
@@ -183,6 +184,14 @@ function RootRouter() {
     return (
       <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading findings queue...</main>}>
         <FindingsQueuePage />
+      </Suspense>
+    );
+  }
+
+  if (path === "/capa") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading CAPA queue...</main>}>
+        <CapaQueuePage />
       </Suspense>
     );
   }
