@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
+const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 
 const card: React.CSSProperties = {
   display: "block",
@@ -174,6 +175,14 @@ function RootRouter() {
     return (
       <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading inspection form...</main>}>
         <NewInspectionPage />
+      </Suspense>
+    );
+  }
+
+  if (path === "/findings") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading findings queue...</main>}>
+        <FindingsQueuePage />
       </Suspense>
     );
   }
