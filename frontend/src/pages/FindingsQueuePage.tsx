@@ -142,6 +142,7 @@ export default function FindingsQueuePage() {
           <a href="/operations" style={navLink}>Operations Dashboard</a>
           <a href="/inspection/new" style={navLink}>New Inspection</a>
           <a href="/capa" style={navLink}>CAPA Queue</a>
+          <a href="/analytics" style={navLink}>Analytics</a>
           <a href="/" style={navLink}>Public Landing</a>
         </nav>
 
