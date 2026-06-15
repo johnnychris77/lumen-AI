@@ -102,6 +102,7 @@ export default function NewInspectionPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [baselineMessage, setBaselineMessage] = useState("");
   const [captured, setCaptured] = useState<CapturedInspection | null>(null);
 
   function updateField(field: keyof FormState, value: string) {
@@ -311,6 +312,40 @@ export default function NewInspectionPage() {
             </div>
           </section>
 
+          <section style={baselineSection} aria-labelledby="baseline-match-status-title">
+            <div style={sectionHeader}>
+              <p style={sectionEyebrow}>Baseline Match Status</p>
+              <h2 id="baseline-match-status-title" style={sectionTitle}>
+                Baseline check
+              </h2>
+            </div>
+
+            <div style={baselineGrid}>
+              <StatusRow label="Instrument Match Status" value="Not Checked" />
+              <StatusRow label="Vendor Baseline Status" value="Not Checked" />
+              <StatusRow label="Baseline Source" value="None" />
+              <StatusRow label="Baseline Confidence" value="Unknown" />
+              <StatusRow label="Ranking Mode" value="Pending baseline check" />
+              <StatusRow label="Baseline Review Required" value="Unknown" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setBaselineMessage(
+                  "Baseline lookup workflow will be enabled in the next patch."
+                )
+              }
+              style={baselineButton}
+            >
+              Check Baseline Status
+            </button>
+
+            {baselineMessage ? (
+              <p style={baselineMessageStyle}>{baselineMessage}</p>
+            ) : null}
+          </section>
+
           <div style={fieldGrid}>
             <SelectField label="Finding Type" value={form.findingType} options={findingTypes} onChange={(value) => updateField("findingType", value)} required />
             <SelectField label="Risk Level" value={form.riskLevel} options={riskLevels} onChange={(value) => updateField("riskLevel", value)} required />
@@ -439,6 +474,15 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={statusRow}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 const pageShell: React.CSSProperties = {
   minHeight: "100vh",
   padding: "28px",
@@ -560,6 +604,48 @@ const methodButtonActive: React.CSSProperties = {
   background: "rgba(14, 165, 233, 0.22)",
   color: "#ffffff",
   boxShadow: "0 0 0 2px rgba(56, 189, 248, 0.18)",
+};
+
+const baselineSection: React.CSSProperties = {
+  margin: "18px 0",
+  padding: "18px",
+  borderRadius: "8px",
+  border: "1px solid rgba(34, 197, 94, 0.28)",
+  background: "rgba(6, 78, 59, 0.22)",
+};
+
+const baselineGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))",
+  gap: "10px",
+  marginBottom: "16px",
+};
+
+const statusRow: React.CSSProperties = {
+  display: "grid",
+  gap: "6px",
+  padding: "12px",
+  borderRadius: "8px",
+  border: "1px solid rgba(148, 163, 184, 0.24)",
+  background: "rgba(15, 23, 42, 0.78)",
+  color: "#cbd5e1",
+};
+
+const baselineButton: React.CSSProperties = {
+  minHeight: "46px",
+  border: "none",
+  borderRadius: "8px",
+  background: "#22c55e",
+  color: "#052e16",
+  fontWeight: 900,
+  padding: "0 16px",
+  cursor: "pointer",
+};
+
+const baselineMessageStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#bbf7d0",
+  fontWeight: 800,
 };
 
 const labelStyle: React.CSSProperties = {
