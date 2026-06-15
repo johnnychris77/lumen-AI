@@ -71,6 +71,15 @@ const pendingBaselineStatus = {
   baselineReviewRequired: "Yes",
 };
 
+const noApprovedBaselineStatus = {
+  instrumentMatchStatus: "Not Matched",
+  vendorBaselineStatus: "No Approved Baseline",
+  baselineSource: "None",
+  baselineConfidence: "Unknown",
+  rankingMode: "Manual review required",
+  baselineReviewRequired: "Yes",
+};
+
 const approvedBaselineIdentity = {
   vendor: "Stryker",
   instrumentName: "Kerrison Rongeur",
@@ -186,6 +195,23 @@ export default function NewInspectionPage() {
   }
 
   function checkBaselineStatus() {
+    const hasIdentityForBaselineCheck =
+      Boolean(form.barcodeValue.trim()) ||
+      Boolean(form.qrCodeValue.trim()) ||
+      Boolean(form.keydotValue.trim()) ||
+      Boolean(form.catalogNumber.trim()) ||
+      Boolean(form.modelNumber.trim()) ||
+      Boolean(form.vendor.trim()) ||
+      Boolean(form.instrumentName.trim());
+
+    if (!hasIdentityForBaselineCheck) {
+      setBaselineStatus(defaultBaselineStatus);
+      setBaselineMessage(
+        "Enter a barcode, QR code, KeyDot / 2D Dot, catalog number, model number, vendor, or instrument name before checking baseline status."
+      );
+      return;
+    }
+
     const approvedMatch = Object.entries(approvedBaselineIdentity).some(([field, approvedValue]) => {
       const value = form[field as keyof FormState];
       return (
@@ -220,8 +246,8 @@ export default function NewInspectionPage() {
       return;
     }
 
-    setBaselineStatus(defaultBaselineStatus);
-    setBaselineMessage("Baseline lookup workflow will be enabled in the next patch.");
+    setBaselineStatus(noApprovedBaselineStatus);
+    setBaselineMessage("Manual review is required before final ranking.");
   }
 
   async function submitInspection(event: FormEvent<HTMLFormElement>) {
