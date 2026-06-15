@@ -44,6 +44,34 @@ const instrumentCategories = [
   "Other",
 ];
 
+const defaultBaselineStatus = {
+  instrumentMatchStatus: "Not Checked",
+  vendorBaselineStatus: "Not Checked",
+  baselineSource: "None",
+  baselineConfidence: "Unknown",
+  rankingMode: "Pending baseline check",
+  baselineReviewRequired: "Unknown",
+};
+
+const approvedBaselineStatus = {
+  instrumentMatchStatus: "Matched",
+  vendorBaselineStatus: "Approved Baseline Found",
+  baselineSource: "Vendor Baseline",
+  baselineConfidence: "High",
+  rankingMode: "Baseline-confirmed ranking",
+  baselineReviewRequired: "No",
+};
+
+const approvedBaselineIdentity = {
+  vendor: "Stryker",
+  instrumentName: "Kerrison Rongeur",
+  barcodeValue: "STRYKER-BARCODE-001",
+  qrCodeValue: "STRYKER-QR-001",
+  keydotValue: "DOT-STR-001",
+  catalogNumber: "STR-KR-001",
+  modelNumber: "KR-45",
+};
+
 type FormState = {
   facility: string;
   department: string;
@@ -103,6 +131,7 @@ export default function NewInspectionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [baselineMessage, setBaselineMessage] = useState("");
+  const [baselineStatus, setBaselineStatus] = useState(defaultBaselineStatus);
   const [captured, setCaptured] = useState<CapturedInspection | null>(null);
 
   function updateField(field: keyof FormState, value: string) {
@@ -139,6 +168,28 @@ export default function NewInspectionPage() {
 
     setErrors(missing);
     return missing.length === 0;
+  }
+
+  function checkBaselineStatus() {
+    const match = Object.entries(approvedBaselineIdentity).some(([field, approvedValue]) => {
+      const value = form[field as keyof FormState];
+      return (
+        typeof value === "string" &&
+        value.trim().length > 0 &&
+        value.trim().toLowerCase() === approvedValue.toLowerCase()
+      );
+    });
+
+    if (match) {
+      setBaselineStatus(approvedBaselineStatus);
+      setBaselineMessage(
+        "LumenAI can compare this inspection against an approved baseline before ranking."
+      );
+      return;
+    }
+
+    setBaselineStatus(defaultBaselineStatus);
+    setBaselineMessage("Baseline lookup workflow will be enabled in the next patch.");
   }
 
   async function submitInspection(event: FormEvent<HTMLFormElement>) {
@@ -321,21 +372,17 @@ export default function NewInspectionPage() {
             </div>
 
             <div style={baselineGrid}>
-              <StatusRow label="Instrument Match Status" value="Not Checked" />
-              <StatusRow label="Vendor Baseline Status" value="Not Checked" />
-              <StatusRow label="Baseline Source" value="None" />
-              <StatusRow label="Baseline Confidence" value="Unknown" />
-              <StatusRow label="Ranking Mode" value="Pending baseline check" />
-              <StatusRow label="Baseline Review Required" value="Unknown" />
+              <StatusRow label="Instrument Match Status" value={baselineStatus.instrumentMatchStatus} />
+              <StatusRow label="Vendor Baseline Status" value={baselineStatus.vendorBaselineStatus} />
+              <StatusRow label="Baseline Source" value={baselineStatus.baselineSource} />
+              <StatusRow label="Baseline Confidence" value={baselineStatus.baselineConfidence} />
+              <StatusRow label="Ranking Mode" value={baselineStatus.rankingMode} />
+              <StatusRow label="Baseline Review Required" value={baselineStatus.baselineReviewRequired} />
             </div>
 
             <button
               type="button"
-              onClick={() =>
-                setBaselineMessage(
-                  "Baseline lookup workflow will be enabled in the next patch."
-                )
-              }
+              onClick={checkBaselineStatus}
               style={baselineButton}
             >
               Check Baseline Status
