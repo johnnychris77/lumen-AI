@@ -32,12 +32,31 @@ const findingTypes = [
 ];
 
 const riskLevels = ["Low", "Medium", "High", "Critical"];
+const captureMethods = ["Barcode", "QR Code", "KeyDot / 2D Dot", "Manual Entry"];
+const instrumentCategories = [
+  "Forceps",
+  "Scissors",
+  "Clamp",
+  "Retractor",
+  "Laparoscopic",
+  "Orthopedic",
+  "Spine",
+  "Other",
+];
 
 type FormState = {
   facility: string;
   department: string;
   trayName: string;
+  captureMethod: string;
+  barcodeValue: string;
+  qrCodeValue: string;
+  keydotValue: string;
+  catalogNumber: string;
+  modelNumber: string;
+  manufacturer: string;
   instrumentName: string;
+  instrumentCategory: string;
   vendor: string;
   findingType: string;
   riskLevel: string;
@@ -52,7 +71,15 @@ const initialForm: FormState = {
   facility: "",
   department: "",
   trayName: "",
+  captureMethod: "Barcode",
+  barcodeValue: "",
+  qrCodeValue: "",
+  keydotValue: "",
+  catalogNumber: "",
+  modelNumber: "",
+  manufacturer: "",
   instrumentName: "",
+  instrumentCategory: "",
   vendor: "",
   findingType: "",
   riskLevel: "",
@@ -82,16 +109,32 @@ export default function NewInspectionPage() {
   }
 
   function validate() {
+    const hasScannedIdentity =
+      Boolean(form.barcodeValue.trim()) ||
+      Boolean(form.qrCodeValue.trim()) ||
+      Boolean(form.keydotValue.trim());
+    const hasManualIdentity =
+      Boolean(form.catalogNumber.trim()) ||
+      Boolean(form.modelNumber.trim()) ||
+      Boolean(form.manufacturer.trim()) ||
+      Boolean(form.vendor.trim()) ||
+      Boolean(form.instrumentName.trim()) ||
+      Boolean(form.instrumentCategory.trim());
     const missing = [
       ["Facility", form.facility],
       ["Department", form.department],
       ["Tray Name", form.trayName],
-      ["Instrument Name", form.instrumentName],
       ["Finding Type", form.findingType],
       ["Risk Level", form.riskLevel],
     ]
       .filter(([, value]) => !String(value).trim())
       .map(([label]) => `${label} is required.`);
+
+    if (!hasScannedIdentity && !hasManualIdentity) {
+      missing.push(
+        "Add a barcode, QR code, KeyDot / 2D Dot value, or manual instrument details."
+      );
+    }
 
     setErrors(missing);
     return missing.length === 0;
@@ -110,7 +153,15 @@ export default function NewInspectionPage() {
       facility: form.facility,
       department: form.department,
       tray_name: form.trayName,
+      capture_method: form.captureMethod,
+      barcode_value: form.barcodeValue,
+      qr_code_value: form.qrCodeValue,
+      keydot_value: form.keydotValue,
+      catalog_number: form.catalogNumber,
+      model_number: form.modelNumber,
+      manufacturer: form.manufacturer,
       instrument_name: form.instrumentName,
+      instrument_category: form.instrumentCategory,
       vendor: form.vendor,
       finding_type: form.findingType,
       risk_level: form.riskLevel,
@@ -170,8 +221,97 @@ export default function NewInspectionPage() {
             <SelectField label="Facility" value={form.facility} options={facilities} onChange={(value) => updateField("facility", value)} required />
             <SelectField label="Department" value={form.department} options={departments} onChange={(value) => updateField("department", value)} required />
             <TextField label="Tray Name" value={form.trayName} onChange={(value) => updateField("trayName", value)} required />
-            <TextField label="Instrument Name" value={form.instrumentName} onChange={(value) => updateField("instrumentName", value)} required />
-            <TextField label="Vendor" value={form.vendor} onChange={(value) => updateField("vendor", value)} />
+          </div>
+
+          <section style={identitySection} aria-labelledby="instrument-identification-title">
+            <div style={sectionHeader}>
+              <p style={sectionEyebrow}>Instrument Identification</p>
+              <h2 id="instrument-identification-title" style={sectionTitle}>
+                Identify the instrument
+              </h2>
+            </div>
+
+            <div style={labelStyle}>
+              <span>Capture Method</span>
+              <div style={methodGrid}>
+                {captureMethods.map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => updateField("captureMethod", method)}
+                    style={
+                      form.captureMethod === method
+                        ? { ...methodButton, ...methodButtonActive }
+                        : methodButton
+                    }
+                    aria-pressed={form.captureMethod === method}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={fieldGrid}>
+              <TextField
+                label="Barcode Value"
+                value={form.barcodeValue}
+                onChange={(value) => updateField("barcodeValue", value)}
+                emphasized={form.captureMethod === "Barcode"}
+              />
+              <TextField
+                label="QR Code Value"
+                value={form.qrCodeValue}
+                onChange={(value) => updateField("qrCodeValue", value)}
+                emphasized={form.captureMethod === "QR Code"}
+              />
+              <TextField
+                label="KeyDot / 2D Dot Value"
+                value={form.keydotValue}
+                onChange={(value) => updateField("keydotValue", value)}
+                emphasized={form.captureMethod === "KeyDot / 2D Dot"}
+              />
+              <TextField
+                label="Catalog Number"
+                value={form.catalogNumber}
+                onChange={(value) => updateField("catalogNumber", value)}
+                emphasized={form.captureMethod === "Manual Entry"}
+              />
+              <TextField
+                label="Model Number"
+                value={form.modelNumber}
+                onChange={(value) => updateField("modelNumber", value)}
+                emphasized={form.captureMethod === "Manual Entry"}
+              />
+              <TextField
+                label="Manufacturer"
+                value={form.manufacturer}
+                onChange={(value) => updateField("manufacturer", value)}
+                emphasized={form.captureMethod === "Manual Entry"}
+              />
+              <TextField
+                label="Vendor"
+                value={form.vendor}
+                onChange={(value) => updateField("vendor", value)}
+                emphasized={form.captureMethod === "Manual Entry"}
+              />
+              <TextField
+                label="Instrument Name"
+                value={form.instrumentName}
+                onChange={(value) => updateField("instrumentName", value)}
+                emphasized={form.captureMethod === "Manual Entry"}
+              />
+              <SelectField
+                label="Instrument Category"
+                value={form.instrumentCategory}
+                options={instrumentCategories}
+                onChange={(value) => updateField("instrumentCategory", value)}
+                emphasized={form.captureMethod === "Manual Entry"}
+              />
+            </div>
+          </section>
+
+          <div style={fieldGrid}>
             <SelectField label="Finding Type" value={form.findingType} options={findingTypes} onChange={(value) => updateField("findingType", value)} required />
             <SelectField label="Risk Level" value={form.riskLevel} options={riskLevels} onChange={(value) => updateField("riskLevel", value)} required />
             <label style={labelStyle}>
@@ -205,7 +345,7 @@ export default function NewInspectionPage() {
           <h2 style={sideTitle}>Fast pilot capture</h2>
           <div style={stepList}>
             <div style={step}>1. Select facility and department.</div>
-            <div style={step}>2. Identify tray, instrument, and vendor.</div>
+            <div style={step}>2. Scan a barcode, QR code, KeyDot / 2D Dot, or enter details.</div>
             <div style={step}>3. Classify finding and risk.</div>
             <div style={step}>4. Add photo or notes when useful.</div>
           </div>
@@ -234,16 +374,23 @@ function TextField({
   value,
   onChange,
   required,
+  emphasized,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  emphasized?: boolean;
 }) {
   return (
-    <label style={labelStyle}>
+    <label style={emphasized ? { ...labelStyle, ...emphasizedLabel } : labelStyle}>
       <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} required={required} style={inputStyle} />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        style={emphasized ? { ...inputStyle, ...emphasizedInput } : inputStyle}
+      />
     </label>
   );
 }
@@ -254,17 +401,24 @@ function SelectField({
   options,
   onChange,
   required,
+  emphasized,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
   required?: boolean;
+  emphasized?: boolean;
 }) {
   return (
-    <label style={labelStyle}>
+    <label style={emphasized ? { ...labelStyle, ...emphasizedLabel } : labelStyle}>
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} required={required} style={inputStyle}>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        style={emphasized ? { ...inputStyle, ...emphasizedInput } : inputStyle}
+      >
         <option value="">Select {label.toLowerCase()}</option>
         {options.map((option) => (
           <option key={option} value={option}>
@@ -358,6 +512,56 @@ const fieldGrid: React.CSSProperties = {
   gap: "16px",
 };
 
+const identitySection: React.CSSProperties = {
+  margin: "18px 0",
+  padding: "18px",
+  borderRadius: "8px",
+  border: "1px solid rgba(56, 189, 248, 0.28)",
+  background: "rgba(8, 47, 73, 0.32)",
+};
+
+const sectionHeader: React.CSSProperties = {
+  marginBottom: "14px",
+};
+
+const sectionEyebrow: React.CSSProperties = {
+  margin: "0 0 6px",
+  color: "#67e8f9",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  fontSize: "12px",
+};
+
+const sectionTitle: React.CSSProperties = {
+  margin: 0,
+  color: "#ffffff",
+  fontSize: "22px",
+};
+
+const methodGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 170px), 1fr))",
+  gap: "10px",
+  marginBottom: "16px",
+};
+
+const methodButton: React.CSSProperties = {
+  minHeight: "44px",
+  borderRadius: "8px",
+  border: "1px solid rgba(148, 163, 184, 0.3)",
+  background: "rgba(15, 23, 42, 0.86)",
+  color: "#dbeafe",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const methodButtonActive: React.CSSProperties = {
+  borderColor: "#38bdf8",
+  background: "rgba(14, 165, 233, 0.22)",
+  color: "#ffffff",
+  boxShadow: "0 0 0 2px rgba(56, 189, 248, 0.18)",
+};
+
 const labelStyle: React.CSSProperties = {
   display: "grid",
   gap: "8px",
@@ -365,6 +569,10 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 800,
   fontSize: "14px",
   marginBottom: "16px",
+};
+
+const emphasizedLabel: React.CSSProperties = {
+  color: "#ffffff",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -377,6 +585,11 @@ const inputStyle: React.CSSProperties = {
   color: "#ffffff",
   padding: "11px 12px",
   fontSize: "16px",
+};
+
+const emphasizedInput: React.CSSProperties = {
+  borderColor: "#38bdf8",
+  boxShadow: "0 0 0 2px rgba(56, 189, 248, 0.14)",
 };
 
 const fileInput: React.CSSProperties = {
