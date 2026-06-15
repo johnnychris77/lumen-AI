@@ -62,6 +62,15 @@ const approvedBaselineStatus = {
   baselineReviewRequired: "No",
 };
 
+const pendingBaselineStatus = {
+  instrumentMatchStatus: "Partial Match",
+  vendorBaselineStatus: "Pending Baseline Review",
+  baselineSource: "Vendor Baseline",
+  baselineConfidence: "Medium",
+  rankingMode: "Provisional ranking",
+  baselineReviewRequired: "Yes",
+};
+
 const approvedBaselineIdentity = {
   vendor: "Stryker",
   instrumentName: "Kerrison Rongeur",
@@ -70,6 +79,12 @@ const approvedBaselineIdentity = {
   keydotValue: "DOT-STR-001",
   catalogNumber: "STR-KR-001",
   modelNumber: "KR-45",
+};
+
+const pendingBaselineIdentity = {
+  vendor: "Aesculap",
+  instrumentName: "Forceps",
+  catalogNumber: "AES-FORCEPS-DEMO",
 };
 
 type FormState = {
@@ -171,7 +186,7 @@ export default function NewInspectionPage() {
   }
 
   function checkBaselineStatus() {
-    const match = Object.entries(approvedBaselineIdentity).some(([field, approvedValue]) => {
+    const approvedMatch = Object.entries(approvedBaselineIdentity).some(([field, approvedValue]) => {
       const value = form[field as keyof FormState];
       return (
         typeof value === "string" &&
@@ -180,10 +195,27 @@ export default function NewInspectionPage() {
       );
     });
 
-    if (match) {
+    if (approvedMatch) {
       setBaselineStatus(approvedBaselineStatus);
       setBaselineMessage(
         "LumenAI can compare this inspection against an approved baseline before ranking."
+      );
+      return;
+    }
+
+    const pendingMatch = Object.entries(pendingBaselineIdentity).some(([field, pendingValue]) => {
+      const value = form[field as keyof FormState];
+      return (
+        typeof value === "string" &&
+        value.trim().length > 0 &&
+        value.trim().toLowerCase() === pendingValue.toLowerCase()
+      );
+    });
+
+    if (pendingMatch) {
+      setBaselineStatus(pendingBaselineStatus);
+      setBaselineMessage(
+        "LumenAI will rank this finding provisionally until the baseline is approved."
       );
       return;
     }
