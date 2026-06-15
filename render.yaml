@@ -80,6 +80,9 @@ services:
       - type: rewrite
         source: /dashboard/*
         destination: /index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 databases:
   - name: lumen-ai-db
