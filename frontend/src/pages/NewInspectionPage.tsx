@@ -96,6 +96,8 @@ const pendingBaselineIdentity = {
   catalogNumber: "AES-FORCEPS-DEMO",
 };
 
+type BaselineStatus = typeof defaultBaselineStatus;
+
 type FormState = {
   facility: string;
   department: string;
@@ -117,6 +119,7 @@ type FormState = {
 
 type CapturedInspection = FormState & {
   photoName: string;
+  baselineStatus: BaselineStatus;
 };
 
 const initialForm: FormState = {
@@ -146,6 +149,29 @@ function suggestedAction(riskLevel: string) {
     return "Add to findings queue for same-shift review.";
   }
   return "Log the finding and monitor for repeat trend.";
+}
+
+function instrumentIdentitySummary(inspection: CapturedInspection) {
+  if (inspection.barcodeValue.trim()) {
+    return `Barcode ${inspection.barcodeValue}`;
+  }
+  if (inspection.qrCodeValue.trim()) {
+    return `QR Code ${inspection.qrCodeValue}`;
+  }
+  if (inspection.keydotValue.trim()) {
+    return `KeyDot / 2D Dot ${inspection.keydotValue}`;
+  }
+
+  return [
+    inspection.vendor,
+    inspection.manufacturer,
+    inspection.instrumentName,
+    inspection.catalogNumber,
+    inspection.modelNumber,
+    inspection.instrumentCategory,
+  ]
+    .filter((value) => value.trim())
+    .join(" / ");
 }
 
 export default function NewInspectionPage() {
@@ -273,6 +299,12 @@ export default function NewInspectionPage() {
       instrument_name: form.instrumentName,
       instrument_category: form.instrumentCategory,
       vendor: form.vendor,
+      instrument_match_status: baselineStatus.instrumentMatchStatus,
+      baseline_status: baselineStatus.vendorBaselineStatus,
+      baseline_source: baselineStatus.baselineSource,
+      baseline_confidence: baselineStatus.baselineConfidence,
+      ranking_mode: baselineStatus.rankingMode,
+      baseline_review_required: baselineStatus.baselineReviewRequired,
       finding_type: form.findingType,
       risk_level: form.riskLevel,
       notes: form.notes,
@@ -295,7 +327,7 @@ export default function NewInspectionPage() {
     } catch {
       setMessage("Inspection captured in pilot preview mode. Backend submission is unavailable.");
     } finally {
-      setCaptured({ ...form, photoName: photo?.name || "" });
+      setCaptured({ ...form, photoName: photo?.name || "", baselineStatus });
       setSubmitting(false);
     }
   }
@@ -496,7 +528,12 @@ export default function NewInspectionPage() {
               <p style={successMessage}>{message}</p>
               <div style={summaryList}>
                 <SummaryRow label="Facility" value={captured.facility} />
+                <SummaryRow label="Capture method" value={captured.captureMethod} />
+                <SummaryRow label="Instrument identity" value={instrumentIdentitySummary(captured)} />
                 <SummaryRow label="Instrument" value={captured.instrumentName} />
+                <SummaryRow label="Baseline status" value={captured.baselineStatus.vendorBaselineStatus} />
+                <SummaryRow label="Ranking mode" value={captured.baselineStatus.rankingMode} />
+                <SummaryRow label="Baseline review required" value={captured.baselineStatus.baselineReviewRequired} />
                 <SummaryRow label="Finding type" value={captured.findingType} />
                 <SummaryRow label="Risk level" value={captured.riskLevel} />
                 <SummaryRow label="Suggested next action" value={suggestedAction(captured.riskLevel)} />
