@@ -65,3 +65,22 @@ def resolve_baseline_ranking_contract(
         "final_ranking_allowed": False,
         "review_reason": "Baseline status has not been confirmed.",
     }
+
+
+def apply_baseline_ranking_to_inspection_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    contract = resolve_baseline_ranking_contract(
+        instrument_match_status=payload.get("instrument_match_status"),
+        baseline_status=payload.get("baseline_status"),
+        baseline_confidence=payload.get("baseline_confidence"),
+    )
+
+    enriched_payload = dict(payload)
+    enriched_payload.update(
+        {
+            "ranking_mode": contract["ranking_mode"],
+            "baseline_review_required": contract["baseline_review_required"],
+            "final_ranking_allowed": contract["final_ranking_allowed"],
+            "baseline_review_reason": contract["review_reason"],
+        }
+    )
+    return enriched_payload
