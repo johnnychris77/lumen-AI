@@ -5,6 +5,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
+BASELINE_RANKING_INPUT_FIELDS = (
+    "instrument_match_status",
+    "baseline_status",
+    "baseline_confidence",
+)
+
 
 def _normalize(value: str | None) -> str:
     if value is None:
@@ -84,3 +90,9 @@ def apply_baseline_ranking_to_inspection_payload(payload: dict[str, Any]) -> dic
         }
     )
     return enriched_payload
+
+
+def apply_baseline_ranking_to_inspection_payload_if_present(payload: dict[str, Any]) -> dict[str, Any]:
+    if any(payload.get(field) not in (None, "") for field in BASELINE_RANKING_INPUT_FIELDS):
+        return apply_baseline_ranking_to_inspection_payload(payload)
+    return dict(payload)

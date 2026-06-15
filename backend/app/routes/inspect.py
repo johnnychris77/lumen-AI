@@ -3,6 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.baseline_ranking_contract import (
+    BASELINE_RANKING_INPUT_FIELDS,
+    apply_baseline_ranking_to_inspection_payload_if_present,
+)
 from app.deps import get_db
 from app.db import models
 from app.jobs.inspection_job import run_inspection
@@ -31,6 +35,20 @@ async def stream_frame(
     frame: UploadFile = File(...),
     vendor_name: str = Form("unknown"),
     site_name: str = Form("default-site"),
+    capture_method: str | None = Form(None),
+    barcode_value: str | None = Form(None),
+    qr_code_value: str | None = Form(None),
+    keydot_value: str | None = Form(None),
+    catalog_number: str | None = Form(None),
+    model_number: str | None = Form(None),
+    manufacturer: str | None = Form(None),
+    vendor: str | None = Form(None),
+    instrument_name: str | None = Form(None),
+    instrument_category: str | None = Form(None),
+    instrument_match_status: str | None = Form(None),
+    baseline_status: str | None = Form(None),
+    baseline_source: str | None = Form(None),
+    baseline_confidence: str | None = Form(None),
     tenant: dict = Depends(resolve_tenant),
     db: Session = Depends(get_db),
 ):
@@ -54,6 +72,25 @@ async def stream_frame(
     db.commit()
     db.refresh(row)
 
+    inspection_payload = apply_baseline_ranking_to_inspection_payload_if_present(
+        {
+            "capture_method": capture_method,
+            "barcode_value": barcode_value,
+            "qr_code_value": qr_code_value,
+            "keydot_value": keydot_value,
+            "catalog_number": catalog_number,
+            "model_number": model_number,
+            "manufacturer": manufacturer,
+            "vendor": vendor,
+            "instrument_name": instrument_name,
+            "instrument_category": instrument_category,
+            "instrument_match_status": instrument_match_status,
+            "baseline_status": baseline_status,
+            "baseline_source": baseline_source,
+            "baseline_confidence": baseline_confidence,
+        }
+    )
+
     record_usage_event(
         db,
         tenant_id=tenant["tenant_id"],
@@ -66,21 +103,31 @@ async def stream_frame(
 
     run_inspection(row.id, file_bytes)
 
+    has_baseline_context = any(
+        inspection_payload.get(field) not in (None, "") for field in BASELINE_RANKING_INPUT_FIELDS
+    )
+    event_payload = {
+        "inspection_id": row.id,
+        "file_name": row.file_name,
+        "vendor_name": row.vendor_name,
+        "site_name": row.site_name,
+        "status": row.status,
+    }
+    if has_baseline_context:
+        event_payload["baseline_ranking"] = inspection_payload
+
     dispatch_event(
         db,
         tenant_id=tenant["tenant_id"],
         tenant_name=tenant["tenant_name"],
         trigger_type="inspection_submitted",
-        payload={
-            "inspection_id": row.id,
-            "file_name": row.file_name,
-            "vendor_name": row.vendor_name,
-            "site_name": row.site_name,
-            "status": row.status,
-        },
+        payload=event_payload,
     )
 
-    return {
+    response = {
         "status": "queued",
         "inspection": inspection_response(row),
     }
+    if has_baseline_context:
+        response["baseline_ranking"] = inspection_payload
+    return response
