@@ -18,7 +18,9 @@ def test_approved_baseline_payload_returns_baseline_confirmed_ranking():
             "capture_method": "Barcode",
             "barcode_value": "STRYKER-BARCODE-001",
         }
+
     )
+
 assert result["final_ranking_allowed"] is False
 assert result["baseline_review_reason"] == "Baseline pending approval; ranking remains provisional."
 assert result["baseline_confidence"] == "Medium"
