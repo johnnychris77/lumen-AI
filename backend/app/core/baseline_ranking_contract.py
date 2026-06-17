@@ -12,10 +12,7 @@ BASELINE_RANKING_INPUT_FIELDS = (
 )
 
 
-def _normalize(value: str | None) -> str:
-    if value is None:
-        return ""
-   
+
  return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
 nano backend/tests/test_baseline_ranking_contract.py
 nano backend/tests/test_inspection_baseline_ranking_ingestion.py
