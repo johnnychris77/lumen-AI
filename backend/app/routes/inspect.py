@@ -28,7 +28,9 @@ def inspection_response(row: models.Inspection) -> dict:
         "site_name": row.site_name,
         "status": row.status,
     }
-
+@router.post("/baseline-ranking/audit-evidence")
+def baseline_ranking_audit_evidence(payload: dict[str, Any]) -> dict[str, Any]:
+    return build_baseline_ranking_audit_evidence(payload)
 
 @router.post("/stream/frame")
 async def stream_frame(
@@ -131,3 +133,4 @@ async def stream_frame(
     if has_baseline_context:
         response["baseline_ranking"] = inspection_payload
     return response
+from typing import Any
