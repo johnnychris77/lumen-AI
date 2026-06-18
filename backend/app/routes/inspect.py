@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.baseline_ranking_contract import (
     BASELINE_RANKING_INPUT_FIELDS,
     apply_baseline_ranking_to_inspection_payload_if_present,
+    build_baseline_ranking_audit_evidence,
 )
 from app.deps import get_db
 from app.db import models
