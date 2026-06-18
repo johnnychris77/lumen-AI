@@ -11,11 +11,24 @@ BASELINE_RANKING_INPUT_FIELDS = (
     "baseline_confidence",
 )
 
+BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
+    "capture_method",
+    "barcode_value",
+    "instrument_name",
+    "model_number",
+    "instrument_category",
+)
 
 
- return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
-nano backend/tests/test_baseline_ranking_contract.py
-nano backend/tests/test_inspection_baseline_ranking_ingestion.py
+def _coerce_optional_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return ""
+
+
+def _normalize(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", _coerce_optional_text(value).strip().lower()).strip("_")
+
 
 def resolve_baseline_ranking_contract(
     instrument_match_status: str | None,
@@ -30,6 +43,7 @@ def resolve_baseline_ranking_contract(
         and normalized_instrument_match == "matched"
     ):
         return {
+
             "instrument_match_status": instrument_match_status or "",
             "baseline_status": baseline_status or "",
             "baseline_confidence": baseline_confidence or "",
@@ -52,6 +66,7 @@ def resolve_baseline_ranking_contract(
 
     if normalized_baseline_status in {"no_approved_baseline", "baseline_not_available"}:
         return {
+
             "instrument_match_status": instrument_match_status or "",
             "baseline_status": baseline_status or "",
             "baseline_confidence": baseline_confidence or "",
@@ -62,6 +77,7 @@ def resolve_baseline_ranking_contract(
         }
 
     return {
+
         "instrument_match_status": instrument_match_status or "",
         "baseline_status": baseline_status or "",
         "baseline_confidence": baseline_confidence or "",
