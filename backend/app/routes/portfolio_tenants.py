@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -78,10 +78,11 @@ class PortfolioTenantBoardBriefingPayload(BaseModel):
 @router.post("")
 def create_tenant(
     payload: PortfolioTenantCreatePayload,
+    request: Request,
     authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return create_portfolio_tenant(db=db, **payload.model_dump())
 
 
