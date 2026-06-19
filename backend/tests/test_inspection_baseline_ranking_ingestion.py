@@ -21,20 +21,13 @@ def test_approved_baseline_payload_returns_baseline_confirmed_ranking():
 
     )
 
-assert result["final_ranking_allowed"] is False
-assert result["baseline_review_reason"] == "Baseline pending approval; ranking remains provisional."
-assert result["baseline_confidence"] == "Medium"
-assert result["final_ranking_allowed"] is False
-assert result["baseline_review_reason"] == "No approved baseline available for final ranking."
-assert result["baseline_confidence"] == "Unknown"
-   
- assert result["ranking_mode"] == "Baseline-confirmed ranking"
+    assert result["ranking_mode"] == "Baseline-confirmed ranking"
     assert result["baseline_review_required"] is False
     assert result["final_ranking_allowed"] is True
     assert result["baseline_review_reason"] == "Approved baseline matched."
+    assert result["baseline_confidence"] == "High"
     assert result["capture_method"] == "Barcode"
     assert result["barcode_value"] == "STRYKER-BARCODE-001"
-
 
 def test_pending_baseline_payload_returns_provisional_ranking():
     result = apply_baseline_ranking_to_inspection_payload_if_present(
