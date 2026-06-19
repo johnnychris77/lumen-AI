@@ -1,8 +1,7 @@
 import pytest
 
 from app.core.baseline_ranking_contract import apply_baseline_ranking_to_inspection_payload_if_present
-assert result["baseline_review_reason"] == "Approved baseline matched."
-assert result["baseline_confidence"] == "High"
+
 
 @pytest.fixture(autouse=True)
 def ensure_test_database_tables():
