@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 BASELINE_RANKING_INPUT_FIELDS = (
     "instrument_match_status",
