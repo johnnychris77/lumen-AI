@@ -17,7 +17,7 @@ def ensure_portfolio_tenant_table(db: Session) -> None:
         text(
             """
             CREATE TABLE IF NOT EXISTS portfolio_tenants (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tenant_name VARCHAR(255) NOT NULL,
                 industry VARCHAR(255) NOT NULL DEFAULT 'healthcare',
                 go_live_status VARCHAR(100) NOT NULL DEFAULT 'not_started',
@@ -31,8 +31,8 @@ def ensure_portfolio_tenant_table(db: Session) -> None:
                 executive_owner VARCHAR(255) NOT NULL DEFAULT '',
                 customer_success_owner VARCHAR(255) NOT NULL DEFAULT '',
                 notes TEXT NOT NULL DEFAULT '',
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
@@ -107,65 +107,63 @@ def create_portfolio_tenant(
         next_qbr_date=next_qbr_date,
     )
 
-    row = (
-        db.execute(
-            text(
-                """
-                INSERT INTO portfolio_tenants (
-                    tenant_name,
-                    industry,
-                    go_live_status,
-                    health_status,
-                    health_score,
-                    renewal_risk,
-                    implementation_risk,
-                    governance_exception_count,
-                    last_qbr_date,
-                    next_qbr_date,
-                    executive_owner,
-                    customer_success_owner,
-                    notes
-                )
-                VALUES (
-                    :tenant_name,
-                    :industry,
-                    :go_live_status,
-                    :health_status,
-                    :health_score,
-                    :renewal_risk,
-                    :implementation_risk,
-                    :governance_exception_count,
-                    :last_qbr_date,
-                    :next_qbr_date,
-                    :executive_owner,
-                    :customer_success_owner,
-                    :notes
-                )
-                RETURNING *
-                """
-            ),
-            {
-                "tenant_name": tenant_name,
-                "industry": industry,
-                "go_live_status": go_live_status,
-                "health_status": health_status,
-                "health_score": health_score,
-                "renewal_risk": renewal_risk,
-                "implementation_risk": implementation_risk,
-                "governance_exception_count": governance_exception_count,
-                "last_qbr_date": last_qbr_date,
-                "next_qbr_date": next_qbr_date,
-                "executive_owner": executive_owner,
-                "customer_success_owner": customer_success_owner,
-                "notes": notes,
-            },
-        )
-        .mappings()
-        .first()
+    result = db.execute(
+        text(
+            """
+            INSERT INTO portfolio_tenants (
+                tenant_name,
+                industry,
+                go_live_status,
+                health_status,
+                health_score,
+                renewal_risk,
+                implementation_risk,
+                governance_exception_count,
+                last_qbr_date,
+                next_qbr_date,
+                executive_owner,
+                customer_success_owner,
+                notes
+            )
+            VALUES (
+                :tenant_name,
+                :industry,
+                :go_live_status,
+                :health_status,
+                :health_score,
+                :renewal_risk,
+                :implementation_risk,
+                :governance_exception_count,
+                :last_qbr_date,
+                :next_qbr_date,
+                :executive_owner,
+                :customer_success_owner,
+                :notes
+            )
+            """
+        ),
+        {
+            "tenant_name": tenant_name,
+            "industry": industry,
+            "go_live_status": go_live_status,
+            "health_status": health_status,
+            "health_score": health_score,
+            "renewal_risk": renewal_risk,
+            "implementation_risk": implementation_risk,
+            "governance_exception_count": governance_exception_count,
+            "last_qbr_date": last_qbr_date,
+            "next_qbr_date": next_qbr_date,
+            "executive_owner": executive_owner,
+            "customer_success_owner": customer_success_owner,
+            "notes": notes,
+        },
     )
 
+    tenant_id = result.lastrowid
     db.commit()
-    return dict(row)
+
+    created = get_portfolio_tenant(db, int(tenant_id))
+    return created or {}
 
 
 def list_portfolio_tenants(db: Session, limit: int = 100) -> list[dict[str, Any]]:
