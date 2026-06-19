@@ -1,3 +1,4 @@
+
 BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
     "capture_method",
     "barcode_value",
@@ -5,11 +6,9 @@ BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
     "model_number",
     "instrument_category",
 )
-
-
-"""Baseline-aware ranking contract helpers."""
-
 from __future__ import annotations
+
+"""Baseline-aware ranking contract helpers.""" 
 
 import re
 from typing import Any
