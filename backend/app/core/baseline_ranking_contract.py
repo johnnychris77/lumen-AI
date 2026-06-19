@@ -1,18 +1,11 @@
-
-BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
-    "capture_method",
-    "barcode_value",
-    "instrument_name",
-    "model_number",
-    "instrument_category",
-)
 from __future__ import annotations
 
-"""Baseline-aware ranking contract helpers.""" 
+"""Baseline-aware ranking contract helpers."""
 
 import re
 from typing import Any
 
+BASELINE_RANKING_INPUT_FIELDS = (
     "instrument_match_status",
     "baseline_status",
     "baseline_confidence",
@@ -26,7 +19,6 @@ BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
     "instrument_category",
 )
 
-BASELINE_RANKING_INPUT_FIELDS = (
 
 def _coerce_optional_text(value: Any) -> str:
     if isinstance(value, str):
@@ -35,13 +27,17 @@ def _coerce_optional_text(value: Any) -> str:
 
 
 def _normalize(value: Any) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", _coerce_optional_text(value).strip().lower()).strip("_")
+    return re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        _coerce_optional_text(value).strip().lower(),
+    ).strip("_")
 
 
 def resolve_baseline_ranking_contract(
-    instrument_match_status: str | None,
-    baseline_status: str | None,
-    baseline_confidence: str | None = None,
+    instrument_match_status: Any,
+    baseline_status: Any,
+    baseline_confidence: Any = None,
 ) -> dict[str, Any]:
     normalized_instrument_match = _normalize(instrument_match_status)
     normalized_baseline_status = _normalize(baseline_status)
@@ -51,10 +47,9 @@ def resolve_baseline_ranking_contract(
         and normalized_instrument_match == "matched"
     ):
         return {
-
-            "instrument_match_status": instrument_match_status or "",
-            "baseline_status": baseline_status or "",
-            "baseline_confidence": baseline_confidence or "",
+            "instrument_match_status": _coerce_optional_text(instrument_match_status),
+            "baseline_status": _coerce_optional_text(baseline_status),
+            "baseline_confidence": _coerce_optional_text(baseline_confidence),
             "ranking_mode": "Baseline-confirmed ranking",
             "baseline_review_required": False,
             "final_ranking_allowed": True,
@@ -63,9 +58,9 @@ def resolve_baseline_ranking_contract(
 
     if normalized_baseline_status == "pending_baseline_review":
         return {
-            "instrument_match_status": instrument_match_status or "",
-            "baseline_status": baseline_status or "",
-            "baseline_confidence": baseline_confidence or "",
+            "instrument_match_status": _coerce_optional_text(instrument_match_status),
+            "baseline_status": _coerce_optional_text(baseline_status),
+            "baseline_confidence": _coerce_optional_text(baseline_confidence),
             "ranking_mode": "Provisional ranking",
             "baseline_review_required": True,
             "final_ranking_allowed": False,
@@ -74,10 +69,9 @@ def resolve_baseline_ranking_contract(
 
     if normalized_baseline_status in {"no_approved_baseline", "baseline_not_available"}:
         return {
-
-            "instrument_match_status": instrument_match_status or "",
-            "baseline_status": baseline_status or "",
-            "baseline_confidence": baseline_confidence or "",
+            "instrument_match_status": _coerce_optional_text(instrument_match_status),
+            "baseline_status": _coerce_optional_text(baseline_status),
+            "baseline_confidence": _coerce_optional_text(baseline_confidence),
             "ranking_mode": "Manual review required",
             "baseline_review_required": True,
             "final_ranking_allowed": False,
@@ -85,10 +79,9 @@ def resolve_baseline_ranking_contract(
         }
 
     return {
-
-        "instrument_match_status": instrument_match_status or "",
-        "baseline_status": baseline_status or "",
-        "baseline_confidence": baseline_confidence or "",
+        "instrument_match_status": _coerce_optional_text(instrument_match_status),
+        "baseline_status": _coerce_optional_text(baseline_status),
+        "baseline_confidence": _coerce_optional_text(baseline_confidence),
         "ranking_mode": "Pending baseline check",
         "baseline_review_required": True,
         "final_ranking_allowed": False,
@@ -113,14 +106,24 @@ def apply_baseline_ranking_to_inspection_payload(payload: dict[str, Any]) -> dic
         }
     )
     return enriched_payload
-def build_baseline_ranking_audit_evidence(payload: dict[str, object]) -> dict[str, object]:
+
+
+def apply_baseline_ranking_to_inspection_payload_if_present(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    if any(payload.get(field) not in (None, "") for field in BASELINE_RANKING_INPUT_FIELDS):
+        return apply_baseline_ranking_to_inspection_payload(payload)
+    return dict(payload)
+
+
+def build_baseline_ranking_audit_evidence(payload: dict[str, Any]) -> dict[str, Any]:
     contract = resolve_baseline_ranking_contract(
         instrument_match_status=payload.get("instrument_match_status"),
         baseline_status=payload.get("baseline_status"),
         baseline_confidence=payload.get("baseline_confidence"),
     )
 
-    evidence: dict[str, object] = {
+    evidence: dict[str, Any] = {
         "instrument_match_status": contract["instrument_match_status"],
         "baseline_status": contract["baseline_status"],
         "baseline_confidence": contract["baseline_confidence"],
@@ -132,12 +135,7 @@ def build_baseline_ranking_audit_evidence(payload: dict[str, object]) -> dict[st
 
     for field in BASELINE_RANKING_AUDIT_IDENTITY_FIELDS:
         value = payload.get(field)
-        if isinstance(value, str) and value:
-            evidence[field] = value
+        if value not in (None, ""):
+            evidence[field] = _coerce_optional_text(value)
 
     return evidence
-
-def apply_baseline_ranking_to_inspection_payload_if_present(payload: dict[str, Any]) -> dict[str, Any]:
-    if any(payload.get(field) not in (None, "") for field in BASELINE_RANKING_INPUT_FIELDS):
-        return apply_baseline_ranking_to_inspection_payload(payload)
-    return dict(payload)
