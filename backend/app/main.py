@@ -548,7 +548,7 @@ app.include_router(vendor_trend_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
 import importlib
-from app.core.cors import get_allowed_origins
+
 
 def custom_openapi():
     if app.openapi_schema is not None:
