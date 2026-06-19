@@ -542,6 +542,10 @@ app.include_router(
     portfolio_tenants_router,
     prefix=settings.API_PREFIX,
 )
+app.include_router(
+    tenant_insights_router,
+    prefix=settings.API_PREFIX,
+)
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
 app.include_router(enterprise_intake_router)
