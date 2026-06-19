@@ -1,4 +1,5 @@
 from app.routes.portfolio_tenants import router as portfolio_tenants_router
+from app.routes.tenant_insights import router as tenant_insights_router
 from app.routers.public_module_status import router as public_module_status_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
