@@ -1,3 +1,12 @@
+BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
+    "capture_method",
+    "barcode_value",
+    "instrument_name",
+    "model_number",
+    "instrument_category",
+)
+
+
 """Baseline-aware ranking contract helpers."""
 
 from __future__ import annotations
@@ -105,7 +114,29 @@ def apply_baseline_ranking_to_inspection_payload(payload: dict[str, Any]) -> dic
         }
     )
     return enriched_payload
+def build_baseline_ranking_audit_evidence(payload: dict[str, object]) -> dict[str, object]:
+    contract = resolve_baseline_ranking_contract(
+        instrument_match_status=payload.get("instrument_match_status"),
+        baseline_status=payload.get("baseline_status"),
+        baseline_confidence=payload.get("baseline_confidence"),
+    )
 
+    evidence: dict[str, object] = {
+        "instrument_match_status": contract["instrument_match_status"],
+        "baseline_status": contract["baseline_status"],
+        "baseline_confidence": contract["baseline_confidence"],
+        "ranking_mode": contract["ranking_mode"],
+        "baseline_review_required": contract["baseline_review_required"],
+        "final_ranking_allowed": contract["final_ranking_allowed"],
+        "baseline_review_reason": contract["review_reason"],
+    }
+
+    for field in BASELINE_RANKING_AUDIT_IDENTITY_FIELDS:
+        value = payload.get(field)
+        if isinstance(value, str) and value:
+            evidence[field] = value
+
+    return evidence
 
 def apply_baseline_ranking_to_inspection_payload_if_present(payload: dict[str, Any]) -> dict[str, Any]:
     if any(payload.get(field) not in (None, "") for field in BASELINE_RANKING_INPUT_FIELDS):
