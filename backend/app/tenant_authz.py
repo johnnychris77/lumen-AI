@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.db import models
@@ -106,8 +106,6 @@ def require_tenant_roles(*allowed_roles: str):
     Identity is sourced from the validated bearer token — never from
     caller-controlled request headers.
     """
-    from fastapi import Depends, Request
-
     from app.deps import get_db
 
     allowed = {role for role in allowed_roles if role}

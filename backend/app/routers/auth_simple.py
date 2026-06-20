@@ -1,11 +1,33 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import os
+import time
+import threading
 import jwt
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from pydantic import BaseModel
 from passlib.hash import bcrypt
 from sqlalchemy import create_engine, text
+
+_rate_lock = threading.Lock()
+_rate_buckets: dict[str, tuple[int, float]] = {}  # ip → (count, window_start)
+_RATE_LIMIT = int(os.getenv("LOGIN_RATE_LIMIT", "10"))
+_RATE_WINDOW = 60.0  # seconds
+
+
+def _check_rate_limit(ip: str) -> None:
+    now = time.monotonic()
+    with _rate_lock:
+        count, window_start = _rate_buckets.get(ip, (0, now))
+        if now - window_start >= _RATE_WINDOW:
+            count, window_start = 0, now
+        count += 1
+        _rate_buckets[ip] = (count, window_start)
+    if count > _RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
 
 SECRET_KEY = os.getenv("SECRET_KEY") or ""
 if not SECRET_KEY:
@@ -42,6 +64,7 @@ def _verify_user(u: str, password: str) -> Optional[str]:
 
 @router.post("/login")
 async def login(request: Request, username: Optional[str] = Form(None), password: Optional[str] = Form(None)):
+    _check_rate_limit(request.client.host if request.client else "unknown")
     user = username
     pwd = password
     if not (user and pwd):
