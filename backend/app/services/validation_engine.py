@@ -302,6 +302,126 @@ def compute_validation_report(
     }
 
 
+READER_PROFILES = {
+    "technician_entry": {
+        "recall_mean": 0.79,
+        "recall_std": 0.06,
+        "precision_mean": 0.81,
+        "precision_std": 0.05,
+    },
+    "technician_senior": {
+        "recall_mean": 0.87,
+        "recall_std": 0.04,
+        "precision_mean": 0.88,
+        "precision_std": 0.04,
+    },
+    "educator": {
+        "recall_mean": 0.93,
+        "recall_std": 0.03,
+        "precision_mean": 0.92,
+        "precision_std": 0.03,
+    },
+    "manager": {
+        "recall_mean": 0.85,
+        "recall_std": 0.05,
+        "precision_mean": 0.86,
+        "precision_std": 0.04,
+    },
+    "infection_prevention": {
+        "recall_mean": 0.88,
+        "recall_std": 0.04,
+        "precision_mean": 0.89,
+        "precision_std": 0.04,
+    },
+}
+
+
+def simulate_reader_study(
+    tenant_id: str, run_label: str = "simulated-study", db=None
+) -> dict:
+    """Generate synthetic MRMC reader study data across all finding categories and reader roles."""
+    summary_by_role: dict = {role: {"recalls": [], "precisions": []} for role in READER_PROFILES}
+    total_cases = 0
+    ai_wins = 0
+
+    for cat in FINDING_CATEGORIES:
+        is_critical = cat in CRITICAL_FINDINGS
+        ai_recall = 0.92 if is_critical else 0.88
+
+        for role, profile in READER_PROFILES.items():
+            rng = _seed(f"reader:{tenant_id}:{run_label}:{cat}:{role}")
+            recall = min(0.99, max(0.6, rng.gauss(profile["recall_mean"], profile["recall_std"])))
+            precision = min(0.99, max(0.6, rng.gauss(profile["precision_mean"], profile["precision_std"])))
+            summary_by_role[role]["recalls"].append(recall)
+            summary_by_role[role]["precisions"].append(precision)
+
+            if ai_recall > recall:
+                ai_wins += 1
+
+            if db is not None:
+                try:
+                    from app.models.validation import ValidationCase  # noqa: PLC0415
+
+                    for i in range(100):
+                        gt = i < 50
+                        if gt:
+                            ai_pred = rng.random() < ai_recall
+                            human_pred = rng.random() < recall
+                        else:
+                            ai_pred = rng.random() < 0.08  # ~8% FP
+                            human_pred = rng.random() < (1 - precision)
+                        vc = ValidationCase(
+                            tenant_id=tenant_id,
+                            case_ref=f"{run_label}:{cat}:{role}:{i}",
+                            instrument_category="general",
+                            finding_category=cat,
+                            ground_truth=gt,
+                            ai_prediction=ai_pred,
+                            human_prediction=human_pred,
+                            reader_role=role,
+                            is_critical=is_critical,
+                        )
+                        db.add(vc)
+                    db.commit()
+                except Exception:
+                    pass
+
+            total_cases += 100
+
+    role_summary = {}
+    for role, vals in summary_by_role.items():
+        avg_recall = sum(vals["recalls"]) / len(vals["recalls"])
+        avg_precision = sum(vals["precisions"]) / len(vals["precisions"])
+        avg_f1 = (
+            2 * avg_precision * avg_recall / (avg_precision + avg_recall)
+            if (avg_precision + avg_recall) > 0
+            else 0.0
+        )
+        role_summary[role] = {
+            "avg_recall": round(avg_recall, 4),
+            "avg_precision": round(avg_precision, 4),
+            "avg_f1": round(avg_f1, 4),
+        }
+
+    best_human_recall = max(
+        role_summary[r]["avg_recall"] for r in role_summary
+    )
+    kappa_gap = round(0.92 - best_human_recall, 4)
+
+    return {
+        "run_label": run_label,
+        "data_source": "simulated_study",
+        "categories_simulated": len(FINDING_CATEGORIES),
+        "readers_simulated": len(READER_PROFILES),
+        "total_cases": total_cases,
+        "summary_by_role": role_summary,
+        "ai_vs_best_human": {
+            "kappa_gap": kappa_gap,
+            "ai_wins_categories": ai_wins,
+        },
+    }
+
+
 def list_validation_cases(
     tenant_id: str,
     finding_category: str = "",
