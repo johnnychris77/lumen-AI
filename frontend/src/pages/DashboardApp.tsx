@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CVInspectionDashboard } from "@/components/CVInspectionDashboard";
 import { EnterpriseBenchmarkDashboard } from "@/components/EnterpriseBenchmarkDashboard";
 import VendorIntelligenceDashboard from "@/components/VendorIntelligenceDashboard";
+import { PredictiveAnalyticsDashboard } from "@/components/PredictiveAnalyticsDashboard";
 import ManufacturerPortal from "@/pages/ManufacturerPortal";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useTierUpgrade } from "@/hooks/useTierUpgrade";
@@ -521,6 +522,11 @@ export default function DashboardApp() {
         {/* P6: Vendor Intelligence Exchange & Manufacturer Collaboration Network */}
         <section style={panel}>
           <VendorIntelligenceDashboard />
+        </section>
+
+        {/* P7: Predictive Instrument Failure Analytics */}
+        <section style={panel}>
+          <PredictiveAnalyticsDashboard />
         </section>
 
         <section style={threeColumnGrid}>

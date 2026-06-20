@@ -63,6 +63,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.vendor_intelligence")  # register P6 intelligence tables
     importlib.import_module("app.models.payment_event")        # register PaymentEvent table
     importlib.import_module("app.models.tenant_plan")          # register TenantPlan table
+    importlib.import_module("app.models.predictions")          # register P7 prediction tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     yield
@@ -603,6 +604,9 @@ app.include_router(manufacturer_portal_router)
 
 from app.routes.benchmarking import router as benchmarking_router
 app.include_router(benchmarking_router)
+
+from app.routes.predictions import router as predictions_router
+app.include_router(predictions_router)
 
 from fastapi.openapi.utils import get_openapi
 
