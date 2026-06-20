@@ -724,7 +724,10 @@ return (
 
           <button
             type="button"
-            onClick={() => handleViewGovernancePacketCertificate(1)}
+            onClick={() => {
+              const id = packetFindingId.trim() || "1";
+              window.open(`${API_BASE}/api/enterprise/intake/${id}/governance-packet`, "_blank");
+            }}
             style={{
               border: "1px solid #0f766e",
               borderRadius: "999px",
@@ -738,10 +741,7 @@ return (
             View Certificate
           </button>
 
-
-          <button type="button" onClick={loadExportHistory} style=
-
-{exportHistoryButtonStyle}>
+          <button type="button" onClick={loadExportHistory} style={exportHistoryButtonStyle}>
             View Export History
           </button>
         </div>
