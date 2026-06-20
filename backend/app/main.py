@@ -570,12 +570,14 @@ from app.routes.portfolio_briefing_exports import router as portfolio_briefing_e
 from app.routes.portfolio_tenants import router as portfolio_tenants_router
 from app.routes.tenant_insights import router as tenant_insights_router
 from app.routes.enterprise_intake import router as enterprise_intake_router
+from app.routes.ranking import router as ranking_router
 
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_tenants_router, prefix=settings.API_PREFIX)
 app.include_router(tenant_insights_router, prefix=settings.API_PREFIX)
 app.include_router(enterprise_intake_router)
+app.include_router(ranking_router)
 app.include_router(governance_intelligence_router)
 app.include_router(vendor_performance_scorecard_router)
 app.include_router(power_bi_executive_analytics_router)
