@@ -557,6 +557,7 @@ app.include_router(vendor_trend_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
 import importlib
+import os
 
 
 def custom_openapi():
@@ -570,5 +571,8 @@ def custom_openapi():
     )
     return app.openapi_schema
 
-app.openapi_schema = None
-app.openapi = custom_openapi
+
+_app_env = os.getenv("APP_ENV", "development").strip().lower()
+if _app_env not in {"production", "prod"}:
+    app.openapi_schema = None
+    app.openapi = custom_openapi

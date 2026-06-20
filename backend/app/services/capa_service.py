@@ -204,7 +204,7 @@ def capa_summary() -> Dict:
     init_capa_db()
 
     with _connect() as conn:
-        total = conn.execute("SELECT COUNT(*) AS count FROM capas").fetchone()["count"]
+        total = conn.execute("SELECT COUNT(*) AS count FROM capas").fetchone()["count"]  # nosec B608
 
         open_count = conn.execute(
             "SELECT COUNT(*) AS count FROM capas WHERE status = ?",

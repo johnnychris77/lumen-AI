@@ -6,7 +6,7 @@ from app.services.audit_export_verification_service import (
     verify_audit_export_manifest_hash,
 )
 from app.services.audit_export_service import export_audit_events_csv, record_audit_export_event
-from app.enterprise_auth import require_audit_chain_verify
+from app.enterprise_auth import require_audit_chain_verify, require_enterprise_auth
 
 from app.services.audit_query_service import query_audit_events
 from app.services.audit_chain_verification_service import verify_audit_chain
@@ -292,6 +292,7 @@ def create_enterprise_intake(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_hospital_or_enterprise_admin(request)
     facility = EnterpriseFacility(
         tenant_id=payload.tenant_id,
         name=payload.facility_name,
@@ -437,9 +438,11 @@ def create_enterprise_intake(
 
 @router.get("/intake/history", response_model=EnterpriseIntakeHistoryResponse)
 def list_enterprise_intake_history(
+    request: Request,
     limit: int = 25,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     limit = max(1, min(limit, 100))
 
     findings = (
@@ -1348,9 +1351,11 @@ def get_enterprise_governance_export_history(
 
 @router.get("/audit-trail", response_model=EnterpriseAuditTrailResponse)
 def list_enterprise_audit_trail(
+    request: Request,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     limit = max(1, min(limit, 100))
 
     rows = (
@@ -1398,6 +1403,7 @@ def review_enterprise_finding(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_hospital_or_enterprise_admin(request)
     from fastapi import HTTPException
 
     allowed_decisions = {
@@ -1477,6 +1483,7 @@ def create_enterprise_capa(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_hospital_or_enterprise_admin(request)
     from fastapi import HTTPException
 
     finding = db.get(EnterpriseFinding, finding_id)
@@ -1572,9 +1579,11 @@ def create_enterprise_capa(
 
 @router.get("/capas", response_model=EnterpriseCapaListResponse)
 def list_enterprise_capas(
+    request: Request,
     limit: int = 25,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     limit = max(1, min(limit, 100))
 
     rows = (
@@ -1610,6 +1619,7 @@ def update_enterprise_capa_status(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_hospital_or_enterprise_admin(request)
     from fastapi import HTTPException
 
     allowed_statuses = {
@@ -1690,8 +1700,10 @@ def update_enterprise_capa_status(
 
 @router.get("/capas/summary", response_model=EnterpriseCapaSummaryResponse)
 def get_enterprise_capa_summary(
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     from datetime import datetime, timezone
 
     rows = db.query(EnterpriseCapa).all()
@@ -1755,6 +1767,7 @@ def upload_enterprise_evidence(
     notes: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
+    require_hospital_or_enterprise_admin(request)
     from fastapi import HTTPException
 
     finding = db.get(EnterpriseFinding, finding_id)
@@ -1865,6 +1878,7 @@ def download_enterprise_evidence(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     from fastapi import HTTPException
 
     evidence = db.get(EnterpriseEvidence, evidence_id)
