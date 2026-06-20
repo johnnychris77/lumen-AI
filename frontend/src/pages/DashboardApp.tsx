@@ -3,6 +3,8 @@ import { CVInspectionDashboard } from "@/components/CVInspectionDashboard";
 import { EnterpriseBenchmarkDashboard } from "@/components/EnterpriseBenchmarkDashboard";
 import VendorIntelligenceDashboard from "@/components/VendorIntelligenceDashboard";
 import ManufacturerPortal from "@/pages/ManufacturerPortal";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useTierUpgrade } from "@/hooks/useTierUpgrade";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -130,8 +132,11 @@ type BaselineKPIs = {
 };
 
 export default function DashboardApp() {
-  // Route to ManufacturerPortal when on /manufacturer path
-  if (typeof window !== "undefined" && window.location.pathname === "/manufacturer") {
+  // Route to ManufacturerPortal when on /manufacturer path or manufacturers.* subdomain
+  if (typeof window !== "undefined" && (
+    window.location.hostname.startsWith("manufacturers.") ||
+    window.location.pathname === "/manufacturer"
+  )) {
     return <ManufacturerPortal />;
   }
 
@@ -143,6 +148,7 @@ export default function DashboardApp() {
   const [moduleStatuses, setModuleStatuses] =
     useState<ModuleStatus[]>(initialModuleStatuses);
   const [baselineKPIs, setBaselineKPIs] = useState<BaselineKPIs | null>(null);
+  const { upgradeState, closeUpgrade } = useTierUpgrade();
 
   const headers = useMemo(
     () => ({
@@ -269,6 +275,7 @@ export default function DashboardApp() {
   }, [headers]);
 
   return (
+    <>
     <main style={page}>
       <section style={shell}>
         <div style={topbar}>
@@ -624,6 +631,17 @@ export default function DashboardApp() {
         </section>
       </section>
     </main>
+    {upgradeState && (
+      <UpgradeModal
+        isOpen={upgradeState.isOpen}
+        onClose={closeUpgrade}
+        currentTier={upgradeState.currentTier}
+        requiredTier={upgradeState.requiredTier}
+        feature={upgradeState.feature}
+        tenantId={AUTH_TOKEN ? "current-tenant" : ""}
+      />
+    )}
+  </>
   );
 }
 

@@ -61,6 +61,8 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.cv_inference")   # register CVInferenceRecord table
     importlib.import_module("app.models.benchmarking")   # register P5 benchmark tables
     importlib.import_module("app.models.vendor_intelligence")  # register P6 intelligence tables
+    importlib.import_module("app.models.payment_event")        # register PaymentEvent table
+    importlib.import_module("app.models.tenant_plan")          # register TenantPlan table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     yield

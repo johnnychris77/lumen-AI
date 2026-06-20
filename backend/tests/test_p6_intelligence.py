@@ -909,3 +909,63 @@ class TestFDARecallSyncExtended:
             recalls = r.json().get("recalls", [])
             if recalls:
                 assert "fda_product_code" in recalls[0] or "severity" in recalls[0]
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestBillingAPI
+# ────────────────────────────────────────────────────────────────────────────────
+
+class TestBillingAPI:
+    def test_billing_status_ok(self):
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.status_code == 200
+
+    def test_billing_status_has_tier(self):
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers=AUTH)
+        data = r.json()
+        assert "current_tier" in data
+        assert data["current_tier"] in ("standard", "professional", "enterprise")
+
+    def test_billing_status_has_features(self):
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers=AUTH)
+        assert "features_included" in r.json()
+
+    def test_billing_checkout_sandbox_without_stripe_key(self):
+        r = client.post("/api/billing/checkout", json={
+            "tenant_id": TENANT,
+            "target_tier": "professional",
+        }, headers=AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] in ("sandbox", "ok")
+
+    def test_billing_checkout_invalid_tier(self):
+        r = client.post("/api/billing/checkout", json={
+            "tenant_id": TENANT,
+            "target_tier": "ultra-premium",
+        }, headers=AUTH)
+        assert r.status_code == 400
+
+    def test_billing_upgrade_alias_works(self):
+        r = client.post("/api/billing/upgrade", json={
+            "tenant_id": TENANT,
+            "target_tier": "enterprise",
+        }, headers=AUTH)
+        assert r.status_code == 200
+
+    def test_billing_requires_auth(self):
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT})
+        assert r.status_code in (401, 403)
+
+    def test_tier_upgrade_via_db(self):
+        """Simulate webhook upgrading a tenant's tier."""
+        from app.routes.billing import _upgrade_tenant_tier
+        from app.db.session import SessionLocal
+        db = SessionLocal()
+        try:
+            _upgrade_tenant_tier("billing-test-tenant", "professional", db)
+            from app.tier_guard import get_tenant_tier
+            tier = get_tenant_tier("billing-test-tenant", db)
+            assert tier == "professional"
+        finally:
+            db.close()

@@ -50,6 +50,8 @@ def _force_import_models():
         "app.models.user",
         "app.models.benchmarking",
         "app.models.vendor_intelligence",
+        "app.models.tenant_plan",
+        "app.models.payment_event",
     ]:
         try:
             importlib.import_module(model_path)
