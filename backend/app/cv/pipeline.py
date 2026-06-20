@@ -5,16 +5,38 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.cv.image_validator import validate_image_url, validate_b64_payload
+from app.cv.image_store import archive_image
 from app.cv.registry import CVRegistry
 from app.schemas.cv import BaselineCompareRequest, CVAnalysisRequest, CVInferenceResult
 
 
 def run_analysis(req: CVAnalysisRequest, db: Session | None = None) -> CVInferenceResult:
     """Run full CV pipeline and persist result."""
+    # R1: Validate image inputs at the API boundary
+    warnings = list(validate_image_url(req.image_url))
+    warnings += validate_b64_payload(req.image_data_b64)
+
     provider = CVRegistry.get_provider()
     result = provider.analyze(req)
+
+    # Merge pipeline validation warnings into result
+    if warnings:
+        result = result.model_copy(update={"warnings": list(result.warnings) + warnings})
+
+    # R7: Archive image for audit trail (noop unless IMAGE_STORE_BACKEND is set)
+    archive = archive_image(
+        image_bytes=None,
+        image_url=req.image_url,
+        inference_id=result.inference_id,
+        tenant_id=req.tenant_id,
+    )
+    if archive.object_key:
+        result = result.model_copy(update={"archived_image_key": archive.object_key})
+
     if db is not None:
         _persist(result, db)
+
     return result
 
 
@@ -33,8 +55,39 @@ def run_baseline_compare(req: BaselineCompareRequest, db: Session | None = None)
 
 
 def build_ranking_request_from_result(result: CVInferenceResult) -> dict[str, Any]:
-    """Extract P3-compatible ranking request from CV inference result."""
+    """Extract P3-compatible ranking request from CV inference result (single-finding)."""
     return result.ranking_inputs
+
+
+def build_composite_ranking_request(result: CVInferenceResult) -> dict[str, Any] | None:
+    """R3: Build a CompositeRankingRequest dict from all detected regions.
+
+    Returns None when there are fewer than 2 regions (single-finding path
+    is more appropriate in that case).
+    """
+    if not result.regions:
+        return None
+
+    base = result.ranking_inputs
+    findings = [
+        {
+            "finding_category": r.finding_category,
+            "severity": r.severity,
+            "confidence_score": round(r.confidence, 4),
+            "barcode_value": base.get("barcode_value", ""),
+            "qr_code_value": base.get("qr_code_value", ""),
+            "key_dot_value": base.get("key_dot_value", ""),
+            "baseline_status": base.get("baseline_status", ""),
+            "instrument_match_status": base.get("instrument_match_status", ""),
+        }
+        for r in result.regions
+    ]
+    return {
+        "instrument_id": base.get("instrument_id"),
+        "instrument_name": base.get("instrument_name", ""),
+        "findings": findings,
+        "tenant_id": result.tenant_id,
+    }
 
 
 def _persist(result: CVInferenceResult, db: Session) -> None:
@@ -93,6 +146,8 @@ def _persist(result: CVInferenceResult, db: Session) -> None:
         residue_count=counts["residue"],
         result_json=result.model_dump_json(),
         processing_ms=result.processing_ms,
+        # R12: provider cost (populated by provider if known)
+        provider_cost_usd=getattr(result, "provider_cost_usd", 0.0),
     )
     db.add(record)
     db.commit()

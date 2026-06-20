@@ -39,6 +39,55 @@ class BaselineCompareRequest(BaseModel):
     tenant_id: str = "default-tenant"
 
 
+class CVVideoAnalysisRequest(BaseModel):
+    """R11: Borescope video analysis request."""
+    video_url: str
+    sample_fps: float = Field(default=1.0, ge=0.1, le=10.0)
+    instrument_name: str = ""
+    instrument_category: str = ""
+    tenant_id: str = "default-tenant"
+    requested_capabilities: list[str] = Field(
+        default_factory=lambda: [
+            "instrument_recognition",
+            "contamination_detection",
+            "damage_detection",
+        ]
+    )
+
+
+class CVVideoFrame(BaseModel):
+    """Single frame result within a video analysis."""
+    frame_index: int
+    timestamp_sec: float
+    inference_id: str
+    regions: list[RegionOfInterest] = Field(default_factory=list)
+    contamination_score: float = Field(ge=0.0, le=100.0, default=100.0)
+    damage_score: float = Field(ge=0.0, le=100.0, default=100.0)
+
+
+class CVVideoAnalysisResult(BaseModel):
+    """R11: Aggregated video analysis result."""
+    video_url: str
+    frames_analyzed: int
+    total_duration_sec: float
+    worst_contamination_score: float = Field(ge=0.0, le=100.0, default=100.0)
+    worst_damage_score: float = Field(ge=0.0, le=100.0, default=100.0)
+    finding_timeline: list[CVVideoFrame] = Field(default_factory=list)
+    composite_regions: list[RegionOfInterest] = Field(default_factory=list)
+    provider: str = ""
+    processing_ms: int = 0
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AnnotationRequest(BaseModel):
+    """R10: Human annotation of a low-confidence inference."""
+    annotator_id: str
+    confirmed_regions: list[dict] = Field(default_factory=list)
+    rejected_region_ids: list[str] = Field(default_factory=list)
+    corrected_severity: str = ""
+    notes: str = ""
+
+
 # ── Sub-models ────────────────────────────────────────────────────────────────
 
 class BoundingBox(BaseModel):
@@ -115,6 +164,11 @@ class CVKPISummary(BaseModel):
     baseline_fail_count: int
     avg_confidence: float
     avg_baseline_match_pct: float
+    # R12: telemetry
+    avg_processing_ms: float = 0.0
+    total_provider_cost_usd: float = 0.0
+    # R10: active learning queue size
+    review_queue_size: int = 0
 
 
 # ── Primary inference result ───────────────────────────────────────────────────
@@ -151,3 +205,15 @@ class CVInferenceResult(BaseModel):
     image_url: str = ""
     error_message: str = ""
     warnings: list[str] = Field(default_factory=list)
+
+    # R7: Internal archive key (populated after pipeline persist)
+    archived_image_key: str = ""
+
+    # R9: Calibration temperature applied to confidence scores (1.0 = uncalibrated)
+    calibration_temperature: float = 1.0
+
+    # R12: Provider cost for this inference (0.0 for local/mock providers)
+    provider_cost_usd: float = 0.0
+
+    # R10: Active learning — set True when overall confidence < threshold
+    review_required: bool = False

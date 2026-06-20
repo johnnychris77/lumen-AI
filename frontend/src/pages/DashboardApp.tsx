@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { CVInspectionDashboard } from "@/components/CVInspectionDashboard";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -491,6 +492,11 @@ export default function DashboardApp() {
           </div>
         </section>
 
+
+        {/* R8: CV Inspection Intelligence dashboard tile */}
+        <section style={panel}>
+          <CVInspectionDashboard tenantId="demo-tenant" />
+        </section>
 
         <section style={threeColumnGrid}>
           <div style={modulePanel}>

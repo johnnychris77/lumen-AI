@@ -12,6 +12,7 @@ Design:
 from __future__ import annotations
 
 import hashlib
+import os
 import random
 import time
 import uuid
@@ -275,6 +276,21 @@ class MockCVProvider(BaseCVProvider):
         c_score, d_score, overall = self._aggregate_scores(regions)
         ranking_inputs = self._build_ranking_inputs(identity, identifiers, regions, baseline, req)
 
+        # R9: apply temperature scaling to region confidence scores
+        temperature = float(os.environ.get("CV_CALIBRATION_TEMPERATURE", "1.0"))
+        if temperature != 1.0 and regions:
+            import math
+            regions = [
+                r.model_copy(update={"confidence": round(
+                    1.0 / (1.0 + math.exp(-math.log(r.confidence / (1 - r.confidence + 1e-9)) / temperature)), 4
+                )})
+                for r in regions
+            ]
+
+        # R10: flag for active learning review when dominant confidence is low
+        dominant_conf = max((r.confidence for r in regions), default=1.0)
+        review_required = dominant_conf < float(os.environ.get("CV_REVIEW_CONFIDENCE_THRESHOLD", "0.70"))
+
         processing_ms = int((time.monotonic() - t0) * 1000)
         return CVInferenceResult(
             inference_id=inference_id,
@@ -294,4 +310,7 @@ class MockCVProvider(BaseCVProvider):
             processing_ms=processing_ms,
             image_url=image_url,
             warnings=warnings,
+            calibration_temperature=temperature,
+            review_required=review_required,
+            provider_cost_usd=0.0,   # R12: mock has no cost
         )

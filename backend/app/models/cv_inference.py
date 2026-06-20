@@ -64,5 +64,17 @@ class CVInferenceRecord(Base):
     # Full JSON payload for retrieval
     result_json = Column(Text, default="", nullable=False)
 
+    # R7: Internal object storage key for archived image bytes
+    archived_image_key = Column(Text, default="", nullable=False)
+
+    # R12: Provider cost and latency telemetry
+    provider_cost_usd = Column(Float, default=0.0, nullable=False)
+
+    # R10: Active learning — flag for human review
+    review_required = Column(Boolean, default=False, nullable=False)
+    review_annotation = Column(Text, default="", nullable=False)
+    review_annotator_id = Column(String(100), default="", nullable=False)
+    review_completed_at = Column(DateTime, nullable=True)
+
     processing_ms = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

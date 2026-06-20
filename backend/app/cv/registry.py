@@ -36,3 +36,15 @@ class CVRegistry:
 from app.cv.mock_provider import MockCVProvider  # noqa: E402
 
 CVRegistry.register("mock", MockCVProvider)
+
+
+def _try_register_onnx() -> None:
+    """Register ONNX provider only if onnxruntime is importable."""
+    try:
+        from app.cv.onnx_provider import OnnxCVProvider  # noqa: PLC0415
+        CVRegistry.register("onnx", OnnxCVProvider)
+    except Exception:
+        pass  # onnxruntime not installed; mock remains default
+
+
+_try_register_onnx()
