@@ -43,6 +43,7 @@ def _force_import_models():
     for model_path in [
         "app.models.audit_log",
         "app.models.enterprise_quality",
+        "app.models.cv_inference",
         "app.models.alert_event",
         "app.models.inspection",
         "app.models.review",

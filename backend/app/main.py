@@ -53,6 +53,7 @@ def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
 async def lifespan(_app: FastAPI):
     # Safe startup bootstrap — create_all only adds missing tables, never drops.
     importlib.import_module("app.db.models")
+    importlib.import_module("app.models.cv_inference")   # register CVInferenceRecord table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     yield
@@ -571,6 +572,7 @@ from app.routes.portfolio_tenants import router as portfolio_tenants_router
 from app.routes.tenant_insights import router as tenant_insights_router
 from app.routes.enterprise_intake import router as enterprise_intake_router
 from app.routes.ranking import router as ranking_router
+from app.routes.cv import router as cv_router
 
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
@@ -578,6 +580,7 @@ app.include_router(portfolio_tenants_router, prefix=settings.API_PREFIX)
 app.include_router(tenant_insights_router, prefix=settings.API_PREFIX)
 app.include_router(enterprise_intake_router)
 app.include_router(ranking_router)
+app.include_router(cv_router)
 app.include_router(governance_intelligence_router)
 app.include_router(vendor_performance_scorecard_router)
 app.include_router(power_bi_executive_analytics_router)
