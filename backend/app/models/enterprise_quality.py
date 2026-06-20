@@ -241,4 +241,26 @@ class EnterpriseVendorBaselineSubscription(Base):
     approval_notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class EnterpriseScoringProfile(Base):
+    """Tenant-configurable scoring weights for the Ranking Engine."""
+    __tablename__ = "enterprise_scoring_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    profile_name = Column(String, default="Default", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # JSON blobs storing override dicts (null = use engine defaults)
+    category_weights_json = Column(Text, nullable=True)
+    severity_multipliers_json = Column(Text, nullable=True)
+
+    # Compound risk escalation — floor score to Critical when N+ critical findings on same instrument in window_days
+    compound_escalation_threshold = Column(Integer, default=2, nullable=False)
+    compound_escalation_window_days = Column(Integer, default=90, nullable=False)
+
+    created_by = Column(String, default="", nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

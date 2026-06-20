@@ -362,17 +362,35 @@ def create_enterprise_intake(
     db.add(finding)
     db.flush()
 
+    # Compute live ranking score at intake time (pre-cached for KPI queries)
+    from app.schemas.ranking import RankingRequest as _RankingRequest
+    from app.services.ranking_engine import score_inspection as _score_inspection
+    _rank_req = _RankingRequest(
+        finding_category=finding.finding_category,
+        severity=finding.severity,
+        confidence_score=finding.confidence_score,
+        instrument_id=instrument.id,
+        barcode_value=getattr(payload, "barcode_value", "") or "",
+        qr_code_value=getattr(payload, "qr_code_value", "") or "",
+        key_dot_value=getattr(payload, "key_dot_value", "") or "",
+        tenant_id=payload.tenant_id,
+    )
+    _rank_result = _score_inspection(_rank_req, db=db)
+    overall_score = _rank_result.inspection_score
+    risk_tier = _rank_result.risk_level.lower()
+
     (
         patient_safety_score,
         regulatory_score,
         operational_score,
         vendor_score,
-        overall_score,
-        risk_tier,
+        _legacy_overall,
+        _legacy_tier,
     ) = _risk_scores_for_severity(payload.severity)
 
     risk_score = EnterpriseRiskScore(
         tenant_id=payload.tenant_id,
+        finding_id=finding.id,
         inspection_id=finding.id,
         patient_safety_score=patient_safety_score,
         regulatory_score=regulatory_score,
@@ -384,10 +402,16 @@ def create_enterprise_intake(
     db.add(risk_score)
     db.flush()
 
+    # Auto-trigger CAPA for Critical findings with confirmed baseline
+    _capa_auto_created = False
+    if _rank_result.risk_level == "Critical" and _rank_result.final_ranking_allowed:
+        from app.routes.ranking import _maybe_trigger_capa
+        _capa_auto_created = _maybe_trigger_capa(db, finding.id, _rank_result, payload.tenant_id)
+
     disposition = EnterpriseDisposition(
         tenant_id=payload.tenant_id,
         inspection_id=finding.id,
-        recommended_action=payload.recommended_action,
+        recommended_action=_rank_result.recommended_action or payload.recommended_action,
         final_action="Pending human review",
         status="recommended",
     )
