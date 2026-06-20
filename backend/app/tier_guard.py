@@ -9,6 +9,7 @@ TIER_FEATURES = {
         "shared_defects", "risk_patterns",
         "failure_prediction_basic",          # /api/predictions/failures list, 30d only
         "regulatory_readiness",              # basic accreditation score
+        "copilot_basic",                     # P9: copilot sessions + protocols
     },
     "professional": {
         "shared_defects", "risk_patterns",
@@ -20,6 +21,8 @@ TIER_FEATURES = {
         "regulatory_readiness",
         "regulatory_findings",              # detailed finding list
         "standards_catalogue",              # standards mapping
+        "copilot_basic",                    # P9: copilot sessions + protocols
+        "copilot_escalations",              # P9: escalation management
     },
     "enterprise": {
         "shared_defects", "risk_patterns",
@@ -37,6 +40,10 @@ TIER_FEATURES = {
         "audit_package",                    # generate full audit packages + PDF
         "fda_tracking",                     # FDA submission tracker
         "regulatory_dashboard",             # executive regulatory dashboard
+        "copilot_basic",                    # P9: copilot sessions + protocols
+        "copilot_escalations",              # P9: escalation management
+        "copilot_dashboard",                # P9: copilot analytics dashboard
+        "copilot_protocols",                # P9: protocol management
     },
 }
 

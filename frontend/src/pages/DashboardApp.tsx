@@ -4,6 +4,7 @@ import { EnterpriseBenchmarkDashboard } from "@/components/EnterpriseBenchmarkDa
 import VendorIntelligenceDashboard from "@/components/VendorIntelligenceDashboard";
 import { PredictiveAnalyticsDashboard } from "@/components/PredictiveAnalyticsDashboard";
 import { RegulatoryComplianceDashboard } from "@/components/RegulatoryComplianceDashboard";
+import { InspectionCopilotDashboard } from "@/components/InspectionCopilotDashboard";
 import ManufacturerPortal from "@/pages/ManufacturerPortal";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useTierUpgrade } from "@/hooks/useTierUpgrade";
@@ -533,6 +534,11 @@ export default function DashboardApp() {
         {/* P8: Regulatory & Accreditation Automation */}
         <section style={panel}>
           <RegulatoryComplianceDashboard />
+        </section>
+
+        {/* P9: Autonomous Inspection Copilot */}
+        <section style={panel}>
+          <InspectionCopilotDashboard />
         </section>
 
         <section style={threeColumnGrid}>

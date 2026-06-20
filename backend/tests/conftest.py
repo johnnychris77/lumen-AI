@@ -54,6 +54,7 @@ def _force_import_models():
         "app.models.payment_event",
         "app.models.predictions",
         "app.models.regulatory",
+        "app.models.copilot",
     ]:
         try:
             importlib.import_module(model_path)

@@ -65,6 +65,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.tenant_plan")          # register TenantPlan table
     importlib.import_module("app.models.predictions")          # register P7 prediction tables
     importlib.import_module("app.models.regulatory")           # register P8 regulatory tables
+    importlib.import_module("app.models.copilot")              # register P9 copilot tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -621,6 +622,10 @@ app.include_router(predictions_router)
 
 from app.routes.regulatory import router as regulatory_router
 app.include_router(regulatory_router)
+
+from app.models import copilot as _copilot_models  # noqa: F401
+from app.routes.copilot import router as copilot_router
+app.include_router(copilot_router)
 
 from fastapi.openapi.utils import get_openapi
 
