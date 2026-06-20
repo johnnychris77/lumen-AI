@@ -32,6 +32,9 @@ from app.routes.vendor_performance_scorecard import router as vendor_performance
 from app.routes.power_bi_executive_analytics import router as power_bi_executive_analytics_router
 from app.routes.capa_trend_intelligence import router as capa_trend_intelligence_router
 from app.routes.vendor_trend_intelligence import router as vendor_trend_intelligence_router
+from app.routes.vendor_intelligence import router as vendor_intelligence_router
+from app.routes.manufacturer_intelligence import router as manufacturer_intelligence_router
+from app.routes.intelligence import router as intelligence_router
 
 
 def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
@@ -55,6 +58,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.db.models")
     importlib.import_module("app.models.cv_inference")   # register CVInferenceRecord table
     importlib.import_module("app.models.benchmarking")   # register P5 benchmark tables
+    importlib.import_module("app.models.vendor_intelligence")  # register P6 intelligence tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     yield
@@ -587,6 +591,9 @@ app.include_router(vendor_performance_scorecard_router)
 app.include_router(power_bi_executive_analytics_router)
 app.include_router(capa_trend_intelligence_router)
 app.include_router(vendor_trend_intelligence_router)
+app.include_router(vendor_intelligence_router)
+app.include_router(manufacturer_intelligence_router)
+app.include_router(intelligence_router)
 
 from app.routes.benchmarking import router as benchmarking_router
 app.include_router(benchmarking_router)

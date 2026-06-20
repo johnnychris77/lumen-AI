@@ -49,6 +49,7 @@ def _force_import_models():
         "app.models.review",
         "app.models.user",
         "app.models.benchmarking",
+        "app.models.vendor_intelligence",
     ]:
         try:
             importlib.import_module(model_path)
