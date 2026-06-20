@@ -211,10 +211,7 @@ def record_enterprise_audit_event(
 
     if commit:
         db.commit()
-        try:
-            db.refresh(event)
-        except Exception:
-            pass
+        db.refresh(event)
 
     return event
 

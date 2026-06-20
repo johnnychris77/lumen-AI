@@ -140,6 +140,7 @@ def create_portfolio_tenant(
                 :customer_success_owner,
                 :notes
             )
+            RETURNING id
             """
         ),
         {
@@ -159,7 +160,8 @@ def create_portfolio_tenant(
         },
     )
 
-    tenant_id = result.lastrowid
+    row = result.fetchone()
+    tenant_id = row[0] if row else result.lastrowid
     db.commit()
 
     created = get_portfolio_tenant(db, int(tenant_id))
