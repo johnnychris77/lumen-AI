@@ -181,10 +181,23 @@ def get_auth_context(
     )
 
 
+_AUTH_ENV = os.getenv("ENVIRONMENT", "development")
+
+
 def require_enterprise_auth(
     request: Request,
     db: Session | None = None,
 ) -> AuthContext:
+    # In production, reject non-JWT tokens (dev shortcuts like dev-token/test-token)
+    if _AUTH_ENV == "production":
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.removeprefix("Bearer ").strip()
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token format. Production requires a signed JWT.",
+            )
     return get_auth_context(request, db=db)
 
 

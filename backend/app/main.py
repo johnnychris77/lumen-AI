@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import os
+import sys
 import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -106,7 +107,36 @@ async def lifespan(_app: FastAPI):
 
 _IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod"}
 
+# --- Production safety guard: crash on default SECRET_KEY ---
+_ENV = os.getenv("ENVIRONMENT", "development")
+_SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
+_DEFAULT_SECRET = "dev-secret-change-in-production"
+
+if _ENV == "production" and _SECRET_KEY == _DEFAULT_SECRET:
+    sys.exit(
+        "FATAL: SECRET_KEY is set to the default value in production environment. "
+        "Set a strong SECRET_KEY before starting."
+    )
+
 app = FastAPI(title="LumenAI API", lifespan=lifespan)
+
+# --- Rate limiting (slowapi) ---
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+except ImportError:
+    # slowapi not installed — rate limiting disabled
+    limiter = None
+
+# Rate limit targets (apply @limiter.limit decorator in production with a shared limiter instance):
+# - POST /api/enterprise/cv/analyze → 30/minute (CV inference)
+# - POST /billing/checkout → 10/minute (billing checkout)
+# - POST /api/regulatory/fda-submissions → 5/minute (FDA submission)
 
 app.add_middleware(
     CORSMiddleware,
@@ -186,8 +216,16 @@ def readiness_check():
 
 
 @app.get("/metrics", include_in_schema=False)
-def metrics():
+def metrics(request: Request, token: str = ""):
     """Basic Prometheus-compatible plaintext metrics."""
+    from fastapi import HTTPException as _HTTPException
+    metrics_token = os.getenv("METRICS_TOKEN", "")
+    if metrics_token:
+        if token != metrics_token:
+            raise _HTTPException(status_code=401, detail="Invalid metrics token")
+    # If no METRICS_TOKEN set, restrict to localhost only
+    elif request.client and request.client.host not in ("127.0.0.1", "::1", "localhost"):
+        raise _HTTPException(status_code=403, detail="Metrics endpoint restricted")
     uptime_seconds = time.time() - _start_time
     lines = [
         "# HELP lumenai_requests_total Total HTTP requests handled",

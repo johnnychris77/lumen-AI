@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lumenai-backend-pdb
+  namespace: lumenai
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: lumenai-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lumenai-frontend-pdb
+  namespace: lumenai
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: lumenai-frontend

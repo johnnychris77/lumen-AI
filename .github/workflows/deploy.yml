@@ -106,6 +106,28 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      - name: Generate Python SBOM
+        run: |
+          pip install cyclonedx-bom || true
+          cyclonedx-py environment -o sbom-backend.json --format json || true
+        continue-on-error: true
+
+      - name: Generate Node SBOM
+        run: |
+          npm install -g @cyclonedx/cyclonedx-npm || true
+          cd frontend && cyclonedx-npm --output-file ../sbom-frontend.json || true
+        continue-on-error: true
+
+      - name: Upload SBOMs as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: |
+            sbom-backend.json
+            sbom-frontend.json
+          if-no-files-found: ignore
+        continue-on-error: true
+
   deploy-staging:
     name: Deploy to Staging
     needs:
