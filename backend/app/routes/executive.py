@@ -1,9 +1,11 @@
 """Executive dashboard endpoints — role-specific KPI views for C-suite and department heads."""
 import hashlib
+import io
 import random
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
@@ -109,15 +111,7 @@ async def executive_dashboard(
             "copilot_sessions_completed": rng.randint(50, 400),
             "critical_finding_escalation_rate_pct": round(rng.uniform(1, 5), 1),
         },
-        "cfo": {
-            "labor_savings_usd": round(rng.uniform(8000, 65000), 0),
-            "instrument_replacement_savings_usd": round(rng.uniform(5000, 40000), 0),
-            "audit_prep_savings_usd": round(rng.uniform(3000, 20000), 0),
-            "repair_avoidance_savings_usd": round(rng.uniform(10000, 75000), 0),
-            "total_roi_usd": round(rng.uniform(26000, 200000), 0),
-            "subscription_cost_usd": 78000,
-            "roi_multiple": round(rng.uniform(1.5, 4.5), 2),
-        },
+        "cfo": _build_cfo_kpis(db, tenant_id, rng),
         "market_director": {
             "facilities_active": rng.randint(1, 8),
             "network_benchmarking_rank_pct": round(rng.uniform(40, 90), 1),
@@ -128,6 +122,91 @@ async def executive_dashboard(
     }
 
     return {**base_kpis, **role_kpis.get(role, {})}
+
+
+def _build_cfo_kpis(db: Session, tenant_id: str, rng: random.Random) -> dict:
+    """Build CFO KPIs from real DB data when available, else use seeded mock."""
+    try:
+        from app.models.validation import ValidationCase  # type: ignore
+        inspection_count = db.query(ValidationCase).filter(
+            ValidationCase.tenant_id == tenant_id
+        ).count()
+    except Exception:
+        inspection_count = 0
+
+    if inspection_count > 0:
+        labor_savings_usd = round(inspection_count * 0.9 / 60 * 30, 0)
+        instrument_replacement_savings_usd = round(inspection_count * 0.005 * 200, 0)
+        audit_prep_savings_usd = 16000.0
+        annual_contract_value = 78000.0
+        total_savings = labor_savings_usd + instrument_replacement_savings_usd + audit_prep_savings_usd
+        roi_multiple = round(total_savings / annual_contract_value, 2)
+        return {
+            "labor_savings_usd": labor_savings_usd,
+            "instrument_replacement_savings_usd": instrument_replacement_savings_usd,
+            "audit_prep_savings_usd": audit_prep_savings_usd,
+            "total_roi_usd": total_savings,
+            "subscription_cost_usd": annual_contract_value,
+            "roi_multiple": roi_multiple,
+            "data_source": "real",
+        }
+
+    return {
+        "labor_savings_usd": round(rng.uniform(8000, 65000), 0),
+        "instrument_replacement_savings_usd": round(rng.uniform(5000, 40000), 0),
+        "audit_prep_savings_usd": round(rng.uniform(3000, 20000), 0),
+        "repair_avoidance_savings_usd": round(rng.uniform(10000, 75000), 0),
+        "total_roi_usd": round(rng.uniform(26000, 200000), 0),
+        "subscription_cost_usd": 78000,
+        "roi_multiple": round(rng.uniform(1.5, 4.5), 2),
+        "data_source": "mock",
+    }
+
+
+@router.get("/dashboard/cfo/pdf")
+async def cfo_dashboard_pdf(
+    request: Request,
+    facility_id: str = "",
+    period: str = "30d",
+    db: Session = Depends(get_db),
+) -> Response:
+    """ROI report PDF export for CFO dashboard."""
+    require_enterprise_auth(request)
+    tenant_id = _get_tenant(request)
+    rng = _seed(f"exec:{tenant_id}:cfo:{facility_id}:{period}")
+    kpis = _build_cfo_kpis(db, tenant_id, rng)
+
+    try:
+        from reportlab.lib.pagesizes import letter  # type: ignore
+        from reportlab.pdfgen import canvas as rl_canvas
+
+        buffer = io.BytesIO()
+        c = rl_canvas.Canvas(buffer, pagesize=letter)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(72, 720, "LumenAI ROI Report")
+        c.setFont("Helvetica", 12)
+        y = 690
+        for key, value in kpis.items():
+            c.drawString(72, y, f"{key}: {value}")
+            y -= 20
+        c.drawString(72, y - 10, f"Generated: {_now()}")
+        c.save()
+        buffer.seek(0)
+        content = buffer.getvalue()
+        media_type = "application/pdf"
+    except ImportError:
+        lines = ["LumenAI ROI Report", "=" * 40, ""]
+        for key, value in kpis.items():
+            lines.append(f"{key}: {value}")
+        lines.append(f"\nGenerated: {_now()}")
+        content = "\n".join(lines).encode()
+        media_type = "text/plain"
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": "attachment; filename=roi-report.pdf"},
+    )
 
 
 @router.get("/summary")

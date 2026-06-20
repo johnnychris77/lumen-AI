@@ -20,6 +20,11 @@ from app.auth.tenant_membership import require_enabled_tenant_membership
 
 
 DEFAULT_DEV_TOKEN = "dev-token"
+DEMO_TOKEN = "demo-token"
+
+
+def is_demo_mode() -> bool:
+    return os.getenv("DEMO_MODE", "0").strip() == "1"
 
 
 def get_auth_mode() -> str:
@@ -104,15 +109,24 @@ def _require_dev_auth_context(request: Request) -> AuthContext:
     authorization = request.headers.get("authorization", "")
     expected = f"Bearer {get_dev_token()}"
 
-    if authorization != expected:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+    if authorization == expected:
+        return build_dev_auth_context(
+            actor=get_request_actor(request),
+            role=get_request_role(request),
+            tenant_id=get_request_tenant_id(request),
+            tenant_name=get_request_tenant_name(request),
+        )
 
-    return build_dev_auth_context(
-        actor=get_request_actor(request),
-        role=get_request_role(request),
-        tenant_id=get_request_tenant_id(request),
-        tenant_name=get_request_tenant_name(request),
-    )
+    # Allow demo-token when DEMO_MODE=1
+    if is_demo_mode() and authorization == f"Bearer {DEMO_TOKEN}":
+        return build_dev_auth_context(
+            actor="demo@lumenai.com",
+            role=get_request_role(request) or "demo",
+            tenant_id="demo",
+            tenant_name="Demo Tenant",
+        )
+
+    raise HTTPException(status_code=401, detail="Authentication required.")
 
 
 def _require_oidc_auth_context(

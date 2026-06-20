@@ -91,6 +91,12 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.regulatory")           # register P8 regulatory tables
     importlib.import_module("app.models.copilot")              # register P9 copilot tables
     importlib.import_module("app.models.validation")           # register P12 validation tables
+    importlib.import_module("app.models.pilot")                # register P14 pilot table
+    importlib.import_module("app.models.tenant_health")        # register P14 health score table
+    importlib.import_module("app.models.tenant_subscription_p14")  # register P14 subscription table
+    importlib.import_module("app.models.manufacturer_reg")     # register P14 manufacturer reg table
+    importlib.import_module("app.models.usage")                # register P14 usage counter table
+    importlib.import_module("app.models.sso_config")           # register P14 SSO config table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -748,6 +754,29 @@ app.include_router(validation_router)
 
 from app.routes.executive import router as executive_router
 app.include_router(executive_router)
+
+# P14: Commercial launch recommendations
+from app.routes.pilot import router as pilot_router
+from app.routes.tenant_health import router as tenant_health_router
+from app.routes.billing_webhooks import router as billing_webhooks_router
+from app.routes.demo import router as demo_router
+from app.routes.manufacturer_reg import router as manufacturer_reg_router
+from app.routes.gpo_contract import router as gpo_contract_router
+from app.routes.usage_p14 import router as usage_p14_router
+from app.routes.hipaa_baa import router as hipaa_baa_router
+from app.routes.sso_config import router as sso_config_router
+from app.routes.status import router as status_router
+
+app.include_router(pilot_router)
+app.include_router(tenant_health_router)
+app.include_router(billing_webhooks_router)
+app.include_router(demo_router)
+app.include_router(manufacturer_reg_router)
+app.include_router(gpo_contract_router)
+app.include_router(usage_p14_router)
+app.include_router(hipaa_baa_router)
+app.include_router(sso_config_router)
+app.include_router(status_router)  # public, no prefix
 
 from fastapi.openapi.utils import get_openapi
 

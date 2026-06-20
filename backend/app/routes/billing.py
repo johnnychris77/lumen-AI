@@ -83,22 +83,40 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    if not STRIPE_SECRET_KEY:
-        raise HTTPException(400, detail="Stripe not configured")
-
     try:
-        import stripe  # type: ignore[import]
-        stripe.api_key = STRIPE_SECRET_KEY
-        if STRIPE_WEBHOOK_SECRET:
-            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        if STRIPE_SECRET_KEY:
+            import stripe  # type: ignore[import]
+            stripe.api_key = STRIPE_SECRET_KEY
+            if STRIPE_WEBHOOK_SECRET:
+                event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+            else:
+                event = json.loads(payload)
         else:
+            # Dev/test mode — no Stripe key, parse raw payload
             event = json.loads(payload)
     except Exception as exc:
         raise HTTPException(400, detail=f"Webhook error: {exc}")
 
     event_type = event.get("type", "")
 
-    if event_type in ("checkout.session.completed", "customer.subscription.updated"):
+    if event_type == "invoice.payment_failed":
+        data = event.get("data", {}).get("object", {})
+        tenant_id = data.get("metadata", {}).get("tenant_id", "")
+        if tenant_id:
+            try:
+                from app.models.tenant_subscription_p14 import TenantSubscriptionP14
+                from datetime import datetime, timezone as _tz
+                sub = db.query(TenantSubscriptionP14).filter_by(tenant_id=tenant_id).first()
+                if sub is None:
+                    sub = TenantSubscriptionP14(tenant_id=tenant_id)
+                    db.add(sub)
+                sub.subscription_status = "payment_failed"
+                sub.updated_at = datetime.now(_tz.utc)
+                db.commit()
+            except Exception:
+                pass
+
+    elif event_type in ("checkout.session.completed", "customer.subscription.updated"):
         data = event.get("data", {}).get("object", {})
         metadata = data.get("metadata", {})
         tenant_id = metadata.get("tenant_id", "")
