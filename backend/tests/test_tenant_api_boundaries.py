@@ -6,39 +6,27 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("DATABASE_URL", "sqlite:///./lumenai.db")
 
 
-def _get_protected_report_route(app) -> str:
-    candidates = []
-
-    for route in app.routes:
-        route_path = getattr(route, "path", "")
-        methods = getattr(route, "methods", set()) or set()
-
-        if "GET" not in methods:
-            continue
-
-        if "{" in route_path:
-            continue
-
-        if "report" in route_path.lower():
-            candidates.append(route_path)
-
-    if not candidates:
-        raise AssertionError("No protected GET report route found.")
-
-    return sorted(candidates)[0]
-
+def _collect_all_routes_with_prefix(router_or_app, parent_prefix=""):
+    from fastapi.routing import APIRoute
+    routes = []
+    obj = getattr(router_or_app, "router", router_or_app)
+    for route in getattr(obj, "routes", []):
+        ctx = getattr(route, "include_context", None)
+        prefix = parent_prefix + (getattr(ctx, "prefix", "") or "")
+        if isinstance(route, APIRoute):
+            routes.append((parent_prefix + route.path, route.methods or set()))
+        orig = getattr(route, "original_router", None)
+        if orig:
+            routes.extend(_collect_all_routes_with_prefix(orig, prefix))
+    return routes
 
 
 def _get_protected_report_route(app) -> str:
-    for route in app.routes:
-        path = getattr(route, "path", "")
-        methods = getattr(route, "methods", set()) or set()
-
-        if "GET" in methods and "report" in path.lower() and "{" not in path:
-            return path
+    for full_path, methods in _collect_all_routes_with_prefix(app):
+        if "GET" in methods and "report" in full_path.lower() and "{" not in full_path:
+            return full_path
 
     raise AssertionError("No GET reports route found in app routes.")
-
 
 
 def _ensure_tenant_membership_table():

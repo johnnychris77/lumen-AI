@@ -71,4 +71,27 @@ def ensure_test_database_tables():
     base, engine = _load_database_objects()
     base.metadata.create_all(bind=engine)
     _create_audit_logs_fallback(engine)
+    _seed_enterprise_finding(engine)
     yield
+
+
+def _seed_enterprise_finding(engine) -> None:
+    """Ensure at least one EnterpriseFinding row (id=1) exists for governance packet tests."""
+    try:
+        from app.models.enterprise_quality import EnterpriseFinding
+        from sqlalchemy.orm import Session
+
+        with Session(engine) as db:
+            if db.get(EnterpriseFinding, 1) is None:
+                db.add(EnterpriseFinding(
+                    id=1,
+                    tenant_id="default-tenant",
+                    finding_category="Quality Control",
+                    finding_description="Seeded test finding",
+                    severity="low",
+                    confidence_score=0.0,
+                    human_confirmed=False,
+                ))
+                db.commit()
+    except Exception:
+        pass
