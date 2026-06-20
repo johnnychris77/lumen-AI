@@ -192,7 +192,7 @@ type PacketHashVerificationResponse = {
 };
 
 const AUTH_HEADERS = {
-  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+  Authorization: "Bearer dev-token",
   "X-LumenAI-Role": "vendor",
   "X-LumenAI-Actor": "stryker-demo",
 };
@@ -234,7 +234,7 @@ async function approveVendorBaseline(baselineId: number, approvalNotes: string) 
   const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/approve`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: "Bearer dev-token",
       "X-LumenAI-Role": "manager",
       "X-LumenAI-Actor": "john-demo",
       "Content-Type": "application/json",
@@ -256,7 +256,7 @@ async function approveVendorBaseline(baselineId: number, approvalNotes: string) 
 async function fetchVendorBaselineAudit(baselineId: number): Promise<VendorBaselineAuditResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/audit`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: "Bearer dev-token",
       "X-LumenAI-Role": "hospital_admin",
       "X-LumenAI-Actor": "hospital-reviewer-demo",
     },
@@ -274,7 +274,7 @@ async function fetchVendorBaselineAudit(baselineId: number): Promise<VendorBasel
 async function fetchGovernanceExportHistory(findingId: string): Promise<GovernanceExportHistoryResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/governance-export-history`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: "Bearer dev-token",
       "X-LumenAI-Role": "hospital_admin",
       "X-LumenAI-Actor": "hospital-reviewer-demo",
     },
@@ -297,7 +297,7 @@ async function verifyGovernancePacketHash(
     `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet/verify-hash?packet_hash=${encodeURIComponent(packetHash)}`,
     {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        Authorization: "Bearer dev-token",
         "X-LumenAI-Role": "hospital_admin",
         "X-LumenAI-Actor": "hospital-reviewer-demo",
       },
@@ -317,7 +317,7 @@ async function matchVendorBaseline(identifierValue: string): Promise<VendorBasel
   const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/match`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: "Bearer dev-token",
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
       "Content-Type": "application/json",
@@ -521,7 +521,7 @@ export default function VendorBaselineSubscriptionPortal() {
         `${API_BASE}/api/enterprise/audit/evidence-bundle?limit=200`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            Authorization: "Bearer dev-token",
             "X-LumenAI-Role": "enterprise_admin",
             "X-LumenAI-Actor": "frontend-evidence-bundle-admin",
           },
@@ -550,7 +550,7 @@ export default function VendorBaselineSubscriptionPortal() {
         `${API_BASE}/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(bundleHash)}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            Authorization: "Bearer dev-token",
             "X-LumenAI-Role": "enterprise_admin",
             "X-LumenAI-Actor": "frontend-evidence-summary-admin",
           },
@@ -592,7 +592,7 @@ export default function VendorBaselineSubscriptionPortal() {
         `${API_BASE}/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(cleanHash)}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            Authorization: "Bearer dev-token",
             "X-LumenAI-Role": "enterprise_admin",
             "X-LumenAI-Actor": "frontend-bundle-verification-admin",
           },
