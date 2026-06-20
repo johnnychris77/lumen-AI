@@ -54,6 +54,7 @@ def _unsigned_test_jwt(**claim_overrides) -> str:
 
 def test_oidc_auth_mode_maps_valid_claims_to_auth_context(monkeypatch):
     from app.enterprise_auth import get_auth_context
+    from datetime import UTC, datetime, timedelta
 
     monkeypatch.setenv("AUTH_MODE", "oidc")
     monkeypatch.setenv("OIDC_ISSUER_URL", "https://issuer.example.com/")
@@ -62,6 +63,23 @@ def test_oidc_auth_mode_maps_valid_claims_to_auth_context(monkeypatch):
     monkeypatch.setenv("OIDC_ALGORITHMS", "RS256")
 
     token = _unsigned_test_jwt()
+
+    now = datetime.now(UTC)
+    verified_claims = {
+        "sub": "oidc-subject-123",
+        "email": "oidc.user@example.com",
+        "iss": "https://issuer.example.com/",
+        "aud": "lumenai-api",
+        "exp": int((now + timedelta(minutes=30)).timestamp()),
+        "iat": int((now - timedelta(minutes=1)).timestamp()),
+        "roles": ["hospital_admin"],
+        "tenant_id": "tenant-oidc",
+        "tenant_name": "OIDC Tenant",
+    }
+    monkeypatch.setattr(
+        "app.enterprise_auth.validate_jwt_signature_with_jwks",
+        lambda t: verified_claims,
+    )
 
     context = get_auth_context(
         _request(

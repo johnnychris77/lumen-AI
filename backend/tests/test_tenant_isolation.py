@@ -163,7 +163,7 @@ def test_tenant_authorization_denies_cross_tenant_access():
         db.close()
 
 
-def test_tenant_role_dependency_allows_authorized_role():
+def test_tenant_role_dependency_allows_authorized_role(monkeypatch):
     from starlette.requests import Request
 
     from app.db.session import SessionLocal
@@ -171,6 +171,11 @@ def test_tenant_role_dependency_allows_authorized_role():
 
     tenant_id = f"tenant-{uuid.uuid4()}"
     user_email = f"role-allowed-{uuid.uuid4()}@example.com"
+
+    monkeypatch.setattr(
+        "app.tenant_authz._resolve_user_email_from_token",
+        lambda request: user_email,
+    )
 
     db = SessionLocal()
     try:
@@ -211,7 +216,7 @@ def test_tenant_role_dependency_allows_authorized_role():
         db.close()
 
 
-def test_tenant_role_dependency_denies_wrong_role():
+def test_tenant_role_dependency_denies_wrong_role(monkeypatch):
     from starlette.requests import Request
 
     from app.db.session import SessionLocal
@@ -219,6 +224,11 @@ def test_tenant_role_dependency_denies_wrong_role():
 
     tenant_id = f"tenant-{uuid.uuid4()}"
     user_email = f"role-denied-{uuid.uuid4()}@example.com"
+
+    monkeypatch.setattr(
+        "app.tenant_authz._resolve_user_email_from_token",
+        lambda request: user_email,
+    )
 
     db = SessionLocal()
     try:

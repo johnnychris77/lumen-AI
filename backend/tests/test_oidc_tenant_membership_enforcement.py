@@ -56,6 +56,14 @@ def _configure_oidc(monkeypatch):
     monkeypatch.setenv("OIDC_AUDIENCE", "lumenai-api")
     monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
     monkeypatch.setenv("OIDC_ALGORITHMS", "RS256")
+    import base64
+    import json as _json
+
+    def _mock_jwks(token):
+        padded = token.split(".")[1] + "=="
+        return _json.loads(base64.urlsafe_b64decode(padded).decode())
+
+    monkeypatch.setattr("app.enterprise_auth.validate_jwt_signature_with_jwks", _mock_jwks)
 
 
 def _reset_memberships(db):

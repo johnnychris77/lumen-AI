@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.authz import require_roles
 from app.core.baseline_ranking_contract import (
     BASELINE_RANKING_INPUT_FIELDS,
     apply_baseline_ranking_to_inspection_payload_if_present,
@@ -54,6 +55,7 @@ async def stream_frame(
     baseline_confidence: str | None = Form(None),
     tenant: dict = Depends(resolve_tenant),
     db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "vendor_user")),
 ):
     file_bytes = await frame.read()
     if not file_bytes:
