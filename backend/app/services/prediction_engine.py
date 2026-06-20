@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re as _re
 from datetime import datetime, timezone
 
 from app.schemas.predictions import (
@@ -19,6 +20,11 @@ from app.schemas.predictions import (
     RepairForecastResult,
     TrayRiskAssessmentResult,
 )
+
+
+def _sanitize(text: str) -> str:
+    """Strip characters that could carry injection payloads into exports."""
+    return _re.sub(r"[<>{}`$]", "", text)
 
 
 def _seed(s: str) -> random.Random:
@@ -180,12 +186,12 @@ def _mock_failure_prediction(tenant_id, instrument_name, facility_id, horizon_da
 
 def _failure_action(score: float) -> str:
     if score >= 75:
-        return "Pull from service immediately. Schedule inspection and repair assessment within 24 hours."
+        return _sanitize("Pull from service immediately. Schedule inspection and repair assessment within 24 hours.")
     if score >= 50:
-        return "Flag for priority inspection at next use. Schedule preventive maintenance within 7 days."
+        return _sanitize("Flag for priority inspection at next use. Schedule preventive maintenance within 7 days.")
     if score >= 25:
-        return "Monitor closely. Include in next scheduled maintenance cycle."
-    return "No immediate action required. Continue routine monitoring."
+        return _sanitize("Monitor closely. Include in next scheduled maintenance cycle.")
+    return _sanitize("No immediate action required. Continue routine monitoring.")
 
 
 # ── Contamination Recurrence Prediction ──────────────────────────────────────
@@ -296,12 +302,12 @@ def _contamination_action(score: float, dominant: str) -> str:
     contaminant_map = {"blood": "blood residue", "bone": "bone debris", "tissue": "soft tissue residue"}
     c = contaminant_map.get(dominant, dominant)
     if score >= 75:
-        return f"Critical {c} recurrence risk. Escalate decontamination protocol review. Pull instrument for manual inspection."
+        return _sanitize(f"Critical {c} recurrence risk. Escalate decontamination protocol review. Pull instrument for manual inspection.")
     if score >= 50:
-        return f"High {c} recurrence detected. Extend enzymatic soak time. Re-validate IFU compliance for this instrument type."
+        return _sanitize(f"High {c} recurrence detected. Extend enzymatic soak time. Re-validate IFU compliance for this instrument type.")
     if score >= 25:
-        return f"Moderate {c} trend. Audit decontamination steps. Increase inspection frequency."
-    return "Contamination risk within acceptable range. Continue standard protocol."
+        return _sanitize(f"Moderate {c} trend. Audit decontamination steps. Increase inspection frequency.")
+    return _sanitize("Contamination risk within acceptable range. Continue standard protocol.")
 
 
 # ── Repair Forecasting ────────────────────────────────────────────────────────
@@ -373,13 +379,13 @@ def forecast_repair(
 def _repair_action(score: float, repair_cost: float, replace_cost: float) -> str:
     if score >= 75:
         if repair_cost > replace_cost * 0.5:
-            return f"Replacement recommended (est. ${replace_cost:,.0f}). Cost of repeated repair exceeds replacement threshold."
-        return f"Immediate repair required (est. ${repair_cost:,.0f}). Schedule within 48 hours."
+            return _sanitize(f"Replacement recommended (est. ${replace_cost:,.0f}). Cost of repeated repair exceeds replacement threshold.")
+        return _sanitize(f"Immediate repair required (est. ${repair_cost:,.0f}). Schedule within 48 hours.")
     if score >= 50:
-        return f"Preventive repair advised (est. ${repair_cost:,.0f}). Schedule within 30 days to avoid emergency replacement."
+        return _sanitize(f"Preventive repair advised (est. ${repair_cost:,.0f}). Schedule within 30 days to avoid emergency replacement.")
     if score >= 25:
-        return f"Budget for potential repair (est. ${repair_cost:,.0f}) in next quarter. Continue monitoring."
-    return "No repair action required at this time."
+        return _sanitize(f"Budget for potential repair (est. ${repair_cost:,.0f}) in next quarter. Continue monitoring.")
+    return _sanitize("No repair action required at this time.")
 
 
 # ── Recall Risk Assessment ────────────────────────────────────────────────────
@@ -465,12 +471,12 @@ def assess_recall_risk(
 
 def _recall_action(score: float, critical: int) -> str:
     if critical > 0:
-        return "URGENT: Active Class I recall affects this category. Immediately identify and quarantine affected lot numbers. Notify clinical leadership."
+        return _sanitize("URGENT: Active Class I recall affects this category. Immediately identify and quarantine affected lot numbers. Notify clinical leadership.")
     if score >= 50:
-        return "Active recall monitoring required. Cross-reference lot numbers against instrument inventory within 24 hours."
+        return _sanitize("Active recall monitoring required. Cross-reference lot numbers against instrument inventory within 24 hours.")
     if score >= 25:
-        return "Watch status: review active advisories for this instrument category at next scheduled audit."
-    return "No active recall exposure detected. Continue standard recall monitoring."
+        return _sanitize("Watch status: review active advisories for this instrument category at next scheduled audit.")
+    return _sanitize("No active recall exposure detected. Continue standard recall monitoring.")
 
 
 # ── Tray Risk Assessment ──────────────────────────────────────────────────────
@@ -575,12 +581,12 @@ def assess_tray_risk(
 
 def _tray_action(score: float, worst_instrument: str) -> str:
     if score >= 75:
-        return f"Tray at critical risk. Pull '{worst_instrument}' from service. Full tray inspection required before next surgical use."
+        return _sanitize(f"Tray at critical risk. Pull '{worst_instrument}' from service. Full tray inspection required before next surgical use.")
     if score >= 50:
-        return f"Tray at high risk. Priority inspection of '{worst_instrument}' before next use. Review remaining instruments."
+        return _sanitize(f"Tray at high risk. Priority inspection of '{worst_instrument}' before next use. Review remaining instruments.")
     if score >= 25:
-        return f"Tray at moderate risk. Schedule '{worst_instrument}' for next maintenance cycle."
-    return "Tray risk within acceptable range. Continue standard inspection protocol."
+        return _sanitize(f"Tray at moderate risk. Schedule '{worst_instrument}' for next maintenance cycle.")
+    return _sanitize("Tray risk within acceptable range. Continue standard inspection protocol.")
 
 
 # ── Batch / List functions ────────────────────────────────────────────────────
@@ -629,6 +635,20 @@ def assess_recall_risk_all_categories(
 ) -> list[RecallRiskAssessmentResult]:
     categories = ["laparoscopic", "endoscopic", "orthopedic", "cardiac", "general_surgery"]
     return [assess_recall_risk(tenant_id, cat, db) for cat in categories]
+
+
+def _get_instrument_by_id(tenant_id: str, instrument_id: str, db) -> list:
+    """Get CVInferenceRecord rows for a specific instrument_id (barcode/QR)."""
+    if db is not None and instrument_id:
+        try:
+            from app.models.cv_inference import CVInferenceRecord
+            return db.query(CVInferenceRecord).filter(
+                CVInferenceRecord.tenant_id == tenant_id,
+                CVInferenceRecord.barcode_value == instrument_id,
+            ).order_by(CVInferenceRecord.id.desc()).limit(20).all()
+        except Exception:
+            pass
+    return []
 
 
 def _get_instrument_names(tenant_id: str, facility_id: str, limit: int, db) -> list[str]:
@@ -723,6 +743,13 @@ def compute_predictive_dashboard(
     if projected_repair > 5000:
         recommended_actions.append(f"Budget ${projected_repair:,.0f} for repair costs in next 90 days.")
 
+    # ROI = cost difference between catching at medium risk (preventive) vs critical (emergency)
+    # Emergency repair costs ~2.5x preventive maintenance cost
+    # Count instruments currently at medium risk (25-49) — catching them now avoids emergency cost
+    medium_risk_repairs = [r for r in repairs if 25 <= r.risk_score < 50]
+    repair_avoidance = sum(r.estimated_repair_cost_usd * 1.5 for r in medium_risk_repairs)
+    repair_avoidance_roi_usd = round(repair_avoidance, 2)
+
     data_sources = {f.data_source for f in failures_30}
     data_source = "real" if "real" in data_sources else "mock"
 
@@ -742,6 +769,7 @@ def compute_predictive_dashboard(
         highest_risk_instruments=highest_risk_instruments,
         top_contamination_risks=top_contamination,
         recall_risk_by_category=recall_by_cat,
+        repair_avoidance_roi_usd=repair_avoidance_roi_usd,
         top_risk_factors=top_factors_display,
         recommended_actions=recommended_actions,
     )

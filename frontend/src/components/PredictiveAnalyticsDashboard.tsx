@@ -68,6 +68,7 @@ type Dashboard = {
   projected_replacement_cost_usd: number;
   contamination_recurrence_rate_pct: number;
   recall_exposure_score: number;
+  repair_avoidance_roi_usd: number;
   highest_risk_instruments: {
     instrument_name: string;
     risk_score: number;
@@ -231,6 +232,15 @@ export function PredictiveAnalyticsDashboard() {
             <KpiCard label="High-Risk Instruments" value={dashboard.high_risk_instrument_count} />
             <KpiCard label="Critical-Risk Instruments" value={dashboard.critical_risk_instrument_count} />
             <KpiCard label="Contamination Recurrence" value={`${dashboard.contamination_recurrence_rate_pct}%`} />
+            <div style={{ background: "#f0fdf4", border: "1px solid #22c55e", borderRadius: 8, padding: 16, minWidth: 140, flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: 1 }}>
+                Repair Avoidance ROI
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: "#15803d" }}>
+                ${(dashboard.repair_avoidance_roi_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: 11, color: "#166534" }}>estimated savings vs emergency repair</div>
+            </div>
           </div>
 
           {dashboard.recommended_actions.length > 0 && (

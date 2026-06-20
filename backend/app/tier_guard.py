@@ -5,9 +5,29 @@ from sqlalchemy.orm import Session
 
 # Feature matrix per tier
 TIER_FEATURES = {
-    "standard":     {"shared_defects", "risk_patterns"},
-    "professional": {"shared_defects", "risk_patterns", "recalls", "capa"},
-    "enterprise":   {"shared_defects", "risk_patterns", "recalls", "capa", "dashboard", "trends", "manufacturer_portal"},
+    "standard": {
+        "shared_defects", "risk_patterns",
+        "failure_prediction_basic",          # /api/predictions/failures list, 30d only
+    },
+    "professional": {
+        "shared_defects", "risk_patterns",
+        "failure_prediction_basic",
+        "failure_prediction_full",           # all horizons + per-instrument detail
+        "contamination_prediction",
+        "repair_forecasting",
+        "recalls", "capa",
+    },
+    "enterprise": {
+        "shared_defects", "risk_patterns",
+        "failure_prediction_basic",
+        "failure_prediction_full",
+        "contamination_prediction",
+        "repair_forecasting",
+        "recall_risk",
+        "tray_risk",
+        "predictive_dashboard",
+        "recalls", "capa", "dashboard", "trends", "manufacturer_portal",
+    },
 }
 
 

@@ -66,6 +66,16 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.predictions")          # register P7 prediction tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from app.services.prediction_scheduler import register_prediction_scheduler
+        from app.db.session import SessionLocal
+        _scheduler = BackgroundScheduler()
+        register_prediction_scheduler(_scheduler, SessionLocal)
+        _scheduler.start()
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning("Prediction scheduler not started: %s", _e)
     yield
 
 

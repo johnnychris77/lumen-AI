@@ -114,6 +114,46 @@ class PredictiveDashboard(BaseModel):
     top_contamination_risks: list[dict[str, Any]] = Field(default_factory=list)
     recall_risk_by_category: list[dict[str, Any]] = Field(default_factory=list)
 
+    # ROI metric
+    repair_avoidance_roi_usd: float = 0.0
+
     # Explainability summary
     top_risk_factors: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
+
+
+class PredictionOutcomeCreate(BaseModel):
+    tenant_id: str
+    instrument_name: str
+    instrument_id: str = ""
+    facility_id: str = ""
+    prediction_date: str
+    predicted_risk_category: str
+    predicted_failure_probability: float = 0.0
+    actual_outcome: str  # "failed"|"repaired"|"no_event"
+    outcome_notes: str = ""
+    recorded_by: str = "system"
+
+
+class PredictionOutcomeResult(BaseModel):
+    id: int
+    tenant_id: str
+    instrument_name: str
+    prediction_date: str
+    predicted_risk_category: str
+    predicted_failure_probability: float
+    actual_outcome: str
+    outcome_date: str | None = None
+    recorded_by: str
+    created_at: str
+
+
+class PredictionAccuracyResult(BaseModel):
+    tenant_id: str
+    total_outcomes: int = 0
+    correct_predictions: int = 0
+    precision: float = 0.0  # true positives / (true positives + false positives)
+    recall: float = 0.0     # true positives / (true positives + false negatives)
+    f1_score: float = 0.0
+    accuracy_pct: float = 0.0
+    data_source: str = "real"

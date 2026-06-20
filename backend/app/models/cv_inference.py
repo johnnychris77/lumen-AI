@@ -46,6 +46,9 @@ class CVInferenceRecord(Base):
     qr_value = Column(String(500), default="", nullable=False)
     key_dot_value = Column(String(500), default="", nullable=False)
 
+    # Canonical join key: barcode > qr > key_dot (populated by CV pipeline)
+    barcode_instrument_id = Column(String(200), nullable=False, index=True, default="")
+
     # Scores (0-100, higher = cleaner)
     contamination_score = Column(Float, default=100.0, nullable=False)
     damage_score = Column(Float, default=100.0, nullable=False)
