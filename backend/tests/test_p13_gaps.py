@@ -109,9 +109,11 @@ class TestLimiterModule:
 
     def test_rate_limit_wraps_function(self):
         from app.limiter import _rate_limit
+        from starlette.requests import Request
 
+        # slowapi requires a 'request' parameter — include it to satisfy the decorator
         @_rate_limit("10/minute")
-        def dummy():
+        def dummy(request: Request):
             return "ok"
 
         assert callable(dummy)
@@ -123,9 +125,17 @@ class TestLimiterModule:
 
 
 class TestNewDocs:
+    @staticmethod
+    def _regulatory_dir():
+        import os
+        # Resolve relative to this test file: backend/tests/ -> ../../docs/regulatory
+        return os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "docs", "regulatory")
+        )
+
     def test_docs_regulatory_dir_has_new_files(self):
         import os
-        base = "/home/user/lumen-AI/docs/regulatory"
+        base = self._regulatory_dir()
         expected = [
             "510k-predicate-search-log.md",
             "external-pentest-scope.md",
@@ -138,7 +148,7 @@ class TestNewDocs:
 
     def test_existing_regulatory_docs_still_present(self):
         import os
-        base = "/home/user/lumen-AI/docs/regulatory"
+        base = self._regulatory_dir()
         existing = [
             "intended-use-and-claims-boundary.md",
             "samd-classification-assessment.md",
