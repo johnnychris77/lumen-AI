@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+BASELINE_RANKING_INPUT_FIELDS = (
     "instrument_match_status",
     "baseline_status",
     "baseline_confidence",
@@ -18,7 +19,6 @@ BASELINE_RANKING_AUDIT_IDENTITY_FIELDS = (
     "instrument_category",
 )
 
-BASELINE_RANKING_INPUT_FIELDS = (
 
 def _coerce_optional_text(value: Any) -> str:
     if isinstance(value, str):
