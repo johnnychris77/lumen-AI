@@ -131,11 +131,9 @@ def _require_oidc_auth_context(
     token = _extract_bearer_token(request)
 
     try:
-        validate_jwt_signature_with_jwks(token)
+        claims = validate_jwt_signature_with_jwks(token)
     except JWKSSignatureValidationError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    claims = _decode_unverified_jwt_claims(token)
 
     try:
         validated_claims = validate_jwt_claims(

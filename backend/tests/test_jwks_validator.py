@@ -86,14 +86,15 @@ def test_jwks_signature_validation_requires_jwks_url(monkeypatch):
     assert "OIDC_JWKS_URL is required" in str(exc.value)
 
 
-def test_jwks_signature_validation_returns_pending_status_with_config(monkeypatch):
-    from app.auth.jwks_validator import validate_jwt_signature_with_jwks
+def test_jwks_signature_validation_rejects_unverifiable_token(monkeypatch):
+    from app.auth.jwks_validator import (
+        JWKSSignatureValidationError,
+        validate_jwt_signature_with_jwks,
+    )
 
     monkeypatch.setenv("OIDC_ALGORITHMS", "RS256")
     monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
 
-    result = validate_jwt_signature_with_jwks(_token())
-
-    assert result["signature_validation_status"] == "jwks_signature_validation_pending"
-    assert result["header"]["kid"] == "test-key"
-    assert result["jwks_url"] == "https://issuer.example.com/.well-known/jwks.json"
+    # A token with a fake signature must be rejected — the stub is gone.
+    with pytest.raises(JWKSSignatureValidationError):
+        validate_jwt_signature_with_jwks(_token())

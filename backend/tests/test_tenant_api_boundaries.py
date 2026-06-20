@@ -1,5 +1,6 @@
 import os
 import uuid
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -64,13 +65,14 @@ def test_protected_reports_route_denies_user_without_membership():
     tenant_id = f"tenant-{uuid.uuid4()}"
     user_email = f"missing-{uuid.uuid4()}@example.com"
 
-    response = client.get(
-        _get_protected_report_route(app),
-        headers={
-            "X-LumenAI-Tenant-ID": tenant_id,
-            "X-LumenAI-Actor": user_email,
-        },
-    )
+    with patch("app.tenant_authz._resolve_user_email_from_token", return_value=user_email):
+        response = client.get(
+            _get_protected_report_route(app),
+            headers={
+                "X-LumenAI-Tenant-ID": tenant_id,
+                "X-LumenAI-Actor": user_email,
+            },
+        )
 
     assert response.status_code == 403
 
@@ -96,13 +98,14 @@ def test_protected_reports_route_denies_wrong_role():
 
     client = TestClient(app)
 
-    response = client.get(
-        _get_protected_report_route(app),
-        headers={
-            "X-LumenAI-Tenant-ID": tenant_id,
-            "X-LumenAI-Actor": user_email,
-        },
-    )
+    with patch("app.tenant_authz._resolve_user_email_from_token", return_value=user_email):
+        response = client.get(
+            _get_protected_report_route(app),
+            headers={
+                "X-LumenAI-Tenant-ID": tenant_id,
+                "X-LumenAI-Actor": user_email,
+            },
+        )
 
     assert response.status_code == 403
 
@@ -129,12 +132,13 @@ def test_protected_reports_route_denies_cross_tenant_user():
 
     client = TestClient(app)
 
-    response = client.get(
-        _get_protected_report_route(app),
-        headers={
-            "X-LumenAI-Tenant-ID": blocked_tenant_id,
-            "X-LumenAI-Actor": user_email,
-        },
-    )
+    with patch("app.tenant_authz._resolve_user_email_from_token", return_value=user_email):
+        response = client.get(
+            _get_protected_report_route(app),
+            headers={
+                "X-LumenAI-Tenant-ID": blocked_tenant_id,
+                "X-LumenAI-Actor": user_email,
+            },
+        )
 
     assert response.status_code == 403

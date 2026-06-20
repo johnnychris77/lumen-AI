@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, Form
 from sqlalchemy.orm import Session
 import os
 
+from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
 from redis import Redis
@@ -18,13 +19,19 @@ async def process_frame(
     frame: UploadFile = File(...),
     vendor_name: str = Form(default="unknown"),
     db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "vendor_user")),
 ):
     image_bytes = await frame.read()
     if not image_bytes:
         raise ValueError("Empty frame uploaded")
 
+    tenant_id = getattr(current_user, "tenant_id", None) or "unknown"
+    tenant_name = getattr(current_user, "tenant_name", None) or tenant_id
+
     inspection = models.Inspection(
         file_name=frame.filename or "live-frame",
+        tenant_id=tenant_id,
+        tenant_name=tenant_name,
         stain_detected=False,
         confidence=0.0,
         material_type="unknown",
