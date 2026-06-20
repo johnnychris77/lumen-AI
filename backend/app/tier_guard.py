@@ -8,6 +8,7 @@ TIER_FEATURES = {
     "standard": {
         "shared_defects", "risk_patterns",
         "failure_prediction_basic",          # /api/predictions/failures list, 30d only
+        "regulatory_readiness",              # basic accreditation score
     },
     "professional": {
         "shared_defects", "risk_patterns",
@@ -16,6 +17,9 @@ TIER_FEATURES = {
         "contamination_prediction",
         "repair_forecasting",
         "recalls", "capa",
+        "regulatory_readiness",
+        "regulatory_findings",              # detailed finding list
+        "standards_catalogue",              # standards mapping
     },
     "enterprise": {
         "shared_defects", "risk_patterns",
@@ -27,6 +31,12 @@ TIER_FEATURES = {
         "tray_risk",
         "predictive_dashboard",
         "recalls", "capa", "dashboard", "trends", "manufacturer_portal",
+        "regulatory_readiness",
+        "regulatory_findings",
+        "standards_catalogue",
+        "audit_package",                    # generate full audit packages + PDF
+        "fda_tracking",                     # FDA submission tracker
+        "regulatory_dashboard",             # executive regulatory dashboard
     },
 }
 

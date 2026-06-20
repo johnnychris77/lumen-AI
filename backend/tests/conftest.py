@@ -53,6 +53,7 @@ def _force_import_models():
         "app.models.tenant_plan",
         "app.models.payment_event",
         "app.models.predictions",
+        "app.models.regulatory",
     ]:
         try:
             importlib.import_module(model_path)
