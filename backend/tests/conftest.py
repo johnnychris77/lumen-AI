@@ -56,6 +56,7 @@ def _force_import_models():
         "app.models.regulatory",
         "app.models.copilot",
         "app.models.digital_twin",
+        "app.models.validation",
     ]:
         try:
             importlib.import_module(model_path)

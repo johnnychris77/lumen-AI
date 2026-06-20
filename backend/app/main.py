@@ -90,6 +90,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.predictions")          # register P7 prediction tables
     importlib.import_module("app.models.regulatory")           # register P8 regulatory tables
     importlib.import_module("app.models.copilot")              # register P9 copilot tables
+    importlib.import_module("app.models.validation")           # register P12 validation tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -745,6 +746,10 @@ app.include_router(copilot_router)
 from app.models import digital_twin as _digital_twin_models  # noqa: F401
 from app.routes.digital_twin import router as digital_twin_router
 app.include_router(digital_twin_router)
+
+from app.models import validation as _validation_models  # noqa: F401
+from app.routes.validation import router as validation_router
+app.include_router(validation_router)
 
 from fastapi.openapi.utils import get_openapi
 

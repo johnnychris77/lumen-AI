@@ -11,6 +11,7 @@ TIER_FEATURES = {
         "regulatory_readiness",              # basic accreditation score
         "copilot_basic",                     # P9: copilot sessions + protocols
         "twin_state",                        # P10: digital twin state + flow
+        "validation_basic",                  # P12: validation case submission
     },
     "professional": {
         "shared_defects", "risk_patterns",
@@ -26,6 +27,8 @@ TIER_FEATURES = {
         "copilot_escalations",              # P9: escalation management
         "twin_state",                       # P10: digital twin state + flow
         "twin_alerts",                      # P10: SPD alerts
+        "validation_basic",                 # P12: validation case submission
+        "validation_report",                # P12: validation report
     },
     "enterprise": {
         "shared_defects", "risk_patterns",
@@ -51,6 +54,9 @@ TIER_FEATURES = {
         "twin_alerts",                      # P10: SPD alerts
         "twin_whatif",                      # P10: what-if simulation
         "twin_dashboard",                   # P10: full twin dashboard
+        "validation_basic",                 # P12: validation case submission
+        "validation_report",                # P12: validation report
+        "validation_full",                  # P12: full clinical validation suite
     },
 }
 
