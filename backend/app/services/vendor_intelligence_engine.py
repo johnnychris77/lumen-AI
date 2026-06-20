@@ -450,6 +450,65 @@ def compute_manufacturer_trends(
 def get_shared_defect_signals(limit: int = 20, db=None) -> list[SharedDefectSignalResult]:
     """Return anonymized shared defect signals — NO tenant or hospital identifiers."""
     if db is not None:
+        # First try to aggregate from real CVInferenceRecord data (Enhancement 2)
+        try:
+            from app.models.cv_inference import CVInferenceRecord
+            from sqlalchemy import func
+
+            # Finding types mapped to columns
+            finding_columns = [
+                ("blood", "blood_count", "contamination", "high"),
+                ("bone", "bone_count", "contamination", "medium"),
+                ("tissue", "tissue_count", "contamination", "medium"),
+                ("corrosion", "corrosion_count", "damage", "medium"),
+                ("crack", "crack_count", "damage", "high"),
+            ]
+            # Check optional columns
+            optional_cols = []
+            for attr in ("insulation_count", "residue_count"):
+                if hasattr(CVInferenceRecord, attr):
+                    optional_cols.append(attr)
+            if hasattr(CVInferenceRecord, "insulation_count"):
+                finding_columns.append(("insulation", "insulation_count", "damage", "high"))
+            if hasattr(CVInferenceRecord, "residue_count"):
+                finding_columns.append(("residue", "residue_count", "contamination", "medium"))
+
+            now = datetime.now(timezone.utc)
+            period = now.strftime("%Y-%m")
+            aggregated = []
+            for finding_type, col_name, signal_type, severity in finding_columns:
+                col = getattr(CVInferenceRecord, col_name, None)
+                if col is None:
+                    continue
+                total = db.query(func.sum(col)).scalar() or 0
+                if total > 0:
+                    aggregated.append((finding_type, signal_type, severity, int(total)))
+
+            if aggregated:
+                # Compute confidence scores relative to max
+                max_count = max(t for _, _, _, t in aggregated) if aggregated else 1
+                results = []
+                for idx, (finding_type, signal_type, severity, total) in enumerate(
+                    sorted(aggregated, key=lambda x: x[3], reverse=True)[:limit], 1
+                ):
+                    confidence = round(min(0.99, 0.60 + (total / max(max_count, 1)) * 0.35), 2)
+                    results.append(SharedDefectSignalResult(
+                        id=idx,
+                        signal_type=signal_type,
+                        instrument_category="general",
+                        finding_category=f"{finding_type}_residue",
+                        occurrence_count=total,
+                        severity=severity,
+                        confidence_score=confidence,
+                        first_seen_period="2025-01",
+                        last_seen_period=period,
+                        is_active=True,
+                    ))
+                return results
+        except Exception:
+            pass
+
+        # Fall back to SharedDefectSignal table
         try:
             from app.models.vendor_intelligence import SharedDefectSignal
             rows = (
@@ -844,6 +903,22 @@ def compute_capa_effectiveness(
         effectiveness_score=effectiveness,
         data_source="mock",
     )
+
+
+# ── FDA MedWatch sync stub (Enhancement 4) ────────────────────────────────────
+
+def sync_fda_recalls(tenant_id: str, db=None) -> dict:
+    """
+    Stub for FDA MedWatch API integration.
+    When FDA_MEDWATCH_API_KEY env var is set, fetches real recall data.
+    Currently returns a status dict indicating sync is not yet configured.
+    """
+    import os
+    api_key = os.environ.get("FDA_MEDWATCH_API_KEY")
+    if not api_key:
+        return {"status": "not_configured", "message": "Set FDA_MEDWATCH_API_KEY to enable live recall sync"}
+    # TODO: implement real FDA API call when key is available
+    return {"status": "ready", "message": "FDA MedWatch integration ready — implement HTTP call here"}
 
 
 # ── Intelligence dashboard ─────────────────────────────────────────────────────

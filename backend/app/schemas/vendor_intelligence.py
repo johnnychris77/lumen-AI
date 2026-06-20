@@ -131,7 +131,40 @@ class RecallEventResult(BaseModel):
     status: str
     source: str
     source_url: str
+    # FDA MedWatch-ready fields (Enhancement 4)
+    fda_product_code: Optional[str] = None
+    fda_classification: Optional[str] = None
+    lot_numbers: Optional[List[str]] = None
+    distribution_pattern: Optional[str] = None
+    voluntary: Optional[bool] = None
     created_at: str
+
+
+# ── Intelligence Sharing Consent ──────────────────────────────────────────────
+
+class ConsentCreateRequest(BaseModel):
+    tenant_id: str
+    facility_id: str
+    consented_by: str
+    consent_version: str = "1.0"
+    modules: list[str] = ["defect_signals", "risk_patterns"]
+
+
+class ConsentRevokeRequest(BaseModel):
+    revoked_by: str
+
+
+class ConsentResult(BaseModel):
+    id: int
+    tenant_id: str
+    facility_id: str
+    consented_by: str
+    consent_version: str
+    is_active: bool
+    modules: list[str]
+    consented_at: str
+    revoked_at: str | None = None
+    revoked_by: str | None = None
 
 
 class RecallImpactResult(BaseModel):

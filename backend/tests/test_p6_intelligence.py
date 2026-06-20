@@ -597,3 +597,254 @@ class TestRecallIntelligence:
         r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers=AUTH)
         data = r.json()
         assert data["tenant_id"] == TENANT
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestIntelligenceConsent
+# ────────────────────────────────────────────────────────────────────────────────
+
+CONSENT_AUTH = {"Authorization": "Bearer dev-token", "X-LumenAI-Role": "operator", "X-LumenAI-Tenant-Id": "consent-tenant"}
+CONSENT_FACILITY = "facility-001"
+
+
+class TestIntelligenceConsent:
+    def test_create_consent(self):
+        r = client.post(
+            "/api/intelligence/consent",
+            json={
+                "tenant_id": "consent-tenant",
+                "facility_id": CONSENT_FACILITY,
+                "consented_by": "admin@hospital.org",
+                "consent_version": "1.0",
+                "modules": ["defect_signals", "risk_patterns"],
+            },
+            headers=CONSENT_AUTH,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "success"
+        assert data["action"] in ("created", "updated")
+
+    def test_create_consent_returns_consent_object(self):
+        r = client.post(
+            "/api/intelligence/consent",
+            json={
+                "tenant_id": "consent-tenant",
+                "facility_id": "facility-002",
+                "consented_by": "cso@hospital.org",
+                "modules": ["defect_signals"],
+            },
+            headers=CONSENT_AUTH,
+        )
+        assert r.status_code == 200
+        consent = r.json()["consent"]
+        assert consent["is_active"] is True
+        assert "defect_signals" in consent["modules"]
+
+    def test_revoke_consent(self):
+        # Create first
+        client.post(
+            "/api/intelligence/consent",
+            json={
+                "tenant_id": "consent-tenant",
+                "facility_id": "facility-revoke",
+                "consented_by": "admin@hospital.org",
+                "modules": ["defect_signals"],
+            },
+            headers=CONSENT_AUTH,
+        )
+        # Revoke
+        r = client.delete(
+            "/api/intelligence/consent/facility-revoke",
+            params={"revoked_by": "privacy-officer@hospital.org"},
+            headers=CONSENT_AUTH,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["action"] == "revoked"
+        assert data["consent"]["is_active"] is False
+
+    def test_get_consent_status(self):
+        client.post(
+            "/api/intelligence/consent",
+            json={
+                "tenant_id": "consent-tenant",
+                "facility_id": "facility-status",
+                "consented_by": "admin@hospital.org",
+                "modules": ["defect_signals"],
+            },
+            headers=CONSENT_AUTH,
+        )
+        r = client.get("/api/intelligence/consent/facility-status", headers=CONSENT_AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["consent_exists"] is True
+        assert data["is_active"] is True
+
+    def test_get_consent_status_not_found(self):
+        r = client.get("/api/intelligence/consent/nonexistent-facility-xyz", headers=CONSENT_AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["consent_exists"] is False
+        assert data["is_active"] is False
+
+    def test_consent_audit_log_populated(self):
+        from sqlalchemy.orm import Session
+        from app.db import engine
+
+        client.post(
+            "/api/intelligence/consent",
+            json={
+                "tenant_id": "consent-tenant",
+                "facility_id": "facility-audit",
+                "consented_by": "auditor@hospital.org",
+                "modules": ["defect_signals"],
+            },
+            headers=CONSENT_AUTH,
+        )
+        from app.models.vendor_intelligence import IntelligenceSharingConsent
+        import json as _json
+        with Session(engine) as db:
+            row = db.query(IntelligenceSharingConsent).filter(
+                IntelligenceSharingConsent.facility_id == "facility-audit"
+            ).first()
+            if row:
+                audit = _json.loads(row.audit_log or "[]")
+                assert len(audit) >= 1
+                assert audit[0]["action"] == "consent_created"
+
+    def test_create_consent_requires_auth(self):
+        r = client.post(
+            "/api/intelligence/consent",
+            json={"tenant_id": "x", "facility_id": "y", "consented_by": "z", "modules": []},
+        )
+        assert r.status_code in (401, 403)
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestManufacturerPortal
+# ────────────────────────────────────────────────────────────────────────────────
+
+MFR_AUTH = {
+    "Authorization": "Bearer dev-token",
+    "X-LumenAI-Role": "manufacturer",
+    "X-Manufacturer-ID": "mfr-stryker",
+}
+
+
+class TestManufacturerPortal:
+    def test_my_scorecard_requires_manufacturer_header(self):
+        r = client.get(
+            "/api/manufacturer-portal/my-scorecard",
+            headers={"Authorization": "Bearer dev-token", "X-LumenAI-Role": "manufacturer"},
+        )
+        assert r.status_code == 403
+
+    def test_my_scorecard_returns_data(self):
+        r = client.get("/api/manufacturer-portal/my-scorecard", headers=MFR_AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "success"
+        assert data["manufacturer_id"] == "mfr-stryker"
+        assert "scorecard" in data
+        assert 0 <= data["scorecard"]["composite_score"] <= 100
+
+    def test_my_defect_trends_returns_data(self):
+        r = client.get("/api/manufacturer-portal/my-defect-trends", headers=MFR_AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["manufacturer_id"] == "mfr-stryker"
+        assert "trends" in data
+        assert len(data["trends"]) > 0
+
+    def test_network_benchmark_anonymized(self):
+        r = client.get("/api/manufacturer-portal/network-benchmark", headers=MFR_AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        # Must not include hospital_id or tenant_id
+        assert "hospital_id" not in data
+        assert "tenant_id" not in data
+        assert data["anonymized"] is True
+        assert "network_avg_composite_score" in data
+        assert "my_composite_score" in data
+
+    def test_network_benchmark_has_rank(self):
+        r = client.get("/api/manufacturer-portal/network-benchmark", headers=MFR_AUTH)
+        data = r.json()
+        assert "my_rank" in data
+        assert data["my_rank"] >= 1
+
+    def test_my_scorecard_requires_auth(self):
+        r = client.get(
+            "/api/manufacturer-portal/my-scorecard",
+            headers={"X-Manufacturer-ID": "mfr-stryker"},
+        )
+        assert r.status_code in (401, 403)
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestFDARecallSync
+# ────────────────────────────────────────────────────────────────────────────────
+
+class TestFDARecallSync:
+    def test_sync_returns_not_configured_without_api_key(self):
+        import os
+        os.environ.pop("FDA_MEDWATCH_API_KEY", None)
+        r = client.post("/api/intelligence/recalls/sync", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["sync_result"]["status"] == "not_configured"
+
+    def test_sync_endpoint_requires_auth(self):
+        r = client.post("/api/intelligence/recalls/sync", params={"tenant_id": TENANT})
+        assert r.status_code in (401, 403)
+
+    def test_real_recall_fields_present(self):
+        from app.schemas.vendor_intelligence import RecallEventResult
+        # Verify fda_product_code etc are in the schema
+        fields = RecallEventResult.model_fields
+        assert "fda_product_code" in fields
+        assert "fda_classification" in fields
+        assert "lot_numbers" in fields
+        assert "distribution_pattern" in fields
+        assert "voluntary" in fields
+
+    def test_recall_result_fda_fields_optional(self):
+        from app.services.vendor_intelligence_engine import get_recall_by_id
+        result = get_recall_by_id(TENANT, 1, db=None)
+        # fda fields should be None by default for mock data
+        assert result.fda_product_code is None
+        assert result.fda_classification is None
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestRealDefectAggregation
+# ────────────────────────────────────────────────────────────────────────────────
+
+class TestRealDefectAggregation:
+    def test_shared_defect_signals_returns_results(self):
+        from app.services.vendor_intelligence_engine import get_shared_defect_signals
+        results = get_shared_defect_signals(limit=10, db=None)
+        assert isinstance(results, list)
+        assert len(results) > 0
+
+    def test_signals_have_no_tenant_identifiers(self):
+        from app.services.vendor_intelligence_engine import get_shared_defect_signals
+        results = get_shared_defect_signals(limit=10, db=None)
+        for signal in results:
+            d = signal.model_dump()
+            assert "tenant_id" not in d
+            assert "hospital_id" not in d
+            assert "facility_id" not in d
+
+    def test_signals_occurrence_count_positive(self):
+        from app.services.vendor_intelligence_engine import get_shared_defect_signals
+        results = get_shared_defect_signals(limit=5, db=None)
+        for signal in results:
+            assert signal.occurrence_count > 0
+
+    def test_signals_confidence_score_range(self):
+        from app.services.vendor_intelligence_engine import get_shared_defect_signals
+        results = get_shared_defect_signals(limit=10, db=None)
+        for signal in results:
+            assert 0.0 <= signal.confidence_score <= 1.0

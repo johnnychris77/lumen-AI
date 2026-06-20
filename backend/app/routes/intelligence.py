@@ -15,6 +15,7 @@ from app.services.vendor_intelligence_engine import (
     get_instrument_risk_patterns,
     get_recall_by_id,
     get_shared_defect_signals,
+    sync_fda_recalls,
 )
 
 router = APIRouter(prefix="/api/intelligence", tags=["intelligence"])
@@ -124,10 +125,33 @@ def intelligence_dashboard(
     tenant_id: str = Query(..., description="Tenant identifier"),
     period_label: str = Query(default="", description="Period label"),
     period_type: str = Query(default="monthly"),
+    tier: str = Query(default="standard", description="Data tier: standard|professional|enterprise"),
     db: Session = Depends(get_db),
 ):
-    """Return the executive intelligence dashboard for a tenant."""
+    """Return the executive intelligence dashboard for a tenant.
+
+    tier: "standard" | "professional" | "enterprise"
+    standard: shared_defect_signals, risk_patterns only
+    professional: + recalls, capa_effectiveness
+    enterprise: + full dashboard, cross-hospital trends
+    Currently all tiers return full data; tier enforcement added in billing milestone.
+    """
     require_enterprise_auth(request)
     label = period_label or _current_period_label(period_type)
+    # Log requested tier for future monetization enforcement
+    import logging
+    logging.getLogger(__name__).debug("intelligence_dashboard: tenant=%s tier=%s", tenant_id, tier)
     dashboard = compute_intelligence_dashboard(tenant_id, label, period_type, db)
-    return {"status": "success", "dashboard": dashboard.model_dump()}
+    return {"status": "success", "tier": tier, "dashboard": dashboard.model_dump()}
+
+
+@router.post("/recalls/sync")
+def recalls_sync(
+    request: Request,
+    tenant_id: str = Query(..., description="Tenant identifier"),
+    db: Session = Depends(get_db),
+):
+    """Trigger FDA MedWatch recall sync (stub — requires FDA_MEDWATCH_API_KEY env var)."""
+    require_enterprise_auth(request)
+    result = sync_fda_recalls(tenant_id, db)
+    return {"status": "success", "sync_result": result}

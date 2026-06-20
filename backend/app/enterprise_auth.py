@@ -302,6 +302,25 @@ def require_vendor_baseline_library_read(request: Request) -> AuthContext:
     )
 
 
+def require_manufacturer_auth(request: Request) -> str:
+    """
+    Auth helper for manufacturer portal endpoints.
+    Validates Bearer token (same as require_enterprise_auth) then requires
+    X-Manufacturer-ID header.  Returns the manufacturer_id string.
+    Does NOT require enterprise role — manufacturer role is separate.
+    """
+    # Validate the bearer token using the existing auth mechanism
+    require_enterprise_auth(request)
+
+    manufacturer_id = request.headers.get("X-Manufacturer-ID", "").strip()
+    if not manufacturer_id:
+        raise HTTPException(
+            status_code=403,
+            detail="X-Manufacturer-ID header required for manufacturer portal access.",
+        )
+    return manufacturer_id
+
+
 def require_audit_chain_verify(request: Request) -> AuthContext:
     return require_permission(
         request,

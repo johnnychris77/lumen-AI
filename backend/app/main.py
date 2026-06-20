@@ -35,6 +35,8 @@ from app.routes.vendor_trend_intelligence import router as vendor_trend_intellig
 from app.routes.vendor_intelligence import router as vendor_intelligence_router
 from app.routes.manufacturer_intelligence import router as manufacturer_intelligence_router
 from app.routes.intelligence import router as intelligence_router
+from app.routes.intelligence_consent import router as intelligence_consent_router
+from app.routes.manufacturer_portal import router as manufacturer_portal_router
 
 
 def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
@@ -594,6 +596,8 @@ app.include_router(vendor_trend_intelligence_router)
 app.include_router(vendor_intelligence_router)
 app.include_router(manufacturer_intelligence_router)
 app.include_router(intelligence_router)
+app.include_router(intelligence_consent_router)
+app.include_router(manufacturer_portal_router)
 
 from app.routes.benchmarking import router as benchmarking_router
 app.include_router(benchmarking_router)

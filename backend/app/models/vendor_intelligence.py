@@ -227,6 +227,13 @@ class RecallEvent(Base):
     source = Column(String(20), nullable=False, default="fda")  # fda|manufacturer|internal
     source_url = Column(Text, default="", nullable=False)
 
+    # FDA MedWatch-ready fields (Enhancement 4)
+    fda_product_code = Column(String(50), nullable=True)
+    fda_classification = Column(String(20), nullable=True)  # "Class I", "Class II", "Class III"
+    lot_numbers = Column(Text, nullable=True)  # JSON list
+    distribution_pattern = Column(Text, nullable=True)  # geographic scope
+    voluntary = Column(Boolean, nullable=True)  # voluntary vs FDA-mandated
+
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
@@ -263,3 +270,20 @@ class VendorRecallResponse(Base):
 
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class IntelligenceSharingConsent(Base):
+    """Per-hospital opt-in consent for contributing to cross-hospital intelligence pool."""
+    __tablename__ = "intelligence_sharing_consents"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(String(100), nullable=False, index=True)
+    facility_id = Column(String(100), nullable=False, index=True)
+    consented_by = Column(String(200), nullable=False)  # user/role who consented
+    consent_version = Column(String(20), nullable=False, default="1.0")
+    is_active = Column(Boolean, nullable=False, default=True)
+    modules = Column(Text, nullable=False, default="[]")  # JSON list: ["defect_signals","risk_patterns"]
+    consented_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    revoked_at = Column(DateTime, nullable=True)
+    revoked_by = Column(String(200), nullable=True)
+    audit_log = Column(Text, nullable=False, default="[]")  # JSON list of audit events
