@@ -8,6 +8,13 @@ const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
 
+// Inspection Intelligence pages
+const VendorIntakePage = lazy(() => import("./pages/VendorIntakePage"));
+const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
+const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
+const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
+const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
+
 const card: React.CSSProperties = {
   display: "block",
   padding: "20px",
@@ -201,6 +208,47 @@ function RootRouter() {
     return (
       <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading analytics...</main>}>
         <AnalyticsDashboardPage />
+      </Suspense>
+    );
+  }
+
+  // Inspection Intelligence routes
+  if (path === "/vendor-intake") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading vendor intake...</main>}>
+        <VendorIntakePage />
+      </Suspense>
+    );
+  }
+
+  if (path === "/manufacturer-baselines") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading manufacturer baselines...</main>}>
+        <ManufacturerBaselinesPage />
+      </Suspense>
+    );
+  }
+
+  if (path === "/baseline-review") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading baseline review queue...</main>}>
+        <BaselineReviewPage />
+      </Suspense>
+    );
+  }
+
+  if (path === "/vendor-baseline-portal") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading vendor baseline portal...</main>}>
+        <VendorBaselinePortalPage />
+      </Suspense>
+    );
+  }
+
+  if (path === "/intake-history") {
+    return (
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading intake history...</main>}>
+        <IntakeHistoryPage />
       </Suspense>
     );
   }

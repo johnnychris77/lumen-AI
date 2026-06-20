@@ -490,6 +490,41 @@ export default function DashboardApp() {
             </a>
           </div>
         </section>
+
+        <section style={panel}>
+          <h2 style={panelTitle}>Inspection Intelligence</h2>
+          <p style={muted}>
+            Vendor intake, manufacturer baselines, baseline review, and subscription portal for
+            instrument inspection governance.
+          </p>
+          <div style={inspectionGrid}>
+            <a style={inspectionCard} href="/vendor-intake">
+              <span style={inspectionCardIcon}>📋</span>
+              <span style={inspectionCardLabel}>Vendor Intake</span>
+              <span style={inspectionCardDesc}>Submit enterprise instrument intake records</span>
+            </a>
+            <a style={inspectionCard} href="/manufacturer-baselines">
+              <span style={inspectionCardIcon}>🏭</span>
+              <span style={inspectionCardLabel}>Manufacturer Baselines</span>
+              <span style={inspectionCardDesc}>View and approve manufacturer baseline evidence</span>
+            </a>
+            <a style={inspectionCard} href="/baseline-review">
+              <span style={inspectionCardIcon}>🔍</span>
+              <span style={inspectionCardLabel}>Baseline Review Queue</span>
+              <span style={inspectionCardDesc}>Review pending baseline assessments</span>
+            </a>
+            <a style={inspectionCard} href="/vendor-baseline-portal">
+              <span style={inspectionCardIcon}>🔗</span>
+              <span style={inspectionCardLabel}>Vendor Baseline Portal</span>
+              <span style={inspectionCardDesc}>Vendor subscription and baseline matching</span>
+            </a>
+            <a style={inspectionCard} href="/intake-history">
+              <span style={inspectionCardIcon}>📂</span>
+              <span style={inspectionCardLabel}>Intake History</span>
+              <span style={inspectionCardDesc}>Audit trail of past intake submissions</span>
+            </a>
+          </div>
+        </section>
       </section>
     </main>
   );
@@ -750,4 +785,40 @@ const moduleHttpStatus: React.CSSProperties = {
   color: "#475569",
   fontSize: "13px",
   fontWeight: 700,
+};
+
+const inspectionGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: "14px",
+  marginTop: "14px",
+};
+
+const inspectionCard: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "14px",
+  padding: "18px 16px",
+  textDecoration: "none",
+  color: "#0f172a",
+  boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
+  transition: "box-shadow 0.15s",
+};
+
+const inspectionCardIcon: React.CSSProperties = {
+  fontSize: "24px",
+};
+
+const inspectionCardLabel: React.CSSProperties = {
+  fontWeight: 700,
+  fontSize: "15px",
+  color: "#1e40af",
+};
+
+const inspectionCardDesc: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#64748b",
 };
