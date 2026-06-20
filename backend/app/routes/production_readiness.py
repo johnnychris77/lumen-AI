@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Request
 
 from app.auth import get_current_user
 from app.config import get_settings
