@@ -53,3 +53,59 @@ class ValidationRun(Base):
     case_count = Column(Integer, default=0)
     data_source = Column(String(50), default="mock")
     run_at = Column(DateTime(timezone=True), default=_now)
+
+
+class SealedTestRegistry(Base):
+    """Immutable registry of sealed test set evaluations."""
+
+    __tablename__ = "sealed_test_registry"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String(200), index=True, nullable=False)
+    set_label = Column(String(200), nullable=False)
+    manifest_hash = Column(String(64), nullable=False)
+    sealed_by = Column(String(200), nullable=False)
+    sealed_at = Column(DateTime(timezone=True), default=_now)
+    evaluated_at = Column(DateTime(timezone=True), nullable=True)
+    overall_accuracy = Column(Float, nullable=True)
+    critical_fn_rate = Column(Float, nullable=True)
+    overall_kappa = Column(Float, nullable=True)
+    passed = Column(Boolean, nullable=True)
+    status = Column(String(50), default="sealed")
+    notes = Column(Text, default="")
+
+
+class RWEEnrollment(Base):
+    """Tracks hospital enrollment in the RWE program."""
+
+    __tablename__ = "rwe_enrollments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String(200), index=True, nullable=False)
+    facility_id = Column(String(200), nullable=False)
+    enrolled_by = Column(String(200), nullable=False)
+    enrolled_at = Column(DateTime(timezone=True), default=_now)
+    is_active = Column(Boolean, default=True)
+    consent_version = Column(String(50), default="1.0")
+    inspections_contributed = Column(Integer, default=0)
+    last_contribution_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class RWEMetricSnapshot(Base):
+    """Weekly aggregate RWE metrics per tenant."""
+
+    __tablename__ = "rwe_metric_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String(200), index=True, nullable=False)
+    facility_id = Column(String(200), default="")
+    week_label = Column(String(20), nullable=False)
+    total_inspections = Column(Integer, default=0)
+    override_count = Column(Integer, default=0)
+    override_rate = Column(Float, default=0.0)
+    escalation_count = Column(Integer, default=0)
+    escalation_rate = Column(Float, default=0.0)
+    finding_distribution_json = Column(Text, default="{}")
+    psi_score = Column(Float, default=0.0)
+    drift_alert = Column(Boolean, default=False)
+    computed_at = Column(DateTime(timezone=True), default=_now)

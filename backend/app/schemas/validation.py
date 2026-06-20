@@ -78,6 +78,76 @@ class ValidationReportResult(BaseModel):
     recommendations: list[str]
 
 
+class SealedTestCreate(BaseModel):
+    set_label: str
+    manifest_hash: str
+    sealed_by: str
+    notes: str = ""
+
+
+class SealedTestRegistryResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: str
+    set_label: str
+    manifest_hash: str
+    sealed_by: str
+    sealed_at: str
+    evaluated_at: Optional[str] = None
+    overall_accuracy: Optional[float] = None
+    critical_fn_rate: Optional[float] = None
+    overall_kappa: Optional[float] = None
+    passed: Optional[bool] = None
+    status: str
+    notes: str
+    data_source: str = "registry"
+
+
+class SealedTestEvaluate(BaseModel):
+    overall_accuracy: float
+    critical_fn_rate: float
+    overall_kappa: float
+    notes: str = ""
+
+
+class RWEEnrollCreate(BaseModel):
+    facility_id: str
+    enrolled_by: str
+    consent_version: str = "1.0"
+
+
+class RWEEnrollResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: str
+    facility_id: str
+    enrolled_by: str
+    is_active: bool
+    consent_version: str
+    inspections_contributed: int
+    data_source: str = "registry"
+
+
+class RWEMetricSnapshotResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: str
+    facility_id: str
+    week_label: str
+    total_inspections: int
+    override_count: int
+    override_rate: float
+    escalation_count: int
+    escalation_rate: float
+    finding_distribution_json: str
+    psi_score: float
+    drift_alert: bool
+    data_source: str = "computed"
+
+
 class ValidationRunResult(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
