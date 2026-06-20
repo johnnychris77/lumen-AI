@@ -92,7 +92,7 @@ def get_settings() -> Settings:
         public_base_url=os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:18011").rstrip("/"),
         database_url=os.getenv("DATABASE_URL", ""),
         dev_auth_token=os.getenv("DEV_AUTH_TOKEN", "dev-token"),
-        enable_dev_auth=_bool_env("ENABLE_DEV_AUTH", True),
+        enable_dev_auth=_bool_env("ENABLE_DEV_AUTH", False),
         portfolio_briefing_scheduler_seconds=_int_env("PORTFOLIO_BRIEFING_SCHEDULER_SECONDS", 60),
         executive_kpi_scheduler_hours=_int_env("EXECUTIVE_KPI_SCHEDULER_HOURS", 24),
         smtp_host=os.getenv("SMTP_HOST", ""),

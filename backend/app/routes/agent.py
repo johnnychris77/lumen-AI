@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
 from app.agent.spd_agent import build_agent_assessment
@@ -9,7 +10,11 @@ router = APIRouter(tags=["agent"])
 
 
 @router.get("/agent/inspection/{inspection_id}")
-def get_agent_assessment(inspection_id: int, db: Session = Depends(get_db)):
+def get_agent_assessment(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
     row = (
         db.query(models.Inspection)
         .filter(models.Inspection.id == inspection_id)
@@ -22,7 +27,11 @@ def get_agent_assessment(inspection_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/agent/feed")
-def get_agent_feed(limit: int = 20, db: Session = Depends(get_db)):
+def get_agent_feed(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
     rows = (
         db.query(models.Inspection)
         .order_by(models.Inspection.id.desc())

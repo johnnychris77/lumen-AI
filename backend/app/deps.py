@@ -9,7 +9,21 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.db import models
 
-DEV_TOKEN = os.getenv("LUMENAI_DEV_TOKEN", "dev-token")
+_ENABLE_DEV_AUTH = os.getenv("ENABLE_DEV_AUTH", "false").strip().lower() in {"1", "true", "yes"}
+_APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+
+# Dev auth is only active in non-production environments when explicitly enabled.
+_DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and _APP_ENV not in {"production", "prod"}
+
+_DEV_ROLE_MAP: dict[str, str] = {
+    os.getenv("DEV_AUTH_TOKEN", ""): "admin",
+    os.getenv("DEV_SPD_MANAGER_TOKEN", ""): "spd_manager",
+    os.getenv("DEV_VENDOR_TOKEN", ""): "vendor_user",
+    os.getenv("DEV_VIEWER_TOKEN", ""): "viewer",
+} if _DEV_AUTH_ACTIVE else {}
+
+# Remove blank-key entries that result from unset env vars
+_DEV_ROLE_MAP = {k: v for k, v in _DEV_ROLE_MAP.items() if k}
 
 
 def get_db():
@@ -18,6 +32,19 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def _decode_jwt(token: str):
+    """Attempt to decode a JWT signed by auth_simple's SECRET_KEY."""
+    try:
+        import jwt as pyjwt
+        secret = os.getenv("SECRET_KEY")
+        if not secret:
+            return None
+        payload = pyjwt.decode(token, secret, algorithms=["HS256"])
+        return payload
+    except Exception:
+        return None
 
 
 def get_current_user(
@@ -32,34 +59,31 @@ def get_current_user(
 
     token = authorization.split(" ", 1)[1].strip()
 
-    # Simple dev token role mapping for now
-    dev_role_map = {
-        "dev-token": "admin",
-        "spd-manager-token": "spd_manager",
-        "vendor-token": "vendor_user",
-        "viewer-token": "viewer",
-    }
-
-    if token in dev_role_map:
+    # Dev token map — only active in development with ENABLE_DEV_AUTH=true
+    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
+        role = _DEV_ROLE_MAP[token]
         return SimpleNamespace(
             id=0,
-            email=f"{dev_role_map[token]}@local",
-            role=dev_role_map[token],
+            email=f"{role}@local.dev",
+            role=role,
         )
 
-    # Optional DB-backed lookup by email token convention
-    # Example token format: user:<email>
-    if token.startswith("user:"):
-        email = token.split("user:", 1)[1].strip().lower()
-        user = (
-            db.query(models.User)
-            .filter(models.User.email == email)
-            .first()
-        )
-        if user:
-            return user
+    # JWT validation path (tokens issued by /auth/login in auth_simple)
+    payload = _decode_jwt(token)
+    if payload:
+        username = payload.get("sub")
+        if username:
+            user = (
+                db.query(models.User)
+                .filter(models.User.username == username)
+                .first()
+            )
+            if user:
+                return user
+            # Return a namespace if user row doesn't exist but JWT is valid
+            return SimpleNamespace(id=0, email=username, role="viewer")
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid token",
+        detail="Invalid or expired token",
     )

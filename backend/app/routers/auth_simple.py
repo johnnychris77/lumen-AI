@@ -7,7 +7,12 @@ from pydantic import BaseModel
 from passlib.hash import bcrypt
 from sqlalchemy import create_engine, text
 
-SECRET_KEY = os.getenv("SECRET_KEY", "devsecret")  # set a strong value in .env.prod
+SECRET_KEY = os.getenv("SECRET_KEY") or ""
+if not SECRET_KEY:
+    _env = os.getenv("APP_ENV", "development").strip().lower()
+    if _env in {"production", "prod"}:
+        raise RuntimeError("SECRET_KEY environment variable must be set in production.")
+    SECRET_KEY = "dev-only-secret-not-for-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 DATABASE_URL = os.getenv("DATABASE_URL")

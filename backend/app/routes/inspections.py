@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
 
@@ -31,12 +32,20 @@ def inspection_response(row: models.Inspection) -> dict:
 
 
 @router.get("/inspections/{inspection_id}")
-async def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
-    row = (
-        db.query(models.Inspection)
-        .filter(models.Inspection.id == inspection_id)
-        .first()
-    )
+async def get_inspection(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
+    tenant_id = getattr(current_user, "tenant_id", None)
+
+    query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
+
+    # Scope to the caller's tenant unless platform admin
+    if tenant_id and getattr(current_user, "role", "") != "admin":
+        query = query.filter(models.Inspection.tenant_id == tenant_id)
+
+    row = query.first()
     if not row:
         raise HTTPException(status_code=404, detail="Not Found")
 
