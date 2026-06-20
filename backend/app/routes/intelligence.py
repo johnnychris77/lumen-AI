@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db
 from app.enterprise_auth import require_enterprise_auth
+from app.tier_guard import require_tier
 from app.services.vendor_intelligence_engine import (
     _current_period_label,
     compute_capa_effectiveness,
@@ -29,6 +30,7 @@ def shared_defect_signals(
 ):
     """Return anonymized aggregate defect signals — no tenant or hospital identifiers."""
     require_enterprise_auth(request)
+    require_tier("global", "shared_defects", db)
     signals = get_shared_defect_signals(limit=limit, db=db)
     return {
         "status": "success",
@@ -45,6 +47,7 @@ def instrument_risk_patterns(
 ):
     """Return global anonymized instrument risk patterns."""
     require_enterprise_auth(request)
+    require_tier("global", "shared_defects", db)
     patterns = get_instrument_risk_patterns(
         instrument_category=instrument_category or None, db=db
     )
@@ -81,6 +84,7 @@ def active_recalls(
 ):
     """Return active recall events for a tenant."""
     require_enterprise_auth(request)
+    require_tier(tenant_id, "recalls", db)
     recalls = get_active_recalls(tenant_id, db)
     return {
         "status": "success",
@@ -98,6 +102,7 @@ def recall_detail(
 ):
     """Return detail for a single recall event."""
     require_enterprise_auth(request)
+    require_tier(tenant_id, "recalls", db)
     recall = get_recall_by_id(tenant_id, recall_id, db)
     if recall is None:
         raise HTTPException(status_code=404, detail="Recall not found")
@@ -114,6 +119,7 @@ def capa_effectiveness(
 ):
     """Return CAPA effectiveness metrics for a tenant."""
     require_enterprise_auth(request)
+    require_tier(tenant_id, "capa", db)
     label = period_label or _current_period_label(period_type)
     result = compute_capa_effectiveness(tenant_id, label, db)
     return {"status": "success", "capa_effectiveness": result.model_dump()}
@@ -137,8 +143,8 @@ def intelligence_dashboard(
     Currently all tiers return full data; tier enforcement added in billing milestone.
     """
     require_enterprise_auth(request)
+    require_tier(tenant_id, "dashboard", db)
     label = period_label or _current_period_label(period_type)
-    # Log requested tier for future monetization enforcement
     import logging
     logging.getLogger(__name__).debug("intelligence_dashboard: tenant=%s tier=%s", tenant_id, tier)
     dashboard = compute_intelligence_dashboard(tenant_id, label, period_type, db)

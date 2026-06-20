@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CVInspectionDashboard } from "@/components/CVInspectionDashboard";
 import { EnterpriseBenchmarkDashboard } from "@/components/EnterpriseBenchmarkDashboard";
 import VendorIntelligenceDashboard from "@/components/VendorIntelligenceDashboard";
+import ManufacturerPortal from "@/pages/ManufacturerPortal";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -129,6 +130,11 @@ type BaselineKPIs = {
 };
 
 export default function DashboardApp() {
+  // Route to ManufacturerPortal when on /manufacturer path
+  if (typeof window !== "undefined" && window.location.pathname === "/manufacturer") {
+    return <ManufacturerPortal />;
+  }
+
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [health, setHealth] = useState("checking");

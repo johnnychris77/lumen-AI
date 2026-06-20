@@ -905,20 +905,108 @@ def compute_capa_effectiveness(
     )
 
 
-# ── FDA MedWatch sync stub (Enhancement 4) ────────────────────────────────────
+# ── FDA MedWatch sync (Enhancement 4) ────────────────────────────────────────
 
 def sync_fda_recalls(tenant_id: str, db=None) -> dict:
     """
-    Stub for FDA MedWatch API integration.
-    When FDA_MEDWATCH_API_KEY env var is set, fetches real recall data.
-    Currently returns a status dict indicating sync is not yet configured.
+    Fetch active medical device recalls from FDA MedWatch API and upsert into RecallEvent table.
+    Falls back gracefully when no DB or network unavailable.
     """
     import os
-    api_key = os.environ.get("FDA_MEDWATCH_API_KEY")
+    import json as _json
+    import httpx
+
+    api_key = os.environ.get("FDA_MEDWATCH_API_KEY", "")
     if not api_key:
         return {"status": "not_configured", "message": "Set FDA_MEDWATCH_API_KEY to enable live recall sync"}
-    # TODO: implement real FDA API call when key is available
-    return {"status": "ready", "message": "FDA MedWatch integration ready — implement HTTP call here"}
+
+    base_url = "https://api.fda.gov/device/recall.json"
+    params = {
+        "search": "status:Ongoing",
+        "limit": 20,
+        "sort": "recall_initiation_date:desc",
+        "api_key": api_key,
+    }
+
+    try:
+        resp = httpx.get(base_url, params=params, timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("results", [])
+    except Exception as exc:
+        return {"status": "error", "message": str(exc), "synced": 0}
+
+    synced = 0
+    for item in results:
+        recall_number = item.get("recall_number", "") or item.get("event_id", "")
+        if not recall_number:
+            continue
+
+        classification = item.get("product_res_risk", "") or ""
+        severity_map = {"Class I": "class_i", "Class II": "class_ii", "Class III": "class_iii"}
+        severity = severity_map.get(classification, "advisory")
+
+        affected_cats = _extract_instrument_categories(item.get("product_description", ""))
+
+        recall_data = {
+            "recall_number": recall_number,
+            "recall_title": (item.get("product_description") or "")[:200],
+            "recall_description": item.get("reason_for_recall") or "",
+            "severity": severity,
+            "status": "active",
+            "source": "fda",
+            "source_url": f"https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfRES/res.cfm?id={recall_number}",
+            "fda_product_code": item.get("product_code") or "",
+            "fda_classification": classification,
+            "lot_numbers": _json.dumps(item.get("code_info", "").split(";") if item.get("code_info") else []),
+            "distribution_pattern": item.get("distribution_pattern") or "",
+            "voluntary": item.get("voluntary_mandated", "").lower().startswith("voluntary"),
+            "affected_instrument_categories": _json.dumps(affected_cats),
+            "vendor_id": _extract_vendor_id(item.get("recalling_firm", "")),
+        }
+
+        if db is not None:
+            try:
+                from app.models.vendor_intelligence import RecallEvent
+                existing = db.query(RecallEvent).filter_by(
+                    tenant_id=tenant_id, recall_number=recall_number
+                ).first()
+                if existing:
+                    for k, v in recall_data.items():
+                        setattr(existing, k, v)
+                else:
+                    rec = RecallEvent(tenant_id=tenant_id, **recall_data)
+                    db.add(rec)
+                db.commit()
+                synced += 1
+            except Exception:
+                db.rollback()
+
+    return {"status": "ok", "synced": synced, "total_found": len(results), "source": "fda_api"}
+
+
+def _extract_instrument_categories(description: str) -> list[str]:
+    """Guess instrument categories from FDA product description text."""
+    desc = description.lower()
+    cats = []
+    if any(k in desc for k in ["laparoscop", "trocar"]):
+        cats.append("laparoscopic")
+    if any(k in desc for k in ["endoscop", "scope"]):
+        cats.append("endoscopic")
+    if any(k in desc for k in ["orthoped", "bone", "implant"]):
+        cats.append("orthopedic")
+    if any(k in desc for k in ["cardiac", "heart", "vascular"]):
+        cats.append("cardiac")
+    if not cats:
+        cats.append("general_surgery")
+    return cats
+
+
+def _extract_vendor_id(firm_name: str) -> str:
+    """Normalize recalling firm name to a vendor_id slug."""
+    import re
+    slug = re.sub(r"[^a-z0-9]+", "-", firm_name.lower()).strip("-")
+    return slug[:50] if slug else "unknown"
 
 
 # ── Intelligence dashboard ─────────────────────────────────────────────────────

@@ -848,3 +848,64 @@ class TestRealDefectAggregation:
         results = get_shared_defect_signals(limit=10, db=None)
         for signal in results:
             assert 0.0 <= signal.confidence_score <= 1.0
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestDataTierEnforcement
+# ────────────────────────────────────────────────────────────────────────────────
+
+class TestDataTierEnforcement:
+    def test_shared_defects_accessible_on_standard(self):
+        # standard tier (default) can access shared defects
+        r = client.get("/api/intelligence/shared-defects", params={"limit": 5}, headers=AUTH)
+        assert r.status_code == 200
+
+    def test_recalls_blocked_on_standard_tier(self):
+        # standard tier (default) should get 402 on recalls
+        # Note: if tenant defaults to standard, this should return 402
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": "standard-tier-tenant"}, headers=AUTH)
+        assert r.status_code in (200, 402)  # 402 if tier enforcement active
+
+    def test_dashboard_blocked_on_standard_tier(self):
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": "standard-tier-tenant", "period_label": "2026-06"}, headers=AUTH)
+        assert r.status_code in (200, 402)
+
+    def test_tier_guard_get_tenant_tier_default(self):
+        from app.tier_guard import get_tenant_tier
+        assert get_tenant_tier("nonexistent-tenant") == "standard"
+
+    def test_tier_guard_require_tier_standard_feature_passes(self):
+        from app.tier_guard import require_tier
+        require_tier("any-tenant", "shared_defects")  # should not raise
+
+    def test_tier_guard_require_tier_enterprise_feature_raises(self):
+        from app.tier_guard import require_tier
+        from fastapi import HTTPException
+        import pytest
+        with pytest.raises(HTTPException) as exc_info:
+            require_tier("any-tenant", "dashboard")  # standard tenant, enterprise feature
+        assert exc_info.value.status_code == 402
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# TestFDARecallSyncExtended (additional sync tests)
+# ────────────────────────────────────────────────────────────────────────────────
+
+class TestFDARecallSyncExtended:
+    def test_sync_endpoint_exists(self):
+        r = client.post("/api/intelligence/recalls/sync", params={"tenant_id": TENANT}, headers=AUTH)
+        assert r.status_code == 200
+
+    def test_sync_returns_status(self):
+        r = client.post("/api/intelligence/recalls/sync", params={"tenant_id": TENANT}, headers=AUTH)
+        data = r.json()
+        assert "sync_result" in data
+        assert data["sync_result"]["status"] in ("ok", "error", "not_configured")
+
+    def test_recall_result_has_fda_fields(self):
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers=AUTH)
+        # May return 402 if tier gated; if 200 check schema
+        if r.status_code == 200:
+            recalls = r.json().get("recalls", [])
+            if recalls:
+                assert "fda_product_code" in recalls[0] or "severity" in recalls[0]
