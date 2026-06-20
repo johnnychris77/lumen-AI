@@ -38,7 +38,17 @@ def list_tenant_memberships(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin")),
 ):
-    rows = db.query(models.TenantMembership).order_by(models.TenantMembership.id.desc()).all()
+    # Scope to the caller's own tenant unless they are a platform-level superadmin.
+    # A platform superadmin is identified by the synthetic "platform" email suffix used
+    # by the admin dev token, or by an explicit platform_admin role if implemented.
+    actor_email = getattr(current_user, "email", "") or ""
+    is_platform_admin = actor_email.endswith("@local.dev") or actor_email == "admin@local"
+    query = db.query(models.TenantMembership)
+    if not is_platform_admin:
+        caller_tenant = getattr(current_user, "tenant_id", None)
+        if caller_tenant:
+            query = query.filter(models.TenantMembership.tenant_id == caller_tenant)
+    rows = query.order_by(models.TenantMembership.id.desc()).all()
 
     actor_email = getattr(current_user, "email", None) or getattr(current_user, "username", None) or "unknown"
     log_audit_event(

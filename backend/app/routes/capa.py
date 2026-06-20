@@ -2,10 +2,11 @@ import csv
 import io
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import Response
 
+from app.authz import require_roles
 from app.services.capa_service import (
     capa_summary,
     build_capa_powerbi_rows,
@@ -55,7 +56,7 @@ class AuditSignalCapaRequest(BaseModel):
 
 
 @router.get("/capa/health")
-def capa_health():
+def capa_health(current_user=Depends(require_roles("admin", "spd_manager", "viewer"))):
     return {
         "status": "healthy",
         "module": "capa_workflow",
@@ -71,7 +72,7 @@ def capa_health():
 
 
 @router.get("/capa")
-def get_capas(limit: int = Query(default=50, ge=1, le=500)):
+def get_capas(limit: int = Query(default=50, ge=1, le=500), current_user=Depends(require_roles("admin", "spd_manager", "viewer"))):
     items = list_capas(limit=limit)
 
     return {
@@ -85,7 +86,7 @@ def get_capas(limit: int = Query(default=50, ge=1, le=500)):
 
 
 @router.post("/capa")
-def post_capa(payload: CapaCreateRequest):
+def post_capa(payload: CapaCreateRequest, current_user=Depends(require_roles("admin", "spd_manager"))):
     capa = create_capa(**payload.model_dump())
 
     return {
@@ -97,7 +98,7 @@ def post_capa(payload: CapaCreateRequest):
 
 
 @router.post("/capa/from-audit-signal")
-def post_capa_from_audit_signal(payload: AuditSignalCapaRequest):
+def post_capa_from_audit_signal(payload: AuditSignalCapaRequest, current_user=Depends(require_roles("admin", "spd_manager"))):
     capa = create_capa_from_audit_signal(payload.model_dump())
 
     return {
@@ -111,13 +112,13 @@ def post_capa_from_audit_signal(payload: AuditSignalCapaRequest):
 
 
 @router.get("/capa/escalation-summary")
-def get_capa_escalation_summary(days_until_due: int = Query(default=7, ge=0, le=90)):
+def get_capa_escalation_summary(days_until_due: int = Query(default=7, ge=0, le=90), current_user=Depends(require_roles("admin", "spd_manager"))):
     return capa_escalation_summary(days_until_due=days_until_due)
 
 
 
 @router.get("/capa/powerbi-csv")
-def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000)):
+def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000), current_user=Depends(require_roles("admin", "spd_manager"))):
     rows = build_capa_powerbi_rows(limit=limit)
 
     fieldnames = [
@@ -159,11 +160,12 @@ def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000)):
 
 
 @router.get("/capa/governance-scorecard")
-def get_capa_governance_scorecard(days_until_due: int = Query(default=7, ge=0, le=90)):
+def get_capa_governance_scorecard(days_until_due: int = Query(default=7, ge=0, le=90), current_user=Depends(require_roles("admin", "spd_manager"))):
     return capa_governance_scorecard(days_until_due=days_until_due)
 
+
 @router.get("/capa/{capa_id}")
-def get_capa_by_id(capa_id: str):
+def get_capa_by_id(capa_id: str, current_user=Depends(require_roles("admin", "spd_manager", "viewer"))):
     capa = get_capa(capa_id)
     if not capa:
         raise HTTPException(status_code=404, detail="CAPA not found")
@@ -176,7 +178,7 @@ def get_capa_by_id(capa_id: str):
 
 
 @router.patch("/capa/{capa_id}")
-def patch_capa(capa_id: str, payload: CapaUpdateRequest):
+def patch_capa(capa_id: str, payload: CapaUpdateRequest, current_user=Depends(require_roles("admin", "spd_manager"))):
     updates = payload.model_dump(exclude_unset=True)
 
     if not updates:

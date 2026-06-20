@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || "http://127.0.0.1:18012";
-const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
+const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 const EXECUTIVE_PDF_URL = `${API_BASE}/api/enterprise/executive-quality-review-dashboard.pdf`;
 
 type TopVendorSignal = {

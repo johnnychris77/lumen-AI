@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -66,13 +68,43 @@ def user_has_tenant_membership(
         return False
 
 
+def _resolve_user_email_from_token(request) -> str:
+    """
+    Extract user identity from the validated bearer token.
+    Falls back to headers only after token validation, never trusts headers as identity proof.
+    """
+    from app.deps import _decode_jwt, _DEV_AUTH_ACTIVE, _DEV_ROLE_MAP
+
+    auth_header = (
+        request.headers.get("authorization")
+        or request.headers.get("Authorization")
+        or ""
+    )
+
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    token = auth_header.split(" ", 1)[1].strip()
+
+    # Dev token path (only active when ENABLE_DEV_AUTH=true and not in production)
+    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
+        role = _DEV_ROLE_MAP[token]
+        return f"{role}@local.dev"
+
+    # JWT path
+    payload = _decode_jwt(token)
+    if payload and payload.get("sub"):
+        return str(payload["sub"])
+
+    raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
 def require_tenant_roles(*allowed_roles: str):
     """
     FastAPI dependency factory for tenant-scoped role enforcement.
 
-    This preserves compatibility with existing routes that import
-    require_tenant_roles while routing authorization through the newer
-    tenant membership boundary helper.
+    Identity is sourced from the validated bearer token — never from
+    caller-controlled request headers.
     """
     from fastapi import Depends, Request
 
@@ -84,6 +116,9 @@ def require_tenant_roles(*allowed_roles: str):
         request: Request,
         db: Session = Depends(get_db),
     ) -> dict:
+        # Resolve identity from the bearer token (raises 401 if invalid)
+        user_email = _resolve_user_email_from_token(request)
+
         tenant_id = (
             request.headers.get("x-lumenai-tenant-id")
             or request.headers.get("x-tenant-id")
@@ -100,13 +135,6 @@ def require_tenant_roles(*allowed_roles: str):
             "tenant_id": tenant_id,
             "tenant_name": tenant_name,
         }
-
-        user_email = (
-            request.headers.get("x-lumenai-user-email")
-            or request.headers.get("x-user-email")
-            or request.headers.get("x-lumenai-actor")
-            or ""
-        )
 
         assert_tenant_membership(
             db,
@@ -130,11 +158,13 @@ def require_tenant_roles(*allowed_roles: str):
                 detail="User does not have the required tenant role.",
             )
 
+        role = membership.role if membership else None
         return {
             "tenant": tenant,
             "tenant_id": tenant_id,
             "user_email": user_email,
-            "role": membership.role if membership else None,
+            "role": role,
+            "role_name": role,  # MED-6: both keys present to satisfy downstream routes
         }
 
     return _dependency

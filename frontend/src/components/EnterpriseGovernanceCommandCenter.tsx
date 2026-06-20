@@ -55,7 +55,7 @@ type AuditTrailItem = {
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
 
-const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
+const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 export default function EnterpriseGovernanceCommandCenter() {
   const [latestFinding, setLatestFinding] = useState<IntakeHistoryItem | null>(null);
