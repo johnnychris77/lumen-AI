@@ -287,4 +287,12 @@ Use this section as the fastest public-review path through the LumenAI Complianc
 Status: Public navigation index polished.
 
 The LumenAI evidence index now supports executive review, customer review, technical review, demo review, sales review, investor review, and final release closure review from a single document.
+### Baseline Ranking Audit Evidence
 
+Path:
+
+docs/pilot-readiness/baseline-ranking-audit-evidence.md
+
+Purpose:
+
+Documents the backend baseline ranking audit/evidence helper added after the baseline-aware inspection ingestion work. It describes captured evidence fields, approved, pending, manual-review, malformed-input, and unsafe-override outcomes, and fail-closed handling for malformed or unsafe baseline-aware payloads without claiming external persistence or production validation.
