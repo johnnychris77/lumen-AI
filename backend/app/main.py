@@ -1,9 +1,13 @@
 from app.routes.portfolio_tenants import router as portfolio_tenants_router
 from app.routes.tenant_insights import router as tenant_insights_router
 from app.routers.public_module_status import router as public_module_status_router
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import importlib
+import os
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 import time
 
@@ -31,10 +35,68 @@ from app.routes.power_bi_executive_analytics import router as power_bi_executive
 from app.routes.capa_trend_intelligence import router as capa_trend_intelligence_router
 from app.routes.vendor_trend_intelligence import router as vendor_trend_intelligence_router
 
-app = FastAPI(title="LumenAI API")
 
-app.include_router(public_module_status_router)
+def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"Database ready on attempt {attempt}")
+            return
+        except Exception as exc:
+            last_error = exc
+            print(f"Database not ready (attempt {attempt}/{max_attempts}): {exc}")
+            time.sleep(sleep_seconds)
+    raise RuntimeError(f"Database did not become ready: {last_error}")
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Safe startup bootstrap — create_all only adds missing tables, never drops.
+    importlib.import_module("app.db.models")
+    wait_for_db()
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+_IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod"}
+
+app = FastAPI(title="LumenAI API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-LumenAI-Role",
+        "X-LumenAI-Tenant-Id",
+        "X-LumenAI-Actor",
+        "X-Requested-With",
+    ],
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        )
+        if _IS_PRODUCTION:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.get("/api/enterprise/audit-to-capa/summary")
@@ -274,40 +336,7 @@ def audit_command_center_health():
         "message": "Enterprise Audit Command Center final validation passed."
     }
 
-@app.on_event("startup")
-def bootstrap_enterprise_tables():
-    # Safe startup bootstrap for hosted demo / enterprise workflow tables.
-    # SQLAlchemy create_all only creates missing tables.
-    # It does not drop existing tables or delete existing data.
-    importlib.import_module("app.db.models")
-    Base.metadata.create_all(bind=engine)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
-    last_error = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            print(f"Database ready on attempt {attempt}")
-            return
-        except Exception as exc:
-            last_error = exc
-            print(f"Database not ready (attempt {attempt}/{max_attempts}): {exc}")
-            time.sleep(sleep_seconds)
-    raise RuntimeError(f"Database did not become ready: {last_error}")
-
-@app.on_event("startup")
-async def _startup() -> None:
-    wait_for_db()
-    Base.metadata.create_all(bind=engine)
+app.include_router(public_module_status_router)
 
 app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(inspect_router, prefix=settings.API_PREFIX)
@@ -556,8 +585,6 @@ app.include_router(capa_trend_intelligence_router)
 app.include_router(vendor_trend_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
-import importlib
-import os
 
 
 def custom_openapi():

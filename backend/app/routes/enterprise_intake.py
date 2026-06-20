@@ -2301,23 +2301,23 @@ def review_manufacturer_baseline(
     if decision == "approve":
         baseline.baseline_status = "approved"
         baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
-        baseline.approved_at = datetime.utcnow()
+        baseline.approved_at = datetime.now(timezone.utc)
         workflow_status = "baseline_approved"
         message = "Manufacturer baseline approved as trusted reference."
     elif decision == "reject":
         baseline.baseline_status = "rejected"
         baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
-        baseline.approved_at = datetime.utcnow()
+        baseline.approved_at = datetime.now(timezone.utc)
         workflow_status = "baseline_rejected"
         message = "Manufacturer baseline rejected and will not be used as trusted reference."
     else:
         baseline.baseline_status = "more_evidence_requested"
         baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
-        baseline.approved_at = datetime.utcnow()
+        baseline.approved_at = datetime.now(timezone.utc)
         workflow_status = "baseline_more_evidence_requested"
         message = "More evidence requested before baseline approval."
 
-    baseline.updated_at = datetime.utcnow()
+    baseline.updated_at = datetime.now(timezone.utc)
 
     audit_details = {
         "baseline_id": baseline.id,
@@ -9621,7 +9621,7 @@ def approve_enterprise_vendor_baseline_record(
     db_record.approval_status = "hospital_approved"
     db_record.approved_by = request.headers.get("x-lumenai-actor", "unknown") if request else "unknown"
     db_record.approval_notes = payload.get("approval_notes") or ""
-    db_record.updated_at = datetime.utcnow()
+    db_record.updated_at = datetime.now(timezone.utc)
 
     db.add(db_record)
     db.commit()

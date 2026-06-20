@@ -183,8 +183,8 @@ class EnterpriseInstrumentBaseline(Base):
     approved_by = Column(String, default="")
     approved_at = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class EnterpriseExportReadinessHistory(Base):
@@ -206,7 +206,7 @@ class EnterpriseExportReadinessHistory(Base):
     evidence_attachment_count = Column(Integer, default=0)
 
     readiness_summary = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class EnterpriseVendorBaselineSubscription(Base):
@@ -240,5 +240,5 @@ class EnterpriseVendorBaselineSubscription(Base):
     approved_by = Column(String, nullable=True)
     approval_notes = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
