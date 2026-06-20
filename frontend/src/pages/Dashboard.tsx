@@ -5,10 +5,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Droplets,
   Package,
   ShieldCheck,
   TrendingUp,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,8 +27,6 @@ type Summary = {
 
 type Inspection = {
   id: number;
-  created_at?: string;
-  file_name?: string;
   status?: string;
   vendor_name?: string;
   instrument_type?: string;
@@ -34,12 +34,17 @@ type Inspection = {
   risk_score?: number;
 };
 
-type BaselineKPIs = {
-  total: number;
-  approved: number;
-  pending: number;
-  vendor: number;
-  rate: number;
+type KpiSummary = {
+  total_findings: number;
+  high_risk_instruments: number;
+  finding_categories: Record<string, number>;
+  baselines: {
+    total: number;
+    approved: number;
+    pending: number;
+    vendor_submissions: number;
+    approval_rate: number;
+  };
 };
 
 type ModuleStatus = {
@@ -57,7 +62,20 @@ const MODULES: ModuleStatus[] = [
   { key: "evidence", label: "Compliance Evidence", endpoint: "/api/enterprise/audit/evidence-bundle/verification-summary", status: "checking" },
 ];
 
-function statusVariant(s: ModuleStatus["status"]) {
+const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+  blood:             { label: "Blood",             color: "text-red-700 bg-red-50 border-red-200" },
+  bone:              { label: "Bone",              color: "text-orange-700 bg-orange-50 border-orange-200" },
+  tissue:            { label: "Tissue",            color: "text-pink-700 bg-pink-50 border-pink-200" },
+  debris:            { label: "Debris / Bioburden",color: "text-amber-700 bg-amber-50 border-amber-200" },
+  corrosion:         { label: "Corrosion",         color: "text-yellow-700 bg-yellow-50 border-yellow-200" },
+  crack:             { label: "Crack / Fracture",  color: "text-slate-700 bg-slate-50 border-slate-200" },
+  insulation_damage: { label: "Insulation Damage", color: "text-purple-700 bg-purple-50 border-purple-200" },
+  baseline_match:    { label: "Baseline Match",    color: "text-blue-700 bg-blue-50 border-blue-200" },
+  barcode_qr_keydot: { label: "Barcode / QR / KeyDot", color: "text-teal-700 bg-teal-50 border-teal-200" },
+  other:             { label: "Other",             color: "text-slate-600 bg-slate-50 border-slate-200" },
+};
+
+function statusVariant(s: ModuleStatus["status"]): "success" | "warning" | "destructive" | "secondary" {
   return s === "online" ? "success" : s === "protected" ? "warning" : s === "offline" ? "destructive" : "secondary";
 }
 
@@ -81,15 +99,38 @@ function KPICard({
         {Icon && <Icon className="h-4 w-4 text-slate-400" />}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-slate-900">{value === "" || value === null || value === undefined ? "—" : value}</div>
+        <div className="text-2xl font-bold text-slate-900">
+          {value === "" || value === null || value === undefined ? "—" : value}
+        </div>
         {detail && <p className="text-xs text-slate-500 mt-1">{detail}</p>}
-        {trend === "up" && <div className="flex items-center gap-1 mt-1 text-xs text-emerald-600"><TrendingUp className="h-3 w-3" />Trending up</div>}
+        {trend === "up" && (
+          <div className="flex items-center gap-1 mt-1 text-xs text-emerald-600">
+            <TrendingUp className="h-3 w-3" /> Trending up
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function statusRow(status?: string) {
+function CategoryKPICard({ catKey, count }: { catKey: string; count: number }) {
+  const meta = CATEGORY_LABELS[catKey] ?? { label: catKey, color: "text-slate-600 bg-white border-slate-200" };
+  const isHighAlert = ["blood", "bone", "tissue", "crack", "insulation_damage"].includes(catKey) && count > 0;
+  return (
+    <div className={`rounded-xl border p-4 flex flex-col gap-1 ${meta.color}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide opacity-75">{meta.label}</span>
+        {isHighAlert && count > 0 && (
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white">!</span>
+        )}
+      </div>
+      <div className="text-3xl font-bold">{count}</div>
+      <div className="text-xs opacity-60">findings</div>
+    </div>
+  );
+}
+
+function statusRowClass(status?: string) {
   const s = (status || "").toLowerCase();
   if (s === "completed" || s === "done") return "text-emerald-700 bg-emerald-50";
   if (s === "failed" || s === "error") return "text-red-700 bg-red-50";
@@ -103,7 +144,7 @@ export default function Dashboard() {
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [baselineKPIs, setBaselineKPIs] = useState<BaselineKPIs | null>(null);
+  const [kpi, setKpi] = useState<KpiSummary | null>(null);
   const [modules, setModules] = useState<ModuleStatus[]>(MODULES);
 
   const hdrs = useMemo(() => headers(), [headers]);
@@ -114,10 +155,10 @@ export default function Dashboard() {
       setLoading(true);
       setError("");
       try {
-        const [summaryRes, historyRes, baselineRes] = await Promise.allSettled([
+        const [summaryRes, historyRes, kpiRes] = await Promise.allSettled([
           fetch(`${API_BASE}/api/history/summary`, { headers: hdrs }),
           fetch(`${API_BASE}/api/history?limit=10`, { headers: hdrs }),
-          fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines`, { headers: hdrs }),
+          fetch(`${API_BASE}/api/enterprise/findings/kpi-summary`, { headers: hdrs }),
         ]);
         if (cancelled) return;
 
@@ -129,22 +170,8 @@ export default function Dashboard() {
           setRecent(Array.isArray(d) ? d : d.items || []);
         }
 
-        if (baselineRes.status === "fulfilled" && baselineRes.value.ok) {
-          const d = await baselineRes.value.json();
-          const bs: { baseline_status?: string; approval_status?: string; baseline_source?: string }[] =
-            Array.isArray(d) ? d : d.records || [];
-          const approved = bs.filter((b) =>
-            ["approved", "active", "vendor_approved"].includes((b.baseline_status || "").toLowerCase())
-          ).length;
-          const pending = bs.filter((b) => (b.approval_status || "").toLowerCase().includes("pending")).length;
-          const vendor = bs.filter((b) => b.baseline_source === "vendor").length;
-          setBaselineKPIs({
-            total: bs.length,
-            approved,
-            pending,
-            vendor,
-            rate: bs.length > 0 ? Math.round((approved / bs.length) * 100) : 0,
-          });
+        if (kpiRes.status === "fulfilled" && kpiRes.value.ok) {
+          setKpi(await kpiRes.value.json());
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -162,7 +189,11 @@ export default function Dashboard() {
       MODULES.map(async (m) => {
         try {
           const r = await fetch(`${API_BASE}${m.endpoint}`, { headers: hdrs });
-          return { ...m, status: r.ok ? "online" : [401, 403, 422].includes(r.status) ? "protected" : "offline", httpStatus: r.status } as ModuleStatus;
+          return {
+            ...m,
+            status: r.ok ? "online" : [401, 403, 422].includes(r.status) ? "protected" : "offline",
+            httpStatus: r.status,
+          } as ModuleStatus;
         } catch {
           return { ...m, status: "offline" as const };
         }
@@ -171,88 +202,130 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, [hdrs]);
 
+  const cats = kpi?.finding_categories ?? {};
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page header */}
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">Operational Overview</h2>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Live inspection intelligence, quality metrics, and compliance status
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Inspection Intelligence Dashboard</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Live sterile processing metrics — findings, baselines, and compliance status for SPD managers and executives.
+          </p>
+        </div>
+        {loading && <div className="flex items-center gap-2 text-sm text-slate-400"><Spinner className="h-4 w-4" />Refreshing…</div>}
       </div>
 
       {error && (
         <Alert variant="warning">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            Dashboard data partially unavailable: {error}. Some KPIs may show "—" until the backend responds.
+          </AlertDescription>
         </Alert>
       )}
 
-      {/* Inspection KPIs */}
+      {/* Inspection workflow KPIs */}
       <section>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Inspections</h3>
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Spinner /> Loading inspection data…
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard label="Total" value={summary?.total_inspections ?? "—"} icon={Activity} detail="All records" />
-            <KPICard label="Completed" value={summary?.completed ?? "—"} icon={CheckCircle2} detail="Workflow complete" trend="up" />
-            <KPICard label="Queued" value={summary?.queued ?? "—"} icon={Clock} detail="Awaiting action" />
-            <KPICard label="Failed" value={summary?.failed ?? "—"} icon={XCircle} detail="Needs review" />
-          </div>
-        )}
+        <h3 className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Inspection Workflow</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard label="Total Inspections" value={summary?.total_inspections ?? "—"} icon={Activity} detail="All captured records" />
+          <KPICard label="Completed" value={summary?.completed ?? "—"} icon={CheckCircle2} detail="Workflow complete" trend="up" />
+          <KPICard label="Queued" value={summary?.queued ?? "—"} icon={Clock} detail="Awaiting triage" />
+          <KPICard label="Failed" value={summary?.failed ?? "—"} icon={XCircle} detail="Requires review" />
+        </div>
+      </section>
+
+      {/* Enterprise finding KPIs */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Enterprise Findings</h3>
+          <Link to="/findings" className="text-xs text-blue-600 hover:underline">View findings queue →</Link>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <KPICard label="Total Findings" value={kpi?.total_findings ?? "—"} icon={Activity} detail="Enterprise intake records" />
+          <KPICard
+            label="High-Risk Instruments"
+            value={kpi?.high_risk_instruments ?? "—"}
+            icon={AlertTriangle}
+            detail="High or critical severity"
+          />
+          <KPICard label="Approved Baselines" value={kpi?.baselines.approved ?? "—"} icon={CheckCircle2} detail="Cleared for scoring use" trend="up" />
+          <KPICard label="Baseline Approval Rate" value={kpi ? `${kpi.baselines.approval_rate}%` : "—"} icon={TrendingUp} detail="Approved / total baselines" />
+        </div>
+
+        {/* Category breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Finding Category Breakdown</CardTitle>
+            <CardDescription>
+              AI-detected finding types across all enterprise inspections. Red alert (!) indicates clinically significant residue types.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Object.entries(CATEGORY_LABELS).map(([key]) => (
+                <CategoryKPICard key={key} catKey={key} count={cats[key] ?? 0} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       {/* Baseline KPIs */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Inspection Intelligence — Baselines</h3>
-          <div className="flex gap-2">
-            <Link to="/vendor-intake" className="text-xs text-blue-600 hover:underline">Vendor Intake</Link>
-            <Link to="/baseline-review" className="text-xs text-blue-600 hover:underline">Review Queue</Link>
-            <Link to="/vendor-baseline-portal" className="text-xs text-blue-600 hover:underline">Baseline Portal</Link>
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vendor Baseline Lifecycle</h3>
+          <div className="flex gap-3">
+            <Link to="/baseline-review" className="text-xs text-blue-600 hover:underline">Review queue →</Link>
+            <Link to="/vendor-baseline-portal" className="text-xs text-blue-600 hover:underline">Baseline portal →</Link>
           </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KPICard label="Total Baselines" value={baselineKPIs?.total ?? "—"} icon={Package} />
-          <KPICard label="Approved" value={baselineKPIs?.approved ?? "—"} icon={CheckCircle2} />
-          <KPICard label="Pending Review" value={baselineKPIs?.pending ?? "—"} icon={Clock} />
-          <KPICard label="Vendor Submissions" value={baselineKPIs?.vendor ?? "—"} icon={ShieldCheck} />
-          <KPICard label="Approval Rate" value={baselineKPIs ? `${baselineKPIs.rate}%` : "—"} icon={TrendingUp} trend={baselineKPIs && baselineKPIs.rate >= 50 ? "up" : "neutral"} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard label="Total Baselines" value={kpi?.baselines.total ?? "—"} icon={Package} detail="All baseline records" />
+          <KPICard label="Pending Review" value={kpi?.baselines.pending ?? "—"} icon={Clock} detail="Awaiting hospital approval" />
+          <KPICard label="Vendor Submissions" value={kpi?.baselines.vendor_submissions ?? "—"} icon={ShieldCheck} detail="Submitted by vendors" />
+          <KPICard label="Approval Rate" value={kpi ? `${kpi.baselines.approval_rate}%` : "—"} icon={Zap} detail="Approved / total" />
         </div>
       </section>
 
       {/* Recent activity table */}
       <section>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Recent Inspection Activity</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recent Inspection Activity</h3>
+          <Link to="/intake-history" className="text-xs text-blue-600 hover:underline">Full history →</Link>
+        </div>
         <Card>
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Spinner />Loading…</div>
             ) : recent.length === 0 ? (
-              <div className="p-6 text-center text-sm text-slate-500">
-                No recent inspection records. Submit an inspection via{" "}
-                <Link to="/vendor-intake" className="text-blue-600 hover:underline">Vendor Intake</Link>.
+              <div className="p-8 text-center">
+                <Droplets className="mx-auto h-8 w-8 text-slate-300 mb-3" />
+                <p className="text-sm font-medium text-slate-600">No inspection records yet</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Submit your first inspection via{" "}
+                  <Link to="/vendor-intake" className="text-blue-600 hover:underline">Vendor Intake</Link>.
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {["ID", "Vendor", "Instrument", "Issue", "Risk", "Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
+                      {["ID", "Vendor", "Instrument", "Issue Detected", "Risk Score", "Status"].map((h) => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {recent.map((row) => (
                       <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 text-slate-500 font-mono text-xs">{row.id}</td>
+                        <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.id}</td>
                         <td className="px-4 py-3 font-medium text-slate-800">{row.vendor_name || "—"}</td>
                         <td className="px-4 py-3 text-slate-600">{row.instrument_type || "—"}</td>
-                        <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">{row.detected_issue || "—"}</td>
+                        <td className="px-4 py-3 text-slate-600 max-w-[180px] truncate">{row.detected_issue || "—"}</td>
                         <td className="px-4 py-3">
                           {row.risk_score != null ? (
                             <span className={`font-semibold ${Number(row.risk_score) >= 0.8 ? "text-red-600" : Number(row.risk_score) >= 0.5 ? "text-amber-600" : "text-emerald-600"}`}>
@@ -261,7 +334,7 @@ export default function Dashboard() {
                           ) : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusRow(row.status)}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusRowClass(row.status)}`}>
                             {row.status || "—"}
                           </span>
                         </td>
@@ -277,15 +350,15 @@ export default function Dashboard() {
 
       {/* Module health */}
       <section>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Module Health</h3>
+        <h3 className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">System Module Health</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {modules.map((m) => (
             <Card key={m.key} className="p-4">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-slate-800">{m.label}</span>
-                <Badge variant={statusVariant(m.status)} className="capitalize">{m.status}</Badge>
+                <Badge variant={statusVariant(m.status)} className="capitalize text-xs">{m.status}</Badge>
               </div>
-              <p className="text-xs text-slate-400 font-mono">{m.httpStatus ? `HTTP ${m.httpStatus}` : "pending"}</p>
+              <p className="text-xs text-slate-400 font-mono">{m.httpStatus ? `HTTP ${m.httpStatus}` : "checking…"}</p>
             </Card>
           ))}
         </div>

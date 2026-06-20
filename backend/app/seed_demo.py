@@ -220,6 +220,38 @@ def run_seed() -> None:
         else:
             print(f"  = Approved vendor baseline already exists (id={approved_baseline.id})")
 
+        # ── Pilot KPI findings (one per category) ────────────────────────────
+        pilot_categories = [
+            ("blood / retained blood residue", "Blood residue detected in lumen channel during borescope inspection. Staining consistent with retained hemoglobin.", "critical"),
+            ("bone / bone fragment", "Bone fragment identified at distal port of suction instrument. Detected via AI baseline comparison.", "high"),
+            ("tissue / retained tissue", "Retained soft tissue fragment visible at instrument tip. Baseline deviation flagged for IP review.", "high"),
+            ("debris / retained debris", "Non-biological debris identified in lumen. Source unknown; quarantine recommended.", "medium"),
+            ("corrosion / surface rust", "Surface corrosion noted on instrument shaft. Structural integrity uncompromised but flagged for replacement review.", "medium"),
+            ("crack / hairline fracture", "Hairline crack detected near instrument hub during visual inspection. Risk of metal shedding.", "critical"),
+            ("insulation damage", "Insulation degradation identified on electrosurgical instrument. Electrical safety risk flagged.", "critical"),
+        ]
+        for cat, desc, sev in pilot_categories:
+            existing = db.query(EnterpriseFinding).filter_by(
+                finding_category=cat, tenant_id="demo-tenant"
+            ).first()
+            if not existing:
+                pf = EnterpriseFinding(
+                    tenant_id="demo-tenant",
+                    instrument_id=instrument.id,
+                    vendor_id=vendor.id,
+                    finding_category=cat,
+                    finding_description=desc,
+                    severity=sev,
+                    confidence_score=0.88,
+                    human_confirmed=False,
+                    created_at=_now(),
+                )
+                db.add(pf)
+                db.flush()
+                print(f"  + Pilot finding: {cat[:40]} (id={pf.id})")
+            else:
+                print(f"  = Pilot finding already exists: {cat[:40]}")
+
         db.commit()
         print("\nDemo seed complete.")
         print(f"  Facility id:            {facility.id}")

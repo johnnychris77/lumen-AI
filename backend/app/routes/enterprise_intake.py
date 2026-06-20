@@ -10382,3 +10382,90 @@ def create_enterprise_demo_audit_event(
         "resource_type": event.resource_type,
         "resource_id": event.resource_id,
     }
+
+
+# ── Inspection Intelligence KPI Summary ─────────────────────────────────────
+
+@router.get("/findings/kpi-summary")
+def get_findings_kpi_summary(
+    db: Session = Depends(get_db),
+):
+    """
+    Returns per-category finding counts for dashboard KPI cards.
+    Used by the Inspection Intelligence pilot dashboard.
+    """
+    all_findings = db.query(EnterpriseFinding).all()
+
+    CATEGORY_KEYWORDS: dict[str, list[str]] = {
+        "blood": ["blood"],
+        "bone": ["bone"],
+        "tissue": ["tissue"],
+        "debris": ["debris", "bioburden", "retained debris"],
+        "corrosion": ["corrosion", "rust"],
+        "crack": ["crack", "fracture"],
+        "insulation_damage": ["insulation"],
+        "baseline_match": ["baseline"],
+        "barcode_qr_keydot": ["barcode", "qr", "keydot", "udi"],
+        "other": [],
+    }
+
+    counts: dict[str, int] = {k: 0 for k in CATEGORY_KEYWORDS}
+    total = len(all_findings)
+    high_risk = 0
+
+    for f in all_findings:
+        cat = (f.finding_category or "").lower()
+        desc = (f.finding_description or "").lower()
+        text = cat + " " + desc
+        matched = False
+        for key, keywords in CATEGORY_KEYWORDS.items():
+            if key == "other":
+                continue
+            if any(kw in text for kw in keywords):
+                counts[key] += 1
+                matched = True
+        if not matched:
+            counts["other"] += 1
+        if (f.severity or "").lower() in ("high", "critical"):
+            high_risk += 1
+
+    # Vendor baseline counts
+    total_baselines = db.query(EnterpriseVendorBaselineSubscription).count()
+    approved_baselines = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(
+            EnterpriseVendorBaselineSubscription.approval_status.in_(
+                ["approved", "hospital_approved", "vendor_approved"]
+            )
+        )
+        .count()
+    )
+    pending_baselines = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(
+            EnterpriseVendorBaselineSubscription.approval_status.ilike("%pending%")
+        )
+        .count()
+    )
+    vendor_submissions = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(EnterpriseVendorBaselineSubscription.baseline_source == "vendor")
+        .count()
+    )
+    approval_rate = (
+        round((approved_baselines / total_baselines) * 100) if total_baselines > 0 else 0
+    )
+
+    return {
+        "status": "success",
+        "total_findings": total,
+        "high_risk_instruments": high_risk,
+        "finding_categories": counts,
+        "baselines": {
+            "total": total_baselines,
+            "approved": approved_baselines,
+            "pending": pending_baselines,
+            "vendor_submissions": vendor_submissions,
+            "approval_rate": approval_rate,
+        },
+    }
