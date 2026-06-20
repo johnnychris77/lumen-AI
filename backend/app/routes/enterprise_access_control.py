@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -39,45 +39,45 @@ router = APIRouter(prefix="/enterprise-access-control", tags=["enterprise-access
 
 @router.get("/decisions")
 def get_access_decisions(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_access_decisions(db)
 
 
 @router.get("/rollup")
 def get_access_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return access_rollup(db)
 
 
 @router.get("/narrative")
 def get_access_narrative(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return access_governance_narrative(db)
 
 
 @router.get("/policies")
 def get_policy_matrix(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return policy_matrix()
 
 
 @router.get("/check")
 def check_policy(
+    request: Request,
     resource_type: str,
     action: str,
     x_lumenai_role: str | None = Header(default="viewer", alias="X-LumenAI-Role"),
-    authorization: str | None = Header(default=None, alias="Authorization"),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return evaluate_access(x_lumenai_role or "viewer", resource_type, action)

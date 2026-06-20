@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -58,30 +58,30 @@ class GovernancePacketDeliveryPayload(BaseModel):
 
 @router.post("")
 def create_packet(
+    request: Request,
     payload: GovernancePacketCreatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return create_governance_packet_record(db, packet_title=payload.packet_title)
 
 
 @router.get("")
 def list_packets(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_governance_packets(db)
 
 
 @router.get("/{packet_id}")
 def get_packet(
+    request: Request,
     packet_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     packet = get_governance_packet(db, packet_id)
     if not packet:
         raise HTTPException(status_code=404, detail="Governance packet not found")
@@ -90,11 +90,11 @@ def get_packet(
 
 @router.post("/{packet_id}/exports")
 def create_packet_export(
+    request: Request,
     packet_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     try:
         return export_governance_packet(db, packet_id)
     except ValueError as exc:
@@ -103,22 +103,22 @@ def create_packet_export(
 
 @router.get("/{packet_id}/exports")
 def list_packet_exports(
+    request: Request,
     packet_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_governance_packet_exports(db, packet_id)
 
 
 @router.post("/{packet_id}/deliver")
 def deliver_packet(
+    request: Request,
     packet_id: int,
     payload: GovernancePacketDeliveryPayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     try:
         return deliver_governance_packet(
             db=db,
@@ -134,22 +134,22 @@ def deliver_packet(
 
 @router.get("/{packet_id}/deliveries")
 def list_packet_deliveries(
+    request: Request,
     packet_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_governance_packet_deliveries(db, packet_id)
 
 
 @router.get("/exports/{export_id}/{artifact_type}")
 def download_packet_artifact(
+    request: Request,
     export_id: int,
     artifact_type: Literal["docx", "pptx", "pdf"],
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     export = get_governance_packet_export(db, export_id)
     if not export:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -52,11 +52,11 @@ class PortfolioBriefingScheduleCreatePayload(BaseModel):
 
 @router.post("")
 def create_schedule(
+    request: Request,
     payload: PortfolioBriefingScheduleCreatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return create_portfolio_briefing_schedule(
         db=db,
         schedule_name=payload.schedule_name,
@@ -72,20 +72,20 @@ def create_schedule(
 
 @router.get("")
 def list_schedules(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_portfolio_briefing_schedules(db)
 
 
 @router.get("/{schedule_id}")
 def get_schedule(
+    request: Request,
     schedule_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     schedule = get_portfolio_briefing_schedule(db, schedule_id)
     if not schedule:
@@ -96,11 +96,11 @@ def get_schedule(
 
 @router.post("/{schedule_id}/run-now")
 def run_schedule_now(
+    request: Request,
     schedule_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     try:
         return run_portfolio_briefing_schedule_now(db, schedule_id)

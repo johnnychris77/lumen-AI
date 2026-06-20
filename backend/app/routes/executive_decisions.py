@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -69,29 +69,29 @@ class ExecutiveDecisionUpdatePayload(BaseModel):
 
 @router.post("")
 def create_decision(
+    request: Request,
     payload: ExecutiveDecisionCreatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return create_executive_decision(db=db, **payload.model_dump())
 
 
 @router.get("")
 def list_decisions(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_executive_decisions(db)
 
 
 @router.get("/open")
 def list_open_decisions(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return [
         item for item in list_executive_decisions(db)
         if item.get("status") != "completed"
@@ -100,38 +100,38 @@ def list_open_decisions(
 
 @router.get("/overdue")
 def list_overdue_decisions(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_executive_decisions(db, overdue_only=True)
 
 
 @router.get("/rollup")
 def get_decision_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return executive_decision_rollup(db)
 
 
 @router.get("/narrative")
 def get_decision_narrative(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return governance_decision_narrative(db)
 
 
 @router.post("/from-escalation/{escalation_id}")
 def create_from_escalation(
+    request: Request,
     escalation_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     try:
         return create_decision_from_escalation(db, escalation_id)
@@ -141,11 +141,11 @@ def create_from_escalation(
 
 @router.get("/{decision_id}")
 def get_decision(
+    request: Request,
     decision_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     decision = get_executive_decision(db, decision_id)
     if not decision:
@@ -156,12 +156,12 @@ def get_decision(
 
 @router.patch("/{decision_id}")
 def update_decision(
+    request: Request,
     decision_id: int,
     payload: ExecutiveDecisionUpdatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     updates: dict[str, Any] = {
         key: value
@@ -178,11 +178,11 @@ def update_decision(
 
 @router.post("/{decision_id}/approve")
 def approve_decision(
+    request: Request,
     decision_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     decision = update_executive_decision(db, decision_id, {"status": "approved"})
     if not decision:
@@ -193,11 +193,11 @@ def approve_decision(
 
 @router.post("/{decision_id}/complete")
 def complete_decision(
+    request: Request,
     decision_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     decision = update_executive_decision(db, decision_id, {"status": "completed", "leadership_decision_required": False})
     if not decision:

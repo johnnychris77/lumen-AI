@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -37,29 +37,29 @@ router = APIRouter(prefix="/tenant-insights", tags=["tenant-insights"])
 
 @router.get("/top-risks")
 def top_risk_insights(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return get_top_risk_tenant_insights(db)
 
 
 @router.get("/rollup")
 def tenant_insight_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return portfolio_insight_rollup(db)
 
 
 @router.get("/{tenant_id}")
 def tenant_insight(
+    request: Request,
     tenant_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     insight = get_tenant_insight(db, tenant_id)
     if not insight:

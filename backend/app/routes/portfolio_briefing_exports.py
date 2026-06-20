@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -51,11 +51,11 @@ class PortfolioBriefingDistributePayload(BaseModel):
 
 @router.post("/{briefing_id}/exports")
 def create_portfolio_briefing_export(
+    request: Request,
     briefing_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     try:
         return build_portfolio_briefing_export(db, briefing_id)
     except ValueError as exc:
@@ -64,21 +64,21 @@ def create_portfolio_briefing_export(
 
 @router.get("/{briefing_id}/exports")
 def list_exports_for_briefing(
+    request: Request,
     briefing_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_portfolio_briefing_exports(db, briefing_id)
 
 
 @router.get("/exports/{export_id}")
 def get_export_record(
+    request: Request,
     export_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     export = get_portfolio_briefing_export(db, export_id)
     if not export:
         raise HTTPException(status_code=404, detail="Portfolio briefing export not found")
@@ -87,12 +87,12 @@ def get_export_record(
 
 @router.get("/exports/{export_id}/{artifact_type}")
 def download_export_artifact(
+    request: Request,
     export_id: int,
     artifact_type: Literal["docx", "pptx", "pdf"],
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     export = get_portfolio_briefing_export(db, export_id)
     if not export:
         raise HTTPException(status_code=404, detail="Portfolio briefing export not found")
@@ -118,12 +118,12 @@ def download_export_artifact(
 
 @router.post("/{briefing_id}/distribute")
 def distribute_briefing(
+    request: Request,
     briefing_id: int,
     payload: PortfolioBriefingDistributePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return distribute_portfolio_briefing(
         db=db,
         briefing_id=briefing_id,
@@ -136,9 +136,9 @@ def distribute_briefing(
 
 @router.get("/{briefing_id}/deliveries")
 def list_deliveries_for_briefing(
+    request: Request,
     briefing_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_portfolio_briefing_deliveries(db, briefing_id)

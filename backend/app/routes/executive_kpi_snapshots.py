@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -44,45 +44,45 @@ class ExecutiveKpiSnapshotCapturePayload(BaseModel):
 
 @router.post("/capture")
 def capture_snapshot(
+    request: Request,
     payload: ExecutiveKpiSnapshotCapturePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return capture_executive_kpi_snapshot(db, snapshot_label=payload.snapshot_label)
 
 
 @router.get("")
 def list_snapshots(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_executive_kpi_snapshots(db)
 
 
 @router.get("/latest")
 def latest_snapshot(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return get_latest_executive_kpi_snapshot(db) or {}
 
 
 @router.get("/trends")
 def trends(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return executive_kpi_trends(db)
 
 
 @router.get("/narrative")
 def narrative(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return generate_executive_kpi_trend_narrative(db)
