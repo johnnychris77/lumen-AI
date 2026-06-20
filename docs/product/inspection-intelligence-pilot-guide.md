@@ -165,15 +165,14 @@ The pilot is considered successful when an evaluator can:
 
 ## 8. Known Limitations
 
-| Area | Limitation | Workaround |
+| Area | Status | Notes |
 |---|---|---|
-| Authentication | Pilot uses `AUTH_MODE=dev` which accepts `Bearer dev-token`. Production requires JWKS. | Set `AUTH_MODE=dev` in backend env for pilot demo. |
-| Baseline images | `baseline_image_url` accepts any URL string; no actual image upload UI. | Provide a direct image URL from the vendor's CDN or demo hosting. |
-| Barcode/QR scan | No camera/scan integration in the browser. Identifier values are typed manually. | Enter barcode/QR/KeyDot values as text in the vendor baseline portal form. |
-| Real-time updates | Dashboard does not auto-refresh. | Reload the page to see updated KPI counts after new intakes. |
-| Multi-tenant isolation | Demo uses `demo-tenant`. All users see all records in dev mode. | Tenant isolation is active in production auth mode via JWT claims. |
-| Intake form presets | The vendor intake form pre-fills some values for demo speed. | Clear and re-enter values for a clean demo. |
-| PDF generation | Governance packet PDF requires `reportlab`. If missing, falls back to JSON. | Install `reportlab` in the backend environment: `pip install reportlab`. |
+| Authentication (dev vs. production) | ✅ Resolved | `AUTH_MODE=dev` for pilot. Set `AUTH_MODE=oidc` + `OIDC_ISSUER_URL` + `OIDC_AUDIENCE` for production JWKS. See `backend/.env.example`. |
+| Baseline image upload | ✅ Resolved | File upload UI added. `POST /api/enterprise/vendor-baseline-subscription/baselines/upload-image` stores locally (dev) or to S3 (production). See `LUMENAI_STORAGE_BACKEND` in `.env.example`. |
+| Barcode/QR/KeyDot scan | ✅ Resolved | Camera scanner built into Vendor Intake form using native `BarcodeDetector` API. Requires Chrome 83+ or Edge 83+. Falls back to typed input in other browsers. |
+| Dashboard auto-refresh | ✅ Resolved | Dashboard polls every 30 seconds with a visible countdown and manual Refresh button. |
+| Multi-tenant isolation | Active (by design) | Demo uses `demo-tenant`. All users see all records in `AUTH_MODE=dev`. Tenant isolation enforces per-tenant scope in `AUTH_MODE=oidc` via JWT claims. |
+| PDF generation | Active | Governance packet PDF requires `reportlab`. Falls back to JSON if not installed. Fix: `pip install reportlab`. |
 
 ---
 

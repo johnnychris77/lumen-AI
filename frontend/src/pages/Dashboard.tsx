@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -7,6 +7,7 @@ import {
   Clock,
   Droplets,
   Package,
+  RefreshCw,
   ShieldCheck,
   TrendingUp,
   XCircle,
@@ -138,6 +139,8 @@ function statusRowClass(status?: string) {
   return "text-slate-700";
 }
 
+const REFRESH_INTERVAL_MS = 30_000;
+
 export default function Dashboard() {
   const { headers } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -146,42 +149,55 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [kpi, setKpi] = useState<KpiSummary | null>(null);
   const [modules, setModules] = useState<ModuleStatus[]>(MODULES);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL_MS / 1000);
 
   const hdrs = useMemo(() => headers(), [headers]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const [summaryRes, historyRes, kpiRes] = await Promise.allSettled([
-          fetch(`${API_BASE}/api/history/summary`, { headers: hdrs }),
-          fetch(`${API_BASE}/api/history?limit=10`, { headers: hdrs }),
-          fetch(`${API_BASE}/api/enterprise/findings/kpi-summary`, { headers: hdrs }),
-        ]);
-        if (cancelled) return;
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError("");
+    try {
+      const [summaryRes, historyRes, kpiRes] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/history/summary`, { headers: hdrs }),
+        fetch(`${API_BASE}/api/history?limit=10`, { headers: hdrs }),
+        fetch(`${API_BASE}/api/enterprise/findings/kpi-summary`, { headers: hdrs }),
+      ]);
 
-        if (summaryRes.status === "fulfilled" && summaryRes.value.ok)
-          setSummary(await summaryRes.value.json());
+      if (summaryRes.status === "fulfilled" && summaryRes.value.ok)
+        setSummary(await summaryRes.value.json());
 
-        if (historyRes.status === "fulfilled" && historyRes.value.ok) {
-          const d = await historyRes.value.json();
-          setRecent(Array.isArray(d) ? d : d.items || []);
-        }
-
-        if (kpiRes.status === "fulfilled" && kpiRes.value.ok) {
-          setKpi(await kpiRes.value.json());
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (historyRes.status === "fulfilled" && historyRes.value.ok) {
+        const d = await historyRes.value.json();
+        setRecent(Array.isArray(d) ? d : d.items || []);
       }
+
+      if (kpiRes.status === "fulfilled" && kpiRes.value.ok)
+        setKpi(await kpiRes.value.json());
+
+      setLastUpdated(new Date());
+      setCountdown(REFRESH_INTERVAL_MS / 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (!silent) setLoading(false);
     }
-    load();
-    return () => { cancelled = true; };
   }, [hdrs]);
+
+  // Initial load
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-refresh every 30s
+  useEffect(() => {
+    const interval = setInterval(() => load(true), REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  // Countdown ticker
+  useEffect(() => {
+    const tick = setInterval(() => setCountdown((c) => (c <= 1 ? REFRESH_INTERVAL_MS / 1000 : c - 1)), 1000);
+    return () => clearInterval(tick);
+  }, [lastUpdated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,14 +223,28 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Inspection Intelligence Dashboard</h2>
           <p className="text-sm text-slate-500 mt-0.5">
             Live sterile processing metrics — findings, baselines, and compliance status for SPD managers and executives.
           </p>
         </div>
-        {loading && <div className="flex items-center gap-2 text-sm text-slate-400"><Spinner className="h-4 w-4" />Refreshing…</div>}
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <button
+            onClick={() => load(false)}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            {loading ? <Spinner className="h-3 w-3" /> : <RefreshCw className="h-3 w-3" />}
+            Refresh
+          </button>
+          {lastUpdated && (
+            <p className="text-xs text-slate-400">
+              Updated {lastUpdated.toLocaleTimeString()} · next in {countdown}s
+            </p>
+          )}
+        </div>
       </div>
 
       {error && (

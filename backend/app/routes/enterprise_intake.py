@@ -9502,6 +9502,37 @@ def create_enterprise_vendor_baseline_record(
     }
 
 
+@router.post("/vendor-baseline-subscription/baselines/upload-image")
+def upload_vendor_baseline_image(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """
+    Upload a baseline reference image for a vendor instrument.
+    Returns the storage URL to use as baseline_image_url when submitting a baseline record.
+    """
+    from app.services.object_storage import save_upload_file
+    import uuid
+
+    safe_name = os.path.basename(file.filename or "baseline.jpg")
+    ext = os.path.splitext(safe_name)[1] or ".jpg"
+    unique_key = f"vendor-baselines/{uuid.uuid4().hex}{ext}"
+
+    stored = save_upload_file(
+        file_obj=file.file,
+        file_name=safe_name,
+        object_key=unique_key,
+        content_type=file.content_type or "image/jpeg",
+    )
+
+    return {
+        "status": "success",
+        "baseline_image_url": stored.public_url,
+        "storage_uri": stored.storage_uri,
+        "file_name": safe_name,
+    }
+
+
 @router.get("/vendor-baseline-subscription/baselines")
 def list_enterprise_vendor_baseline_records(
     vendor_name: str | None = None,
