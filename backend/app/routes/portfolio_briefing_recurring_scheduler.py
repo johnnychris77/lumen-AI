@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Request
 
 from app.auth import get_current_user
 from app.portfolio_briefing_recurring_scheduler import (
@@ -18,23 +18,23 @@ router = APIRouter(
 
 @router.get("/status")
 def get_scheduler_status(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return scheduler_status()
 
 
 @router.post("/start")
 def start_scheduler(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return start_recurring_portfolio_briefing_scheduler()
 
 
 @router.post("/run-due")
 def run_due_now(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return run_due_portfolio_briefing_schedules()

@@ -17,7 +17,7 @@ def ensure_portfolio_tenant_table(db: Session) -> None:
         text(
             """
             CREATE TABLE IF NOT EXISTS portfolio_tenants (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 tenant_name VARCHAR(255) NOT NULL,
                 industry VARCHAR(255) NOT NULL DEFAULT 'healthcare',
                 go_live_status VARCHAR(100) NOT NULL DEFAULT 'not_started',
@@ -140,6 +140,7 @@ def create_portfolio_tenant(
                 :customer_success_owner,
                 :notes
             )
+            RETURNING id
             """
         ),
         {
@@ -159,7 +160,8 @@ def create_portfolio_tenant(
         },
     )
 
-    tenant_id = result.lastrowid
+    row = result.fetchone()
+    tenant_id = row[0] if row else result.lastrowid
     db.commit()
 
     created = get_portfolio_tenant(db, int(tenant_id))

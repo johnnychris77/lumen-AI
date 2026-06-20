@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Request
 
 from app.auth import get_current_user
 from app.config import get_settings
@@ -11,9 +11,9 @@ router = APIRouter(prefix="/production-readiness", tags=["production-readiness"]
 
 @router.get("/config")
 def production_config_check(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     settings = get_settings()
     issues = settings.validate()

@@ -88,38 +88,38 @@ def create_tenant(
 
 @router.get("")
 def list_tenants(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_portfolio_tenants(db)
 
 
 @router.get("/rollup")
 def get_tenant_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return portfolio_tenant_rollup(db)
 
 
 @router.post("/rescore")
 def rescore_tenants(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return rescore_portfolio_tenants(db)
 
 
 @router.post("/generate-board-briefing")
 def generate_tenant_board_briefing(
     payload: PortfolioTenantBoardBriefingPayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return generate_board_briefing_from_portfolio_tenants(
         db=db,
         period_label=payload.period_label,
@@ -130,10 +130,10 @@ def generate_tenant_board_briefing(
 @router.get("/{tenant_id}")
 def get_tenant(
     tenant_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     tenant = get_portfolio_tenant(db, tenant_id)
     if not tenant:
@@ -146,10 +146,10 @@ def get_tenant(
 def update_tenant(
     tenant_id: int,
     payload: PortfolioTenantUpdatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     updates: dict[str, Any] = {
         key: value

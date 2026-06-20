@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -37,26 +37,26 @@ router = APIRouter(prefix="/enterprise-audit-events", tags=["enterprise-audit-ev
 
 @router.get("")
 def get_audit_events(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_audit_events(db)
 
 
 @router.get("/rollup")
 def get_audit_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return audit_rollup(db)
 
 
 @router.get("/narrative")
 def get_audit_narrative(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return compliance_narrative(db)

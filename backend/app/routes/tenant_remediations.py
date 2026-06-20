@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -66,11 +66,11 @@ class TenantRemediationUpdatePayload(BaseModel):
 
 @router.post("")
 def create_remediation(
+    request: Request,
     payload: TenantRemediationCreatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     try:
         return create_tenant_remediation(db=db, **payload.model_dump())
@@ -80,47 +80,47 @@ def create_remediation(
 
 @router.get("")
 def list_remediations(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_tenant_remediations(db)
 
 
 @router.get("/rollup")
 def get_remediation_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return remediation_rollup(db)
 
 
 @router.get("/open")
 def list_open_remediations(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_tenant_remediations(db, status="open")
 
 
 @router.get("/overdue")
 def list_overdue_remediations(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_tenant_remediations(db, overdue_only=True)
 
 
 @router.post("/from-insight/{tenant_id}")
 def create_from_insight(
+    request: Request,
     tenant_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     try:
         return create_remediations_from_tenant_insight(db, tenant_id)
@@ -130,11 +130,11 @@ def create_from_insight(
 
 @router.get("/{remediation_id}")
 def get_remediation(
+    request: Request,
     remediation_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     remediation = get_tenant_remediation(db, remediation_id)
     if not remediation:
@@ -145,12 +145,12 @@ def get_remediation(
 
 @router.patch("/{remediation_id}")
 def update_remediation(
+    request: Request,
     remediation_id: int,
     payload: TenantRemediationUpdatePayload,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     updates: dict[str, Any] = {
         key: value
@@ -167,11 +167,11 @@ def update_remediation(
 
 @router.post("/{remediation_id}/close")
 def close_remediation(
+    request: Request,
     remediation_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     remediation = update_tenant_remediation(db, remediation_id, {"status": "closed"})
     if not remediation:

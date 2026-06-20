@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///./lumenai.db")
+
 from fastapi import FastAPI, Depends
 from fastapi.testclient import TestClient
 

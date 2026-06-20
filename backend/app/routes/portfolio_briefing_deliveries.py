@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -40,29 +40,29 @@ router = APIRouter(
 
 @router.get("")
 def list_all_deliveries(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_deliveries(db)
 
 
 @router.get("/failed")
 def list_failed_deliveries(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_deliveries(db, status="retry_pending")
 
 
 @router.get("/{delivery_id}")
 def get_delivery_record(
+    request: Request,
     delivery_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     delivery = get_delivery(db, delivery_id)
     if not delivery:
         raise HTTPException(status_code=404, detail="Portfolio briefing delivery not found")
@@ -71,11 +71,11 @@ def get_delivery_record(
 
 @router.post("/{delivery_id}/retry")
 def retry_delivery(
+    request: Request,
     delivery_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     try:
         return execute_delivery_transport(db, delivery_id)

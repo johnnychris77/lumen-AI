@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -39,56 +39,56 @@ router = APIRouter(prefix="/executive-escalations", tags=["executive-escalations
 
 @router.post("/run")
 def run_escalation_scan(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return run_executive_escalation_scan(db)
 
 
 @router.get("")
 def list_escalations(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_executive_escalations(db)
 
 
 @router.get("/open")
 def list_open_escalations(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return list_executive_escalations(db, status="open")
 
 
 @router.get("/rollup")
 def get_escalation_rollup(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return executive_escalation_rollup(db)
 
 
 @router.post("/generate-governance-packet")
 def generate_packet(
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
     return generate_governance_packet(db)
 
 
 @router.post("/{escalation_id}/acknowledge")
 def acknowledge_escalation(
+    request: Request,
     escalation_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     escalation = update_executive_escalation_status(db, escalation_id, "acknowledged")
     if not escalation:
@@ -99,11 +99,11 @@ def acknowledge_escalation(
 
 @router.post("/{escalation_id}/close")
 def close_escalation(
+    request: Request,
     escalation_id: int,
-    authorization: str | None = Header(default=None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    get_current_user(authorization)
+    get_current_user(request)
 
     escalation = update_executive_escalation_status(db, escalation_id, "closed")
     if not escalation:

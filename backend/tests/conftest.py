@@ -5,6 +5,11 @@ from sqlalchemy import text
 
 
 def _load_database_objects():
+    # Force-import enterprise models so they register in Base.metadata before create_all().
+    # Without this, tables like audit_logs are skipped by create_all() and get created
+    # by the raw-SQL fallback, which causes SQLAlchemy's RETURNING id to fail on PostgreSQL.
+    _force_import_models()
+
     candidates = [
         "app.database",
         "app.db",
@@ -33,14 +38,38 @@ def _load_database_objects():
     )
 
 
+def _force_import_models():
+    """Import all ORM models so they register in Base.metadata before create_all() runs."""
+    for model_path in [
+        "app.models.audit_log",
+        "app.models.enterprise_quality",
+        "app.models.alert_event",
+        "app.models.inspection",
+        "app.models.review",
+        "app.models.user",
+    ]:
+        try:
+            importlib.import_module(model_path)
+        except Exception:
+            pass
+
+
 def _create_audit_logs_fallback(engine):
     """
-    Fallback for CI SQLite when audit log models are not imported before tests.
-    This table matches the enterprise audit fields used by compliance evidence tests.
+    Fallback in case audit_logs was not created by create_all().
+    Uses dialect-appropriate syntax for SQLite and PostgreSQL.
     """
-    create_sql = """
+    dialect = engine.dialect.name
+    if dialect == "postgresql":
+        id_col = "id SERIAL PRIMARY KEY"
+        datetime_type = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"
+    else:
+        id_col = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+        datetime_type = "DATETIME"
+
+    create_sql = f"""
     CREATE TABLE IF NOT EXISTS audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        {id_col},
         tenant_id VARCHAR,
         tenant_name VARCHAR,
         actor_email VARCHAR,
@@ -58,7 +87,7 @@ def _create_audit_logs_fallback(engine):
         correlation_id VARCHAR,
         previous_event_hash VARCHAR,
         event_hash VARCHAR,
-        created_at DATETIME
+        created_at {datetime_type}
     )
     """
 
@@ -71,4 +100,27 @@ def ensure_test_database_tables():
     base, engine = _load_database_objects()
     base.metadata.create_all(bind=engine)
     _create_audit_logs_fallback(engine)
+    _seed_enterprise_finding(engine)
     yield
+
+
+def _seed_enterprise_finding(engine) -> None:
+    """Ensure at least one EnterpriseFinding row (id=1) exists for governance packet tests."""
+    try:
+        from app.models.enterprise_quality import EnterpriseFinding
+        from sqlalchemy.orm import Session
+
+        with Session(engine) as db:
+            if db.get(EnterpriseFinding, 1) is None:
+                db.add(EnterpriseFinding(
+                    id=1,
+                    tenant_id="default-tenant",
+                    finding_category="Quality Control",
+                    finding_description="Seeded test finding",
+                    severity="low",
+                    confidence_score=0.0,
+                    human_confirmed=False,
+                ))
+                db.commit()
+    except Exception:
+        pass
