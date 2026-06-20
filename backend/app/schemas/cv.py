@@ -19,6 +19,7 @@ class CVAnalysisRequest(BaseModel):
     baseline_image_url: str = ""      # if set, runs baseline comparison
     barcode_hint: str = ""            # optional known barcode to aid recognition
     tenant_id: str = "default-tenant"
+    facility_id: str = ""              # identifies the hospital/facility within a multi-hospital tenant
     requested_capabilities: list[str] = Field(
         default_factory=lambda: [
             "instrument_recognition",
@@ -179,6 +180,7 @@ class CVInferenceResult(BaseModel):
     status: Literal["success", "partial", "failed"] = "success"
     context: str = "inspection"
     tenant_id: str = "default-tenant"
+    facility_id: str = ""
 
     # Recognition
     instrument_identity: InstrumentIdentity

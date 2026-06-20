@@ -152,6 +152,11 @@ class EnterpriseRollupResult(BaseModel):
     top_vendors: list[dict[str, Any]] = Field(default_factory=list)
     bottom_vendors: list[dict[str, Any]] = Field(default_factory=list)
 
+    # data_source indicates whether these numbers are from real inspection records
+    # or from the seeded mock generator. Callers should surface "No data yet" UX
+    # when data_source == "mock" rather than presenting fabricated numbers as real.
+    data_source: str = "real"   # "real" | "mock" | "insufficient"
+
     computed_at: datetime | None = None
 
 
@@ -173,6 +178,7 @@ class ExecutiveDashboard(BaseModel):
     tenant_id: str
     generated_at: datetime
     period_label: str
+    data_source: str = "real"   # "real" | "mock" | "insufficient"
 
     # Headline numbers
     total_hospitals: int = 0

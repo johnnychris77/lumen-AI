@@ -108,7 +108,13 @@ def compute_hospital_benchmarks(
     hospital_ids: list[str] | None = None,
     db: Any = None,
 ) -> list[HospitalBenchmarkResult]:
-    """Compute per-hospital benchmark metrics for the given period."""
+    """Compute per-hospital benchmark metrics for the given period.
+
+    When a DB session is provided, aggregates from real CVInferenceRecord data.
+    Returns an empty list (not mock data) when no records exist for the period —
+    callers should display a "No inspection data for this period" state rather
+    than fabricated numbers.
+    """
     if db is not None:
         return _compute_hospital_benchmarks_from_db(
             tenant_id, period_label, period_type, hospital_ids, db
@@ -138,13 +144,11 @@ def _compute_hospital_benchmarks_from_db(
     )
     records = q.all()
 
-    # Group by hospital_id — we use tenant_id as hospital identifier for now,
-    # as facility_id is not yet on CVInferenceRecord. Extend by adding
-    # facility_id to CVInferenceRecord when multi-hospital per tenant is needed.
-    # For now, treat each distinct tenant_id as a hospital.
+    # Group by facility_id when set (multi-hospital tenant), otherwise fall back
+    # to tenant_id so single-hospital tenants still get a benchmark row.
     grouped: dict[str, list] = {}
     for r in records:
-        hid = r.tenant_id
+        hid = r.facility_id if r.facility_id else r.tenant_id
         if hospital_ids and hid not in hospital_ids:
             continue
         grouped.setdefault(hid, []).append(r)
@@ -507,6 +511,15 @@ def compute_enterprise_rollup(
             for i, x in enumerate(items[:n])
         ]
 
+    # data_source: "real" when populated from DB records, "mock" when using seed
+    # generator (no DB), "insufficient" when DB has no records for the period.
+    if db is None:
+        data_source = "mock"
+    elif n_h == 0 and n_v == 0:
+        data_source = "insufficient"
+    else:
+        data_source = "real"
+
     result = EnterpriseRollupResult(
         tenant_id=tenant_id,
         period_label=period_label,
@@ -531,6 +544,7 @@ def compute_enterprise_rollup(
         bottom_hospitals=_leaderboard(list(reversed(hospitals)), "hospital_id", "hospital_name", "compliance_score"),
         top_vendors=_leaderboard(vendors, "vendor_id", "vendor_name", "vendor_score"),
         bottom_vendors=_leaderboard(list(reversed(vendors)), "vendor_id", "vendor_name", "vendor_score"),
+        data_source=data_source,
         computed_at=datetime.now(timezone.utc),
     )
 
@@ -672,6 +686,7 @@ def compute_executive_dashboard(
         tenant_id=tenant_id,
         generated_at=datetime.now(timezone.utc),
         period_label=period_label,
+        data_source=rollup.data_source,
         total_hospitals=rollup.total_hospitals,
         total_inspections_mtd=rollup.total_inspections,
         portfolio_cleanliness_score=rollup.avg_cleanliness_score,
@@ -922,7 +937,7 @@ def _upsert_rollup(
         )
         .first()
     )
-    data = result.model_dump(exclude={"computed_at", "top_hospitals", "bottom_hospitals", "top_vendors", "bottom_vendors"})
+    data = result.model_dump(exclude={"computed_at", "top_hospitals", "bottom_hospitals", "top_vendors", "bottom_vendors", "data_source"})
     data["top_hospitals_json"] = json.dumps(result.top_hospitals)
     data["bottom_hospitals_json"] = json.dumps(result.bottom_hospitals)
     data["top_vendors_json"] = json.dumps(result.top_vendors)

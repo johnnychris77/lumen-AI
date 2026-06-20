@@ -37,6 +37,7 @@ interface ExecutiveDashboard {
   tenant_id: string;
   generated_at: string;
   period_label: string;
+  data_source: string;   // "real" | "mock" | "insufficient"
   total_hospitals: number;
   total_inspections_mtd: number;
   portfolio_cleanliness_score: number;
@@ -238,6 +239,29 @@ export function EnterpriseBenchmarkDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Data source banner — shown when no real inspection data is available */}
+      {dashboard.data_source !== "real" && (
+        <div
+          style={{
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            borderRadius: 6,
+            padding: "10px 14px",
+            fontSize: "0.8rem",
+            color: "#92400e",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>⚠ No inspection data for this period.</span>
+          {dashboard.data_source === "insufficient"
+            ? " Run CV inspections to populate real benchmark data for this portfolio."
+            : " Connect your hospital network to see live benchmarks."}
+        </div>
+      )}
 
       {/* Headline KPIs */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>

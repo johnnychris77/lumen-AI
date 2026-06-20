@@ -177,6 +177,7 @@ class OnnxCVProvider(BaseCVProvider):
             status="success",
             context=req.context,
             tenant_id=req.tenant_id,
+            facility_id=req.facility_id,
             instrument_identity=identity,
             identifier_reads=identifiers,
             regions=regions,

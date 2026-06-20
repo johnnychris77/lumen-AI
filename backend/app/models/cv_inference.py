@@ -25,6 +25,11 @@ class CVInferenceRecord(Base):
     finding_id = Column(Integer, nullable=True, index=True)
     instrument_id = Column(Integer, nullable=True, index=True)
 
+    # Multi-hospital: identifies which facility within a tenant performed the inspection.
+    # Populated from X-Facility-ID request header or analysis request context.
+    # Falls back to tenant_id when not set (single-hospital tenants).
+    facility_id = Column(String(100), nullable=False, index=True, default="")
+
     # Image
     image_url = Column(Text, default="", nullable=False)
     baseline_image_url = Column(Text, default="", nullable=False)

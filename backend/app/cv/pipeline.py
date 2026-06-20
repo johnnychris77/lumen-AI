@@ -117,6 +117,7 @@ def _persist(result: CVInferenceResult, db: Session) -> None:
     record = CVInferenceRecord(
         inference_id=result.inference_id,
         tenant_id=result.tenant_id,
+        facility_id=getattr(result, "facility_id", ""),
         context=result.context,
         provider=result.provider,
         status=result.status,
