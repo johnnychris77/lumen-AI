@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lumenai-backend
+  namespace: lumenai
+  labels:
+    app.kubernetes.io/name: lumenai
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app: lumenai-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP

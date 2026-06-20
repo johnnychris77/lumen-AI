@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lumenai
+  labels:
+    app.kubernetes.io/name: lumenai
+    app.kubernetes.io/managed-by: kubectl

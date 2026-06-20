@@ -1,13 +1,36 @@
 from app.routers.public_module_status import router as public_module_status_router
 from contextlib import asynccontextmanager
 import importlib
+import json
+import logging
 import os
+import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 import time
+
+# --- Structured JSON logging setup ---
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        return json.dumps({
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        })
+
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+_json_handler = logging.StreamHandler()
+_json_handler.setFormatter(JSONFormatter())
+logging.root.handlers = [_json_handler]
+logging.root.setLevel(getattr(logging, _log_level, logging.INFO))
+
+# --- Metrics counters ---
+_request_count: int = 0
+_start_time: float = time.time()
 
 from app.core.settings import settings
 from app.routes.system import router as system_router
@@ -121,6 +144,60 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+# --- Correlation ID middleware ---
+class CorrelationIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        global _request_count
+        _request_count += 1
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
+
+
+app.add_middleware(CorrelationIDMiddleware)
+
+
+# --- Observability endpoints ---
+@app.get("/health", include_in_schema=False)
+def health_check():
+    """Liveness probe — returns 200 if the process is alive."""
+    return JSONResponse({
+        "status": "ok",
+        "version": "P11",
+        "environment": os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")),
+    })
+
+
+@app.get("/ready", include_in_schema=False)
+def readiness_check():
+    """Readiness probe — returns 200 only if the DB is reachable."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return JSONResponse({"status": "ready", "database": "ok"})
+    except Exception as exc:
+        return JSONResponse(
+            {"status": "not_ready", "database": str(exc)},
+            status_code=503,
+        )
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    """Basic Prometheus-compatible plaintext metrics."""
+    uptime_seconds = time.time() - _start_time
+    lines = [
+        "# HELP lumenai_requests_total Total HTTP requests handled",
+        "# TYPE lumenai_requests_total counter",
+        f"lumenai_requests_total {_request_count}",
+        "# HELP lumenai_uptime_seconds Seconds since process start",
+        "# TYPE lumenai_uptime_seconds gauge",
+        f"lumenai_uptime_seconds {uptime_seconds:.2f}",
+    ]
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 
 @app.get("/api/enterprise/audit-to-capa/summary")

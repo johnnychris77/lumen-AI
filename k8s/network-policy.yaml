@@ -1,0 +1,64 @@
+---
+# Allow frontend pods to receive traffic from ingress only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-frontend
+  namespace: lumenai
+spec:
+  podSelector:
+    matchLabels:
+      app: lumenai-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - {}  # allow all egress from frontend (DNS, CDN, etc.)
+
+---
+# Allow backend pods to receive traffic from frontend and ingress only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-backend
+  namespace: lumenai
+spec:
+  podSelector:
+    matchLabels:
+      app: lumenai-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: lumenai-frontend
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - {}  # allow all egress (database, S3, external APIs, DNS)
+
+---
+# Default deny all ingress/egress in namespace (explicit allow rules above override per-pod)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: lumenai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
