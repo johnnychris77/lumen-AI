@@ -7,6 +7,11 @@ const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
+const VendorIntakePage = lazy(() => import("./pages/VendorIntakePage"));
+const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
+const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
+const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
+const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
 
 // Inspection Intelligence pages
 const VendorIntakePage = lazy(() => import("./pages/VendorIntakePage"));
@@ -212,7 +217,6 @@ function RootRouter() {
     );
   }
 
-  // Inspection Intelligence routes
   if (path === "/vendor-intake") {
     return (
       <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading vendor intake...</main>}>
@@ -231,7 +235,7 @@ function RootRouter() {
 
   if (path === "/baseline-review") {
     return (
-      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading baseline review queue...</main>}>
+      <Suspense fallback={<main style={{ padding: "32px", fontFamily: "Arial, sans-serif" }}>Loading baseline review...</main>}>
         <BaselineReviewPage />
       </Suspense>
     );

@@ -95,7 +95,7 @@ type AuditCommandCenterHealth = {
 async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center.health`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -113,7 +113,7 @@ async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
   const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -158,7 +158,7 @@ export default function EnterpriseAuditCommandCenter() {
     try {
       const response = await fetch(buildAuditCommandCenterPdfUrl(Number(limit) || 25), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -188,7 +188,7 @@ export default function EnterpriseAuditCommandCenter() {
     try {
       const response = await fetch(buildAuditCommandCenterCsvUrl(Number(limit) || 100), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -218,7 +218,7 @@ export default function EnterpriseAuditCommandCenter() {
     try {
       const response = await fetch(buildAuditCommandCenterPowerBiCsvUrl(Number(limit) || 1000), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -248,7 +248,7 @@ export default function EnterpriseAuditCommandCenter() {
     try {
       const response = await fetch(buildAuditCommandCenterDataDictionaryPdfUrl(), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -278,7 +278,7 @@ export default function EnterpriseAuditCommandCenter() {
     try {
       const response = await fetch(buildAuditCommandCenterToolkitZipUrl(Number(limit) || 1000), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },

@@ -39,7 +39,7 @@ async function fetchBaselineReviewQueue(limit = 50): Promise<BaselineReviewQueue
 
   const response = await fetch(`${API_BASE}/api/enterprise/baseline-review-queue?limit=${safeLimit}`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },

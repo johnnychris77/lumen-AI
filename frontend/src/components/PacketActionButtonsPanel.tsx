@@ -40,7 +40,7 @@ type PowerBiProductionLock = {
 async function fetchPowerBiProductionLock(): Promise<PowerBiProductionLock> {
   const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.production-lock`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -81,7 +81,7 @@ type PowerBiFinalValidation = {
 async function fetchPowerBiFinalValidation(): Promise<PowerBiFinalValidation> {
   const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.final-validation`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -122,7 +122,7 @@ type PowerBiToolkitHealth = {
 async function fetchPowerBiToolkitHealth(): Promise<PowerBiToolkitHealth> {
   const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.health`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -163,7 +163,7 @@ type PowerBiToolkitMetadata = {
 async function fetchPowerBiToolkitMetadata(): Promise<PowerBiToolkitMetadata> {
   const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.metadata`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -230,7 +230,7 @@ async function fetchExportReadinessHistory(
 
   const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history?${params.toString()}`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -248,7 +248,7 @@ async function fetchExportReadinessHistory(
 async function fetchExportReadiness(findingId: string): Promise<ExportReadinessStatus> {
   const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/export-readiness-status`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
     },
@@ -414,7 +414,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(historyCsvUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -444,7 +444,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(historyPowerBiCsvUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -475,7 +475,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiDictionaryPdfUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -504,7 +504,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiDashboardSpecPdfUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -533,7 +533,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiToolkitZipUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -564,7 +564,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiToolkitReadmePdfUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -593,7 +593,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiExecutiveSummaryPdfUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -622,7 +622,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiReleaseNotesPdfUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },
@@ -651,7 +651,7 @@ export default function PacketActionButtonsPanel() {
     try {
       const response = await fetch(powerBiCompletionCertificatePdfUrl, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
         },

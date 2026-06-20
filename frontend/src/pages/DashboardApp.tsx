@@ -117,6 +117,14 @@ function ModuleStatusCard({ item }: { item: ModuleStatus }) {
   );
 }
 
+type BaselineKPIs = {
+  total_baselines: number;
+  approved_baselines: number;
+  pending_review: number;
+  vendor_submissions: number;
+  approval_rate: number;
+};
+
 export default function DashboardApp() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
@@ -125,6 +133,7 @@ export default function DashboardApp() {
   const [loading, setLoading] = useState(true);
   const [moduleStatuses, setModuleStatuses] =
     useState<ModuleStatus[]>(initialModuleStatuses);
+  const [baselineKPIs, setBaselineKPIs] = useState<BaselineKPIs | null>(null);
 
   const headers = useMemo(
     () => ({
@@ -145,10 +154,11 @@ export default function DashboardApp() {
       setError("");
 
       try {
-        const [healthRes, summaryRes, historyRes] = await Promise.allSettled([
+        const [healthRes, summaryRes, historyRes, baselineRes] = await Promise.allSettled([
           fetch(`${API_BASE}/api/health`),
           fetch(`${API_BASE}/api/history/summary`, { headers }),
           fetch(`${API_BASE}/api/history?limit=8`, { headers }),
+          fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines`, { headers }),
         ]);
 
         if (cancelled) return;
@@ -170,6 +180,22 @@ export default function DashboardApp() {
           setRecent(Array.isArray(data) ? data : data.items || []);
         } else {
           setRecent([]);
+        }
+
+        if (baselineRes.status === "fulfilled" && baselineRes.value.ok) {
+          const data = await baselineRes.value.json();
+          const baselines: { status?: string; submitted_by?: string }[] =
+            Array.isArray(data) ? data : data.baselines || [];
+          const approved = baselines.filter((b) => b.status === "approved").length;
+          const pending = baselines.filter((b) => b.status === "pending_review").length;
+          const vendorSubs = baselines.filter((b) => b.submitted_by === "vendor").length;
+          setBaselineKPIs({
+            total_baselines: baselines.length,
+            approved_baselines: approved,
+            pending_review: pending,
+            vendor_submissions: vendorSubs,
+            approval_rate: baselines.length > 0 ? Math.round((approved / baselines.length) * 100) : 0,
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -279,6 +305,49 @@ export default function DashboardApp() {
             detail="Items needing review"
           />
         </div>
+
+        <section style={panel}>
+          <h2 style={panelTitle}>Inspection Intelligence</h2>
+          <p style={muted}>
+            Vendor baseline management, intake workflow, and review queue for sterile processing governance.
+          </p>
+
+          <div style={grid}>
+            <DashboardCard
+              title="Total Baselines"
+              value={baselineKPIs?.total_baselines ?? "—"}
+              detail="All baseline records on file"
+            />
+            <DashboardCard
+              title="Approved Baselines"
+              value={baselineKPIs?.approved_baselines ?? "—"}
+              detail="Baselines passed vendor review"
+            />
+            <DashboardCard
+              title="Pending Review"
+              value={baselineKPIs?.pending_review ?? "—"}
+              detail="Baselines awaiting approval"
+            />
+            <DashboardCard
+              title="Vendor Submissions"
+              value={baselineKPIs?.vendor_submissions ?? "—"}
+              detail="Baselines submitted by vendors"
+            />
+            <DashboardCard
+              title="Approval Rate"
+              value={baselineKPIs ? `${baselineKPIs.approval_rate}%` : "—"}
+              detail="Approved / total baselines"
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "16px" }}>
+            <a style={moduleLink} href="/vendor-intake">Vendor Intake</a>
+            <a style={moduleLink} href="/manufacturer-baselines">Manufacturer Baselines</a>
+            <a style={moduleLink} href="/baseline-review">Baseline Review Queue</a>
+            <a style={moduleLink} href="/vendor-baseline-portal">Vendor Baseline Portal</a>
+            <a style={moduleLink} href="/intake-history">Intake History</a>
+          </div>
+        </section>
 
         <section style={panel}>
           <h2 style={panelTitle}>Recent Activity</h2>
