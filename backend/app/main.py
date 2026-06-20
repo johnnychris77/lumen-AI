@@ -746,6 +746,9 @@ from app.models import validation as _validation_models  # noqa: F401
 from app.routes.validation import router as validation_router
 app.include_router(validation_router)
 
+from app.routes.executive import router as executive_router
+app.include_router(executive_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
