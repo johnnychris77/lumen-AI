@@ -17,7 +17,7 @@ def ensure_portfolio_tenant_table(db: Session) -> None:
         text(
             """
             CREATE TABLE IF NOT EXISTS portfolio_tenants (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 tenant_name VARCHAR(255) NOT NULL,
                 industry VARCHAR(255) NOT NULL DEFAULT 'healthcare',
                 go_live_status VARCHAR(100) NOT NULL DEFAULT 'not_started',

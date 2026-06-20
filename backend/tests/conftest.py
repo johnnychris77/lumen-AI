@@ -40,7 +40,7 @@ def _create_audit_logs_fallback(engine):
     """
     create_sql = """
     CREATE TABLE IF NOT EXISTS audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         tenant_id VARCHAR,
         tenant_name VARCHAR,
         actor_email VARCHAR,
