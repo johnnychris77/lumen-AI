@@ -16,6 +16,7 @@ from app.deps import get_db
 from app.db import models
 from app.tenant import resolve_tenant
 from app.tenant_authz import require_tenant_roles
+from app.limiter import _rate_limit
 
 router = APIRouter(tags=["billing"])
 
@@ -40,6 +41,7 @@ class CheckoutRequest(BaseModel):
 
 
 @router.post("/billing/checkout")
+@_rate_limit("10/minute")
 def create_checkout(req: CheckoutRequest, request: Request, db: Session = Depends(get_db)):
     require_enterprise_auth(request)
     if req.target_tier not in STRIPE_PRICE_IDS:

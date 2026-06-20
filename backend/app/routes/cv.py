@@ -31,6 +31,7 @@ from app.schemas.cv import (
 )
 from app.schemas.ranking import CompositeRankingRequest, RankingRequest
 from app.services.ranking_engine import score_composite, score_inspection
+from app.limiter import _rate_limit
 
 router = APIRouter(prefix="/api/enterprise/cv", tags=["computer-vision"])
 
@@ -63,6 +64,7 @@ def _run_async_task(inference_id: str, req: CVAnalysisRequest) -> None:
 # ── Core endpoints ────────────────────────────────────────────────────────────
 
 @router.post("/analyze", response_model=CVInferenceResult)
+@_rate_limit("30/minute")
 def analyze_image(
     req: CVAnalysisRequest,
     request: Request,

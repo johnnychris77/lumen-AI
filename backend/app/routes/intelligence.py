@@ -19,6 +19,8 @@ from app.services.vendor_intelligence_engine import (
     sync_fda_recalls,
 )
 
+from app.limiter import _rate_limit
+
 router = APIRouter(prefix="/api/intelligence", tags=["intelligence"])
 
 
@@ -152,6 +154,7 @@ def intelligence_dashboard(
 
 
 @router.post("/recalls/sync")
+@_rate_limit("5/minute")
 def recalls_sync(
     request: Request,
     tenant_id: str = Query(..., description="Tenant identifier"),

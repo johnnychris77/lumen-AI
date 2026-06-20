@@ -96,9 +96,11 @@ async def lifespan(_app: FastAPI):
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from app.services.prediction_scheduler import register_prediction_scheduler
+        from app.services.rwe_scheduler import register_rwe_scheduler
         from app.db.session import SessionLocal
         _scheduler = BackgroundScheduler()
         register_prediction_scheduler(_scheduler, SessionLocal)
+        register_rwe_scheduler(_scheduler, SessionLocal)
         _scheduler.start()
     except Exception as _e:
         import logging
@@ -122,22 +124,15 @@ if _ENV == "production" and _SECRET_KEY == _DEFAULT_SECRET:
 app = FastAPI(title="LumenAI API", lifespan=lifespan)
 
 # --- Rate limiting (slowapi) ---
-try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.util import get_remote_address
-    from slowapi.errors import RateLimitExceeded
-
-    limiter = Limiter(key_func=get_remote_address)
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-except ImportError:
-    # slowapi not installed — rate limiting disabled
-    limiter = None
-
-# Rate limit targets (apply @limiter.limit decorator in production with a shared limiter instance):
-# - POST /api/enterprise/cv/analyze → 30/minute (CV inference)
-# - POST /billing/checkout → 10/minute (billing checkout)
-# - POST /api/regulatory/fda-submissions → 5/minute (FDA submission)
+from app.limiter import limiter
+if limiter is not None:
+    try:
+        from slowapi import _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    except Exception:
+        pass
 
 app.add_middleware(
     CORSMiddleware,

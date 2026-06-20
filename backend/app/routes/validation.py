@@ -429,6 +429,37 @@ def get_rwe_metrics(
     }
 
 
+@router.get("/kappa-monitor")
+def kappa_monitor(
+    request: Request,
+    run_label: str = "mock-run",
+    db: Session = Depends(get_db),
+) -> dict:
+    """Monitor kappa drift and emit alerts when kappa drops below threshold."""
+    auth = require_enterprise_auth(request, db=db)
+    tenant_id = auth.tenant_id
+    report = compute_validation_report(tenant_id, run_label, db)
+    kappa = report["overall_kappa"]
+    status = "ok"
+    alert = None
+    if kappa < 0.75:
+        status = "critical"
+        alert = f"Kappa {kappa:.3f} is below 0.75 — mandatory retraining threshold. Halt deployment."
+    elif kappa < 0.80:
+        status = "warning"
+        alert = f"Kappa {kappa:.3f} is below the 0.80 primary endpoint threshold. Retraining recommended."
+    return {
+        "tenant_id": tenant_id,
+        "run_label": run_label,
+        "overall_kappa": kappa,
+        "status": status,
+        "alert": alert,
+        "primary_endpoint_threshold": 0.80,
+        "retraining_threshold": 0.75,
+        "meets_primary_endpoint": report["meets_primary_endpoint"],
+    }
+
+
 @router.post("/rwe/snapshot")
 def compute_rwe_snapshot(
     request: Request,
