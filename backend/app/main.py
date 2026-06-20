@@ -627,6 +627,10 @@ from app.models import copilot as _copilot_models  # noqa: F401
 from app.routes.copilot import router as copilot_router
 app.include_router(copilot_router)
 
+from app.models import digital_twin as _digital_twin_models  # noqa: F401
+from app.routes.digital_twin import router as digital_twin_router
+app.include_router(digital_twin_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

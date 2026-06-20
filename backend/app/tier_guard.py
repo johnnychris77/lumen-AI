@@ -10,6 +10,7 @@ TIER_FEATURES = {
         "failure_prediction_basic",          # /api/predictions/failures list, 30d only
         "regulatory_readiness",              # basic accreditation score
         "copilot_basic",                     # P9: copilot sessions + protocols
+        "twin_state",                        # P10: digital twin state + flow
     },
     "professional": {
         "shared_defects", "risk_patterns",
@@ -23,6 +24,8 @@ TIER_FEATURES = {
         "standards_catalogue",              # standards mapping
         "copilot_basic",                    # P9: copilot sessions + protocols
         "copilot_escalations",              # P9: escalation management
+        "twin_state",                       # P10: digital twin state + flow
+        "twin_alerts",                      # P10: SPD alerts
     },
     "enterprise": {
         "shared_defects", "risk_patterns",
@@ -44,6 +47,10 @@ TIER_FEATURES = {
         "copilot_escalations",              # P9: escalation management
         "copilot_dashboard",                # P9: copilot analytics dashboard
         "copilot_protocols",                # P9: protocol management
+        "twin_state",                       # P10: digital twin state + flow
+        "twin_alerts",                      # P10: SPD alerts
+        "twin_whatif",                      # P10: what-if simulation
+        "twin_dashboard",                   # P10: full twin dashboard
     },
 }
 

@@ -5,6 +5,7 @@ import VendorIntelligenceDashboard from "@/components/VendorIntelligenceDashboar
 import { PredictiveAnalyticsDashboard } from "@/components/PredictiveAnalyticsDashboard";
 import { RegulatoryComplianceDashboard } from "@/components/RegulatoryComplianceDashboard";
 import { InspectionCopilotDashboard } from "@/components/InspectionCopilotDashboard";
+import { DigitalTwinDashboard } from "@/components/DigitalTwinDashboard";
 import ManufacturerPortal from "@/pages/ManufacturerPortal";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useTierUpgrade } from "@/hooks/useTierUpgrade";
@@ -539,6 +540,11 @@ export default function DashboardApp() {
         {/* P9: Autonomous Inspection Copilot */}
         <section style={panel}>
           <InspectionCopilotDashboard />
+        </section>
+
+        {/* P10: Digital Twin of SPD Operations */}
+        <section style={panel}>
+          <DigitalTwinDashboard />
         </section>
 
         <section style={threeColumnGrid}>
