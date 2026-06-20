@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CVInspectionDashboard } from "@/components/CVInspectionDashboard";
+import { EnterpriseBenchmarkDashboard } from "@/components/EnterpriseBenchmarkDashboard";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -496,6 +497,11 @@ export default function DashboardApp() {
         {/* R8: CV Inspection Intelligence dashboard tile */}
         <section style={panel}>
           <CVInspectionDashboard tenantId="demo-tenant" />
+        </section>
+
+        {/* P5: Enterprise Multi-Hospital Benchmarking & Portfolio Intelligence */}
+        <section style={panel}>
+          <EnterpriseBenchmarkDashboard />
         </section>
 
         <section style={threeColumnGrid}>

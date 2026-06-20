@@ -48,6 +48,7 @@ def _force_import_models():
         "app.models.inspection",
         "app.models.review",
         "app.models.user",
+        "app.models.benchmarking",
     ]:
         try:
             importlib.import_module(model_path)

@@ -54,6 +54,7 @@ async def lifespan(_app: FastAPI):
     # Safe startup bootstrap — create_all only adds missing tables, never drops.
     importlib.import_module("app.db.models")
     importlib.import_module("app.models.cv_inference")   # register CVInferenceRecord table
+    importlib.import_module("app.models.benchmarking")   # register P5 benchmark tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     yield
@@ -586,6 +587,9 @@ app.include_router(vendor_performance_scorecard_router)
 app.include_router(power_bi_executive_analytics_router)
 app.include_router(capa_trend_intelligence_router)
 app.include_router(vendor_trend_intelligence_router)
+
+from app.routes.benchmarking import router as benchmarking_router
+app.include_router(benchmarking_router)
 
 from fastapi.openapi.utils import get_openapi
 
