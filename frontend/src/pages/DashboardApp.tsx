@@ -184,11 +184,15 @@ export default function DashboardApp() {
 
         if (baselineRes.status === "fulfilled" && baselineRes.value.ok) {
           const data = await baselineRes.value.json();
-          const baselines: { status?: string; submitted_by?: string }[] =
-            Array.isArray(data) ? data : data.baselines || [];
-          const approved = baselines.filter((b) => b.status === "approved").length;
-          const pending = baselines.filter((b) => b.status === "pending_review").length;
-          const vendorSubs = baselines.filter((b) => b.submitted_by === "vendor").length;
+          const baselines: { baseline_status?: string; approval_status?: string; baseline_source?: string }[] =
+            Array.isArray(data) ? data : data.records || [];
+          const approved = baselines.filter(
+            (b) => ["approved", "active", "vendor_approved"].includes((b.baseline_status || "").toLowerCase())
+          ).length;
+          const pending = baselines.filter(
+            (b) => (b.approval_status || "").toLowerCase().includes("pending")
+          ).length;
+          const vendorSubs = baselines.filter((b) => b.baseline_source === "vendor").length;
           setBaselineKPIs({
             total_baselines: baselines.length,
             approved_baselines: approved,

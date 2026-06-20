@@ -13,13 +13,6 @@ const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
 const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
 
-// Inspection Intelligence pages
-const VendorIntakePage = lazy(() => import("./pages/VendorIntakePage"));
-const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
-const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
-const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
-const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
-
 const card: React.CSSProperties = {
   display: "block",
   padding: "20px",

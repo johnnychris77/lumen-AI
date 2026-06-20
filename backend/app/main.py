@@ -72,7 +72,10 @@ app.add_middleware(
         "Content-Type",
         "X-LumenAI-Role",
         "X-LumenAI-Tenant-Id",
+        "X-LumenAI-Tenant-Name",
         "X-LumenAI-Actor",
+        "X-Tenant-Id",
+        "X-Tenant-Name",
         "X-Requested-With",
     ],
 )
@@ -564,10 +567,14 @@ app.include_router(portfolio_dashboard_router, prefix=settings.API_PREFIX)
 
 from app.routes.portfolio_briefings import router as portfolio_briefings_router
 from app.routes.portfolio_briefing_exports import router as portfolio_briefing_exports_router
+from app.routes.portfolio_tenants import router as portfolio_tenants_router
+from app.routes.tenant_insights import router as tenant_insights_router
 from app.routes.enterprise_intake import router as enterprise_intake_router
 
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
+app.include_router(portfolio_tenants_router, prefix=settings.API_PREFIX)
+app.include_router(tenant_insights_router, prefix=settings.API_PREFIX)
 app.include_router(enterprise_intake_router)
 app.include_router(governance_intelligence_router)
 app.include_router(vendor_performance_scorecard_router)
