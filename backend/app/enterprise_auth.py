@@ -20,6 +20,11 @@ from app.auth.tenant_membership import require_enabled_tenant_membership
 
 
 DEFAULT_DEV_TOKEN = "dev-token"
+DEMO_TOKEN = "demo-token"
+
+
+def is_demo_mode() -> bool:
+    return os.getenv("DEMO_MODE", "0").strip() == "1"
 
 
 def get_auth_mode() -> str:
@@ -104,15 +109,24 @@ def _require_dev_auth_context(request: Request) -> AuthContext:
     authorization = request.headers.get("authorization", "")
     expected = f"Bearer {get_dev_token()}"
 
-    if authorization != expected:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+    if authorization == expected:
+        return build_dev_auth_context(
+            actor=get_request_actor(request),
+            role=get_request_role(request),
+            tenant_id=get_request_tenant_id(request),
+            tenant_name=get_request_tenant_name(request),
+        )
 
-    return build_dev_auth_context(
-        actor=get_request_actor(request),
-        role=get_request_role(request),
-        tenant_id=get_request_tenant_id(request),
-        tenant_name=get_request_tenant_name(request),
-    )
+    # Allow demo-token when DEMO_MODE=1
+    if is_demo_mode() and authorization == f"Bearer {DEMO_TOKEN}":
+        return build_dev_auth_context(
+            actor="demo@lumenai.com",
+            role=get_request_role(request) or "demo",
+            tenant_id="demo",
+            tenant_name="Demo Tenant",
+        )
+
+    raise HTTPException(status_code=401, detail="Authentication required.")
 
 
 def _require_oidc_auth_context(
@@ -181,10 +195,23 @@ def get_auth_context(
     )
 
 
+_AUTH_ENV = os.getenv("ENVIRONMENT", "development")
+
+
 def require_enterprise_auth(
     request: Request,
     db: Session | None = None,
 ) -> AuthContext:
+    # In production, reject non-JWT tokens (dev shortcuts like dev-token/test-token)
+    if _AUTH_ENV == "production":
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.removeprefix("Bearer ").strip()
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token format. Production requires a signed JWT.",
+            )
     return get_auth_context(request, db=db)
 
 
@@ -300,6 +327,25 @@ def require_vendor_baseline_library_read(request: Request) -> AuthContext:
         permission="vendor_baseline:library_read",
         detail="Vendor baseline library-read permission required.",
     )
+
+
+def require_manufacturer_auth(request: Request) -> str:
+    """
+    Auth helper for manufacturer portal endpoints.
+    Validates Bearer token (same as require_enterprise_auth) then requires
+    X-Manufacturer-ID header.  Returns the manufacturer_id string.
+    Does NOT require enterprise role — manufacturer role is separate.
+    """
+    # Validate the bearer token using the existing auth mechanism
+    require_enterprise_auth(request)
+
+    manufacturer_id = request.headers.get("X-Manufacturer-ID", "").strip()
+    if not manufacturer_id:
+        raise HTTPException(
+            status_code=403,
+            detail="X-Manufacturer-ID header required for manufacturer portal access.",
+        )
+    return manufacturer_id
 
 
 def require_audit_chain_verify(request: Request) -> AuthContext:

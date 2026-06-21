@@ -1,6 +1,11 @@
 import importlib
+import os
+from pathlib import Path
 
 import pytest
+
+# Ensure data/ directory exists before any module-level code in capa_service.py runs
+Path(os.path.join(os.path.dirname(__file__), "..", "data")).mkdir(exist_ok=True)
 from sqlalchemy import text
 
 
@@ -43,10 +48,37 @@ def _force_import_models():
     for model_path in [
         "app.models.audit_log",
         "app.models.enterprise_quality",
+        "app.models.cv_inference",
         "app.models.alert_event",
         "app.models.inspection",
         "app.models.review",
         "app.models.user",
+        "app.models.benchmarking",
+        "app.models.vendor_intelligence",
+        "app.models.tenant_plan",
+        "app.models.payment_event",
+        "app.models.predictions",
+        "app.models.regulatory",
+        "app.models.copilot",
+        "app.models.digital_twin",
+        "app.models.validation",
+        "app.models.pilot",
+        "app.models.tenant_health",
+        "app.models.tenant_subscription_p14",
+        "app.models.manufacturer_reg",
+        "app.models.usage",
+        "app.models.sso_config",
+        "app.models.network_benchmark",
+        "app.models.recall_signal",
+        "app.models.instrument_registry",
+        "app.models.baseline_library",
+        "app.models.external_connector",
+        "app.models.patient_safety",
+        "app.models.integrations",
+        "app.models.quality_intelligence",
+        "app.models.digital_quality_twin",
+        "app.models.global_intelligence",
+        "app.models.consent_record",
     ]:
         try:
             importlib.import_module(model_path)

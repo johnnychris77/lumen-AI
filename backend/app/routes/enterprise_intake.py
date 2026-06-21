@@ -362,17 +362,35 @@ def create_enterprise_intake(
     db.add(finding)
     db.flush()
 
+    # Compute live ranking score at intake time (pre-cached for KPI queries)
+    from app.schemas.ranking import RankingRequest as _RankingRequest
+    from app.services.ranking_engine import score_inspection as _score_inspection
+    _rank_req = _RankingRequest(
+        finding_category=finding.finding_category,
+        severity=finding.severity,
+        confidence_score=finding.confidence_score,
+        instrument_id=instrument.id,
+        barcode_value=getattr(payload, "barcode_value", "") or "",
+        qr_code_value=getattr(payload, "qr_code_value", "") or "",
+        key_dot_value=getattr(payload, "key_dot_value", "") or "",
+        tenant_id=payload.tenant_id,
+    )
+    _rank_result = _score_inspection(_rank_req, db=db)
+    overall_score = _rank_result.inspection_score
+    risk_tier = _rank_result.risk_level.lower()
+
     (
         patient_safety_score,
         regulatory_score,
         operational_score,
         vendor_score,
-        overall_score,
-        risk_tier,
+        _legacy_overall,
+        _legacy_tier,
     ) = _risk_scores_for_severity(payload.severity)
 
     risk_score = EnterpriseRiskScore(
         tenant_id=payload.tenant_id,
+        finding_id=finding.id,
         inspection_id=finding.id,
         patient_safety_score=patient_safety_score,
         regulatory_score=regulatory_score,
@@ -384,10 +402,16 @@ def create_enterprise_intake(
     db.add(risk_score)
     db.flush()
 
+    # Auto-trigger CAPA for Critical findings with confirmed baseline
+    _capa_auto_created = False
+    if _rank_result.risk_level == "Critical" and _rank_result.final_ranking_allowed:
+        from app.routes.ranking import _maybe_trigger_capa
+        _capa_auto_created = _maybe_trigger_capa(db, finding.id, _rank_result, payload.tenant_id)
+
     disposition = EnterpriseDisposition(
         tenant_id=payload.tenant_id,
         inspection_id=finding.id,
-        recommended_action=payload.recommended_action,
+        recommended_action=_rank_result.recommended_action or payload.recommended_action,
         final_action="Pending human review",
         status="recommended",
     )
@@ -2301,23 +2325,23 @@ def review_manufacturer_baseline(
     if decision == "approve":
         baseline.baseline_status = "approved"
         baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
-        baseline.approved_at = datetime.utcnow()
+        baseline.approved_at = datetime.now(timezone.utc)
         workflow_status = "baseline_approved"
         message = "Manufacturer baseline approved as trusted reference."
     elif decision == "reject":
         baseline.baseline_status = "rejected"
         baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
-        baseline.approved_at = datetime.utcnow()
+        baseline.approved_at = datetime.now(timezone.utc)
         workflow_status = "baseline_rejected"
         message = "Manufacturer baseline rejected and will not be used as trusted reference."
     else:
         baseline.baseline_status = "more_evidence_requested"
         baseline.approved_by = payload.reviewer_name or "Baseline Reviewer"
-        baseline.approved_at = datetime.utcnow()
+        baseline.approved_at = datetime.now(timezone.utc)
         workflow_status = "baseline_more_evidence_requested"
         message = "More evidence requested before baseline approval."
 
-    baseline.updated_at = datetime.utcnow()
+    baseline.updated_at = datetime.now(timezone.utc)
 
     audit_details = {
         "baseline_id": baseline.id,
@@ -9502,6 +9526,37 @@ def create_enterprise_vendor_baseline_record(
     }
 
 
+@router.post("/vendor-baseline-subscription/baselines/upload-image")
+def upload_vendor_baseline_image(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """
+    Upload a baseline reference image for a vendor instrument.
+    Returns the storage URL to use as baseline_image_url when submitting a baseline record.
+    """
+    from app.services.object_storage import save_upload_file
+    import uuid
+
+    safe_name = os.path.basename(file.filename or "baseline.jpg")
+    ext = os.path.splitext(safe_name)[1] or ".jpg"
+    unique_key = f"vendor-baselines/{uuid.uuid4().hex}{ext}"
+
+    stored = save_upload_file(
+        file_obj=file.file,
+        file_name=safe_name,
+        object_key=unique_key,
+        content_type=file.content_type or "image/jpeg",
+    )
+
+    return {
+        "status": "success",
+        "baseline_image_url": stored.public_url,
+        "storage_uri": stored.storage_uri,
+        "file_name": safe_name,
+    }
+
+
 @router.get("/vendor-baseline-subscription/baselines")
 def list_enterprise_vendor_baseline_records(
     vendor_name: str | None = None,
@@ -9621,7 +9676,7 @@ def approve_enterprise_vendor_baseline_record(
     db_record.approval_status = "hospital_approved"
     db_record.approved_by = request.headers.get("x-lumenai-actor", "unknown") if request else "unknown"
     db_record.approval_notes = payload.get("approval_notes") or ""
-    db_record.updated_at = datetime.utcnow()
+    db_record.updated_at = datetime.now(timezone.utc)
 
     db.add(db_record)
     db.commit()
@@ -10381,4 +10436,91 @@ def create_enterprise_demo_audit_event(
         "action_type": event.action_type,
         "resource_type": event.resource_type,
         "resource_id": event.resource_id,
+    }
+
+
+# ── Inspection Intelligence KPI Summary ─────────────────────────────────────
+
+@router.get("/findings/kpi-summary")
+def get_findings_kpi_summary(
+    db: Session = Depends(get_db),
+):
+    """
+    Returns per-category finding counts for dashboard KPI cards.
+    Used by the Inspection Intelligence pilot dashboard.
+    """
+    all_findings = db.query(EnterpriseFinding).all()
+
+    CATEGORY_KEYWORDS: dict[str, list[str]] = {
+        "blood": ["blood"],
+        "bone": ["bone"],
+        "tissue": ["tissue"],
+        "debris": ["debris", "bioburden", "retained debris"],
+        "corrosion": ["corrosion", "rust"],
+        "crack": ["crack", "fracture"],
+        "insulation_damage": ["insulation"],
+        "baseline_match": ["baseline"],
+        "barcode_qr_keydot": ["barcode", "qr", "keydot", "udi"],
+        "other": [],
+    }
+
+    counts: dict[str, int] = {k: 0 for k in CATEGORY_KEYWORDS}
+    total = len(all_findings)
+    high_risk = 0
+
+    for f in all_findings:
+        cat = (f.finding_category or "").lower()
+        desc = (f.finding_description or "").lower()
+        text = cat + " " + desc
+        matched = False
+        for key, keywords in CATEGORY_KEYWORDS.items():
+            if key == "other":
+                continue
+            if any(kw in text for kw in keywords):
+                counts[key] += 1
+                matched = True
+        if not matched:
+            counts["other"] += 1
+        if (f.severity or "").lower() in ("high", "critical"):
+            high_risk += 1
+
+    # Vendor baseline counts
+    total_baselines = db.query(EnterpriseVendorBaselineSubscription).count()
+    approved_baselines = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(
+            EnterpriseVendorBaselineSubscription.approval_status.in_(
+                ["approved", "hospital_approved", "vendor_approved"]
+            )
+        )
+        .count()
+    )
+    pending_baselines = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(
+            EnterpriseVendorBaselineSubscription.approval_status.ilike("%pending%")
+        )
+        .count()
+    )
+    vendor_submissions = (
+        db.query(EnterpriseVendorBaselineSubscription)
+        .filter(EnterpriseVendorBaselineSubscription.baseline_source == "vendor")
+        .count()
+    )
+    approval_rate = (
+        round((approved_baselines / total_baselines) * 100) if total_baselines > 0 else 0
+    )
+
+    return {
+        "status": "success",
+        "total_findings": total,
+        "high_risk_instruments": high_risk,
+        "finding_categories": counts,
+        "baselines": {
+            "total": total_baselines,
+            "approved": approved_baselines,
+            "pending": pending_baselines,
+            "vendor_submissions": vendor_submissions,
+            "approval_rate": approval_rate,
+        },
     }

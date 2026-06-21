@@ -1,11 +1,37 @@
-from app.routes.portfolio_tenants import router as portfolio_tenants_router
-from app.routes.tenant_insights import router as tenant_insights_router
 from app.routers.public_module_status import router as public_module_status_router
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import importlib
+import json
+import logging
+import os
+import sys
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 import time
+
+# --- Structured JSON logging setup ---
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        return json.dumps({
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        })
+
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+_json_handler = logging.StreamHandler()
+_json_handler.setFormatter(JSONFormatter())
+logging.root.handlers = [_json_handler]
+logging.root.setLevel(getattr(logging, _log_level, logging.INFO))
+
+# --- Metrics counters ---
+_request_count: int = 0
+_start_time: float = time.time()
 
 from app.core.settings import settings
 from app.routes.system import router as system_router
@@ -30,11 +56,207 @@ from app.routes.vendor_performance_scorecard import router as vendor_performance
 from app.routes.power_bi_executive_analytics import router as power_bi_executive_analytics_router
 from app.routes.capa_trend_intelligence import router as capa_trend_intelligence_router
 from app.routes.vendor_trend_intelligence import router as vendor_trend_intelligence_router
+from app.routes.vendor_intelligence import router as vendor_intelligence_router
+from app.routes.manufacturer_intelligence import router as manufacturer_intelligence_router
+from app.routes.intelligence import router as intelligence_router
+from app.routes.intelligence_consent import router as intelligence_consent_router
+from app.routes.manufacturer_portal import router as manufacturer_portal_router
 
-app = FastAPI(title="LumenAI API")
 
-app.include_router(public_module_status_router)
+def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"Database ready on attempt {attempt}")
+            return
+        except Exception as exc:
+            last_error = exc
+            print(f"Database not ready (attempt {attempt}/{max_attempts}): {exc}")
+            time.sleep(sleep_seconds)
+    raise RuntimeError(f"Database did not become ready: {last_error}")
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Safe startup bootstrap — create_all only adds missing tables, never drops.
+    importlib.import_module("app.db.models")
+    importlib.import_module("app.models.cv_inference")   # register CVInferenceRecord table
+    importlib.import_module("app.models.benchmarking")   # register P5 benchmark tables
+    importlib.import_module("app.models.vendor_intelligence")  # register P6 intelligence tables
+    importlib.import_module("app.models.payment_event")        # register PaymentEvent table
+    importlib.import_module("app.models.tenant_plan")          # register TenantPlan table
+    importlib.import_module("app.models.predictions")          # register P7 prediction tables
+    importlib.import_module("app.models.regulatory")           # register P8 regulatory tables
+    importlib.import_module("app.models.copilot")              # register P9 copilot tables
+    importlib.import_module("app.models.validation")           # register P12 validation tables
+    importlib.import_module("app.models.pilot")                # register P14 pilot table
+    importlib.import_module("app.models.tenant_health")        # register P14 health score table
+    importlib.import_module("app.models.tenant_subscription_p14")  # register P14 subscription table
+    importlib.import_module("app.models.manufacturer_reg")     # register P14 manufacturer reg table
+    importlib.import_module("app.models.usage")                # register P14 usage counter table
+    importlib.import_module("app.models.sso_config")           # register P14 SSO config table
+    importlib.import_module("app.models.network_benchmark")    # register P15 network benchmark tables
+    importlib.import_module("app.models.recall_signal")        # register P15 recall signal tables
+    importlib.import_module("app.models.instrument_registry")  # register P15 instrument registry table
+    importlib.import_module("app.models.baseline_library")     # register P15 baseline library table
+    importlib.import_module("app.models.integrations")         # register P17 integration tables
+    importlib.import_module("app.models.mobile")               # register P18 mobile tables
+    importlib.import_module("app.models.quality_intelligence") # register P21 quality intelligence tables
+    importlib.import_module("app.models.digital_quality_twin") # register P22 digital quality twin tables
+    importlib.import_module("app.models.global_intelligence")  # register P23 global intelligence tables
+    importlib.import_module("app.models.consent_record")       # register P20 consent record table
+    wait_for_db()
+    Base.metadata.create_all(bind=engine)
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from app.services.prediction_scheduler import register_prediction_scheduler
+        from app.services.rwe_scheduler import register_rwe_scheduler
+        from app.services.integration_scheduler import register_integration_scheduler
+        from app.services.quality_intelligence_service import register_intelligence_scheduler
+        from app.services.global_aggregation_job import register_global_aggregation_scheduler
+        from app.db.session import SessionLocal
+        _scheduler = BackgroundScheduler()
+        register_prediction_scheduler(_scheduler, SessionLocal)
+        register_rwe_scheduler(_scheduler, SessionLocal)
+        register_integration_scheduler(_scheduler, SessionLocal)
+        register_intelligence_scheduler(_scheduler, SessionLocal)
+        register_global_aggregation_scheduler(_scheduler, SessionLocal)
+        _scheduler.start()
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning("Prediction scheduler not started: %s", _e)
+    yield
+
+
+_IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod"}
+
+# --- Production safety guard: crash on default SECRET_KEY ---
+_ENV = os.getenv("ENVIRONMENT", "development")
+_SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
+_DEFAULT_SECRET = "dev-secret-change-in-production"
+
+if _ENV == "production" and _SECRET_KEY == _DEFAULT_SECRET:
+    sys.exit(
+        "FATAL: SECRET_KEY is set to the default value in production environment. "
+        "Set a strong SECRET_KEY before starting."
+    )
+
+app = FastAPI(title="LumenAI API", lifespan=lifespan)
+
+# --- Rate limiting (slowapi) ---
+from app.limiter import limiter
+if limiter is not None:
+    try:
+        from slowapi import _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    except Exception:
+        pass
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-LumenAI-Role",
+        "X-LumenAI-Tenant-Id",
+        "X-LumenAI-Tenant-Name",
+        "X-LumenAI-Actor",
+        "X-Tenant-Id",
+        "X-Tenant-Name",
+        "X-Requested-With",
+    ],
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        )
+        if _IS_PRODUCTION:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+from app.middleware.tenant_region import TenantRegionMiddleware
+app.add_middleware(TenantRegionMiddleware)
+
+
+# --- Correlation ID middleware ---
+class CorrelationIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        global _request_count
+        _request_count += 1
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
+
+
+app.add_middleware(CorrelationIDMiddleware)
+
+
+# --- Observability endpoints ---
+@app.get("/health", include_in_schema=False)
+def health_check():
+    """Liveness probe — returns 200 if the process is alive."""
+    return JSONResponse({
+        "status": "ok",
+        "version": "P11",
+        "environment": os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")),
+    })
+
+
+@app.get("/ready", include_in_schema=False)
+def readiness_check():
+    """Readiness probe — returns 200 only if the DB is reachable."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return JSONResponse({"status": "ready", "database": "ok"})
+    except Exception as exc:
+        return JSONResponse(
+            {"status": "not_ready", "database": str(exc)},
+            status_code=503,
+        )
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics(request: Request, token: str = ""):
+    """Basic Prometheus-compatible plaintext metrics."""
+    from fastapi import HTTPException as _HTTPException
+    metrics_token = os.getenv("METRICS_TOKEN", "")
+    if metrics_token:
+        if token != metrics_token:
+            raise _HTTPException(status_code=401, detail="Invalid metrics token")
+    # If no METRICS_TOKEN set, restrict to localhost only
+    elif request.client and request.client.host not in ("127.0.0.1", "::1", "localhost"):
+        raise _HTTPException(status_code=403, detail="Metrics endpoint restricted")
+    uptime_seconds = time.time() - _start_time
+    lines = [
+        "# HELP lumenai_requests_total Total HTTP requests handled",
+        "# TYPE lumenai_requests_total counter",
+        f"lumenai_requests_total {_request_count}",
+        "# HELP lumenai_uptime_seconds Seconds since process start",
+        "# TYPE lumenai_uptime_seconds gauge",
+        f"lumenai_uptime_seconds {uptime_seconds:.2f}",
+    ]
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 
 @app.get("/api/enterprise/audit-to-capa/summary")
@@ -274,40 +496,7 @@ def audit_command_center_health():
         "message": "Enterprise Audit Command Center final validation passed."
     }
 
-@app.on_event("startup")
-def bootstrap_enterprise_tables():
-    # Safe startup bootstrap for hosted demo / enterprise workflow tables.
-    # SQLAlchemy create_all only creates missing tables.
-    # It does not drop existing tables or delete existing data.
-    importlib.import_module("app.db.models")
-    Base.metadata.create_all(bind=engine)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-def wait_for_db(max_attempts: int = 30, sleep_seconds: int = 2) -> None:
-    last_error = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            print(f"Database ready on attempt {attempt}")
-            return
-        except Exception as exc:
-            last_error = exc
-            print(f"Database not ready (attempt {attempt}/{max_attempts}): {exc}")
-            time.sleep(sleep_seconds)
-    raise RuntimeError(f"Database did not become ready: {last_error}")
-
-@app.on_event("startup")
-async def _startup() -> None:
-    wait_for_db()
-    Base.metadata.create_all(bind=engine)
+app.include_router(public_module_status_router)
 
 app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(inspect_router, prefix=settings.API_PREFIX)
@@ -537,28 +726,108 @@ app.include_router(portfolio_dashboard_router, prefix=settings.API_PREFIX)
 
 from app.routes.portfolio_briefings import router as portfolio_briefings_router
 from app.routes.portfolio_briefing_exports import router as portfolio_briefing_exports_router
+from app.routes.portfolio_tenants import router as portfolio_tenants_router
+from app.routes.tenant_insights import router as tenant_insights_router
 from app.routes.enterprise_intake import router as enterprise_intake_router
-app.include_router(
-    portfolio_tenants_router,
-    prefix=settings.API_PREFIX,
-)
-app.include_router(
-    tenant_insights_router,
-    prefix=settings.API_PREFIX,
-)
+from app.routes.ranking import router as ranking_router
+from app.routes.cv import router as cv_router
+
 app.include_router(portfolio_briefings_router, prefix=settings.API_PREFIX)
 app.include_router(portfolio_briefing_exports_router, prefix=settings.API_PREFIX)
+app.include_router(portfolio_tenants_router, prefix=settings.API_PREFIX)
+app.include_router(tenant_insights_router, prefix=settings.API_PREFIX)
 app.include_router(enterprise_intake_router)
+app.include_router(ranking_router)
+app.include_router(cv_router)
 app.include_router(governance_intelligence_router)
 app.include_router(vendor_performance_scorecard_router)
 app.include_router(power_bi_executive_analytics_router)
 app.include_router(capa_trend_intelligence_router)
 app.include_router(vendor_trend_intelligence_router)
+app.include_router(vendor_intelligence_router)
+app.include_router(manufacturer_intelligence_router)
+app.include_router(intelligence_router)
+app.include_router(intelligence_consent_router)
+app.include_router(manufacturer_portal_router)
+
+from app.routes.benchmarking import router as benchmarking_router
+app.include_router(benchmarking_router)
+
+from app.routes.predictions import router as predictions_router
+app.include_router(predictions_router)
+
+from app.routes.regulatory import router as regulatory_router
+app.include_router(regulatory_router)
+
+from app.models import copilot as _copilot_models  # noqa: F401
+from app.routes.copilot import router as copilot_router
+app.include_router(copilot_router)
+
+from app.models import digital_twin as _digital_twin_models  # noqa: F401
+from app.routes.digital_twin import router as digital_twin_router
+app.include_router(digital_twin_router)
+
+from app.models import validation as _validation_models  # noqa: F401
+from app.routes.validation import router as validation_router
+app.include_router(validation_router)
+
+from app.routes.executive import router as executive_router
+app.include_router(executive_router)
+
+# P14: Commercial launch recommendations
+from app.routes.pilot import router as pilot_router
+from app.routes.tenant_health import router as tenant_health_router
+from app.routes.billing_webhooks import router as billing_webhooks_router
+from app.routes.demo import router as demo_router
+from app.routes.manufacturer_reg import router as manufacturer_reg_router
+from app.routes.gpo_contract import router as gpo_contract_router
+from app.routes.usage_p14 import router as usage_p14_router
+from app.routes.hipaa_baa import router as hipaa_baa_router
+from app.routes.sso_config import router as sso_config_router
+from app.routes.status import router as status_router
+
+app.include_router(pilot_router)
+app.include_router(tenant_health_router)
+app.include_router(billing_webhooks_router)
+app.include_router(demo_router)
+app.include_router(manufacturer_reg_router)
+app.include_router(gpo_contract_router)
+app.include_router(usage_p14_router)
+app.include_router(hipaa_baa_router)
+app.include_router(sso_config_router)
+app.include_router(status_router)  # public, no prefix
+
+from app.routes.network_benchmark import router as network_benchmark_router
+from app.routes.recall_signals import router as recall_signals_router
+from app.routes.instrument_registry import router as instrument_registry_router
+from app.routes.baseline_library import router as baseline_library_router
+from app.routes.industry_dashboard import router as industry_dashboard_router
+
+app.include_router(network_benchmark_router)
+app.include_router(recall_signals_router)
+app.include_router(instrument_registry_router)
+app.include_router(baseline_library_router)
+app.include_router(industry_dashboard_router)
+
+from app.routes.patient_safety import router as patient_safety_router
+app.include_router(patient_safety_router)
+
+from app.routes.integrations import router as integrations_router
+app.include_router(integrations_router)
+
+from app.routes.mobile import router as mobile_router
+app.include_router(mobile_router)
+
+from app.routes import quality_intelligence
+app.include_router(quality_intelligence.router)
+
+from app.routes import digital_quality_twin
+app.include_router(digital_quality_twin.router)
+
+from app.routes import global_intelligence
+app.include_router(global_intelligence.router)
 
 from fastapi.openapi.utils import get_openapi
-import importlib
-import os
-
 
 def custom_openapi():
     if app.openapi_schema is not None:

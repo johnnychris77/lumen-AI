@@ -1,4 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { CVInspectionDashboard } from "@/components/CVInspectionDashboard";
+import { EnterpriseBenchmarkDashboard } from "@/components/EnterpriseBenchmarkDashboard";
+import VendorIntelligenceDashboard from "@/components/VendorIntelligenceDashboard";
+import { PredictiveAnalyticsDashboard } from "@/components/PredictiveAnalyticsDashboard";
+import { RegulatoryComplianceDashboard } from "@/components/RegulatoryComplianceDashboard";
+import { InspectionCopilotDashboard } from "@/components/InspectionCopilotDashboard";
+import { DigitalTwinDashboard } from "@/components/DigitalTwinDashboard";
+import ManufacturerPortal from "@/pages/ManufacturerPortal";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useTierUpgrade } from "@/hooks/useTierUpgrade";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
@@ -117,7 +127,23 @@ function ModuleStatusCard({ item }: { item: ModuleStatus }) {
   );
 }
 
+type BaselineKPIs = {
+  total_baselines: number;
+  approved_baselines: number;
+  pending_review: number;
+  vendor_submissions: number;
+  approval_rate: number;
+};
+
 export default function DashboardApp() {
+  // Route to ManufacturerPortal when on /manufacturer path or manufacturers.* subdomain
+  if (typeof window !== "undefined" && (
+    window.location.hostname.startsWith("manufacturers.") ||
+    window.location.pathname === "/manufacturer"
+  )) {
+    return <ManufacturerPortal />;
+  }
+
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [health, setHealth] = useState("checking");
@@ -125,6 +151,8 @@ export default function DashboardApp() {
   const [loading, setLoading] = useState(true);
   const [moduleStatuses, setModuleStatuses] =
     useState<ModuleStatus[]>(initialModuleStatuses);
+  const [baselineKPIs, setBaselineKPIs] = useState<BaselineKPIs | null>(null);
+  const { upgradeState, closeUpgrade } = useTierUpgrade();
 
   const headers = useMemo(
     () => ({
@@ -145,10 +173,11 @@ export default function DashboardApp() {
       setError("");
 
       try {
-        const [healthRes, summaryRes, historyRes] = await Promise.allSettled([
+        const [healthRes, summaryRes, historyRes, baselineRes] = await Promise.allSettled([
           fetch(`${API_BASE}/api/health`),
           fetch(`${API_BASE}/api/history/summary`, { headers }),
           fetch(`${API_BASE}/api/history?limit=8`, { headers }),
+          fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines`, { headers }),
         ]);
 
         if (cancelled) return;
@@ -170,6 +199,26 @@ export default function DashboardApp() {
           setRecent(Array.isArray(data) ? data : data.items || []);
         } else {
           setRecent([]);
+        }
+
+        if (baselineRes.status === "fulfilled" && baselineRes.value.ok) {
+          const data = await baselineRes.value.json();
+          const baselines: { baseline_status?: string; approval_status?: string; baseline_source?: string }[] =
+            Array.isArray(data) ? data : data.records || [];
+          const approved = baselines.filter(
+            (b) => ["approved", "active", "vendor_approved"].includes((b.baseline_status || "").toLowerCase())
+          ).length;
+          const pending = baselines.filter(
+            (b) => (b.approval_status || "").toLowerCase().includes("pending")
+          ).length;
+          const vendorSubs = baselines.filter((b) => b.baseline_source === "vendor").length;
+          setBaselineKPIs({
+            total_baselines: baselines.length,
+            approved_baselines: approved,
+            pending_review: pending,
+            vendor_submissions: vendorSubs,
+            approval_rate: baselines.length > 0 ? Math.round((approved / baselines.length) * 100) : 0,
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -230,6 +279,7 @@ export default function DashboardApp() {
   }, [headers]);
 
   return (
+    <>
     <main style={page}>
       <section style={shell}>
         <div style={topbar}>
@@ -279,6 +329,49 @@ export default function DashboardApp() {
             detail="Items needing review"
           />
         </div>
+
+        <section style={panel}>
+          <h2 style={panelTitle}>Inspection Intelligence</h2>
+          <p style={muted}>
+            Vendor baseline management, intake workflow, and review queue for sterile processing governance.
+          </p>
+
+          <div style={grid}>
+            <DashboardCard
+              title="Total Baselines"
+              value={baselineKPIs?.total_baselines ?? "—"}
+              detail="All baseline records on file"
+            />
+            <DashboardCard
+              title="Approved Baselines"
+              value={baselineKPIs?.approved_baselines ?? "—"}
+              detail="Baselines passed vendor review"
+            />
+            <DashboardCard
+              title="Pending Review"
+              value={baselineKPIs?.pending_review ?? "—"}
+              detail="Baselines awaiting approval"
+            />
+            <DashboardCard
+              title="Vendor Submissions"
+              value={baselineKPIs?.vendor_submissions ?? "—"}
+              detail="Baselines submitted by vendors"
+            />
+            <DashboardCard
+              title="Approval Rate"
+              value={baselineKPIs ? `${baselineKPIs.approval_rate}%` : "—"}
+              detail="Approved / total baselines"
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "16px" }}>
+            <a style={moduleLink} href="/vendor-intake">Vendor Intake</a>
+            <a style={moduleLink} href="/manufacturer-baselines">Manufacturer Baselines</a>
+            <a style={moduleLink} href="/baseline-review">Baseline Review Queue</a>
+            <a style={moduleLink} href="/vendor-baseline-portal">Vendor Baseline Portal</a>
+            <a style={moduleLink} href="/intake-history">Intake History</a>
+          </div>
+        </section>
 
         <section style={panel}>
           <h2 style={panelTitle}>Recent Activity</h2>
@@ -419,6 +512,41 @@ export default function DashboardApp() {
         </section>
 
 
+        {/* R8: CV Inspection Intelligence dashboard tile */}
+        <section style={panel}>
+          <CVInspectionDashboard tenantId="demo-tenant" />
+        </section>
+
+        {/* P5: Enterprise Multi-Hospital Benchmarking & Portfolio Intelligence */}
+        <section style={panel}>
+          <EnterpriseBenchmarkDashboard />
+        </section>
+
+        {/* P6: Vendor Intelligence Exchange & Manufacturer Collaboration Network */}
+        <section style={panel}>
+          <VendorIntelligenceDashboard />
+        </section>
+
+        {/* P7: Predictive Instrument Failure Analytics */}
+        <section style={panel}>
+          <PredictiveAnalyticsDashboard />
+        </section>
+
+        {/* P8: Regulatory & Accreditation Automation */}
+        <section style={panel}>
+          <RegulatoryComplianceDashboard />
+        </section>
+
+        {/* P9: Autonomous Inspection Copilot */}
+        <section style={panel}>
+          <InspectionCopilotDashboard />
+        </section>
+
+        {/* P10: Digital Twin of SPD Operations */}
+        <section style={panel}>
+          <DigitalTwinDashboard />
+        </section>
+
         <section style={threeColumnGrid}>
           <div style={modulePanel}>
             <h2 style={panelTitle}>Vendor Governance Summary</h2>
@@ -490,8 +618,54 @@ export default function DashboardApp() {
             </a>
           </div>
         </section>
+
+        <section style={panel}>
+          <h2 style={panelTitle}>Inspection Intelligence</h2>
+          <p style={muted}>
+            Vendor intake, manufacturer baselines, baseline review, and subscription portal for
+            instrument inspection governance.
+          </p>
+          <div style={inspectionGrid}>
+            <a style={inspectionCard} href="/vendor-intake">
+              <span style={inspectionCardIcon}>📋</span>
+              <span style={inspectionCardLabel}>Vendor Intake</span>
+              <span style={inspectionCardDesc}>Submit enterprise instrument intake records</span>
+            </a>
+            <a style={inspectionCard} href="/manufacturer-baselines">
+              <span style={inspectionCardIcon}>🏭</span>
+              <span style={inspectionCardLabel}>Manufacturer Baselines</span>
+              <span style={inspectionCardDesc}>View and approve manufacturer baseline evidence</span>
+            </a>
+            <a style={inspectionCard} href="/baseline-review">
+              <span style={inspectionCardIcon}>🔍</span>
+              <span style={inspectionCardLabel}>Baseline Review Queue</span>
+              <span style={inspectionCardDesc}>Review pending baseline assessments</span>
+            </a>
+            <a style={inspectionCard} href="/vendor-baseline-portal">
+              <span style={inspectionCardIcon}>🔗</span>
+              <span style={inspectionCardLabel}>Vendor Baseline Portal</span>
+              <span style={inspectionCardDesc}>Vendor subscription and baseline matching</span>
+            </a>
+            <a style={inspectionCard} href="/intake-history">
+              <span style={inspectionCardIcon}>📂</span>
+              <span style={inspectionCardLabel}>Intake History</span>
+              <span style={inspectionCardDesc}>Audit trail of past intake submissions</span>
+            </a>
+          </div>
+        </section>
       </section>
     </main>
+    {upgradeState && (
+      <UpgradeModal
+        isOpen={upgradeState.isOpen}
+        onClose={closeUpgrade}
+        currentTier={upgradeState.currentTier}
+        requiredTier={upgradeState.requiredTier}
+        feature={upgradeState.feature}
+        tenantId={AUTH_TOKEN ? "current-tenant" : ""}
+      />
+    )}
+  </>
   );
 }
 
@@ -750,4 +924,40 @@ const moduleHttpStatus: React.CSSProperties = {
   color: "#475569",
   fontSize: "13px",
   fontWeight: 700,
+};
+
+const inspectionGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: "14px",
+  marginTop: "14px",
+};
+
+const inspectionCard: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "14px",
+  padding: "18px 16px",
+  textDecoration: "none",
+  color: "#0f172a",
+  boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
+  transition: "box-shadow 0.15s",
+};
+
+const inspectionCardIcon: React.CSSProperties = {
+  fontSize: "24px",
+};
+
+const inspectionCardLabel: React.CSSProperties = {
+  fontWeight: 700,
+  fontSize: "15px",
+  color: "#1e40af",
+};
+
+const inspectionCardDesc: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#64748b",
 };

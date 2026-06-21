@@ -13,6 +13,7 @@ class TenantPlan(Base):
     tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     tenant_name: Mapped[str] = mapped_column(String(255), nullable=False)
     plan_name: Mapped[str] = mapped_column(String(100), nullable=False, default="starter")
+    data_tier: Mapped[str] = mapped_column(String(50), nullable=False, default="standard")
     monthly_price_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     included_inspections: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     included_evidence_exports: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

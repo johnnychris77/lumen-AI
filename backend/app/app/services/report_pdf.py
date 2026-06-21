@@ -2,7 +2,7 @@ from io import BytesIO
 from reportlab.lib.pagesizes import LETTER
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
-from datetime import datetime
+from datetime import UTC, datetime
 
 def render_inspection_pdf(doc: dict) -> bytes:
     buf = BytesIO()
@@ -13,7 +13,7 @@ def render_inspection_pdf(doc: dict) -> bytes:
     c.drawString(1*inch, height - 1*inch, "LumenAI Inspection Report")
 
     c.setFont("Helvetica", 10)
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     c.drawRightString(width - 1*inch, height - 1*inch, f"Generated: {now}")
 
     y = height - 1.5*inch
