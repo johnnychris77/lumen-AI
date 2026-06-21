@@ -32,6 +32,13 @@ from app.models.digital_quality_twin import (  # noqa: F401
     InterventionModel,
     ExecutiveDecisionBrief,
 )
+from app.models.global_intelligence import (  # noqa: F401
+    GlobalIntelligenceSignal,
+    InstrumentRiskRegistryEntry,
+    GlobalRecallEarlyWarning,
+    GSINParticipant,
+    RegulatoryEvidencePackage,
+)
 
 
 class TenantMembership(Base):
