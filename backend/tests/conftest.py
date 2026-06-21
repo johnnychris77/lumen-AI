@@ -1,6 +1,11 @@
 import importlib
+import os
+from pathlib import Path
 
 import pytest
+
+# Ensure data/ directory exists before any module-level code in capa_service.py runs
+Path(os.path.join(os.path.dirname(__file__), "..", "data")).mkdir(exist_ok=True)
 from sqlalchemy import text
 
 
