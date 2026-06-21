@@ -101,6 +101,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.recall_signal")        # register P15 recall signal tables
     importlib.import_module("app.models.instrument_registry")  # register P15 instrument registry table
     importlib.import_module("app.models.baseline_library")     # register P15 baseline library table
+    importlib.import_module("app.models.integrations")         # register P17 integration tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -796,6 +797,9 @@ app.include_router(industry_dashboard_router)
 
 from app.routes.patient_safety import router as patient_safety_router
 app.include_router(patient_safety_router)
+
+from app.routes.integrations import router as integrations_router
+app.include_router(integrations_router)
 
 from fastapi.openapi.utils import get_openapi
 
