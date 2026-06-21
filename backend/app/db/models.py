@@ -7,6 +7,17 @@ from app.models.audit_log import AuditLog
 from app.models.inspection import Inspection
 from app.models.review import Review
 from app.models.user import User
+from app.models.external_connector import ExternalSystemConnector, ExternalEventImport
+from app.models.patient_safety import (
+    InstrumentQualitySignal,
+    PatientSafetyEventLink,
+    PotentialHarmSignal,
+    NearMissCorrelation,
+    QualityInvestigation,
+    InfectionPreventionSignal,
+    CAPAEffectivenessSignal,
+    ExecutiveRiskSignal,
+)
 
 
 class TenantMembership(Base):

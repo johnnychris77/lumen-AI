@@ -794,6 +794,9 @@ app.include_router(instrument_registry_router)
 app.include_router(baseline_library_router)
 app.include_router(industry_dashboard_router)
 
+from app.routes.patient_safety import router as patient_safety_router
+app.include_router(patient_safety_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
