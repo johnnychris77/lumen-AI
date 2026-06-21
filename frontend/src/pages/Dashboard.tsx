@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { PilotDashboardCards } from "@/components/PilotDashboardCards";
 import {
   Activity,
   AlertTriangle,
@@ -222,6 +223,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Pilot quick actions and KPIs */}
+      <PilotDashboardCards />
+
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
