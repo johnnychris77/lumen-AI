@@ -4,7 +4,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -43,6 +43,32 @@ def _date_range(days: int):
     return now - timedelta(days=days), now
 
 
+def _build_expansion_narrative(total: int, contamination: int, roi_usd: float, recommendations: list) -> str:
+    """Generate a plain-language summary paragraph for executive briefings."""
+    volume_status = "on track" if total >= 200 else ("progressing" if total >= 100 else "below target")
+    rate_pct = round(contamination / total * 100, 1) if total else 0.0
+    roi_str = f"${roi_usd:,.0f}" if roi_usd > 0 else "minimal"
+    top_rec = recommendations[0]["action"] if recommendations else "Continue monitoring."
+    priority = recommendations[0]["priority"] if recommendations else "low"
+
+    if priority == "high" and total >= 200:
+        opening = "The pilot has demonstrated sufficient adoption and data quality to support expansion planning."
+    elif priority == "high":
+        opening = "The pilot requires immediate attention before expansion can be considered."
+    else:
+        opening = "The pilot is progressing with moderate readiness for expansion."
+
+    return (
+        f"{opening} Over the 90-day review period, {total} inspections were recorded "
+        f"({volume_status} vs. the 200-inspection threshold). "
+        f"The contamination detection rate was {rate_pct}%, representing a potential quality indicator "
+        f"for sterile processing review. Estimated pilot value is {roi_str} in labor and reprocessing "
+        f"avoidance (requires site financial validation). "
+        f"Primary recommendation: {top_rec} "
+        f"All figures are advisory and require human review before external reporting."
+    )
+
+
 def _contamination_breakdown(db: Session, tenant_id: Optional[str], days: int) -> dict:
     start, _ = _date_range(days)
     q = db.query(models.Inspection).filter(models.Inspection.created_at >= start)
@@ -66,6 +92,7 @@ def _contamination_breakdown(db: Session, tenant_id: Optional[str], days: int) -
 @router.get("/contamination-trends")
 def contamination_trends(
     days: int = Query(default=30, ge=1, le=365),
+    site_name: Optional[str] = Query(default=None, description="Filter to a specific site"),
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
 ):
@@ -74,9 +101,21 @@ def contamination_trends(
     if getattr(current_user, "role", "") == "admin":
         tenant_id = None  # platform admin sees all
 
-    data = _contamination_breakdown(db, tenant_id, days)
-    breakdown = data["breakdown"]
-    total = data["total_inspections"]
+    start, _ = _date_range(days)
+    q_base = db.query(models.Inspection).filter(models.Inspection.created_at >= start)
+    if tenant_id:
+        q_base = q_base.filter(models.Inspection.tenant_id == tenant_id)
+    if site_name:
+        q_base = q_base.filter(models.Inspection.site_name == site_name)
+
+    rows = q_base.all()
+    total = len(rows)
+    counts: dict[str, int] = {k: 0 for k in _CONTAMINATION_TYPES}
+    for row in rows:
+        issue = (row.detected_issue or "").lower().strip()
+        if issue in counts:
+            counts[issue] += 1
+    breakdown = counts
     stain_count = sum(breakdown.values())
 
     # Weekly trend: split days into 7-day buckets
@@ -93,6 +132,8 @@ def contamination_trends(
         )
         if tenant_id:
             q = q.filter(models.Inspection.tenant_id == tenant_id)
+        if site_name:
+            q = q.filter(models.Inspection.site_name == site_name)
         weekly.append({
             "week_ending": bucket_end.strftime("%Y-%m-%d"),
             "stain_count": q.scalar() or 0,
@@ -105,6 +146,7 @@ def contamination_trends(
         "contamination_rate_pct": round(stain_count / total * 100, 1) if total else 0.0,
         "breakdown": breakdown,
         "weekly_trend": list(reversed(weekly)),
+        "filters": {"site_name": site_name},
         "human_review_required": True,
         "note": "Contamination events are quality indicators requiring human review. Association does not imply causation.",
     }
@@ -190,6 +232,16 @@ def capa_effectiveness(
     closed_count = sum(1 for c in items if c.get("status") in ("closed", "verified"))
     overdue_count = sum(1 for c in items if c.get("status") == "open" and c.get("due_date"))
 
+    # CAPA-to-contamination type linkage
+    capa_by_type: dict[str, int] = {k: 0 for k in _CONTAMINATION_TYPES}
+    for c in items:
+        title = (c.get("title") or c.get("description") or "").lower()
+        for ctype in _CONTAMINATION_TYPES:
+            if ctype.replace("_", " ") in title or ctype in title:
+                capa_by_type[ctype] += 1
+                break
+    top_capa_type = max(capa_by_type, key=lambda k: capa_by_type[k]) if any(capa_by_type.values()) else None
+
     # Correlation with contamination trend
     tenant_id = getattr(current_user, "tenant_id", None)
     if getattr(current_user, "role", "") == "admin":
@@ -220,6 +272,11 @@ def capa_effectiveness(
             "closure_rate_below_target" if closure_rate < 80 else
             "closure_rate_on_track"
         ),
+        "contamination_type_linkage": {
+            "capa_count_by_contamination_type": capa_by_type,
+            "most_linked_type": top_capa_type,
+            "note": "Linkage is keyword-based from CAPA titles. Human review required to confirm relevance.",
+        },
         "human_review_required": True,
         "note": "CAPA metrics are potential quality indicators. Causal links require clinical investigation.",
     }
@@ -272,6 +329,7 @@ def baseline_adoption(
 @router.get("/roi")
 def roi_framework(
     days: int = Query(default=90, ge=1, le=365),
+    baseline_period_days: Optional[int] = Query(default=None, ge=7, le=365, description="Compare against own pre-pilot baseline"),
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
@@ -292,6 +350,29 @@ def roi_framework(
     rows = q.all()
     total_inspections = len(rows)
     contamination_caught = sum(1 for r in rows if r.stain_detected)
+
+    # Baseline comparison (own prior period)
+    baseline_comparison = None
+    if baseline_period_days:
+        b_start = start - timedelta(days=baseline_period_days)
+        bq = db.query(models.Inspection).filter(
+            models.Inspection.created_at >= b_start,
+            models.Inspection.created_at < start,
+        )
+        if tenant_id:
+            bq = bq.filter(models.Inspection.tenant_id == tenant_id)
+        b_rows = bq.all()
+        b_total = len(b_rows)
+        b_contamination = sum(1 for r in b_rows if r.stain_detected)
+        b_labor = (b_total * MINUTES_SAVED_PER_INSPECTION / 60) * STAFF_COST_PER_HOUR_USD
+        baseline_comparison = {
+            "baseline_period_days": baseline_period_days,
+            "baseline_inspections": b_total,
+            "baseline_contamination_events": b_contamination,
+            "baseline_labor_savings_usd": round(b_labor, 2),
+            "volume_change_pct": round((total_inspections - b_total) / b_total * 100, 1) if b_total else None,
+            "note": "Baseline figures are from own prior period, not industry benchmarks.",
+        }
 
     # Labor savings
     minutes_saved = total_inspections * MINUTES_SAVED_PER_INSPECTION
@@ -333,6 +414,7 @@ def roi_framework(
             "note": "HAI risk reduction is an indicative estimate only. Not monetised. Requires clinical validation.",
         },
         "annualised_estimate_usd": round(total_estimated_value_usd * (365 / days), 2),
+        "baseline_comparison": baseline_comparison,
         "disclaimers": [
             "All figures are estimates based on published industry benchmarks (AORN, AAMI, IAHCSMM).",
             "These estimates must be validated with actual site financial and operational data.",
@@ -350,6 +432,7 @@ def roi_framework(
 @router.get("/clinical-outcomes")
 def clinical_outcomes(
     days: int = Query(default=90, ge=1, le=365),
+    site_name: Optional[str] = Query(default=None, description="Filter to a specific site"),
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
@@ -366,6 +449,8 @@ def clinical_outcomes(
     q = db.query(models.Inspection).filter(models.Inspection.created_at >= start)
     if tenant_id:
         q = q.filter(models.Inspection.tenant_id == tenant_id)
+    if site_name:
+        q = q.filter(models.Inspection.site_name == site_name)
 
     rows = q.all()
     total = len(rows)
@@ -395,6 +480,8 @@ def clinical_outcomes(
     )
     if tenant_id:
         prior_q = prior_q.filter(models.Inspection.tenant_id == tenant_id)
+    if site_name:
+        prior_q = prior_q.filter(models.Inspection.site_name == site_name)
     prior_contamination = prior_q.count()
     trend = "improving" if contamination_events < prior_contamination else (
         "stable" if contamination_events == prior_contamination else "monitoring_required"
@@ -419,6 +506,7 @@ def clinical_outcomes(
             "benchmark_source": "AAMI ST79 / IAHCSMM guidelines (indicative)",
             "status": "below_benchmark" if (contamination_events / total * 100 < 2.0 if total else True) else "review_recommended",
         },
+        "filters": {"site_name": site_name},
         "disclaimers": [
             "These are sterile processing quality indicators, not clinical diagnoses.",
             "No patient outcome data is included or inferred.",
@@ -602,6 +690,7 @@ def quarterly_review(
             "annualised_usd": round(roi_total * 4, 2),
         },
         "expansion_recommendations": recommendations,
+        "expansion_narrative": _build_expansion_narrative(total, contamination, roi_total, recommendations),
         "success_criteria": {
             "adoption": {"met": total >= 200, "threshold": 200, "actual": total},
             "data_quality": {"met": True, "threshold": "95% completeness", "note": "Verify via /api/pilot/metrics"},
@@ -739,3 +828,363 @@ def export_report_json(
     )
 
     return report
+
+
+# ---------------------------------------------------------------------------
+# 11. Site-level breakdown (drill-down)
+# ---------------------------------------------------------------------------
+
+@router.get("/site-breakdown")
+def site_breakdown(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Per-site contamination and volume metrics for drill-down analysis."""
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if getattr(current_user, "role", "") == "admin":
+        tenant_id = None
+
+    start, _ = _date_range(days)
+    q = db.query(models.Inspection).filter(models.Inspection.created_at >= start)
+    if tenant_id:
+        q = q.filter(models.Inspection.tenant_id == tenant_id)
+    rows = q.all()
+
+    sites: dict[str, dict] = {}
+    for r in rows:
+        site = (r.site_name or "unknown").strip()
+        if site not in sites:
+            sites[site] = {"total": 0, "contamination": 0, "high_risk": 0, "breakdown": {k: 0 for k in _CONTAMINATION_TYPES}}
+        sites[site]["total"] += 1
+        if r.stain_detected:
+            sites[site]["contamination"] += 1
+            issue = (r.detected_issue or "").lower().strip()
+            if issue in sites[site]["breakdown"]:
+                sites[site]["breakdown"][issue] += 1
+        if (r.risk_score or 0) >= 70:
+            sites[site]["high_risk"] += 1
+
+    site_list = [
+        {
+            "site_name": name,
+            "total_inspections": s["total"],
+            "contamination_events": s["contamination"],
+            "contamination_rate_pct": round(s["contamination"] / s["total"] * 100, 1) if s["total"] else 0.0,
+            "high_risk_instruments": s["high_risk"],
+            "contamination_breakdown": s["breakdown"],
+        }
+        for name, s in sorted(sites.items(), key=lambda x: x[1]["contamination"], reverse=True)
+    ]
+
+    return {
+        "period_days": days,
+        "site_count": len(site_list),
+        "sites": site_list,
+        "human_review_required": True,
+        "note": "Site-level data is a quality indicator for SPD review. Association does not imply causation.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# 12. Alert thresholds
+# ---------------------------------------------------------------------------
+
+_DEFAULT_THRESHOLDS = {
+    "contamination_rate_pct": 5.0,
+    "weekly_volume_min": 15,
+    "completeness_min_pct": 85.0,
+}
+
+
+@router.get("/alerts")
+def pilot_alerts(
+    days: int = Query(default=7, ge=1, le=30),
+    contamination_threshold_pct: float = Query(default=5.0, ge=0.1, le=100.0),
+    weekly_volume_min: int = Query(default=15, ge=1),
+    completeness_min_pct: float = Query(default=85.0, ge=0.0, le=100.0),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Check current pilot metrics against configurable alert thresholds."""
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if getattr(current_user, "role", "") == "admin":
+        tenant_id = None
+
+    start, _ = _date_range(days)
+    q = db.query(models.Inspection).filter(models.Inspection.created_at >= start)
+    if tenant_id:
+        q = q.filter(models.Inspection.tenant_id == tenant_id)
+    rows = q.all()
+
+    total = len(rows)
+    contamination = sum(1 for r in rows if r.stain_detected)
+    complete = sum(1 for r in rows if (
+        r.instrument_type not in ("unknown", "", None) and
+        r.site_name not in ("default-site", "", None)
+    ))
+
+    rate = round(contamination / total * 100, 1) if total else 0.0
+    completeness = round(complete / total * 100, 1) if total else 0.0
+
+    alerts: List[dict] = []
+
+    if rate > contamination_threshold_pct:
+        alerts.append({
+            "alert_type": "contamination_rate_elevated",
+            "severity": "high",
+            "message": f"Contamination rate {rate}% exceeds threshold {contamination_threshold_pct}%",
+            "value": rate,
+            "threshold": contamination_threshold_pct,
+            "recommendation": "Review contamination type breakdown and initiate CAPA if pattern persists.",
+        })
+
+    if total < weekly_volume_min:
+        alerts.append({
+            "alert_type": "volume_below_target",
+            "severity": "medium",
+            "message": f"Inspection volume {total} is below minimum {weekly_volume_min} for {days}-day window",
+            "value": total,
+            "threshold": weekly_volume_min,
+            "recommendation": "Contact site coordinator to investigate adoption barriers.",
+        })
+
+    if completeness < completeness_min_pct:
+        alerts.append({
+            "alert_type": "data_completeness_low",
+            "severity": "medium",
+            "message": f"Data completeness {completeness}% is below target {completeness_min_pct}%",
+            "value": completeness,
+            "threshold": completeness_min_pct,
+            "recommendation": "Review data entry training with SPD technicians.",
+        })
+
+    return {
+        "period_days": days,
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        "alert_count": len(alerts),
+        "alerts": alerts,
+        "metrics_snapshot": {
+            "total_inspections": total,
+            "contamination_rate_pct": rate,
+            "completeness_pct": completeness,
+        },
+        "thresholds_used": {
+            "contamination_rate_pct": contamination_threshold_pct,
+            "weekly_volume_min": weekly_volume_min,
+            "completeness_min_pct": completeness_min_pct,
+        },
+        "human_review_required": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 13. Scorecard PDF export
+# ---------------------------------------------------------------------------
+
+@router.get("/export/scorecard.pdf")
+def export_scorecard_pdf(
+    days: int = Query(default=90, ge=1, le=365),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Export executive scorecard as a formatted PDF."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if getattr(current_user, "role", "") == "admin":
+        tenant_id = None
+
+    start, _ = _date_range(days)
+    q = db.query(models.Inspection).filter(models.Inspection.created_at >= start)
+    if tenant_id:
+        q = q.filter(models.Inspection.tenant_id == tenant_id)
+    rows = q.all()
+    total = len(rows)
+    reviewed = sum(1 for r in rows if r.status in ("reviewed", "closed"))
+    complete = sum(1 for r in rows if (
+        r.instrument_type not in ("unknown", "", None) and
+        r.site_name not in ("default-site", "", None)
+    ))
+
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    weekly = db.query(sqlfunc.count(models.Inspection.id)).filter(
+        models.Inspection.created_at >= week_ago
+    )
+    if tenant_id:
+        weekly = weekly.filter(models.Inspection.tenant_id == tenant_id)
+    weekly_count = weekly.scalar() or 0
+
+    def _rag(val, target):
+        if val >= target:
+            return "GREEN"
+        elif val >= target * 0.8:
+            return "AMBER"
+        return "RED"
+
+    completeness_pct = round(complete / total * 100, 1) if total else 0.0
+    review_pct = round(reviewed / total * 100, 1) if total else 0.0
+    labor_usd = (total * MINUTES_SAVED_PER_INSPECTION / 60) * STAFF_COST_PER_HOUR_USD
+
+    kpis = [
+        ("Weekly inspection volume", weekly_count, 25, "inspections", _rag(weekly_count, 25)),
+        ("Data completeness", completeness_pct, 95.0, "%", _rag(completeness_pct, 95.0)),
+        ("Review rate", review_pct, 80.0, "%", _rag(review_pct, 80.0)),
+        ("Total inspections", total, 200, "inspections", _rag(total, 200)),
+    ]
+
+    rag_color = {
+        "GREEN": colors.HexColor("#22c55e"),
+        "AMBER": colors.HexColor("#f59e0b"),
+        "RED": colors.HexColor("#ef4444"),
+    }
+
+    buf = io.BytesIO()
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=50, rightMargin=50, topMargin=50, bottomMargin=50)
+    story = []
+
+    story.append(Paragraph("LumenAI Pilot Executive Scorecard", styles["Title"]))
+    story.append(Paragraph(f"Generated: {now.strftime('%Y-%m-%d %H:%M UTC')} · Period: {days} days", styles["Normal"]))
+    story.append(Spacer(1, 16))
+
+    table_data = [["KPI", "Value", "Target", "Status"]]
+    for name, val, target, unit, status in kpis:
+        table_data.append([name, f"{val} {unit}", f"{target} {unit}", status])
+
+    t = Table(table_data, colWidths=[200, 100, 100, 80])
+    style = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e40af")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+    ])
+    for i, (_, _, _, _, status) in enumerate(kpis):
+        t.setStyle(TableStyle([("BACKGROUND", (3, i + 1), (3, i + 1), rag_color[status])]))
+    t.setStyle(style)
+    story.append(t)
+
+    story.append(Spacer(1, 16))
+    story.append(Paragraph(f"Estimated pilot value (labor + reprocessing): ${labor_usd:,.0f}", styles["Normal"]))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(
+        "DISCLAIMER: All figures are quality indicators and ROI estimates. Human review required before any clinical or financial decisions. "
+        "LumenAI does not claim FDA clearance for diagnostic use.",
+        styles["Italic"]
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+
+    actor = getattr(current_user, "email", None) or "unknown"
+    log_audit_event(
+        db,
+        tenant_id=tenant_id or "platform",
+        tenant_name="Pilot",
+        actor_email=actor,
+        actor_role=getattr(current_user, "role", "spd_manager"),
+        action_type="pilot_scorecard_exported_pdf",
+        resource_type="pilot_analytics",
+        compliance_flag=True,
+    )
+
+    filename = f"lumenai_scorecard_{now.strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# 14. Pulse survey submission & aggregation
+# ---------------------------------------------------------------------------
+
+@router.post("/survey/submit", status_code=201)
+def submit_pulse_survey(
+    ease: int = Query(ge=1, le=5, description="Ease of use rating 1-5"),
+    useful: int = Query(ge=1, le=5, description="Usefulness rating 1-5"),
+    recommend: int = Query(ge=1, le=5, description="Likelihood to recommend 1-5"),
+    site_name: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
+    """Record a weekly pulse survey response. Persisted to audit log for aggregation."""
+    tenant_id = getattr(current_user, "tenant_id", None) or "platform"
+    actor = getattr(current_user, "email", None) or "unknown"
+
+    avg_score = round((ease + useful + recommend) / 3, 2)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name="Pilot",
+        actor_email=actor,
+        actor_role=getattr(current_user, "role", "viewer"),
+        action_type="pilot_pulse_survey_submitted",
+        resource_type="pilot_analytics",
+        details={
+            "ease": ease,
+            "useful": useful,
+            "recommend": recommend,
+            "average_score": avg_score,
+            "site_name": site_name,
+        },
+    )
+
+    return {
+        "recorded": True,
+        "average_score": avg_score,
+        "message": "Thank you for your feedback. Your response has been recorded.",
+    }
+
+
+@router.get("/survey/summary")
+def pulse_survey_summary(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Aggregate pulse survey scores from audit log."""
+    from app.models.audit_log import AuditLog
+
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if getattr(current_user, "role", "") == "admin":
+        tenant_id = None
+
+    try:
+        q = db.query(AuditLog).filter(AuditLog.action_type == "pilot_pulse_survey_submitted")
+        if tenant_id:
+            q = q.filter(AuditLog.tenant_id == tenant_id)
+        entries = q.all()
+    except Exception:
+        entries = []
+
+    scores = []
+    for e in entries:
+        try:
+            import json as _json
+            d = _json.loads(e.details) if isinstance(e.details, str) else (e.details or {})
+            avg = d.get("average_score")
+            if avg is not None:
+                scores.append(float(avg))
+        except Exception:
+            pass
+
+    count = len(scores)
+    mean_score = round(sum(scores) / count, 2) if count else None
+    target = 3.5
+
+    return {
+        "response_count": count,
+        "mean_satisfaction_score": mean_score,
+        "target_score": target,
+        "on_track": (mean_score >= target) if mean_score is not None else None,
+        "human_review_required": True,
+        "note": "Survey scores are self-reported satisfaction indicators only.",
+    }

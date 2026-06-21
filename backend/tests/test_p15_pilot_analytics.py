@@ -196,6 +196,106 @@ class TestExportCSV:
         assert res.status_code in (401, 403)
 
 
+class TestSiteBreakdown:
+    def test_returns_200(self):
+        res = client.get("/api/pilot-analytics/site-breakdown", headers=AUTH)
+        assert res.status_code == 200
+
+    def test_required_keys(self):
+        data = client.get("/api/pilot-analytics/site-breakdown", headers=AUTH).json()
+        assert "sites" in data
+        assert "site_count" in data
+        assert data["human_review_required"] is True
+
+    def test_unauthenticated_rejected(self):
+        res = client.get("/api/pilot-analytics/site-breakdown")
+        assert res.status_code in (401, 403)
+
+
+class TestAlerts:
+    def test_returns_200(self):
+        res = client.get("/api/pilot-analytics/alerts", headers=AUTH)
+        assert res.status_code == 200
+
+    def test_required_keys(self):
+        data = client.get("/api/pilot-analytics/alerts", headers=AUTH).json()
+        assert "alerts" in data
+        assert "alert_count" in data
+        assert "metrics_snapshot" in data
+        assert data["human_review_required"] is True
+
+    def test_custom_thresholds(self):
+        res = client.get("/api/pilot-analytics/alerts?contamination_threshold_pct=0.1&weekly_volume_min=9999", headers=AUTH)
+        assert res.status_code == 200
+        assert res.json()["alert_count"] >= 1  # volume alert should fire
+
+    def test_unauthenticated_rejected(self):
+        res = client.get("/api/pilot-analytics/alerts")
+        assert res.status_code in (401, 403)
+
+
+class TestScorecardPDF:
+    def test_returns_200_pdf(self):
+        res = client.get("/api/pilot-analytics/export/scorecard.pdf", headers=AUTH)
+        assert res.status_code == 200
+        assert "pdf" in res.headers.get("content-type", "").lower()
+
+    def test_unauthenticated_rejected(self):
+        res = client.get("/api/pilot-analytics/export/scorecard.pdf")
+        assert res.status_code in (401, 403)
+
+
+class TestPulseSurvey:
+    def test_submit_returns_201(self):
+        res = client.post("/api/pilot-analytics/survey/submit?ease=4&useful=5&recommend=4", headers=AUTH)
+        assert res.status_code == 201
+        assert res.json()["recorded"] is True
+
+    def test_submit_invalid_rating_rejected(self):
+        res = client.post("/api/pilot-analytics/survey/submit?ease=6&useful=5&recommend=4", headers=AUTH)
+        assert res.status_code == 422
+
+    def test_summary_returns_200(self):
+        res = client.get("/api/pilot-analytics/survey/summary", headers=AUTH)
+        assert res.status_code == 200
+        data = res.json()
+        assert "response_count" in data
+        assert "human_review_required" in data
+
+    def test_unauthenticated_rejected(self):
+        res = client.post("/api/pilot-analytics/survey/submit?ease=3&useful=3&recommend=3")
+        assert res.status_code in (401, 403)
+
+
+class TestEnhancements:
+    def test_contamination_trends_site_filter(self):
+        res = client.get("/api/pilot-analytics/contamination-trends?site_name=TestSite", headers=AUTH)
+        assert res.status_code == 200
+        assert res.json()["filters"]["site_name"] == "TestSite"
+
+    def test_clinical_outcomes_site_filter(self):
+        res = client.get("/api/pilot-analytics/clinical-outcomes?site_name=TestSite", headers=AUTH)
+        assert res.status_code == 200
+        assert res.json()["filters"]["site_name"] == "TestSite"
+
+    def test_roi_with_baseline_comparison(self):
+        res = client.get("/api/pilot-analytics/roi?baseline_period_days=30", headers=AUTH)
+        assert res.status_code == 200
+        data = res.json()
+        assert "baseline_comparison" in data
+        assert data["baseline_comparison"] is not None
+
+    def test_capa_effectiveness_has_linkage(self):
+        data = client.get("/api/pilot-analytics/capa-effectiveness", headers=AUTH).json()
+        assert "contamination_type_linkage" in data
+        assert "capa_count_by_contamination_type" in data["contamination_type_linkage"]
+
+    def test_quarterly_review_has_narrative(self):
+        data = client.get("/api/pilot-analytics/quarterly-review", headers=AUTH).json()
+        assert "expansion_narrative" in data
+        assert len(data["expansion_narrative"]) > 50
+
+
 class TestExportReportJSON:
     def test_returns_200(self):
         res = client.get("/api/pilot-analytics/export/report.json", headers=AUTH)
