@@ -827,6 +827,9 @@ app.include_router(digital_quality_twin.router)
 from app.routes import global_intelligence
 app.include_router(global_intelligence.router)
 
+from app.routes.pilot_analytics import router as pilot_analytics_router
+app.include_router(pilot_analytics_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

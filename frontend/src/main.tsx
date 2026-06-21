@@ -16,6 +16,7 @@ const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
+const PilotAnalyticsDashboard = lazy(() => import("./pages/PilotAnalyticsDashboard"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
@@ -97,6 +98,7 @@ function App() {
                       <Route path="/baseline-review" element={<BaselineReviewPage />} />
                       <Route path="/vendor-baseline-portal" element={<VendorBaselinePortalPage />} />
                       <Route path="/intake-history" element={<IntakeHistoryPage />} />
+                      <Route path="/pilot-analytics" element={<PilotAnalyticsDashboard />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"
