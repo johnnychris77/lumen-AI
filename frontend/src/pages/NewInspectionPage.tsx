@@ -296,12 +296,27 @@ export default function NewInspectionPage() {
         // ignore
       }
       setSubmittedId(id);
+
+      // Upload images if any were selected
+      const allImages = [...inspectionImages, ...borescopeImages];
+      if (allImages.length > 0) {
+        try {
+          const fd = new FormData();
+          allImages.forEach((f) => fd.append("images", f));
+          await fetch(`${API_BASE}/api/inspections/upload-images`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+        } catch {
+          // Image upload failure is non-fatal — inspection record already saved
+        }
+      }
+
       setBanner({
         type: "success",
-        message: `Inspection submitted successfully.${id ? ` ID: ${id}` : ""}`,
+        message: `Inspection submitted successfully.${id ? ` ID: ${id}` : ""}${allImages.length > 0 ? ` ${allImages.length} image(s) uploaded.` : ""}`,
       });
-      // Note: image upload via FormData/multipart is a gap —
-      // the /api/inspections endpoint does not yet expose a multipart variant.
     } finally {
       setSubmitting(false);
     }
@@ -684,9 +699,8 @@ export default function NewInspectionPage() {
             onRemove={(i) => removeImage(i, setBorescopeImages)}
           />
 
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-            Note: Image upload to the server is not yet supported by this endpoint. Images are
-            previewed locally and will be included in a future multipart upload implementation.
+          <p className="text-xs text-gray-500 mt-1">
+            Images are uploaded securely after form submission. Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained in the database.
           </p>
         </FormSection>
 

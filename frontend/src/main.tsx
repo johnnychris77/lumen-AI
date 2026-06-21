@@ -23,6 +23,7 @@ const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
 
 // Legacy dashboard kept at /legacy for reference
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 
 function PageLoader() {
   return (
@@ -69,6 +70,15 @@ function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
+            {/* Login — rendered outside AppShell (no nav) */}
+            <Route
+              path="/login"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LoginPage />
+                </Suspense>
+              }
+            />
             {/* All app routes live inside the AppShell */}
             <Route
               path="/*"

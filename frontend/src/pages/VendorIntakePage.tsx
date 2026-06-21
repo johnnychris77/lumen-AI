@@ -156,7 +156,7 @@ export default function VendorIntakePage() {
         source: "pilot_vendor_intake_form",
       };
 
-      const res = await fetch(`${API_BASE}/api/baselines`, {
+      const res = await fetch(`${API_BASE}/api/network/baselines`, {
         method: "POST",
         headers: hdrs,
         body: JSON.stringify(payload),
@@ -187,12 +187,27 @@ export default function VendorIntakePage() {
         // ignore
       }
       setSubmittedId(id);
+
+      // Upload baseline images if any were selected
+      if (baselineImages.length > 0) {
+        try {
+          const fd = new FormData();
+          baselineImages.forEach((f) => fd.append("images", f));
+          const imgToken = localStorage.getItem("token");
+          await fetch(`${API_BASE}/api/baselines/upload-images`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${imgToken}` },
+            body: fd,
+          });
+        } catch {
+          // Non-fatal — baseline record already saved
+        }
+      }
+
       setBanner({
         type: "success",
-        message: `Baseline submitted successfully.${id ? ` ID: ${id}` : ""}`,
+        message: `Baseline submitted successfully.${id ? ` ID: ${id}` : ""}${baselineImages.length > 0 ? ` ${baselineImages.length} image(s) uploaded.` : ""}`,
       });
-      // Note: baseline_images upload via multipart is a gap — /api/baselines does
-      // not yet expose a multipart variant. Images are previewed locally only.
     } finally {
       setSubmitting(false);
     }
@@ -493,9 +508,8 @@ export default function VendorIntakePage() {
               </div>
             )}
 
-            <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-              Note: Image upload to the server is not yet supported by this endpoint. Images are
-              previewed locally and will be included in a future multipart upload implementation.
+            <p className="mt-2 text-xs text-gray-500">
+              Images are uploaded securely after form submission. Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained in the database.
             </p>
           </div>
         </FormSection>

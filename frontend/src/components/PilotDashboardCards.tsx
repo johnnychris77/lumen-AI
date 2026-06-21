@@ -29,22 +29,27 @@ type KpiConfig = {
 };
 
 const KPI_CONFIGS: KpiConfig[] = [
-  { label: "Total Inspections", endpoint: "/api/inspections?limit=1" },
-  { label: "Baselines Submitted", endpoint: "/api/baselines?limit=1" },
-  { label: "Pending Reviews", endpoint: "/api/baselines?status=pending&limit=1" },
-  { label: "Approved Baselines", endpoint: "/api/baselines?status=approved&limit=1" },
-  { label: "Blood Findings", endpoint: "/api/inspections?finding_category=blood&limit=1" },
-  { label: "Bone Findings", endpoint: "/api/inspections?finding_category=bone&limit=1" },
-  { label: "Tissue Findings", endpoint: "/api/inspections?finding_category=tissue&limit=1" },
-  { label: "Other Findings", endpoint: "/api/inspections?finding_category=other&limit=1" },
+  { label: "Total Inspections", endpoint: "/api/history/summary", countKey: "total_inspections" },
+  { label: "Baselines Submitted", endpoint: "/api/network/baselines", countKey: "baselines" },
+  { label: "Pending Reviews", endpoint: "/api/network/baselines/stats", countKey: "pending" },
+  { label: "Approved Baselines", endpoint: "/api/network/baselines/stats", countKey: "approved" },
+  { label: "Blood Findings", endpoint: "/api/history/summary", countKey: "blood_findings" },
+  { label: "Bone Findings", endpoint: "/api/history/summary", countKey: "bone_findings" },
+  { label: "Tissue Findings", endpoint: "/api/history/summary", countKey: "tissue_findings" },
+  { label: "Other Findings", endpoint: "/api/history/summary", countKey: "other_findings" },
 ];
 
 type KpiValue = number | null; // null = loading, -1 = error
 
-function extractCount(data: unknown): number {
+function extractCount(data: unknown, countKey?: string): number {
   if (typeof data === "number") return data;
   if (data && typeof data === "object") {
     const d = data as Record<string, unknown>;
+    // Use explicit countKey first
+    if (countKey && typeof d[countKey] === "number") return d[countKey] as number;
+    // Array fields (baselines array from /api/network/baselines)
+    if (countKey && Array.isArray(d[countKey])) return (d[countKey] as unknown[]).length;
+    // Standard keys
     for (const key of ["total", "count", "total_count", "total_inspections", "total_baselines"]) {
       if (typeof d[key] === "number") return d[key] as number;
     }
@@ -84,7 +89,7 @@ export function PilotDashboardCards() {
         const res = await fetch(`${API_BASE}${cfg.endpoint}`, { headers: hdrs });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const count = extractCount(data);
+        const count = extractCount(data, cfg.countKey);
         if (!cancelled) setKpis((prev) => { const n = [...prev]; n[i] = count; return n; });
       } catch {
         if (!cancelled) setKpis((prev) => { const n = [...prev]; n[i] = -1; return n; });
