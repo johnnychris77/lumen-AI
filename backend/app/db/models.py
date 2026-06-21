@@ -25,6 +25,13 @@ from app.models.quality_intelligence import (  # noqa: F401
     QualityInvestigationP21,
     PreventiveActionRecommendation,
 )
+from app.models.digital_quality_twin import (  # noqa: F401
+    QualityTwinState,
+    ScenarioSimulation,
+    QualityForecast,
+    InterventionModel,
+    ExecutiveDecisionBrief,
+)
 
 
 class TenantMembership(Base):
