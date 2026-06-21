@@ -4,13 +4,14 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
 from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.models.global_intelligence import GlobalIntelligenceSignal, GSINParticipant
 from app.services.global_intelligence_service import (
     DISCLAIMER,
     get_global_dashboard,
@@ -44,8 +45,9 @@ class ContributeSignalRequest(BaseModel):
     instrument_category: str = ""
     finding_type: str = ""
     region: str = "global"
-    facility_count: int = 0
+    facility_count: int = 1
     signal_strength: float = 0.0
+    trend_direction: str = "stable"
     association_reason: str = ""
 
 
@@ -255,7 +257,59 @@ def contribute_signal(
     require_enterprise_auth(request)
     tenant_id = _tenant(request)
 
-    contribution_id = str(uuid.uuid4())
+    # Gate 1: DPA/BAA must be signed and participant must be active
+    participant = db.query(GSINParticipant).filter_by(tenant_id=tenant_id).first()
+    if participant:
+        if not participant.dpa_signed:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "dpa_not_signed",
+                    "message": "Data Processing Agreement must be signed before contributing signals to the network.",
+                    "action_required": "Complete DPA signing via your account administrator.",
+                },
+            )
+        if participant.enrollment_status != "active":
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "participant_not_active",
+                    "message": f"Network participation status is '{participant.enrollment_status}'. Active status required.",
+                },
+            )
+
+    # Gate 2: k-anonymity — minimum facility count
+    facility_count = body.facility_count
+    if facility_count < 5:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "k_anonymity_threshold_not_met",
+                "message": "Contributions require a minimum of 5 facilities to meet k-anonymity threshold.",
+                "provided": facility_count,
+                "required": 5,
+            },
+        )
+
+    # Create signal pending human review (not published until Board approves)
+    signal = GlobalIntelligenceSignal(
+        tenant_id=tenant_id,
+        signal_type=body.signal_type,
+        instrument_category=body.instrument_category or None,
+        finding_type=body.finding_type or None,
+        region=body.region,
+        facility_count=facility_count,
+        signal_strength=body.signal_strength,
+        trend_direction=body.trend_direction,
+        k_anonymity_verified=(facility_count >= 10),
+        human_review_completed=False,
+        published=False,
+        human_review_required=True,
+        association_reason=body.association_reason or "Contributed signal pending human review.",
+    )
+    db.add(signal)
+    db.commit()
+    db.refresh(signal)
 
     log_audit_event(
         db,
@@ -265,23 +319,29 @@ def contribute_signal(
         actor_role="",
         action_type="global_intelligence.signal.contribute",
         resource_type="global_intelligence_signals",
-        resource_id=contribution_id,
+        resource_id=str(signal.id),
         details={
             "signal_type": body.signal_type,
             "instrument_category": body.instrument_category,
             "region": body.region,
+            "facility_count": facility_count,
         },
     )
 
+    contribution_uuid = str(uuid.uuid4())
+
     return {
-        "status": "success",
-        "contribution_id": contribution_id,
-        "message": (
-            "Signal contribution received. Pending governance review and k-anonymity verification "
-            "before inclusion in global network. Human review required before publication."
-        ),
+        "contribution_id": contribution_uuid,
+        "signal_record_id": signal.id,
+        "status": "pending_review",
+        "k_anonymity_verified": signal.k_anonymity_verified,
+        "published": False,
+        "message": "Signal queued for Governance Board human review before network publication.",
         "human_review_required": True,
-        "disclaimer": _DISCLAIMER,
+        "disclaimer": (
+            "Contributed signal will not be published to the network until k-anonymity "
+            "is verified (>=10 facilities) and Governance Board human review is completed."
+        ),
     }
 
 

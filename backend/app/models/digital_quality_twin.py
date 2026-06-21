@@ -151,3 +151,21 @@ class ExecutiveDecisionBrief(Base):
     )
     data_source = Column(String, default="simulated")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ForecastOutcome(Base):
+    """Tracks actual vs. predicted quality scores for forecast calibration."""
+    __tablename__ = "forecast_outcomes"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    forecast_id = Column(Integer, nullable=True)  # references quality_forecasts.id
+    forecast_horizon_days = Column(Integer, nullable=False)
+    predicted_quality_score = Column(Float, nullable=False)
+    predicted_risk_level = Column(String, nullable=False)
+    actual_quality_score = Column(Float, nullable=True)   # populated when horizon elapses
+    actual_risk_level = Column(String, nullable=True)
+    prediction_error = Column(Float, nullable=True)       # abs(predicted - actual)
+    calibration_status = Column(String, default="pending")  # pending/calibrated/expired
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    calibrated_at = Column(DateTime(timezone=True), nullable=True)

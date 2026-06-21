@@ -78,6 +78,7 @@ def _force_import_models():
         "app.models.quality_intelligence",
         "app.models.digital_quality_twin",
         "app.models.global_intelligence",
+        "app.models.consent_record",
     ]:
         try:
             importlib.import_module(model_path)

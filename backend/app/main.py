@@ -106,6 +106,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.quality_intelligence") # register P21 quality intelligence tables
     importlib.import_module("app.models.digital_quality_twin") # register P22 digital quality twin tables
     importlib.import_module("app.models.global_intelligence")  # register P23 global intelligence tables
+    importlib.import_module("app.models.consent_record")       # register P20 consent record table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -113,11 +114,15 @@ async def lifespan(_app: FastAPI):
         from app.services.prediction_scheduler import register_prediction_scheduler
         from app.services.rwe_scheduler import register_rwe_scheduler
         from app.services.integration_scheduler import register_integration_scheduler
+        from app.services.quality_intelligence_service import register_intelligence_scheduler
+        from app.services.global_aggregation_job import register_global_aggregation_scheduler
         from app.db.session import SessionLocal
         _scheduler = BackgroundScheduler()
         register_prediction_scheduler(_scheduler, SessionLocal)
         register_rwe_scheduler(_scheduler, SessionLocal)
         register_integration_scheduler(_scheduler, SessionLocal)
+        register_intelligence_scheduler(_scheduler, SessionLocal)
+        register_global_aggregation_scheduler(_scheduler, SessionLocal)
         _scheduler.start()
     except Exception as _e:
         import logging
@@ -187,6 +192,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+from app.middleware.tenant_region import TenantRegionMiddleware
+app.add_middleware(TenantRegionMiddleware)
 
 
 # --- Correlation ID middleware ---

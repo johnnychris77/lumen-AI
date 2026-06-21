@@ -31,6 +31,7 @@ from app.models.digital_quality_twin import (  # noqa: F401
     QualityForecast,
     InterventionModel,
     ExecutiveDecisionBrief,
+    ForecastOutcome,
 )
 from app.models.global_intelligence import (  # noqa: F401
     GlobalIntelligenceSignal,
@@ -39,6 +40,7 @@ from app.models.global_intelligence import (  # noqa: F401
     GSINParticipant,
     RegulatoryEvidencePackage,
 )
+from app.models.consent_record import ConsentRecord  # noqa: F401
 
 
 class TenantMembership(Base):
@@ -50,6 +52,7 @@ class TenantMembership(Base):
     role = Column(String(100), nullable=False, default="viewer")
     is_enabled = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    tenant_region = Column(String(50), nullable=True, default="north_america")
 
 
 __all__ = [
