@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 
 from app.db.base import Base
 from app.models.alert_event import AlertEvent
+from app.models.audit_log import AuditLog
 from app.models.inspection import Inspection
 from app.models.review import Review
 from app.models.user import User
@@ -20,6 +21,7 @@ class TenantMembership(Base):
 
 
 __all__ = [
+    "AuditLog",
     "Inspection",
     "User",
     "Review",

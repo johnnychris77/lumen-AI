@@ -97,6 +97,10 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.manufacturer_reg")     # register P14 manufacturer reg table
     importlib.import_module("app.models.usage")                # register P14 usage counter table
     importlib.import_module("app.models.sso_config")           # register P14 SSO config table
+    importlib.import_module("app.models.network_benchmark")    # register P15 network benchmark tables
+    importlib.import_module("app.models.recall_signal")        # register P15 recall signal tables
+    importlib.import_module("app.models.instrument_registry")  # register P15 instrument registry table
+    importlib.import_module("app.models.baseline_library")     # register P15 baseline library table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -777,6 +781,18 @@ app.include_router(usage_p14_router)
 app.include_router(hipaa_baa_router)
 app.include_router(sso_config_router)
 app.include_router(status_router)  # public, no prefix
+
+from app.routes.network_benchmark import router as network_benchmark_router
+from app.routes.recall_signals import router as recall_signals_router
+from app.routes.instrument_registry import router as instrument_registry_router
+from app.routes.baseline_library import router as baseline_library_router
+from app.routes.industry_dashboard import router as industry_dashboard_router
+
+app.include_router(network_benchmark_router)
+app.include_router(recall_signals_router)
+app.include_router(instrument_registry_router)
+app.include_router(baseline_library_router)
+app.include_router(industry_dashboard_router)
 
 from fastapi.openapi.utils import get_openapi
 

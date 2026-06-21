@@ -63,6 +63,10 @@ def _force_import_models():
         "app.models.manufacturer_reg",
         "app.models.usage",
         "app.models.sso_config",
+        "app.models.network_benchmark",
+        "app.models.recall_signal",
+        "app.models.instrument_registry",
+        "app.models.baseline_library",
     ]:
         try:
             importlib.import_module(model_path)
