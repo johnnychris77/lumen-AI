@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
@@ -135,3 +137,92 @@ def toggle_tenant_membership(
     )
 
     return {"item": _membership_response(row)}
+
+
+# ---------------------------------------------------------------------------
+# Pilot tenant provisioning (admin only)
+# ---------------------------------------------------------------------------
+
+_TENANT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$")
+
+
+class ProvisionTenantRequest(BaseModel):
+    tenant_id: str = Field(..., min_length=3, max_length=64)
+    tenant_name: str = Field(..., min_length=1, max_length=255)
+    admin_email: str = Field(..., description="Email for initial admin user of this tenant")
+    region: str = Field("north_america", description="Tenant data region")
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validate_tenant_id(cls, v: str) -> str:
+        if not _TENANT_ID_RE.match(v):
+            raise ValueError("tenant_id must be lowercase alphanumeric with hyphens, 3–64 chars")
+        return v
+
+    @field_validator("admin_email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        if "@" not in v or len(v) > 254:
+            raise ValueError("admin_email must be a valid email address")
+        return v.strip().lower()
+
+    @field_validator("region")
+    @classmethod
+    def validate_region(cls, v: str) -> str:
+        allowed = {"north_america", "eu", "apac", "uk", "canada", "australia"}
+        if v not in allowed:
+            raise ValueError(f"region must be one of: {sorted(allowed)}")
+        return v
+
+
+@router.post("/admin/tenants", status_code=201)
+def provision_pilot_tenant(
+    payload: ProvisionTenantRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin")),
+):
+    """Provision a new pilot tenant with an initial admin membership. Admin role only."""
+    existing = db.query(models.TenantMembership).filter(
+        models.TenantMembership.tenant_id == payload.tenant_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Tenant '{payload.tenant_id}' already exists")
+
+    row = models.TenantMembership(
+        user_email=payload.admin_email,
+        tenant_id=payload.tenant_id,
+        role="spd_manager",
+        is_enabled=True,
+        tenant_region=payload.region,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    actor_email = getattr(current_user, "email", None) or getattr(current_user, "username", None) or "unknown"
+    log_audit_event(
+        db,
+        tenant_id=payload.tenant_id,
+        tenant_name=payload.tenant_name,
+        actor_email=actor_email,
+        actor_role="admin",
+        action_type="pilot_tenant_provisioned",
+        resource_type="tenant",
+        resource_id=payload.tenant_id,
+        request=request,
+        details={
+            "admin_email": payload.admin_email,
+            "region": payload.region,
+        },
+        compliance_flag=True,
+    )
+
+    return {
+        "tenant_id": payload.tenant_id,
+        "tenant_name": payload.tenant_name,
+        "admin_email": payload.admin_email,
+        "region": payload.region,
+        "status": "provisioned",
+        "membership_id": row.id,
+    }
