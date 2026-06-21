@@ -36,6 +36,9 @@ jobs:
           DATABASE_URL=sqlite:///./lumenai.db python -m pytest tests/ -q --tb=short
         env:
           DATABASE_URL: sqlite:///./lumenai.db
+          ENABLE_DEV_AUTH: "true"
+          DEV_AUTH_TOKEN: dev-token
+          AUTH_MODE: dev
 
       - name: Lint (ruff)
         run: ruff check backend/app backend/tests
