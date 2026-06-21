@@ -12,4 +12,7 @@ from app.models.integrations import (  # noqa: F401
     QualitySafetyEventRecord,
     InfectionPreventionEventRecord,
     PatientImpactCorrelationCandidate,
+    VendorBaselineExternalRecord,
+    RecallExternalRecord,
+    IntegrationErrorRecord,
 )

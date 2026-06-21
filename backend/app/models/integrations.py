@@ -204,4 +204,66 @@ class PatientImpactCorrelationCandidate(Base):
     human_review_required = Column(Boolean, default=True)
     human_review_status = Column(String, default="pending")
     correlation_method = Column(String, default="instrument_id_match")
+    chain_detected = Column(Boolean, default=False)
+    chain_description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VendorBaselineExternalRecord(Base):
+    __tablename__ = "vendor_baseline_external_records"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    facility_id = Column(String, nullable=True)
+    source_system = Column(String, nullable=False)  # vendormade/manufacturer_catalog/ifu_repo
+    source_record_id = Column(String, nullable=True)
+    source_event_type = Column(String, default="baseline_update")
+    event_timestamp = Column(DateTime, nullable=False)
+    instrument_id = Column(String, nullable=True)
+    udi = Column(String, nullable=True)
+    manufacturer_name = Column(String, nullable=True)
+    model_name = Column(String, nullable=True)
+    baseline_version = Column(String, nullable=True)
+    ifu_reference = Column(String, nullable=True)
+    import_status = Column(String, default="imported")
+    raw_payload_hash = Column(String, nullable=True)
+    correlation_status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RecallExternalRecord(Base):
+    __tablename__ = "recall_external_records"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    facility_id = Column(String, nullable=True)
+    source_system = Column(String, nullable=False)  # fda_medwatch/manufacturer/vendormade
+    source_record_id = Column(String, nullable=True)
+    source_event_type = Column(String, default="recall_notice")
+    event_timestamp = Column(DateTime, nullable=False)
+    recall_id = Column(String, nullable=True)
+    udi = Column(String, nullable=True)
+    manufacturer_name = Column(String, nullable=True)
+    recall_class = Column(String, nullable=True)  # Class I/II/III
+    recall_reason = Column(Text, nullable=True)
+    affected_instrument_categories = Column(Text, nullable=True)  # JSON list
+    recall_status = Column(String, default="active")  # active/completed/terminated
+    import_status = Column(String, default="imported")
+    raw_payload_hash = Column(String, nullable=True)
+    correlation_status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IntegrationErrorRecord(Base):
+    __tablename__ = "integration_error_records"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    import_run_id = Column(String, nullable=True)  # FK to IntegrationImportRun.import_id
+    system_name = Column(String, nullable=False)
+    error_type = Column(String, nullable=False)  # "normalization_error"/"missing_column"/"parse_error"/"phi_detected"
+    row_number = Column(Integer, nullable=True)
+    raw_row_hash = Column(String, nullable=True)  # SHA-256 of raw row, for audit (not the row itself)
+    error_message = Column(Text, nullable=True)
+    resolution_status = Column(String, default="unresolved")  # unresolved/resolved/ignored
     created_at = Column(DateTime, default=datetime.utcnow)

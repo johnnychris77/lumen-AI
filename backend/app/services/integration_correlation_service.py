@@ -217,6 +217,31 @@ def run_correlation(
                     break
 
         if matched_qs or matched_ip:
+            # Time-window chain detection: look for quality event within 30-day window AFTER tracking event
+            chain_detected = False
+            chain_description = ""
+            if matched_qs and itr.event_timestamp and matched_qs.event_timestamp:
+                delta = (matched_qs.event_timestamp - itr.event_timestamp).total_seconds()
+                if 0 <= delta <= 30 * 24 * 3600:
+                    if itr.instrument_id and matched_qs.instrument_reference == itr.instrument_id:
+                        chain_detected = True
+                        chain_description = (
+                            "Instrument inspection record followed by quality safety event within 30-day window — "
+                            "investigation candidate for potential association (not causation)"
+                        )
+                        score = min(1.0, score + 0.15)
+                        method = "combined_chain" if method else "time_window_chain"
+            if not chain_detected and matched_ip and itr.event_timestamp and matched_ip.event_timestamp:
+                delta = (matched_ip.event_timestamp - itr.event_timestamp).total_seconds()
+                if itr.tray_id and 0 <= delta <= 21 * 24 * 3600:
+                    chain_detected = True
+                    chain_description = (
+                        "Tray tracking record followed by infection prevention event within 21-day window — "
+                        "investigation candidate for potential association (not causation)"
+                    )
+                    score = min(1.0, score + 0.15)
+                    method = "combined_chain" if method else "time_window_chain"
+
             candidate = PatientImpactCorrelationCandidate(
                 tenant_id=tenant_id,
                 facility_id=facility_id or itr.facility_id,
@@ -235,6 +260,8 @@ def run_correlation(
                 human_review_required=True,
                 human_review_status="pending",
                 correlation_method=method or "time_window",
+                chain_detected=chain_detected,
+                chain_description=chain_description or None,
             )
             db.add(candidate)
             candidates_created += 1

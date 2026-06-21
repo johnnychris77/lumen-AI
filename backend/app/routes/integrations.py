@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
+import json
+import os
 from datetime import datetime
 from typing import Any, List, Optional
 
@@ -15,6 +18,7 @@ from app.enterprise_auth import get_request_actor, get_request_tenant_id, requir
 from app.models.integrations import (
     ExternalSystemConnection,
     InfectionPreventionEventRecord,
+    IntegrationErrorRecord,
     IntegrationImportRun,
     InstrumentTrackingRecord,
     PatientImpactCorrelationCandidate,
@@ -26,6 +30,30 @@ from app.services.integration_correlation_service import (
     get_integration_dashboard,
     run_correlation,
 )
+
+# ---------------------------------------------------------------------------
+# Connector catalog
+# ---------------------------------------------------------------------------
+
+CONNECTOR_CATALOG = [
+    {"system_name": "censitrac", "display_name": "CensiTrac", "category": "spd_tracking", "connector_types": ["csv", "api_pull"], "status": "available", "description": "Instrument tracking, tray management, sterilization cycles"},
+    {"system_name": "spm", "display_name": "SPM", "category": "spd_tracking", "connector_types": ["csv", "api_pull"], "status": "available"},
+    {"system_name": "readyset", "display_name": "ReadySet Surgical", "category": "spd_tracking", "connector_types": ["csv"], "status": "available"},
+    {"system_name": "abacus", "display_name": "Abacus", "category": "spd_tracking", "connector_types": ["csv"], "status": "available"},
+    {"system_name": "vendormade", "display_name": "VendorMade", "category": "vendor", "connector_types": ["api_pull", "webhook"], "status": "available"},
+    {"system_name": "safecare", "display_name": "SafeCare", "category": "quality_safety", "connector_types": ["api_pull", "webhook"], "status": "available", "baa_required": True},
+    {"system_name": "rldatix", "display_name": "RLDatix", "category": "quality_safety", "connector_types": ["api_pull", "webhook"], "status": "available", "baa_required": True},
+    {"system_name": "midas", "display_name": "MIDAS", "category": "quality_safety", "connector_types": ["api_pull", "csv"], "status": "available", "baa_required": True},
+    {"system_name": "verge", "display_name": "Verge Health", "category": "quality_safety", "connector_types": ["api_pull"], "status": "beta", "baa_required": True},
+    {"system_name": "icnet", "display_name": "ICNet", "category": "infection_prevention", "connector_types": ["api_pull", "webhook"], "status": "available", "baa_required": True},
+    {"system_name": "vigilanz", "display_name": "VigiLanz", "category": "infection_prevention", "connector_types": ["api_pull", "webhook"], "status": "available", "baa_required": True},
+    {"system_name": "theradoc", "display_name": "Theradoc", "category": "infection_prevention", "connector_types": ["api_pull"], "status": "available", "baa_required": True},
+    {"system_name": "epic", "display_name": "Epic (SMART on FHIR)", "category": "ehr", "connector_types": ["api_pull"], "status": "roadmap", "baa_required": True},
+    {"system_name": "cerner", "display_name": "Oracle Health / Cerner", "category": "ehr", "connector_types": ["api_pull"], "status": "roadmap", "baa_required": True},
+    {"system_name": "meditech", "display_name": "Meditech", "category": "ehr", "connector_types": ["csv"], "status": "roadmap", "baa_required": True},
+]
+
+_BAA_REQUIRED_CATEGORIES = {"quality_safety", "infection_prevention", "ehr"}
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
@@ -109,6 +137,27 @@ def list_systems(request: Request, db: Session = Depends(get_db)):
 def create_system(request: Request, body: CreateConnectionRequest, db: Session = Depends(get_db)):
     require_enterprise_auth(request)
     tenant_id = _tenant(request)
+
+    # BAA gate: quality/IP/EHR systems require a signed BAA
+    if body.system_category in _BAA_REQUIRED_CATEGORIES:
+        try:
+            from app.models.tenant_subscription_p14 import TenantSubscriptionP14
+            sub = db.query(TenantSubscriptionP14).filter(
+                TenantSubscriptionP14.tenant_id == tenant_id
+            ).first()
+            if not sub or not sub.hipaa_baa_signed_at:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "hipaa_baa_required",
+                        "message": "A signed HIPAA Business Associate Agreement is required before connecting quality, infection prevention, or EHR systems.",
+                        "action": "POST /api/tenant/hipaa-baa to record your BAA",
+                    },
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # If subscription model not available, allow through
 
     conn = ExternalSystemConnection(
         tenant_id=tenant_id,
@@ -585,3 +634,315 @@ def integration_dashboard(
         details={"data_source": dashboard.get("data_source")},
     )
     return {"status": "success", **dashboard}
+
+
+# ---------------------------------------------------------------------------
+# Connector catalog (public)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/catalog")
+def get_connector_catalog():
+    """Public catalog of all supported connectors — no auth required."""
+    return {"status": "success", "connectors": CONNECTOR_CATALOG, "count": len(CONNECTOR_CATALOG)}
+
+
+# ---------------------------------------------------------------------------
+# Per-connection health endpoint
+# ---------------------------------------------------------------------------
+
+
+def _compute_health_status(conn: ExternalSystemConnection) -> str:
+    if conn.last_import_at is None:
+        return "unknown"
+    if conn.connection_status == "error":
+        return "error"
+    errors = conn.consecutive_errors or 0
+    now = datetime.utcnow()
+    last = conn.last_import_at
+    hours_since = (now - last).total_seconds() / 3600 if last else 9999
+    if errors >= 3 or hours_since > 72:
+        return "error"
+    if errors >= 1 or hours_since > 26:
+        return "degraded"
+    return "healthy"
+
+
+@router.get("/systems/{system_id}/health")
+def get_system_health(system_id: int, request: Request, db: Session = Depends(get_db)):
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    conn = (
+        db.query(ExternalSystemConnection)
+        .filter(
+            ExternalSystemConnection.id == system_id,
+            ExternalSystemConnection.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="System connection not found.")
+
+    last_10_runs = (
+        db.query(IntegrationImportRun)
+        .filter(
+            IntegrationImportRun.connection_id == system_id,
+            IntegrationImportRun.tenant_id == tenant_id,
+        )
+        .order_by(IntegrationImportRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    health_status = _compute_health_status(conn)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="",
+        action_type="integrations.systems.health",
+        resource_type="external_system_connections",
+        resource_id=str(system_id),
+        details={"health_status": health_status},
+    )
+    return {
+        "status": "success",
+        "system_id": conn.id,
+        "system_name": conn.system_name,
+        "connection_status": conn.connection_status,
+        "last_import_at": conn.last_import_at.isoformat() if conn.last_import_at else None,
+        "consecutive_errors": conn.consecutive_errors or 0,
+        "total_records_imported": conn.total_records_imported or 0,
+        "last_10_runs": [_to_dict(r) for r in last_10_runs],
+        "health_status": health_status,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Import dry-run
+# ---------------------------------------------------------------------------
+
+
+class DryRunRequest(BaseModel):
+    csv_content: str
+    limit: int = 50
+
+
+@router.post("/systems/{system_id}/dry-run")
+def dry_run_import(system_id: int, request: Request, body: DryRunRequest, db: Session = Depends(get_db)):
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    conn = (
+        db.query(ExternalSystemConnection)
+        .filter(
+            ExternalSystemConnection.id == system_id,
+            ExternalSystemConnection.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="System connection not found.")
+
+    # Try CSV connector for this system
+    from app.services.connectors.csv_connector import CensiTracCSVConnector, SPMCSVConnector
+    csv_connectors = {
+        "censitrac": CensiTracCSVConnector,
+        "spm": SPMCSVConnector,
+    }
+    cls = csv_connectors.get(conn.system_name.lower())
+    if cls is None:
+        raise HTTPException(status_code=400, detail=f"System '{conn.system_name}' does not support CSV dry-run.")
+
+    config = json.loads(conn.config_json or "{}")
+    connector = cls(tenant_id, conn.facility_id or "", config)
+    result = connector.parse_csv_content(body.csv_content, tenant_id, conn.facility_id or "")
+
+    records = result["records"][: body.limit]
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="",
+        action_type="integrations.systems.dry_run",
+        resource_type="external_system_connections",
+        resource_id=str(system_id),
+        details={"would_create": len(result["records"]), "would_fail": result["failed"]},
+    )
+    return {
+        "status": "success",
+        "would_create": len(result["records"]),
+        "would_fail": result["failed"],
+        "errors": result["errors"],
+        "sample_records": records[:5],
+        "db_unchanged": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Webhook receiver (HMAC auth)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/webhook/{system_name}")
+async def webhook_ingest(system_name: str, request: Request, db: Session = Depends(get_db)):
+    """
+    Webhook receiver for push-based integrations.
+    Validates HMAC signature if WEBHOOK_SECRET_{SYSTEM_NAME_UPPER} env var is set.
+    No Authorization header required — authentication is via HMAC.
+    """
+    body = await request.body()
+    system_upper = system_name.upper().replace("-", "_")
+    secret = os.getenv(f"WEBHOOK_SECRET_{system_upper}", "")
+
+    if secret:
+        sig_header = request.headers.get("X-Webhook-Signature", "")
+        expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig_header, expected):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    # Parse body
+    try:
+        payload = json.loads(body) if body else {}
+        events = payload if isinstance(payload, list) else payload.get("events", [payload])
+    except Exception:
+        events = []
+
+    # Determine category
+    spd_systems = {"censitrac", "spm", "readyset", "abacus", "vendormade"}
+    ip_systems = {"icnet", "vigilanz", "theradoc"}
+    if system_name in spd_systems:
+        system_category = "spd_tracking"
+    elif system_name in ip_systems:
+        system_category = "infection_prevention"
+    else:
+        system_category = "quality_safety"
+
+    # Determine tenant from first event or header
+    tenant_id = request.headers.get("X-Tenant-Id") or request.headers.get("X-LumenAI-Tenant-Id") or "webhook"
+
+    imported = 0
+    errors = []
+
+    _PHI = {"patient_id", "mrn", "dob", "patient_name", "name", "ssn"}
+    for raw_event in events:
+        if not isinstance(raw_event, dict):
+            continue
+        for phi_key in _PHI:
+            raw_event.pop(phi_key, None)
+        try:
+            payload_str = str(sorted(raw_event.items()))
+            payload_hash = hashlib.sha256(payload_str.encode()).hexdigest()
+            ts_raw = raw_event.get("event_timestamp")
+            event_ts = datetime.fromisoformat(ts_raw) if isinstance(ts_raw, str) else datetime.utcnow()
+
+            if system_category == "quality_safety":
+                rec = QualitySafetyEventRecord(
+                    tenant_id=tenant_id,
+                    facility_id=raw_event.get("facility_id"),
+                    source_system=system_name,
+                    source_record_id=raw_event.get("source_record_id"),
+                    source_event_type=raw_event.get("source_event_type", "webhook_event"),
+                    event_timestamp=event_ts,
+                    event_category=raw_event.get("event_category"),
+                    event_severity=raw_event.get("event_severity"),
+                    instrument_reference=raw_event.get("instrument_reference"),
+                    tray_reference=raw_event.get("tray_reference"),
+                    de_identified=True,
+                    raw_payload_hash=payload_hash,
+                )
+            elif system_category == "infection_prevention":
+                rec = InfectionPreventionEventRecord(
+                    tenant_id=tenant_id,
+                    facility_id=raw_event.get("facility_id"),
+                    source_system=system_name,
+                    source_record_id=raw_event.get("source_record_id"),
+                    source_event_type=raw_event.get("source_event_type", "webhook_event"),
+                    event_timestamp=event_ts,
+                    pathogen=raw_event.get("pathogen"),
+                    procedure_type=raw_event.get("procedure_type"),
+                    service_line=raw_event.get("service_line"),
+                    instrument_reference=raw_event.get("instrument_reference"),
+                    de_identified=True,
+                    raw_payload_hash=payload_hash,
+                )
+            else:
+                rec = InstrumentTrackingRecord(
+                    tenant_id=tenant_id,
+                    facility_id=raw_event.get("facility_id"),
+                    source_system=system_name,
+                    source_record_id=raw_event.get("source_record_id"),
+                    source_event_type=raw_event.get("source_event_type", "webhook_event"),
+                    event_timestamp=event_ts,
+                    instrument_id=raw_event.get("instrument_id"),
+                    udi=raw_event.get("udi"),
+                    barcode=raw_event.get("barcode"),
+                    tray_id=raw_event.get("tray_id"),
+                    sterilization_status=raw_event.get("sterilization_status"),
+                    vendor_id=raw_event.get("vendor_id"),
+                    raw_payload_hash=payload_hash,
+                )
+            db.add(rec)
+            imported += 1
+        except Exception as e:
+            errors.append(str(e))
+
+    db.commit()
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email="webhook",
+        actor_role="",
+        action_type=f"integrations.webhook.{system_name}",
+        resource_type="external_events",
+        resource_id="",
+        details={"system_name": system_name, "events_received": len(events), "imported": imported},
+    )
+    return {"received": True, "system": system_name, "events_processed": imported, "errors": errors}
+
+
+# ---------------------------------------------------------------------------
+# Error quarantine
+# ---------------------------------------------------------------------------
+
+
+@router.get("/errors")
+def list_integration_errors(
+    request: Request,
+    system_name: str = Query(default=""),
+    resolution_status: str = Query(default=""),
+    import_run_id: str = Query(default=""),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    q = db.query(IntegrationErrorRecord).filter(IntegrationErrorRecord.tenant_id == tenant_id)
+    if system_name:
+        q = q.filter(IntegrationErrorRecord.system_name == system_name)
+    if resolution_status:
+        q = q.filter(IntegrationErrorRecord.resolution_status == resolution_status)
+    if import_run_id:
+        q = q.filter(IntegrationErrorRecord.import_run_id == import_run_id)
+    error_records = q.order_by(IntegrationErrorRecord.created_at.desc()).limit(limit).all()
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="",
+        action_type="integrations.errors.list",
+        resource_type="integration_error_records",
+        resource_id="all",
+        details={"count": len(error_records)},
+    )
+    return {"status": "success", "errors": [_to_dict(r) for r in error_records], "count": len(error_records)}

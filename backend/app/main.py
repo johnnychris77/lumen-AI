@@ -108,10 +108,12 @@ async def lifespan(_app: FastAPI):
         from apscheduler.schedulers.background import BackgroundScheduler
         from app.services.prediction_scheduler import register_prediction_scheduler
         from app.services.rwe_scheduler import register_rwe_scheduler
+        from app.services.integration_scheduler import register_integration_scheduler
         from app.db.session import SessionLocal
         _scheduler = BackgroundScheduler()
         register_prediction_scheduler(_scheduler, SessionLocal)
         register_rwe_scheduler(_scheduler, SessionLocal)
+        register_integration_scheduler(_scheduler, SessionLocal)
         _scheduler.start()
     except Exception as _e:
         import logging
