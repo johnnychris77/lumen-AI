@@ -1,9 +1,6 @@
 """P16: Patient Safety Intelligence Integration — test suite."""
 from __future__ import annotations
 
-import json
-
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
