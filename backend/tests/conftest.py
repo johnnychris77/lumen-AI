@@ -75,6 +75,7 @@ def _force_import_models():
         "app.models.external_connector",
         "app.models.patient_safety",
         "app.models.integrations",
+        "app.models.quality_intelligence",
     ]:
         try:
             importlib.import_module(model_path)

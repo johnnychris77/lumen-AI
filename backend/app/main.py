@@ -103,6 +103,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.baseline_library")     # register P15 baseline library table
     importlib.import_module("app.models.integrations")         # register P17 integration tables
     importlib.import_module("app.models.mobile")               # register P18 mobile tables
+    importlib.import_module("app.models.quality_intelligence") # register P21 quality intelligence tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -806,6 +807,9 @@ app.include_router(integrations_router)
 
 from app.routes.mobile import router as mobile_router
 app.include_router(mobile_router)
+
+from app.routes import quality_intelligence
+app.include_router(quality_intelligence.router)
 
 from fastapi.openapi.utils import get_openapi
 

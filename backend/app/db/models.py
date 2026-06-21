@@ -18,6 +18,13 @@ from app.models.patient_safety import (  # noqa: F401
     CAPAEffectivenessSignal,
     ExecutiveRiskSignal,
 )
+from app.models.quality_intelligence import (  # noqa: F401
+    EnterpriseRiskNode,
+    EnterpriseRiskEdge,
+    EmergingRiskSignal,
+    QualityInvestigationP21,
+    PreventiveActionRecommendation,
+)
 
 
 class TenantMembership(Base):
