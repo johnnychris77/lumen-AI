@@ -17,6 +17,11 @@ Provide participating facilities with anonymized peer benchmarking (contaminatio
 - Coarse attributes only: `facility_type` (hospital/health_system/asc), `region` (NE/SE/MW/W), `bed_count_range` (banded, never exact)
 - Existing endpoints: `/api/network/benchmarks`, `/api/network/benchmarks/my-percentile`
 
+### Trend History & Regional Breakdown (P18)
+- `POST /api/growth/benchmark-snapshots` records anonymized aggregate metric snapshots (only aggregate values + participant count — never per-tenant data)
+- `GET /api/growth/benchmark-trends?metric=&cohort=&days=` returns the time-series; **any snapshot below the 5-participant floor is suppressed** from the series (`suppressed_below_k`)
+- `GET /api/growth/market-intelligence/by-region` breaks participant mix down by region with **k-anonymity enforced per region** — regions below the floor are listed in `suppressed_regions` rather than detailed, so small regions cannot be re-identified
+
 ### k-Anonymity Enforcement
 - Network aggregates are **suppressed below a minimum participant threshold** (k-anonymity)
 - The P18 market-intelligence summary (`/api/growth/market-intelligence/summary`) enforces a floor of **5 active participants** before exposing any participant-mix breakdown; below it, detail is replaced with a suppression message

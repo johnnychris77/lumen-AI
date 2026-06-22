@@ -92,10 +92,14 @@ Tracked via `POST /api/growth/partnerships` and `PATCH /api/growth/partnerships/
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/growth/partnerships` | Register a partner |
-| `GET /api/growth/partnerships` | List/filter partners, counts by type |
-| `PATCH /api/growth/partnerships/{id}?status=` | Advance lifecycle stage |
+| `POST /api/growth/partnerships` | Register a partner (optional `next_review_date` for SLA tracking) |
+| `GET /api/growth/partnerships` | List/filter partners, counts by type; `overdue_review=true` surfaces partnerships past their review date; response includes `escalations` count |
+| `PATCH /api/growth/partnerships/{id}?status=` | Advance lifecycle stage (stamps `status_changed_at`) |
+| `POST /api/growth/partnerships/{id}/notes` | Append a timestamped engagement note / touchpoint (audit-logged) |
+| `GET /api/growth/partnerships/{id}/notes` | List engagement notes |
 | `GET /api/growth/kpis` | Active-partnership KPI |
+
+**SLA & escalation:** Each partnership carries an optional `next_review_date` (flagged `review_overdue` when past due) and a `status_changed_at` timestamp. A partnership stalled in `engaged` longer than **90 days** raises an `escalation` flag for CSM follow-up.
 
 ---
 

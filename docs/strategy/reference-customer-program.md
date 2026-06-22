@@ -95,8 +95,15 @@ Testimonials require both `testimonial_status = approved` **and** `public_refere
 |----------|---------|
 | `POST /api/growth/reference-customers` | Create a reference record |
 | `POST /api/growth/reference-customers/{id}/consent` | Record/revoke public consent (audit-logged) |
+| `POST /api/growth/reference-customers/{id}/roi` | Snapshot modeled ROI (savings + payback) onto the record (audit-logged) |
+| `GET /api/growth/reference-customers/{id}/case-study-checklist` | Completeness checklist (consent, ROI, testimonial, quote, published) |
 | `GET /api/growth/reference-customers?public_only=` | List (redacted internal or consented public) |
+| `GET /api/growth/reference-customers?ready_to_convert=true` | Pilot-stage accounts whose P17 health score is `healthy` — conversion-ready signal |
 | `GET /api/growth/conversion-funnel` | Funnel counts + conversion rate |
+
+**Pilot-to-enterprise automation:** `ready_to_convert=true` wires the P17 customer-success health score into the reference lifecycle, surfacing pilots that are conversion-ready so CSMs don't track them manually. All such signals carry `human_review_required: true`.
+
+**ROI linkage:** ROI snapshots captured via `/roi` are stored on the reference record (`modeled_annual_savings_usd`, `roi_payback_months`, `roi_captured_at`) so a case study cites a single, auditable, modeled-and-customer-validated savings figure — never a guarantee.
 
 ---
 

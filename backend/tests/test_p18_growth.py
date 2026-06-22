@@ -49,6 +49,31 @@ class TestPartnerships:
     def test_requires_auth(self):
         assert client.get("/api/growth/partnerships").status_code == 401
 
+    def test_notes_lifecycle(self):
+        r = client.post("/api/growth/partnerships",
+                        json={"partner_name": f"Note-{TS}", "partner_type": "vendor"}, headers=AUTH)
+        pid = r.json()["id"]
+        n = client.post(f"/api/growth/partnerships/{pid}/notes",
+                        json={"note": "Intro call held"}, headers=AUTH)
+        assert n.status_code == 201
+        lst = client.get(f"/api/growth/partnerships/{pid}/notes", headers=AUTH)
+        assert lst.status_code == 200
+        assert lst.json()["count"] >= 1
+
+    def test_notes_missing_partnership_404(self):
+        assert client.post("/api/growth/partnerships/99999999/notes",
+                           json={"note": "x"}, headers=AUTH).status_code == 404
+
+    def test_overdue_review_filter(self):
+        # A past next_review_date should be flagged overdue and surface in filter.
+        r = client.post("/api/growth/partnerships",
+                        json={"partner_name": f"Due-{TS}", "partner_type": "gpo",
+                              "next_review_date": "2020-01-01T00:00:00Z"}, headers=AUTH)
+        pid = r.json()["id"]
+        assert r.json()["review_overdue"] is True
+        lst = client.get("/api/growth/partnerships?overdue_review=true", headers=AUTH)
+        assert any(p["id"] == pid for p in lst.json()["partnerships"])
+
 
 class TestReferenceCustomers:
     def test_create_redacts_until_consent(self):
@@ -90,6 +115,55 @@ class TestReferenceCustomers:
         body = r.json()
         assert set(body["stages"].keys()) == {"pilot", "converting", "enterprise", "reference"}
         assert "pilot_to_enterprise_conversion_pct" in body
+
+    def test_roi_linkage_and_checklist(self):
+        tid = f"roi-{TS}"
+        r = client.post("/api/growth/reference-customers",
+                        json={"tenant_id": tid, "display_name": "ROI Health",
+                              "conversion_stage": "enterprise"}, headers=AUTH)
+        rid = r.json()["id"]
+        roi = client.post(f"/api/growth/reference-customers/{rid}/roi",
+                          json={"modeled_annual_savings_usd": 250000, "roi_payback_months": 8},
+                          headers=AUTH)
+        assert roi.status_code == 200
+        assert roi.json()["roi_captured_at"] is not None
+
+        chk = client.get(f"/api/growth/reference-customers/{rid}/case-study-checklist", headers=AUTH)
+        assert chk.status_code == 200
+        body = chk.json()
+        assert body["checklist"]["roi_captured"] is True
+        assert body["checklist"]["public_consent"] is False
+        assert body["externally_citable"] is False
+
+    def test_ready_to_convert_filter(self):
+        r = client.get("/api/growth/reference-customers?ready_to_convert=true", headers=AUTH)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["ready_to_convert"] is True
+        assert body["human_review_required"] is True
+
+
+class TestBenchmarkTrends:
+    def test_snapshot_and_trend_kanonymity(self):
+        # Below-floor snapshot is suppressed; above-floor appears.
+        client.post("/api/growth/benchmark-snapshots",
+                    json={"metric_name": f"contam-{TS}", "n_participants": 3, "p50": 1.0},
+                    headers=AUTH)
+        client.post("/api/growth/benchmark-snapshots",
+                    json={"metric_name": f"contam-{TS}", "n_participants": 8, "p50": 0.9},
+                    headers=AUTH)
+        t = client.get(f"/api/growth/benchmark-trends?metric=contam-{TS}", headers=AUTH)
+        assert t.status_code == 200
+        body = t.json()
+        assert len(body["points"]) == 1
+        assert body["suppressed_below_k"] == 1
+
+    def test_by_region_suppresses_small_regions(self):
+        r = client.get("/api/growth/market-intelligence/by-region", headers=AUTH)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["k_anonymity_floor"] == 5
+        assert "regions" in body and "suppressed_regions" in body
 
 
 class TestMarketIntelligence:

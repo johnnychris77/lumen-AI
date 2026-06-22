@@ -19,6 +19,7 @@ const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage
 const PilotAnalyticsDashboard = lazy(() => import("./pages/PilotAnalyticsDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
+const GrowthConsole = lazy(() => import("./pages/GrowthConsole"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
@@ -103,6 +104,7 @@ function App() {
                       <Route path="/pilot-analytics" element={<PilotAnalyticsDashboard />} />
                       <Route path="/enterprise" element={<EnterpriseDashboard />} />
                       <Route path="/commercial" element={<CommercialConsole />} />
+                      <Route path="/growth" element={<GrowthConsole />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"
