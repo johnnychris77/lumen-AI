@@ -21,6 +21,7 @@ jobs:
       PYTHONPATH: backend
       AUTH_MODE: dev
       DEV_AUTH_TOKEN: dev-token
+      ENABLE_DEV_AUTH: "true"
 
     steps:
       - name: Checkout repository

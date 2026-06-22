@@ -23,6 +23,7 @@ jobs:
       PYTHONPATH: .
       AUTH_MODE: dev
       DEV_AUTH_TOKEN: dev-token
+      ENABLE_DEV_AUTH: "true"
       APP_ENV: test
 
     steps:

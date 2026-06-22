@@ -142,6 +142,94 @@ function statusRowClass(status?: string) {
 
 const REFRESH_INTERVAL_MS = 30_000;
 
+const SURVEY_STORAGE_KEY = "lumenai_pulse_survey_dismissed";
+
+function WeeklyPulseSurvey() {
+  const [visible, setVisible] = useState(() => {
+    const raw = localStorage.getItem(SURVEY_STORAGE_KEY);
+    if (!raw) return true;
+    try {
+      const { week } = JSON.parse(raw);
+      const currentWeek = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+      return week !== currentWeek;
+    } catch {
+      return true;
+    }
+  });
+
+  const [ratings, setRatings] = useState({ ease: 0, useful: 0, recommend: 0 });
+  const [submitted, setSubmitted] = useState(false);
+
+  function dismiss() {
+    const currentWeek = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+    localStorage.setItem(SURVEY_STORAGE_KEY, JSON.stringify({ week: currentWeek }));
+    setVisible(false);
+  }
+
+  function submit() {
+    // In pilot: store locally + log to console; replace with API call when survey endpoint is added
+    console.info("[LumenAI Pilot Survey]", { week: new Date().toISOString(), ratings });
+    setSubmitted(true);
+    setTimeout(dismiss, 1500);
+  }
+
+  if (!visible) return null;
+
+  const questions: { key: keyof typeof ratings; label: string }[] = [
+    { key: "ease", label: "How easy was LumenAI to use this week?" },
+    { key: "useful", label: "How useful was the information provided?" },
+    { key: "recommend", label: "Would you recommend LumenAI to a colleague?" },
+  ];
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-blue-900">Weekly Pulse Survey</p>
+          <p className="text-xs text-blue-700 mt-0.5">Takes 30 seconds — helps us improve the pilot</p>
+        </div>
+        <button onClick={dismiss} className="text-blue-400 hover:text-blue-600 text-xs">Dismiss</button>
+      </div>
+      {submitted ? (
+        <p className="mt-3 text-sm text-green-700 font-medium">Thanks for your feedback!</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {questions.map(({ key, label }) => (
+            <div key={key}>
+              <p className="text-xs text-blue-800 mb-1">{label}</p>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setRatings((r) => ({ ...r, [key]: n }))}
+                    className={`w-8 h-8 rounded text-xs font-medium border transition-colors ${
+                      ratings[key] === n
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-blue-700 border-blue-300 hover:border-blue-500"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <span className="ml-2 text-xs text-blue-500 self-center">
+                  {ratings[key] > 0 ? `${ratings[key]}/5` : "—"}
+                </span>
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={submit}
+            disabled={Object.values(ratings).some((v) => v === 0)}
+            className="mt-1 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Submit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { headers } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -225,6 +313,9 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Pilot quick actions and KPIs */}
       <PilotDashboardCards />
+
+      {/* Weekly pulse survey nudge */}
+      <WeeklyPulseSurvey />
 
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
