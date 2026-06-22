@@ -57,7 +57,8 @@ from app.models.growth import (  # noqa: F401
 )
 from app.models.accreditation import (  # noqa: F401
     AccreditationProgram, EvidenceItem, ReadinessAssessment,
-    SurveyEvidencePackage, CertifiedSite,
+    SurveyEvidencePackage, CertifiedSite, BenchmarkPublication,
+    AdvisoryBoardMember, CriteriaProposal,
 )
 
 

@@ -39,6 +39,12 @@ Readiness status bands: **ready ≥ 85**, **approaching ≥ 65**, **not_ready < 
 - Snapshots are persisted for reproducibility and trend history (`POST /readiness/snapshot`, `GET /readiness/trend`).
 - Every readiness output carries `human_review_required: true` and a disclaimer that final determination rests with the accrediting body.
 
+### Closing the Loop (Readiness → CAPA)
+Open **critical** evidence gaps can be pushed into the existing enterprise CAPA workflow via `POST /api/accreditation/readiness/create-capas` — each gap becomes an owned, tracked CAPA (`ACC-<ACC>-<id>`, idempotent). This connects "what's missing" to "who's fixing it" rather than leaving gaps in a silo.
+
+### Evidence Library Templates
+`GET /api/accreditation/evidence-templates` returns standard reference checklists per accreditor; `POST /api/accreditation/evidence-items/seed` seeds a facility's checklist idempotently so teams start from a structured list rather than a blank slate. Standards are referenced for alignment only — not certified compliance.
+
 ---
 
 ## 4. Evidence Model

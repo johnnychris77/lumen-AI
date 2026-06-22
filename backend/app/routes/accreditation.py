@@ -44,6 +44,55 @@ _READINESS_DISCLAIMER = (
     "accrediting body. No FDA clearance or regulatory approval is claimed."
 )
 
+# Certification eligibility gates: readiness/completeness thresholds + zero open
+# critical items. Human sign-off (the /award endpoint) is still required.
+_CERT_ELIGIBILITY = {
+    "certified_site": {"min_readiness": 85.0, "min_completeness": 85.0},
+    "baseline_excellence": {"min_readiness": 80.0, "min_completeness": 90.0},
+    "inspection_intelligence": {"min_readiness": 80.0, "min_completeness": 80.0},
+}
+
+# Standard evidence-item templates per accreditor (reference standards only — not
+# certified compliance). Used to seed a facility's evidence checklist.
+_EVIDENCE_TEMPLATES: dict[str, list[dict]] = {
+    "joint_commission": [
+        {"standard_ref": "IC.02.02.01", "category": "infection_control",
+         "title": "Reduce infection risk from equipment/devices", "is_critical": True},
+        {"standard_ref": "IC.02.01.01", "category": "infection_control",
+         "title": "Implement infection prevention plan", "is_critical": True},
+        {"standard_ref": "EC.02.04.03", "category": "equipment",
+         "title": "Inspect/test/maintain medical equipment", "is_critical": False},
+        {"standard_ref": "HR.01.05.03", "category": "competency",
+         "title": "Staff competency for sterile processing", "is_critical": False},
+    ],
+    "dnv": [
+        {"standard_ref": "NIAHO SS.1", "category": "sterilization",
+         "title": "Sterilization process control", "is_critical": True},
+        {"standard_ref": "ISO 9001 8.5", "category": "quality_system",
+         "title": "Production/service provision control", "is_critical": False},
+        {"standard_ref": "NIAHO IC.2", "category": "infection_control",
+         "title": "Infection prevention program", "is_critical": True},
+    ],
+    "cms": [
+        {"standard_ref": "482.42", "category": "infection_control",
+         "title": "Condition: Infection prevention & control", "is_critical": True},
+        {"standard_ref": "482.41", "category": "physical_environment",
+         "title": "Condition: Physical environment", "is_critical": False},
+    ],
+    "hfap": [
+        {"standard_ref": "07.00.01", "category": "infection_control",
+         "title": "Infection prevention & control program", "is_critical": True},
+        {"standard_ref": "11.00.03", "category": "sterilization",
+         "title": "Sterilization & disinfection", "is_critical": True},
+    ],
+    "state": [
+        {"standard_ref": "AAMI ST79", "category": "sterilization",
+         "title": "Steam sterilization & sterility assurance", "is_critical": True},
+        {"standard_ref": "State Licensure", "category": "general",
+         "title": "State licensure survey readiness", "is_critical": False},
+    ],
+}
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -737,3 +786,444 @@ def accreditation_kpis(
         "human_review_required": True,
         "disclaimer": _READINESS_DISCLAIMER,
     }
+
+
+# ---------------------------------------------------------------------------
+# Evidence library templates (Phase 1/2 — seed standard checklists)
+# ---------------------------------------------------------------------------
+
+@router.get("/evidence-templates")
+def list_evidence_templates(
+    accreditor: str | None = Query(default=None),
+    _=Depends(require_roles("admin", "executive", "spd_manager")),
+):
+    """Standard evidence-item checklists per accreditor (reference standards only)."""
+    if accreditor:
+        if accreditor not in _ACCREDITORS:
+            raise HTTPException(status_code=422, detail=f"Invalid accreditor '{accreditor}'")
+        return {"accreditor": accreditor, "items": _EVIDENCE_TEMPLATES.get(accreditor, [])}
+    return {"templates": _EVIDENCE_TEMPLATES}
+
+
+class SeedEvidenceRequest(BaseModel):
+    tenant_id: str = Field(..., min_length=1)
+    facility_id: str = Field(..., min_length=1)
+    accreditor: str
+
+    @field_validator("accreditor")
+    @classmethod
+    def _v_acc(cls, v):
+        if v not in _ACCREDITORS:
+            raise ValueError(f"accreditor must be one of {sorted(_ACCREDITORS)}")
+        return v
+
+
+@router.post("/evidence-items/seed", status_code=201)
+def seed_evidence(
+    payload: SeedEvidenceRequest,
+    current_user=Depends(require_roles("admin", "executive", "spd_manager")),
+    db: Session = Depends(get_db),
+):
+    """Seed a facility's evidence checklist from the standard template for an
+    accreditor. Skips templates already present (idempotent on standard_ref)."""
+    template = _EVIDENCE_TEMPLATES.get(payload.accreditor, [])
+    existing = {
+        e.standard_ref for e in db.query(models.EvidenceItem).filter(
+            models.EvidenceItem.tenant_id == payload.tenant_id,
+            models.EvidenceItem.facility_id == payload.facility_id,
+            models.EvidenceItem.accreditor == payload.accreditor,
+        ).all()
+    }
+    created = []
+    for t in template:
+        if t["standard_ref"] in existing:
+            continue
+        e = models.EvidenceItem(
+            tenant_id=payload.tenant_id,
+            facility_id=payload.facility_id,
+            accreditor=payload.accreditor,
+            standard_ref=t["standard_ref"],
+            category=t["category"],
+            title=t["title"],
+            status="missing",
+            is_critical=t["is_critical"],
+        )
+        db.add(e)
+        created.append(e)
+    db.commit()
+    for e in created:
+        db.refresh(e)
+    _audit(db, current_user, "evidence_seeded", "evidence_item", "",
+           {"accreditor": payload.accreditor, "created": len(created)},
+           tenant_id=payload.tenant_id)
+    return {"created": len(created), "skipped_existing": len(existing),
+            "evidence_items": [_evidence_dict(e) for e in created]}
+
+
+# ---------------------------------------------------------------------------
+# Readiness → CAPA linkage (Phase 2/3 — close the loop on critical gaps)
+# ---------------------------------------------------------------------------
+
+class ReadinessCapaRequest(BaseModel):
+    tenant_id: str = Field(..., min_length=1)
+    facility_id: str = Field(..., min_length=1)
+    accreditor: str
+
+    @field_validator("accreditor")
+    @classmethod
+    def _v_acc(cls, v):
+        if v not in _ACCREDITORS:
+            raise ValueError(f"accreditor must be one of {sorted(_ACCREDITORS)}")
+        return v
+
+
+@router.post("/readiness/create-capas", status_code=201)
+def create_capas_from_gaps(
+    payload: ReadinessCapaRequest,
+    current_user=Depends(require_roles("admin", "executive", "spd_manager")),
+    db: Session = Depends(get_db),
+):
+    """Create CAPA records in the existing enterprise CAPA workflow for each open
+    critical evidence gap, so remediation is owned and tracked. Audit-logged."""
+    from app.models.enterprise_quality import EnterpriseCapa
+
+    gaps = db.query(models.EvidenceItem).filter(
+        models.EvidenceItem.tenant_id == payload.tenant_id,
+        models.EvidenceItem.facility_id == payload.facility_id,
+        models.EvidenceItem.accreditor == payload.accreditor,
+        models.EvidenceItem.is_critical.is_(True),
+        models.EvidenceItem.status != "complete",
+    ).all()
+
+    created = []
+    for g in gaps:
+        capa_number = f"ACC-{payload.accreditor[:3].upper()}-{g.id}"
+        # Idempotent: skip if a CAPA already exists for this gap.
+        if db.query(EnterpriseCapa).filter(
+            EnterpriseCapa.tenant_id == payload.tenant_id,
+            EnterpriseCapa.capa_number == capa_number,
+        ).first():
+            continue
+        capa = EnterpriseCapa(
+            tenant_id=payload.tenant_id,
+            capa_number=capa_number,
+            title=f"Accreditation gap: {g.title or g.standard_ref}",
+            description=(
+                f"Open critical evidence gap for {payload.accreditor} "
+                f"({g.standard_ref}). Quality review recommended to close before survey."
+            ),
+            status="open",
+        )
+        db.add(capa)
+        created.append(capa_number)
+    db.commit()
+    _audit(db, current_user, "readiness_capas_created", "enterprise_capa", "",
+           {"accreditor": payload.accreditor, "created": len(created)},
+           tenant_id=payload.tenant_id)
+    return {
+        "open_critical_gaps": len(gaps),
+        "capas_created": len(created),
+        "capa_numbers": created,
+        "human_review_required": True,
+        "disclaimer": "CAPA candidates created from accreditation gaps; quality "
+                      "review recommended. No causation or regulatory claim is made.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Certification eligibility gating (Phase 5)
+# ---------------------------------------------------------------------------
+
+@router.get("/certifications/{cert_id}/eligibility")
+def certification_eligibility(
+    cert_id: int,
+    _=Depends(require_roles("admin", "executive", "spd_manager")),
+    db: Session = Depends(get_db),
+):
+    """Evaluate whether a certification's facility currently meets eligibility
+    gates (readiness, completeness, zero open critical items). Human sign-off
+    via /award is still required to actually certify."""
+    c = db.get(models.CertifiedSite, cert_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Certification not found")
+    gate = _CERT_ELIGIBILITY.get(c.certification_type, {"min_readiness": 85.0, "min_completeness": 85.0})
+    scored = _score_facility(db, c.tenant_id, c.facility_id, None)
+
+    checks = {
+        "readiness_meets": scored["readiness_score"] >= gate["min_readiness"],
+        "completeness_meets": scored["evidence_completeness_score"] >= gate["min_completeness"],
+        "no_open_critical": scored["open_critical_items"] == 0,
+    }
+    eligible = all(checks.values())
+    return {
+        "certification_id": cert_id,
+        "certification_type": c.certification_type,
+        "eligible": eligible,
+        "gates": gate,
+        "checks": checks,
+        "readiness": scored,
+        "human_review_required": True,
+        "disclaimer": "Eligibility is a gating indicator; human sign-off required to certify.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Benchmark publication archive (Phase 4)
+# ---------------------------------------------------------------------------
+
+class PublishBenchmarkRequest(BaseModel):
+    edition: str = Field(..., min_length=1)
+
+
+@router.post("/benchmark-publications/publish", status_code=201)
+def publish_benchmark(
+    payload: PublishBenchmarkRequest,
+    current_user=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    """Snapshot the current anonymized annual report into an immutable, dated
+    archive edition. Suppressed (not archived) below the k-anonymity floor."""
+    import json
+
+    active = int(
+        db.query(sqlfunc.count(NetworkParticipant.id))
+        .filter(NetworkParticipant.is_active.is_(True)).scalar() or 0
+    )
+    if active < _MIN_NETWORK_PARTICIPANTS:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot publish: fewer than {_MIN_NETWORK_PARTICIPANTS} "
+                   f"active participants (k-anonymity).",
+        )
+    by_type_rows = (
+        db.query(NetworkParticipant.facility_type, sqlfunc.count(NetworkParticipant.id))
+        .filter(NetworkParticipant.is_active.is_(True))
+        .group_by(NetworkParticipant.facility_type).all()
+    )
+    payload_obj = {
+        "active_participants": active,
+        "participant_mix": {"by_facility_type": {t or "unknown": c for t, c in by_type_rows}},
+        "methodology": {
+            "anonymization": "rotating pseudonyms; coarse attributes only",
+            "k_anonymity_floor": _MIN_NETWORK_PARTICIPANTS,
+            "noise": "Laplace noise applied to published aggregates",
+        },
+    }
+    pub = models.BenchmarkPublication(
+        edition=payload.edition,
+        active_participants=active,
+        payload_json=json.dumps(payload_obj),
+        published_by=getattr(current_user, "email", "unknown"),
+    )
+    db.add(pub)
+    db.commit()
+    db.refresh(pub)
+    _audit(db, current_user, "benchmark_published", "benchmark_publication", pub.id,
+           {"edition": pub.edition})
+    return {"id": pub.id, "edition": pub.edition, "active_participants": active,
+            "published_at": pub.published_at.isoformat() if pub.published_at else None}
+
+
+@router.get("/benchmark-publications")
+def list_benchmark_publications(
+    _=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    """List archived benchmark publication editions (immutable history)."""
+    import json
+    rows = db.query(models.BenchmarkPublication).order_by(
+        models.BenchmarkPublication.published_at.desc()).all()
+    return {
+        "count": len(rows),
+        "publications": [
+            {
+                "id": p.id,
+                "edition": p.edition,
+                "report_type": p.report_type,
+                "active_participants": p.active_participants,
+                "payload": json.loads(p.payload_json or "{}"),
+                "published_at": p.published_at.isoformat() if p.published_at else None,
+            }
+            for p in rows
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Survey binder export (Phase 3 — printable HTML document)
+# ---------------------------------------------------------------------------
+
+@router.get("/survey-evidence/{package_id}/export")
+def export_package_html(
+    package_id: int,
+    current_user=Depends(require_roles("admin", "executive", "spd_manager")),
+    db: Session = Depends(get_db),
+):
+    """Render a generated package as a printable HTML survey binder.
+
+    Returned as HTML so it can be printed to PDF by the browser without adding a
+    server-side PDF dependency."""
+    from fastapi.responses import HTMLResponse
+    from html import escape
+
+    pkg = db.get(models.SurveyEvidencePackage, package_id)
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Package not found")
+    items = db.query(models.EvidenceItem).filter(
+        models.EvidenceItem.tenant_id == pkg.tenant_id,
+        models.EvidenceItem.facility_id == pkg.facility_id,
+        models.EvidenceItem.accreditor == pkg.accreditor,
+    ).all()
+
+    rows = "".join(
+        f"<tr><td>{escape(i.standard_ref)}</td><td>{escape(i.category)}</td>"
+        f"<td>{escape(i.title)}</td><td>{escape(i.status)}</td>"
+        f"<td>{'critical' if i.is_critical else ''}</td></tr>"
+        for i in items
+    )
+    html = f"""<!doctype html><html><head><meta charset="utf-8">
+<title>Survey Binder — {escape(pkg.accreditor)}</title>
+<style>body{{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}}
+h1{{font-size:1.4rem}} table{{width:100%;border-collapse:collapse;margin-top:1rem}}
+th,td{{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;font-size:0.85rem}}
+th{{background:#f1f5f9}} .disc{{margin-top:1.5rem;font-size:0.75rem;color:#64748b}}</style>
+</head><body>
+<h1>Survey Evidence Binder</h1>
+<p><strong>Accreditor:</strong> {escape(pkg.accreditor)} &nbsp;
+<strong>Facility:</strong> {escape(pkg.facility_id)} &nbsp;
+<strong>Type:</strong> {escape(pkg.package_type)}</p>
+<p><strong>Summary:</strong> {escape(pkg.summary)}</p>
+<table><thead><tr><th>Standard</th><th>Category</th><th>Title</th>
+<th>Status</th><th>Flag</th></tr></thead><tbody>{rows}</tbody></table>
+<p class="disc">{escape(_READINESS_DISCLAIMER)} Human review required before survey use.</p>
+</body></html>"""
+    _audit(db, current_user, "evidence_package_exported", "evidence_package",
+           package_id, {}, tenant_id=pkg.tenant_id)
+    return HTMLResponse(content=html)
+
+
+# ---------------------------------------------------------------------------
+# Advisory board governance (Phase 6 — members + criteria proposals/sign-off)
+# ---------------------------------------------------------------------------
+
+class BoardMemberCreate(BaseModel):
+    member_name: str = Field(..., min_length=1)
+    role: str = Field(default="member")
+    organization: str = Field(default="")
+    conflict_of_interest_disclosed: bool = Field(default=False)
+
+
+@router.post("/advisory-board/members", status_code=201)
+def add_board_member(
+    payload: BoardMemberCreate,
+    current_user=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    m = models.AdvisoryBoardMember(
+        member_name=payload.member_name,
+        role=payload.role,
+        organization=payload.organization,
+        conflict_of_interest_disclosed=payload.conflict_of_interest_disclosed,
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    _audit(db, current_user, "advisory_member_added", "advisory_board_member", m.id,
+           {"role": m.role})
+    return {"id": m.id, "member_name": m.member_name, "role": m.role,
+            "organization": m.organization,
+            "conflict_of_interest_disclosed": m.conflict_of_interest_disclosed}
+
+
+@router.get("/advisory-board/members")
+def list_board_members(
+    _=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    rows = db.query(models.AdvisoryBoardMember).filter(
+        models.AdvisoryBoardMember.is_active.is_(True)).all()
+    return {"count": len(rows), "members": [
+        {"id": m.id, "member_name": m.member_name, "role": m.role,
+         "organization": m.organization,
+         "conflict_of_interest_disclosed": m.conflict_of_interest_disclosed}
+        for m in rows
+    ]}
+
+
+class ProposalCreate(BaseModel):
+    title: str = Field(..., min_length=1)
+    proposal_type: str = Field(default="certification_criteria")
+    description: str = Field(default="")
+
+    @field_validator("proposal_type")
+    @classmethod
+    def _v_type(cls, v):
+        if v not in {"certification_criteria", "benchmark_methodology"}:
+            raise ValueError("proposal_type must be certification_criteria or benchmark_methodology")
+        return v
+
+
+@router.post("/advisory-board/proposals", status_code=201)
+def create_proposal(
+    payload: ProposalCreate,
+    current_user=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    p = models.CriteriaProposal(
+        title=payload.title,
+        proposal_type=payload.proposal_type,
+        description=payload.description,
+        proposed_by=getattr(current_user, "email", "unknown"),
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    _audit(db, current_user, "criteria_proposal_created", "criteria_proposal", p.id,
+           {"proposal_type": p.proposal_type})
+    return _proposal_dict(p)
+
+
+def _proposal_dict(p: models.CriteriaProposal) -> dict:
+    return {
+        "id": p.id,
+        "title": p.title,
+        "proposal_type": p.proposal_type,
+        "description": p.description,
+        "status": p.status,
+        "proposed_by": p.proposed_by,
+        "signed_off_by": p.signed_off_by,
+        "signed_off_at": p.signed_off_at.isoformat() if p.signed_off_at else None,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+@router.get("/advisory-board/proposals")
+def list_proposals(
+    _=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    rows = db.query(models.CriteriaProposal).order_by(
+        models.CriteriaProposal.created_at.desc()).all()
+    return {"count": len(rows), "proposals": [_proposal_dict(p) for p in rows]}
+
+
+@router.post("/advisory-board/proposals/{proposal_id}/sign-off")
+def sign_off_proposal(
+    proposal_id: int,
+    decision: str = Query(..., description="approved | rejected"),
+    current_user=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    """Record an advisory-board sign-off decision on a proposal. Audit-logged."""
+    if decision not in {"approved", "rejected"}:
+        raise HTTPException(status_code=422, detail="decision must be approved or rejected")
+    p = db.get(models.CriteriaProposal, proposal_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    p.status = decision
+    p.signed_off_by = getattr(current_user, "email", "unknown")
+    p.signed_off_at = _utcnow()
+    db.commit()
+    _audit(db, current_user, "criteria_proposal_signed_off", "criteria_proposal",
+           proposal_id, {"decision": decision})
+    return _proposal_dict(p)

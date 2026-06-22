@@ -61,6 +61,8 @@ The annual report is served by `GET /api/accreditation/benchmark-publications/an
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/accreditation/benchmark-publications/annual-report` | Anonymized annual industry benchmark (k-anonymity enforced) |
+| `POST /api/accreditation/benchmark-publications/publish` | Archive a dated, immutable edition (rejected below the k-anonymity floor) |
+| `GET /api/accreditation/benchmark-publications` | List archived editions (reproducible publication history) |
 | `GET /api/growth/benchmark-trends` | Anonymized network metric trend history (k-anonymity enforced) |
 | `GET /api/growth/market-intelligence/by-region` | Per-region participant mix (per-region k-anonymity) |
 

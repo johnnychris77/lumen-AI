@@ -66,6 +66,9 @@ track evidence items → score readiness → resolve open critical gaps → gene
 | `GET /api/accreditation/evidence-items?tenant_id=` | List evidence |
 | `POST /api/accreditation/survey-evidence/generate` | Generate a package |
 | `GET /api/accreditation/survey-evidence?tenant_id=` | List generated packages |
+| `GET /api/accreditation/survey-evidence/{id}/export` | Render a printable HTML binder (print to PDF in-browser) |
+
+The HTML export renders the full evidence table + readiness summary as a printable document — surveyors get a document, not raw JSON — without adding a server-side PDF dependency.
 
 ---
 
