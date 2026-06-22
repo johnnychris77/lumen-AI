@@ -25,6 +25,7 @@ const NetworkIntelligenceConsole = lazy(() => import("./pages/NetworkIntelligenc
 const AutonomousOperationsConsole = lazy(() => import("./pages/AutonomousOperationsConsole"));
 const GlobalIntelligenceConsole = lazy(() => import("./pages/GlobalIntelligenceConsole"));
 const GlobalStandardsConsole = lazy(() => import("./pages/GlobalStandardsConsole"));
+const GlobalInfrastructureConsole = lazy(() => import("./pages/GlobalInfrastructureConsole"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
@@ -115,6 +116,7 @@ function App() {
                       <Route path="/autonomous-operations" element={<AutonomousOperationsConsole />} />
                       <Route path="/global-intelligence" element={<GlobalIntelligenceConsole />} />
                       <Route path="/global-standards" element={<GlobalStandardsConsole />} />
+                      <Route path="/infrastructure" element={<GlobalInfrastructureConsole />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"

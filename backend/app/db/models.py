@@ -75,6 +75,10 @@ from app.models.p24_standards import (  # noqa: F401
     QualityStandard, BaselineGovernanceRecord, BenchmarkReport,
     RegionalDeployment, APIPartnerApplication, AdvisoryConsortiumMember, StandardsPublication,
 )
+from app.models.p25_infrastructure import (  # noqa: F401
+    InstrumentDigitalIdentity, SurgicalReadinessScore, InstrumentPassportEvent,
+    GlobalQualityRegistryEntry, IndustryAPICredential,
+)
 
 
 class TenantMembership(Base):
