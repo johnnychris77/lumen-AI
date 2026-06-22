@@ -133,6 +133,7 @@ def ensure_test_database_tables():
     base.metadata.create_all(bind=engine)
     _create_audit_logs_fallback(engine)
     _seed_enterprise_finding(engine)
+    _seed_hipaa_baa(engine)
     yield
 
 
@@ -153,6 +154,35 @@ def _seed_enterprise_finding(engine) -> None:
                     confidence_score=0.0,
                     human_confirmed=False,
                 ))
+                db.commit()
+    except Exception:
+        pass
+
+
+def _seed_hipaa_baa(engine) -> None:
+    """Ensure TenantSubscriptionP14 row for default-tenant has hipaa_baa_signed_at set.
+
+    The integrations route blocks BAA-required system connections unless a
+    subscription with hipaa_baa_signed_at exists for the request tenant.
+    Tests that use default-tenant need this seeded or they get 400.
+    """
+    try:
+        from datetime import datetime, timezone
+        from app.models.tenant_subscription_p14 import TenantSubscriptionP14
+        from sqlalchemy.orm import Session
+
+        with Session(engine) as db:
+            sub = db.query(TenantSubscriptionP14).filter_by(
+                tenant_id="default-tenant"
+            ).first()
+            if sub is None:
+                db.add(TenantSubscriptionP14(
+                    tenant_id="default-tenant",
+                    hipaa_baa_signed_at=datetime.now(timezone.utc),
+                ))
+                db.commit()
+            elif sub.hipaa_baa_signed_at is None:
+                sub.hipaa_baa_signed_at = datetime.now(timezone.utc)
                 db.commit()
     except Exception:
         pass
