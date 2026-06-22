@@ -614,3 +614,137 @@ def test_tenant_isolation_lifecycle():
     uids1 = {i["instrument_uid"] for i in r1}
     uids2 = {i["instrument_uid"] for i in r2}
     assert uids1.isdisjoint(uids2), "Tenant isolation violated: instrument_uids overlap"
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 recommendations: compute-from-data, agreement gating, P15 promotion
+# ---------------------------------------------------------------------------
+
+def _seed_consenting_facility(tid, category, n_inspections, n_defects, scope="benchmark"):
+    """Register a facility, sign a benchmark agreement, and feed it lifecycle data."""
+    client.post("/api/network-intelligence/sharing-agreements", json={
+        "tenant_id": tid, "agreed_by": "admin@test.com", "sharing_scope": scope,
+    }, headers=HEADERS)
+    uid = f"INST-{tid}"
+    client.post("/api/network-intelligence/lifecycle/instruments", json={
+        "tenant_id": tid, "facility_id": "F1", "instrument_uid": uid,
+        "manufacturer_name": "AcmeSurg", "model_name": "M", "instrument_category": category,
+    }, headers=HEADERS)
+    for i in range(n_inspections):
+        outcome = "fail" if i < n_defects else "pass"
+        client.post("/api/network-intelligence/lifecycle/events", json={
+            "tenant_id": tid, "instrument_uid": uid,
+            "event_type": "inspected", "outcome": outcome,
+        }, headers=HEADERS)
+    return uid
+
+
+def test_compute_benchmark_requires_consenting_floor():
+    """Fewer than k consenting facilities → 409, even if data exists."""
+    cat = f"computecat-a-{TS}"
+    # Only 3 consenting facilities (< floor of 5)
+    for i in range(3):
+        _seed_consenting_facility(f"{TENANT}-ca{i}", cat, 4, 1)
+    r = client.post(
+        f"/api/network-intelligence/lifecycle/benchmarks/compute"
+        f"?instrument_category={cat}&metric_name=defect_rate",
+        headers=HEADERS)
+    assert r.status_code == 409
+    assert "k-anonymity" in r.json()["detail"]
+
+
+def test_compute_benchmark_from_consenting_data():
+    """>= k consenting facilities with data → benchmark computed in code."""
+    cat = f"computecat-b-{TS}"
+    for i in range(6):
+        _seed_consenting_facility(f"{TENANT}-cb{i}", cat, 4, 1)  # defect_rate 0.25 each
+    r = client.post(
+        f"/api/network-intelligence/lifecycle/benchmarks/compute"
+        f"?instrument_category={cat}&metric_name=defect_rate",
+        headers=HEADERS)
+    assert r.status_code == 201
+    body = r.json()
+    assert body["n_facilities"] == 6
+    assert body["data_points"] == 6
+    assert body["noise_applied"] is True
+    # p50 should be near 0.25 but noised — sanity bound, not exact
+    assert 0.0 <= body["p50"] <= 1.0
+
+
+def test_compute_benchmark_excludes_non_consenting():
+    """A facility without an active agreement must not count toward k or data."""
+    cat = f"computecat-c-{TS}"
+    # 5 consenting
+    for i in range(5):
+        _seed_consenting_facility(f"{TENANT}-cc{i}", cat, 4, 2)
+    # 1 NON-consenting facility (no agreement) with data
+    noconsent = f"{TENANT}-cc-noconsent"
+    uid = f"INST-{noconsent}"
+    client.post("/api/network-intelligence/lifecycle/instruments", json={
+        "tenant_id": noconsent, "facility_id": "F1", "instrument_uid": uid,
+        "manufacturer_name": "AcmeSurg", "model_name": "M", "instrument_category": cat,
+    }, headers=HEADERS)
+    client.post("/api/network-intelligence/lifecycle/events", json={
+        "tenant_id": noconsent, "instrument_uid": uid,
+        "event_type": "inspected", "outcome": "pass"}, headers=HEADERS)
+    r = client.post(
+        f"/api/network-intelligence/lifecycle/benchmarks/compute"
+        f"?instrument_category={cat}&metric_name=defect_rate",
+        headers=HEADERS)
+    assert r.status_code == 201
+    # Only the 5 consenting facilities count — not the 6th
+    assert r.json()["n_facilities"] == 5
+
+
+def test_compute_benchmark_invalid_metric():
+    r = client.post(
+        f"/api/network-intelligence/lifecycle/benchmarks/compute"
+        f"?instrument_category=anything&metric_name=bogus_metric",
+        headers=HEADERS)
+    assert r.status_code == 400
+
+
+def test_promote_requires_escalated_status():
+    """A candidate (un-escalated) warning cannot be promoted."""
+    r = client.post("/api/network-intelligence/recall-early-warning", json={
+        "instrument_category": "laparoscope", "finding_type": "contamination",
+        "n_facilities_reporting": 5,
+        "first_observed": "2026-01-01T00:00:00", "last_observed": "2026-06-01T00:00:00",
+        "anomaly_score": 0.8, "warning_level": "advisory",
+    }, headers=HEADERS)
+    wid = r.json()["id"]
+    r2 = client.post(
+        f"/api/network-intelligence/recall-early-warning/{wid}/promote?promoted_by=steward",
+        headers=HEADERS)
+    assert r2.status_code == 409
+
+
+def test_promote_escalated_warning_to_recall_signal():
+    """Escalated warning → formal P15 RecallSignal; idempotent on re-promote."""
+    r = client.post("/api/network-intelligence/recall-early-warning", json={
+        "instrument_category": "trocar", "finding_type": "failure",
+        "n_facilities_reporting": 6,
+        "first_observed": "2026-02-01T00:00:00", "last_observed": "2026-06-10T00:00:00",
+        "anomaly_score": 0.93, "warning_level": "alert",
+        "manufacturer_pseudonym": "MFR-PROMOTE",
+    }, headers=HEADERS)
+    wid = r.json()["id"]
+    # Escalate first (human review gate)
+    client.post(
+        f"/api/network-intelligence/recall-early-warning/{wid}/review"
+        "?decision=escalate&reviewed_by=steward_bob", headers=HEADERS)
+    # Promote
+    p = client.post(
+        f"/api/network-intelligence/recall-early-warning/{wid}/promote?promoted_by=steward_bob",
+        headers=HEADERS)
+    assert p.status_code == 201
+    body = p.json()
+    assert body["signal_id"].startswith("RS-")
+    assert body["signal_type"] == "recurring_failure"
+    assert body["already_promoted"] is False
+    # Idempotent re-promote
+    p2 = client.post(
+        f"/api/network-intelligence/recall-early-warning/{wid}/promote?promoted_by=steward_bob",
+        headers=HEADERS)
+    assert p2.json()["already_promoted"] is True
+    assert p2.json()["signal_id"] == body["signal_id"]

@@ -197,6 +197,8 @@ class RecallEarlyWarning(Base):
     review_notes = Column(Text, nullable=True)
     escalated_to_steward_at = Column(DateTime, nullable=True)
     steward_decision = Column(String, nullable=True)             # notify_fda/monitor/close
+    # Link to the formal P15 RecallSignal once an escalated warning is promoted.
+    promoted_recall_signal_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 

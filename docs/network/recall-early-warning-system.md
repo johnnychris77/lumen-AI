@@ -61,7 +61,7 @@ The automated system **only surfaces and categorizes signals**. It never autonom
 | Decision | Outcome |
 |----------|---------|
 | `monitor` | Status → `under_review`; signal tracked in next anomaly run |
-| `escalate` | Status → `escalated`; steward decision recorded; steward notifies appropriate parties outside the system |
+| `escalate` | Status → `escalated`; steward decision recorded; steward notifies appropriate parties outside the system. An escalated warning may then be **promoted** into the formal P15 `RecallSignal` network record via `/promote` (idempotent — the two recall systems stay linked rather than parallel) |
 | `close` | Status → `closed`; signal resolved / pattern explained |
 | `suppress` | Status → `suppressed`; signal was a false pattern |
 
@@ -85,6 +85,7 @@ Aggregated at the manufacturer-category level (pseudonymized, k-floor of 5). Pro
 | `POST /api/network-intelligence/recall-early-warning` | Surface a new warning signal |
 | `GET /api/network-intelligence/recall-early-warning` | List active signals |
 | `POST /api/network-intelligence/recall-early-warning/{id}/review` | Human review decision |
+| `POST /api/network-intelligence/recall-early-warning/{id}/promote` | Promote an **escalated** warning into the formal P15 `RecallSignal` (idempotent) |
 | `POST /api/network-intelligence/anomaly-detection/run` | Log a detection scan |
 | `GET /api/network-intelligence/anomaly-detection/runs` | Detection run history |
 | `POST /api/network-intelligence/manufacturer-intelligence` | Publish manufacturer profile (k-floor enforced) |

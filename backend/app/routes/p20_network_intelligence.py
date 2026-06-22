@@ -17,6 +17,9 @@ Privacy & governance:
 """
 from __future__ import annotations
 
+import math
+import random
+import statistics
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -81,6 +84,40 @@ _DISCLAIMER = (
     "Signals are candidate indicators requiring human review — not causation findings. "
     "LumenAI does not claim FDA clearance or regulatory approval."
 )
+
+# Differential-privacy epsilon for published aggregates. Lower = more noise /
+# stronger privacy. Tuned conservatively for rate/count aggregates.
+_LAPLACE_EPSILON = 1.0
+
+
+def _apply_laplace(value: float, sensitivity: float = 1.0,
+                   epsilon: float = _LAPLACE_EPSILON) -> float:
+    """Add Laplace noise to an aggregate so published values are not exact.
+
+    This makes the `noise_applied` flag truthful rather than decorative. Scale
+    is sensitivity/epsilon; we sample via inverse-CDF on a uniform draw.
+    """
+    if sensitivity <= 0 or epsilon <= 0:
+        return value
+    scale = sensitivity / epsilon
+    u = random.random() - 0.5
+    noise = -scale * math.copysign(1.0, u) * math.log(1 - 2 * abs(u))
+    return value + noise
+
+
+def _consenting_tenant_ids(db, scope: str = "benchmark") -> set[str]:
+    """Tenant IDs with an active intelligence-sharing agreement covering `scope`.
+
+    Makes opt-in real: only these tenants' records contribute to aggregates.
+    `full` scope covers every use; otherwise the agreement scope must match.
+    """
+    rows = (db.query(IntelligenceSharingAgreement)
+            .filter_by(status="active").all())
+    allowed = set()
+    for a in rows:
+        if a.sharing_scope == "full" or a.sharing_scope == scope:
+            allowed.add(a.tenant_id)
+    return allowed
 
 
 # ===========================================================================
@@ -448,6 +485,91 @@ def publish_lifecycle_benchmark(body: LifecycleBenchmarkIn, db: Session = Depend
             "metric_name": bm.metric_name, "n_facilities": bm.n_facilities}
 
 
+_COMPUTABLE_METRICS = {"defect_rate", "repair_rate", "median_lifespan_cycles"}
+
+
+@router.post("/lifecycle/benchmarks/compute", status_code=201,
+             dependencies=[Depends(require_roles("admin"))])
+def compute_lifecycle_benchmark(
+    instrument_category: str = Query(...),
+    metric_name: str = Query("defect_rate"),
+    db: Session = Depends(get_db),
+):
+    """Derive a network benchmark from contributed lifecycle records.
+
+    This is the missing link: instead of hand-fed numbers, the benchmark is
+    computed from `InstrumentLifecycleRecord` rows belonging to tenants who
+    have an *active* benchmark-scoped sharing agreement (opt-in enforced).
+    k-anonymity floor and Laplace noise are applied in code.
+    """
+    if metric_name not in _COMPUTABLE_METRICS:
+        raise HTTPException(400, f"metric_name must be one of {_COMPUTABLE_METRICS}")
+
+    consenting = _consenting_tenant_ids(db, scope="benchmark")
+    if not consenting:
+        raise HTTPException(409,
+            "No tenants have an active benchmark-scoped sharing agreement.")
+
+    records = (db.query(InstrumentLifecycleRecord)
+               .filter(InstrumentLifecycleRecord.instrument_category == instrument_category,
+                       InstrumentLifecycleRecord.tenant_id.in_(consenting))
+               .all())
+
+    # k-anonymity is on distinct contributing facilities, not row count.
+    contributing = {r.tenant_id for r in records}
+    if len(contributing) < _K_FLOOR:
+        raise HTTPException(409,
+            f"Only {len(contributing)} consenting facilities contribute data for "
+            f"'{instrument_category}'; k-anonymity floor is {_K_FLOOR}.")
+
+    if metric_name == "defect_rate":
+        values = [r.defect_rate for r in records if r.total_inspections > 0]
+    elif metric_name == "repair_rate":
+        values = [(r.total_repairs / r.total_inspections)
+                  for r in records if r.total_inspections > 0]
+    else:  # median_lifespan_cycles — use inspections-to-date as a lifespan proxy
+        values = [float(r.total_inspections) for r in records
+                  if r.lifecycle_status in ("retired", "recalled") and r.total_inspections > 0]
+
+    if not values:
+        raise HTTPException(409,
+            f"No usable data points for metric '{metric_name}' in '{instrument_category}'.")
+
+    raw_p50 = statistics.median(values)
+    raw_mean = statistics.fmean(values)
+    raw_p90 = (statistics.quantiles(values, n=10)[-1]
+               if len(values) >= 2 else raw_p50)
+
+    # Sensitivity ~ value spread; rates are bounded [0,1] so sensitivity small.
+    sensitivity = 1.0 if metric_name == "median_lifespan_cycles" else 0.05
+    bm = LifecycleBenchmark(
+        instrument_category=instrument_category,
+        metric_name=metric_name,
+        cohort="all",
+        n_facilities=len(contributing),
+        p50=round(_apply_laplace(raw_p50, sensitivity), 4),
+        p90=round(_apply_laplace(raw_p90, sensitivity), 4),
+        mean=round(_apply_laplace(raw_mean, sensitivity), 4),
+        noise_applied=True,
+    )
+    db.add(bm)
+    db.commit()
+    db.refresh(bm)
+    _audit(db, "lifecycle_benchmark_computed", "__network__",
+           {"category": instrument_category, "metric": metric_name,
+            "n_facilities": len(contributing), "data_points": len(values)})
+    return {
+        "id": bm.id,
+        "instrument_category": bm.instrument_category,
+        "metric_name": bm.metric_name,
+        "n_facilities": bm.n_facilities,
+        "data_points": len(values),
+        "p50": bm.p50, "p90": bm.p90, "mean": bm.mean,
+        "noise_applied": True,
+        "disclaimer": _DISCLAIMER,
+    }
+
+
 @router.get("/lifecycle/benchmarks",
             dependencies=[Depends(require_roles("admin", "spd_manager", "executive"))])
 def list_lifecycle_benchmarks(instrument_category: Optional[str] = None,
@@ -586,6 +708,75 @@ def review_early_warning(warning_id: int,
                              "reviewed_by": reviewed_by})
     return {"id": warning_id, "signal_ref": warning.signal_ref,
             "status": warning.status, "decision": decision}
+
+
+@router.post("/recall-early-warning/{warning_id}/promote", status_code=201,
+             dependencies=[Depends(require_roles("admin"))])
+def promote_to_recall_signal(warning_id: int,
+                             promoted_by: str = Query(...),
+                             db: Session = Depends(get_db)):
+    """Promote an *escalated* early warning into the formal P15 RecallSignal.
+
+    Connects the two recall systems: a P20 candidate warning that survives human
+    review and is escalated becomes a tracked P15 RecallSignal (the established
+    network recall record), with its facility contributions seeded. Idempotent —
+    re-promoting returns the existing signal.
+    """
+    from app.models.recall_signal import RecallSignal, FacilityRecallSignalContribution
+
+    warning = db.get(RecallEarlyWarning, warning_id)
+    if not warning:
+        raise HTTPException(404, "Early warning not found.")
+    if warning.status != "escalated":
+        raise HTTPException(409,
+            "Only escalated warnings can be promoted. Review and escalate first.")
+    if warning.promoted_recall_signal_id:
+        return {"id": warning_id, "signal_id": warning.promoted_recall_signal_id,
+                "already_promoted": True}
+
+    # Map P20 finding_type → P15 signal_type vocabulary.
+    signal_type_map = {
+        "contamination": "recurring_contamination",
+        "defect": "recurring_defect",
+        "failure": "recurring_failure",
+        "corrosion": "recurring_defect",
+    }
+    signal_id = f"RS-{uuid.uuid4().hex[:10]}"
+    signal = RecallSignal(
+        signal_id=signal_id,
+        signal_type=signal_type_map.get(warning.finding_type, "recurring_defect"),
+        manufacturer_pseudonym=warning.manufacturer_pseudonym,
+        instrument_category=warning.instrument_category,
+        finding_type=warning.finding_type,
+        n_facilities_reporting=warning.n_facilities_reporting,
+        first_observed=warning.first_observed,
+        last_observed=warning.last_observed,
+        signal_strength=warning.anomaly_score,
+        status="escalated",
+        escalated_to_fda=False,
+    )
+    db.add(signal)
+    # Seed an anonymized contribution placeholder so the formal signal carries
+    # facility-count provenance without exposing tenant identity.
+    db.add(FacilityRecallSignalContribution(
+        signal_id=signal_id,
+        facility_pseudonym=f"AGG-{warning.signal_ref}",
+        finding_count=warning.n_facilities_reporting,
+    ))
+    warning.promoted_recall_signal_id = signal_id
+    db.commit()
+    _audit(db, "recall_early_warning_promoted", "__network__",
+           {"signal_ref": warning.signal_ref, "recall_signal_id": signal_id,
+            "promoted_by": promoted_by})
+    return {
+        "id": warning_id,
+        "signal_ref": warning.signal_ref,
+        "signal_id": signal_id,
+        "signal_type": signal.signal_type,
+        "status": "escalated",
+        "already_promoted": False,
+        "disclaimer": _DISCLAIMER,
+    }
 
 
 @router.post("/anomaly-detection/run", status_code=201,

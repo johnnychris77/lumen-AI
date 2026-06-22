@@ -71,8 +71,18 @@ Representative benchmark metrics:
 | `GET /api/network-intelligence/lifecycle/instruments?tenant_id=` | List instruments (tenant-scoped) |
 | `POST /api/network-intelligence/lifecycle/events` | Log lifecycle event |
 | `GET /api/network-intelligence/lifecycle/events?tenant_id=&instrument_uid=` | Full event history |
-| `POST /api/network-intelligence/lifecycle/benchmarks` | Publish anonymized benchmark (k-floor enforced) |
+| `POST /api/network-intelligence/lifecycle/benchmarks` | Publish a pre-computed anonymized benchmark (k-floor enforced) |
+| `POST /api/network-intelligence/lifecycle/benchmarks/compute` | **Derive** a benchmark from contributed lifecycle records (opt-in + k-floor + Laplace noise enforced in code) |
 | `GET /api/network-intelligence/lifecycle/benchmarks` | List published benchmarks |
+
+### Computed Benchmarks (opt-in enforced)
+
+`POST /lifecycle/benchmarks/compute?instrument_category=&metric_name=` is the link between contributed data and published intelligence:
+
+- Aggregates `InstrumentLifecycleRecord` rows **only from tenants with an active benchmark-scoped sharing agreement** — opt-in is enforced, not decorative
+- k-anonymity floor of 5 is measured on **distinct contributing facilities**, not row count
+- **Laplace noise is applied in code** (`noise_applied` is truthful, not a hardcoded flag)
+- Supported metrics: `defect_rate`, `repair_rate`, `median_lifespan_cycles`
 
 ---
 
