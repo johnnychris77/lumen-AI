@@ -698,8 +698,8 @@ def test_compute_benchmark_excludes_non_consenting():
 
 def test_compute_benchmark_invalid_metric():
     r = client.post(
-        f"/api/network-intelligence/lifecycle/benchmarks/compute"
-        f"?instrument_category=anything&metric_name=bogus_metric",
+        "/api/network-intelligence/lifecycle/benchmarks/compute"
+        "?instrument_category=anything&metric_name=bogus_metric",
         headers=HEADERS)
     assert r.status_code == 400
 
