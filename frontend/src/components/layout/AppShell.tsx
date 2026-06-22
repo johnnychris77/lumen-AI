@@ -21,6 +21,7 @@ import {
   LineChart,
   Network,
   Workflow,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
     roles: ["admin", "executive"],
     items: [
       { to: "/network-intelligence", label: "Network Intelligence", icon: Network },
+      { to: "/global-intelligence", label: "Global Surgical Intelligence", icon: Globe },
     ],
   },
   {
