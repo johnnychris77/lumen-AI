@@ -21,6 +21,7 @@ const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
 const GrowthConsole = lazy(() => import("./pages/GrowthConsole"));
 const AccreditationConsole = lazy(() => import("./pages/AccreditationConsole"));
+const NetworkIntelligenceConsole = lazy(() => import("./pages/NetworkIntelligenceConsole"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
@@ -107,6 +108,7 @@ function App() {
                       <Route path="/commercial" element={<CommercialConsole />} />
                       <Route path="/growth" element={<GrowthConsole />} />
                       <Route path="/accreditation" element={<AccreditationConsole />} />
+                      <Route path="/network-intelligence" element={<NetworkIntelligenceConsole />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"
