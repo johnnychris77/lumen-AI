@@ -71,6 +71,10 @@ from app.models.p22_operations import (  # noqa: F401
     OperationsWorkflow, WorkflowStep, WorkflowExecution, WorkflowStepExecution,
     WorkQueueItem, OperationalRiskSnapshot, CopilotQuery, CopilotRecommendation,
 )
+from app.models.p24_standards import (  # noqa: F401
+    QualityStandard, BaselineGovernanceRecord, BenchmarkReport,
+    RegionalDeployment, APIPartnerApplication, AdvisoryConsortiumMember, StandardsPublication,
+)
 
 
 class TenantMembership(Base):

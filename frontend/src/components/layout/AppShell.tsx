@@ -22,6 +22,7 @@ import {
   Network,
   Workflow,
   Globe,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/network-intelligence", label: "Network Intelligence", icon: Network },
       { to: "/global-intelligence", label: "Global Surgical Intelligence", icon: Globe },
+      { to: "/global-standards", label: "Standards & Benchmarks", icon: BookOpen },
     ],
   },
   {

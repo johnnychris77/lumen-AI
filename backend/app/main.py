@@ -107,6 +107,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.digital_quality_twin") # register P22 digital quality twin tables
     importlib.import_module("app.models.global_intelligence")  # register P23 global intelligence tables
     importlib.import_module("app.models.consent_record")       # register P20 consent record table
+    importlib.import_module("app.models.p24_standards")        # register P24 standards tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     try:
@@ -847,6 +848,8 @@ from app.routes.p20_network_intelligence import router as p20_router
 app.include_router(p20_router)
 from app.routes.p22_operations import router as p22_router
 app.include_router(p22_router)
+from app.routes.p24_standards import router as p24_router
+app.include_router(p24_router)
 
 from fastapi.openapi.utils import get_openapi
 
