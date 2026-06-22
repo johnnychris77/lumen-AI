@@ -19,6 +19,7 @@ import {
   Briefcase,
   TrendingUp,
   LineChart,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,13 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/commercial", label: "Commercial", icon: Briefcase },
       { to: "/growth", label: "Growth", icon: TrendingUp },
       { to: "/pilot-analytics", label: "Pilot Analytics", icon: LineChart },
+    ],
+  },
+  {
+    label: "Network Intelligence",
+    roles: ["admin", "executive"],
+    items: [
+      { to: "/network-intelligence", label: "Network Intelligence", icon: Network },
     ],
   },
 ];

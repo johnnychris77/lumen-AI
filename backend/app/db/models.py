@@ -60,6 +60,13 @@ from app.models.accreditation import (  # noqa: F401
     SurveyEvidencePackage, CertifiedSite, BenchmarkPublication,
     AdvisoryBoardMember, CriteriaProposal,
 )
+from app.models.p20_network_intelligence import (  # noqa: F401
+    SPDRegistryEntry, IntelligenceSharingAgreement, NetworkAggregateSnapshot,
+    InstrumentLifecycleRecord, LifecycleEvent, LifecycleBenchmark,
+    RecallEarlyWarning, ManufacturerIntelligenceProfile, AnomalyDetectionRun,
+    ResearchDataset, ResearchStudy, ResearchPublication,
+    ExecutiveIntelligenceDashboard, ExecutiveIntelligenceSnapshot,
+)
 
 
 class TenantMembership(Base):
