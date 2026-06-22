@@ -71,3 +71,23 @@ Version 1.0 | Commercial — CONFIDENTIAL
 | Health System | 1 customer | $350K | $350K |
 | Manufacturer subscriptions | 10 manufacturers | $6K | $60K |
 | **Total Year 1 ARR target** | | | **~$2.1M** |
+
+## Pricing API (P17)
+The commercial pricing model is exposed via authenticated endpoints for sales tooling:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/commercial/packages` | List all four package tiers and features |
+| `GET /api/commercial/packages/{tier}` | Single tier detail (starter/professional/enterprise/health_system) |
+| `GET /api/commercial/pricing/hospital` | Hospital per-facility pricing model |
+| `GET /api/commercial/pricing/vendor` | Manufacturer/vendor subscription pricing |
+| `GET /api/commercial/pricing/enterprise` | Enterprise/Health System pricing model |
+| `POST /api/commercial/pricing/estimate` | Non-binding list estimate (tier, facilities, term) |
+
+Estimate logic mirrors this document:
+- **Multi-facility discount:** 10% (3–5 facilities), 20% (6+)
+- **Multi-year discount:** 10% (2-year), 15% (3-year)
+- **Discount cap:** 40% (matches strategic-discount ceiling)
+- Health System figures returned are the midpoint of the published $250K–$800K range.
+
+> All API estimates are non-binding list prices for modeling only; not quotes.

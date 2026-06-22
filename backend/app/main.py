@@ -836,6 +836,9 @@ app.include_router(enterprise_hierarchy_router)
 from app.routes.enterprise_dashboards import router as enterprise_dashboards_router
 app.include_router(enterprise_dashboards_router)
 
+from app.routes.commercial import router as commercial_router
+app.include_router(commercial_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
