@@ -120,3 +120,61 @@ class CertifiedSite(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+class BenchmarkPublication(Base):
+    """An immutable, dated archive of a published anonymized industry benchmark.
+
+    Stores only anonymized aggregates + methodology — never raw tenant data."""
+
+    __tablename__ = "accreditation_benchmark_publications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    edition: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    report_type: Mapped[str] = mapped_column(String(50), default="annual_industry_benchmark", nullable=False)
+    active_participants: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # JSON-serialized anonymized aggregate payload + methodology
+    payload_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True, nullable=False
+    )
+    published_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
+
+class AdvisoryBoardMember(Base):
+    """A member of the certification/benchmark advisory board (Phase 6 governance)."""
+
+    __tablename__ = "accreditation_advisory_board_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    member_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(100), default="member", nullable=False)
+    organization: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    term_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    term_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    conflict_of_interest_disclosed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class CriteriaProposal(Base):
+    """A proposed change to certification criteria or benchmark methodology that
+    the advisory board reviews and signs off (Phase 6 review process)."""
+
+    __tablename__ = "accreditation_criteria_proposals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    # certification_criteria | benchmark_methodology
+    proposal_type: Mapped[str] = mapped_column(String(50), default="certification_criteria", nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # proposed | under_review | approved | rejected
+    status: Mapped[str] = mapped_column(String(30), default="proposed", nullable=False)
+    proposed_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    signed_off_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    signed_off_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

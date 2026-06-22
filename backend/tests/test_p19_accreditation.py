@@ -154,3 +154,114 @@ class TestBenchmarkPublicationAndKpis:
     def test_report_requires_auth(self):
         assert client.get(
             "/api/accreditation/benchmark-publications/annual-report").status_code == 401
+
+
+class TestEvidenceTemplates:
+    def test_templates_listed(self):
+        r = client.get("/api/accreditation/evidence-templates?accreditor=joint_commission",
+                       headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()["items"]) > 0
+
+    def test_seed_is_idempotent(self):
+        tid, fid = f"seed-{TS}", "F1"
+        first = client.post("/api/accreditation/evidence-items/seed",
+                            json={"tenant_id": tid, "facility_id": fid,
+                                  "accreditor": "cms"}, headers=AUTH)
+        assert first.status_code == 201
+        assert first.json()["created"] > 0
+        second = client.post("/api/accreditation/evidence-items/seed",
+                             json={"tenant_id": tid, "facility_id": fid,
+                                   "accreditor": "cms"}, headers=AUTH)
+        assert second.json()["created"] == 0  # already seeded
+
+
+class TestReadinessCapaLinkage:
+    def test_create_capas_from_critical_gaps(self):
+        tid, fid = f"capa-{TS}", "F1"
+        # Seed CMS template (has a critical missing item by default)
+        client.post("/api/accreditation/evidence-items/seed",
+                    json={"tenant_id": tid, "facility_id": fid, "accreditor": "cms"},
+                    headers=AUTH)
+        r = client.post("/api/accreditation/readiness/create-capas",
+                        json={"tenant_id": tid, "facility_id": fid, "accreditor": "cms"},
+                        headers=AUTH)
+        assert r.status_code == 201
+        body = r.json()
+        assert body["open_critical_gaps"] >= 1
+        assert body["capas_created"] >= 1
+        # idempotent second call creates none
+        again = client.post("/api/accreditation/readiness/create-capas",
+                            json={"tenant_id": tid, "facility_id": fid, "accreditor": "cms"},
+                            headers=AUTH)
+        assert again.json()["capas_created"] == 0
+
+
+class TestCertificationEligibility:
+    def test_eligibility_gated_by_open_critical(self):
+        tid, fid = f"elig-{TS}", "F1"
+        client.post("/api/accreditation/evidence-items/seed",
+                    json={"tenant_id": tid, "facility_id": fid, "accreditor": "hfap"},
+                    headers=AUTH)
+        c = client.post("/api/accreditation/certifications",
+                        json={"tenant_id": tid, "facility_id": fid,
+                              "certification_type": "certified_site"}, headers=AUTH)
+        cid = c.json()["id"]
+        e = client.get(f"/api/accreditation/certifications/{cid}/eligibility", headers=AUTH)
+        assert e.status_code == 200
+        body = e.json()
+        # HFAP template has open critical items → not eligible
+        assert body["checks"]["no_open_critical"] is False
+        assert body["eligible"] is False
+
+
+class TestBenchmarkArchiveAndExport:
+    def test_publish_below_floor_409(self):
+        r = client.post("/api/accreditation/benchmark-publications/publish",
+                        json={"edition": f"2026-{TS}"}, headers=AUTH)
+        # Small test network → suppressed
+        assert r.status_code in (201, 409)
+
+    def test_list_publications(self):
+        r = client.get("/api/accreditation/benchmark-publications", headers=AUTH)
+        assert r.status_code == 200
+        assert "publications" in r.json()
+
+    def test_export_package_html(self):
+        tid, fid = f"exp-{TS}", "F1"
+        client.post("/api/accreditation/evidence-items",
+                    json={"tenant_id": tid, "facility_id": fid, "accreditor": "state",
+                          "status": "complete", "title": "policy"}, headers=AUTH)
+        g = client.post("/api/accreditation/survey-evidence/generate",
+                        json={"tenant_id": tid, "facility_id": fid, "accreditor": "state"},
+                        headers=AUTH)
+        pid = g.json()["id"]
+        x = client.get(f"/api/accreditation/survey-evidence/{pid}/export", headers=AUTH)
+        assert x.status_code == 200
+        assert "Survey Evidence Binder" in x.text
+
+
+class TestAdvisoryBoard:
+    def test_member_and_proposal_signoff(self):
+        m = client.post("/api/accreditation/advisory-board/members",
+                        json={"member_name": f"Dr. Q-{TS}", "role": "quality_advisor",
+                              "conflict_of_interest_disclosed": True}, headers=AUTH)
+        assert m.status_code == 201
+        p = client.post("/api/accreditation/advisory-board/proposals",
+                        json={"title": "Raise readiness gate", "description": "to 90"},
+                        headers=AUTH)
+        pid = p.json()["id"]
+        assert p.json()["status"] == "proposed"
+        s = client.post(f"/api/accreditation/advisory-board/proposals/{pid}/sign-off?decision=approved",
+                        headers=AUTH)
+        assert s.status_code == 200
+        assert s.json()["status"] == "approved"
+        assert s.json()["signed_off_at"] is not None
+
+    def test_invalid_decision_422(self):
+        p = client.post("/api/accreditation/advisory-board/proposals",
+                        json={"title": "x"}, headers=AUTH)
+        pid = p.json()["id"]
+        s = client.post(f"/api/accreditation/advisory-board/proposals/{pid}/sign-off?decision=maybe",
+                        headers=AUTH)
+        assert s.status_code == 422

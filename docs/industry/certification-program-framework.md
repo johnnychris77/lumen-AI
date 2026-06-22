@@ -32,6 +32,18 @@ applicant → in_review → certified → (expired)
 - All status changes are audit-logged
 - Certification criteria must be human-reviewed; no automated pass/fail without review
 
+### Eligibility Gating
+
+`GET /api/accreditation/certifications/{id}/eligibility` evaluates whether a facility currently meets the gating thresholds before a human awards the certification:
+
+| Certification | Min readiness | Min completeness | Open critical items |
+|---------------|--------------|------------------|---------------------|
+| Certified Site | 85 | 85 | 0 |
+| Baseline Excellence | 80 | 90 | 0 |
+| Inspection Intelligence | 80 | 80 | 0 |
+
+Eligibility is a **gating indicator** — human sign-off via `/award` is still required. This prevents premature awards while keeping the final decision with a person.
+
 ---
 
 ## 4. Certification Criteria (illustrative)
@@ -57,6 +69,14 @@ applicant → in_review → certified → (expired)
 | **Mandate** | Approve certification criteria and benchmark methodology; uphold anonymization, k-anonymity, and no-causation/no-regulatory-claim discipline |
 | **Review process** | Periodic review of criteria + published methodology; sign-off on material changes; conflict-of-interest disclosure required |
 | **Independence** | Board can require changes to published claims; commercial teams cannot override governance decisions |
+
+**Enforced in code:** members and proposals are tracked, not just documented:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST/GET /api/accreditation/advisory-board/members` | Manage board members (with COI disclosure flag) |
+| `POST/GET /api/accreditation/advisory-board/proposals` | Submit/list criteria or methodology change proposals |
+| `POST /api/accreditation/advisory-board/proposals/{id}/sign-off?decision=` | Record an approve/reject sign-off (audit-logged) |
 
 ---
 

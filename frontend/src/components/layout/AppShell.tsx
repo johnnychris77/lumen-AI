@@ -15,12 +15,20 @@ import {
   ChevronRight,
   Bell,
   LogOut,
-  Menu,
+  Award,
+  Briefcase,
+  TrendingUp,
+  LineChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-const NAV_GROUPS = [
+type NavLeaf = { to: string; label: string; icon: React.ElementType; roles?: string[] };
+type NavGroup = { label: string; roles?: string[]; items: NavLeaf[] };
+
+// `roles` (when present) restricts visibility. Omitted = visible to all roles.
+// The backend still enforces access via require_roles — this is UX decluttering.
+const NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
     items: [
@@ -31,6 +39,7 @@ const NAV_GROUPS = [
   },
   {
     label: "Inspection Intelligence",
+    roles: ["admin", "spd_manager", "vendor_user", "viewer"],
     items: [
       { to: "/vendor-intake", label: "Vendor Intake", icon: ClipboardList },
       { to: "/intake-history", label: "Intake History", icon: History },
@@ -41,12 +50,34 @@ const NAV_GROUPS = [
   },
   {
     label: "Quality & Compliance",
+    roles: ["admin", "spd_manager", "executive"],
     items: [
       { to: "/findings", label: "Findings Queue", icon: FileSearch },
       { to: "/capa", label: "CAPA Workflow", icon: ShieldCheck },
+      { to: "/accreditation", label: "Accreditation", icon: Award },
+    ],
+  },
+  {
+    label: "Enterprise & Growth",
+    roles: ["admin", "executive"],
+    items: [
+      { to: "/enterprise", label: "Enterprise", icon: Building2 },
+      { to: "/commercial", label: "Commercial", icon: Briefcase },
+      { to: "/growth", label: "Growth", icon: TrendingUp },
+      { to: "/pilot-analytics", label: "Pilot Analytics", icon: LineChart },
     ],
   },
 ];
+
+function visibleGroups(role: string): NavGroup[] {
+  return NAV_GROUPS
+    .filter((g) => !g.roles || g.roles.includes(role))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => !it.roles || it.roles.includes(role)),
+    }))
+    .filter((g) => g.items.length > 0);
+}
 
 function NavItem({
   to,
@@ -81,6 +112,8 @@ function NavItem({
 }
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const role = localStorage.getItem("role") || "viewer";
+  const groups = visibleGroups(role);
   return (
     <aside
       className={cn(
@@ -110,7 +143,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-4">
-        {NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group.label}>
             {!collapsed && (
               <p className="mb-1.5 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -153,18 +186,11 @@ function Header() {
 
   const breadcrumb = React.useMemo(() => {
     const path = location.pathname;
-    const map: Record<string, string> = {
-      "/": "Dashboard",
-      "/operations": "Operations",
-      "/analytics": "Analytics",
-      "/vendor-intake": "Vendor Intake",
-      "/intake-history": "Intake History",
-      "/manufacturer-baselines": "Manufacturer Baselines",
-      "/baseline-review": "Baseline Review",
-      "/vendor-baseline-portal": "Vendor Baseline Portal",
-      "/findings": "Findings Queue",
-      "/capa": "CAPA Workflow",
-    };
+    // Derive the label from the nav config so it never goes stale as routes grow.
+    const map: Record<string, string> = {};
+    for (const group of NAV_GROUPS) {
+      for (const item of group.items) map[item.to] = item.label;
+    }
     return map[path] || path.replace("/", "").replace(/-/g, " ");
   }, [location.pathname]);
 
