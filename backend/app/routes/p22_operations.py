@@ -215,7 +215,7 @@ def execute_workflow(workflow_id: int, tenant_id: str = Query(...),
     db.add(ex)
     db.flush()
 
-    # Create step execution records from workflow steps
+    # Create step execution records + a work queue item per step
     steps = (db.query(WorkflowStep).filter_by(workflow_id=workflow_id)
              .order_by(WorkflowStep.step_order).all())
     for s in steps:
@@ -227,6 +227,24 @@ def execute_workflow(workflow_id: int, tenant_id: str = Query(...),
             status="pending",
         )
         db.add(se)
+        # Compute per-step due date if the workflow has an SLA
+        step_due = None
+        if wf.sla_hours and len(steps) > 0:
+            step_due = datetime.now(timezone.utc) + timedelta(
+                hours=wf.sla_hours * s.step_order / len(steps)
+            )
+        qi = WorkQueueItem(
+            tenant_id=tenant_id,
+            queue_type=s.assignee_role,           # route item to the correct role queue
+            title=f"{wf.name} — {s.name}",
+            description=s.instructions,
+            priority=body.priority,
+            source_type=body.resource_type,
+            source_id=body.resource_id,
+            execution_id=ex.id,
+            due_at=step_due,
+        )
+        db.add(qi)
 
     db.commit()
     db.refresh(ex)
@@ -382,6 +400,7 @@ def list_queue_items(tenant_id: str = Query(...),
     return [{"id": r.id, "queue_type": r.queue_type, "title": r.title,
              "priority": r.priority, "status": r.status,
              "source_type": r.source_type, "assigned_to": r.assigned_to,
+             "execution_id": r.execution_id,
              "due_at": r.due_at.isoformat() if r.due_at else None,
              "escalated": r.escalated,
              "created_at": r.created_at.isoformat()} for r in rows]
@@ -561,24 +580,131 @@ class RecommendationReviewIn(BaseModel):
     review_notes: Optional[str] = None
 
 
-_COPILOT_TEMPLATES = {
-    "prioritization": (
-        "Based on current queue depth and SLA windows, the following items are "
-        "candidates for immediate prioritization. Human review required before action."
-    ),
-    "workload": (
-        "Current workload distribution across queues shows imbalance. "
-        "Rebalancing recommendations are candidate signals — human review required."
-    ),
-    "action": (
-        "Based on active escalations and overdue items, the following actions "
-        "are suggested as investigation candidates. No autonomous action taken."
-    ),
-    "status": (
-        "Operational status summary derived from live queue and execution data. "
-        "All figures are point-in-time snapshots requiring human interpretation."
-    ),
-}
+def _build_copilot_response(query_type: str, tenant_id: str, db) -> tuple[str, float]:
+    """Derive a candidate response from live queue + execution state."""
+    # Use naive UTC — SQLite stores naive datetimes; avoids offset-naive comparison errors.
+    now_naive = datetime.utcnow()
+
+    open_items = db.query(WorkQueueItem).filter(
+        WorkQueueItem.tenant_id == tenant_id,
+        WorkQueueItem.status.in_(("open", "claimed", "in_progress")),
+    ).all()
+
+    total_open = len(open_items)
+    high_priority = [i for i in open_items if i.priority in ("high", "critical")]
+    escalated = [i for i in open_items if i.escalated]
+    overdue = [i for i in open_items if i.due_at and i.due_at < now_naive]
+
+    by_queue: dict[str, int] = {}
+    for item in open_items:
+        by_queue[item.queue_type] = by_queue.get(item.queue_type, 0) + 1
+
+    active_executions = db.query(WorkflowExecution).filter(
+        WorkflowExecution.tenant_id == tenant_id,
+        WorkflowExecution.status.in_(("in_progress", "awaiting_approval", "escalated")),
+    ).count()
+
+    if query_type == "prioritization":
+        top = sorted(high_priority, key=lambda i: (i.priority == "critical", i.due_at or now_naive), reverse=True)[:5]
+        titles = ", ".join(f'"{i.title}"' for i in top) if top else "none found"
+        response = (
+            f"There are {len(high_priority)} high/critical priority items open across all queues "
+            f"({total_open} total). Top candidates for immediate attention: {titles}. "
+            f"{len(overdue)} items are past their due date. Human review required before action."
+        )
+        confidence = min(0.95, 0.55 + 0.05 * min(len(open_items), 8))
+
+    elif query_type == "workload":
+        queue_summary = "; ".join(f"{qt}: {cnt}" for qt, cnt in sorted(by_queue.items()))
+        busiest = max(by_queue, key=by_queue.get) if by_queue else "none"
+        response = (
+            f"Current queue depth — {queue_summary or 'all queues empty'}. "
+            f"The busiest queue is '{busiest}'. "
+            f"{active_executions} workflow executions are active. "
+            "Rebalancing candidates are surfaced here — human decision required."
+        )
+        confidence = 0.78 if total_open > 0 else 0.60
+
+    elif query_type == "action":
+        response = (
+            f"There are {len(escalated)} escalated items and {len(overdue)} overdue items requiring attention. "
+            f"{active_executions} executions are in flight. "
+            "Suggested investigation candidates (not orders): review escalated items first, "
+            "then overdue high-priority items. No autonomous action has been taken."
+        )
+        confidence = min(0.85, 0.50 + 0.05 * (len(escalated) + len(overdue)))
+
+    else:  # status
+        response = (
+            f"Operational status — {total_open} open queue items, "
+            f"{len(high_priority)} high/critical priority, "
+            f"{len(escalated)} escalated, {len(overdue)} overdue, "
+            f"{active_executions} active workflow executions. "
+            "All figures are point-in-time snapshots requiring human interpretation."
+        )
+        confidence = 0.88
+
+    return response, round(confidence, 2)
+
+
+@router.post("/executions/scan-timeouts",
+             dependencies=[Depends(require_roles("admin"))])
+def scan_step_timeouts(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+    """Evaluate overdue WorkflowStepExecutions and enforce on_timeout policy.
+
+    Policies:
+      escalate — set step status to escalated; set execution status to escalated
+      skip     — mark step completed with outcome=skipped
+      block    — leave step pending; mark execution escalated for human review
+    """
+    now = datetime.now(timezone.utc)
+    processed = []
+
+    # Find all active executions for this tenant
+    active_execs = db.query(WorkflowExecution).filter(
+        WorkflowExecution.tenant_id == tenant_id,
+        WorkflowExecution.status.in_(("in_progress", "awaiting_approval")),
+    ).all()
+
+    for ex in active_execs:
+        pending_steps = db.query(WorkflowStepExecution).filter_by(
+            execution_id=ex.id, status="pending"
+        ).all()
+        for se in pending_steps:
+            step_def = db.query(WorkflowStep).filter_by(id=se.step_id).first()
+            if not step_def or not step_def.timeout_hours:
+                continue
+            deadline = se.created_at.replace(tzinfo=timezone.utc) + timedelta(hours=step_def.timeout_hours)
+            if now <= deadline:
+                continue
+            # Timeout reached — apply policy
+            policy = step_def.on_timeout or "escalate"
+            if policy == "skip":
+                se.status = "skipped"
+                se.outcome = "timeout_skipped"
+                se.completed_at = now
+                ex.current_step = se.step_order + 1
+            elif policy == "escalate":
+                se.status = "escalated"
+                ex.status = "escalated"
+                ex.outcome_notes = f"Step '{step_def.name}' timed out after {step_def.timeout_hours}h"
+            else:  # block
+                ex.status = "escalated"
+                ex.outcome_notes = f"Step '{step_def.name}' timed out (blocking policy)"
+
+            processed.append({
+                "execution_id": ex.id,
+                "step_id": se.id,
+                "step_name": step_def.name,
+                "policy": policy,
+                "deadline": deadline.isoformat(),
+            })
+            _audit(db, "step_timeout_enforced", tenant_id,
+                   {"execution_id": ex.id, "step_id": se.id, "policy": policy})
+
+    db.commit()
+    return {"scanned_executions": len(active_execs), "timeouts_processed": len(processed),
+            "details": processed}
 
 
 @router.post("/copilot/query", status_code=201,
@@ -588,8 +714,7 @@ def submit_copilot_query(tenant_id: str = Query(...), body: CopilotQueryIn = ...
     if body.query_type not in _QUERY_TYPES:
         raise HTTPException(400, f"query_type must be one of {_QUERY_TYPES}")
 
-    response = _COPILOT_TEMPLATES.get(body.query_type, "Query received; human review required.")
-    confidence = {"prioritization": 0.72, "workload": 0.68, "action": 0.65, "status": 0.85}
+    response, confidence = _build_copilot_response(body.query_type, tenant_id, db)
 
     cq = CopilotQuery(
         tenant_id=tenant_id,
@@ -597,7 +722,7 @@ def submit_copilot_query(tenant_id: str = Query(...), body: CopilotQueryIn = ...
         query_text=body.query_text,
         query_type=body.query_type,
         response_summary=response,
-        confidence=confidence.get(body.query_type, 0.6),
+        confidence=confidence,
         human_review_required=True,
     )
     db.add(cq)

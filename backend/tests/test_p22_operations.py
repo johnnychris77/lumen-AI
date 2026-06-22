@@ -8,6 +8,7 @@ Covers:
   Phase 5 — Copilot queries and recommendation review
 """
 import time
+from datetime import datetime
 
 from fastapi.testclient import TestClient
 
@@ -626,7 +627,7 @@ def test_copilot_status_query():
     )
     assert r.status_code == 201
     data = r.json()
-    assert data["confidence"] == 0.85
+    assert data["confidence"] == 0.88
 
 
 # ---------------------------------------------------------------------------
@@ -705,3 +706,312 @@ def test_step_complete_for_approved_execution():
     )
     assert r.status_code == 200
     assert r.json()["execution_status"] == "completed"
+
+
+# ---------------------------------------------------------------------------
+# Tier-1 Recommendation Tests
+# ---------------------------------------------------------------------------
+
+# --- 1. Auto-create queue items on workflow execution ---
+
+def test_execute_workflow_auto_creates_queue_items():
+    """Triggering a workflow should auto-populate the assignee role queue."""
+    wf = client.post(
+        "/api/operations/workflows",
+        params={"tenant_id": TENANT},
+        json={
+            "name": f"AutoQueue WF {TS}",
+            "workflow_type": "inspection",
+            "approval_required": False,
+            "sla_hours": 24,
+            "created_by": "admin@lumenai.io",
+        },
+        headers=HEADERS,
+    ).json()
+    wf_id = wf["id"]
+
+    client.post(
+        f"/api/operations/workflows/{wf_id}/steps",
+        params={"tenant_id": TENANT},
+        json={"step_order": 1, "name": "Visual Check", "step_type": "action",
+              "assignee_role": "technician"},
+        headers=HEADERS,
+    )
+    client.post(
+        f"/api/operations/workflows/{wf_id}/steps",
+        params={"tenant_id": TENANT},
+        json={"step_order": 2, "name": "Manager Sign-Off", "step_type": "approval",
+              "assignee_role": "manager"},
+        headers=HEADERS,
+    )
+
+    ex = client.post(
+        f"/api/operations/workflows/{wf_id}/execute",
+        params={"tenant_id": TENANT},
+        json={"resource_type": "instrument", "resource_id": f"INS-AQ-{TS}",
+              "triggered_by": "tech@hospital.org"},
+        headers=HEADERS,
+    ).json()
+    ex_id = ex["id"]
+
+    # Technician queue should now have an item from this execution
+    tech_q = client.get(
+        "/api/operations/work-queue",
+        params={"tenant_id": TENANT, "queue_type": "technician"},
+        headers=HEADERS,
+    ).json()
+    execution_items = [i for i in tech_q if i.get("execution_id") == ex_id]
+    assert len(execution_items) >= 1
+    assert execution_items[0]["source_type"] == "instrument"
+
+    # Manager queue should also have an item from this execution
+    mgr_q = client.get(
+        "/api/operations/work-queue",
+        params={"tenant_id": TENANT, "queue_type": "manager"},
+        headers=HEADERS,
+    ).json()
+    mgr_items = [i for i in mgr_q if i.get("execution_id") == ex_id]
+    assert len(mgr_items) >= 1
+
+
+def test_auto_queue_item_inherits_priority():
+    """Queue items created by execution should inherit the execution priority."""
+    wf = client.post(
+        "/api/operations/workflows",
+        params={"tenant_id": TENANT},
+        json={"name": f"PriorityQ WF {TS}", "workflow_type": "capa",
+              "approval_required": False, "created_by": "admin@lumenai.io"},
+        headers=HEADERS,
+    ).json()
+    client.post(
+        f"/api/operations/workflows/{wf['id']}/steps",
+        params={"tenant_id": TENANT},
+        json={"step_order": 1, "name": "Review", "step_type": "action",
+              "assignee_role": "manager"},
+        headers=HEADERS,
+    )
+
+    ex = client.post(
+        f"/api/operations/workflows/{wf['id']}/execute",
+        params={"tenant_id": TENANT},
+        json={"resource_type": "capa", "resource_id": f"CAPA-PQ-{TS}",
+              "triggered_by": "admin@hospital.org", "priority": "critical"},
+        headers=HEADERS,
+    ).json()
+
+    mgr_q = client.get(
+        "/api/operations/work-queue",
+        params={"tenant_id": TENANT, "queue_type": "manager"},
+        headers=HEADERS,
+    ).json()
+    items = [i for i in mgr_q if i.get("execution_id") == ex["id"]]
+    assert len(items) >= 1
+    assert items[0]["priority"] == "critical"
+
+
+# --- 2. Copilot grounded on live data ---
+
+def test_copilot_status_reflects_live_queue():
+    """Status query confidence and response should reflect actual queue state."""
+    # Add a known high-priority item to the queue
+    client.post(
+        "/api/operations/work-queue",
+        params={"tenant_id": TENANT},
+        json={"queue_type": "manager", "title": f"Critical Review {TS}",
+              "priority": "critical"},
+        headers=HEADERS,
+    )
+
+    r = client.post(
+        "/api/operations/copilot/query",
+        params={"tenant_id": TENANT},
+        json={"asked_by": "director@hospital.org",
+              "query_text": "What is the current status?",
+              "query_type": "status"},
+        headers=HEADERS,
+    )
+    assert r.status_code == 201
+    data = r.json()
+    # Response should mention actual counts (not a static string)
+    assert "open queue items" in data["response_summary"]
+    # Confidence should be deterministic for status type
+    assert data["confidence"] == 0.88
+
+
+def test_copilot_prioritization_mentions_high_priority_items():
+    """Prioritization response should mention high/critical items by name."""
+    client.post(
+        "/api/operations/work-queue",
+        params={"tenant_id": TENANT},
+        json={"queue_type": "technician",
+              "title": f"URGENT instrument check {TS}",
+              "priority": "critical"},
+        headers=HEADERS,
+    )
+
+    r = client.post(
+        "/api/operations/copilot/query",
+        params={"tenant_id": TENANT},
+        json={"asked_by": "director@hospital.org",
+              "query_text": "What should I prioritize?",
+              "query_type": "prioritization"},
+        headers=HEADERS,
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["human_review_required"] is True
+    # Response should reference high/critical item counts
+    assert "high/critical" in data["response_summary"]
+
+
+def test_copilot_workload_shows_queue_breakdown():
+    """Workload response should reference actual queue distribution."""
+    r = client.post(
+        "/api/operations/copilot/query",
+        params={"tenant_id": TENANT},
+        json={"asked_by": "exec@hospital.org",
+              "query_text": "How is workload distributed?",
+              "query_type": "workload"},
+        headers=HEADERS,
+    )
+    assert r.status_code == 201
+    data = r.json()
+    # Should mention queue names in the response
+    assert any(qt in data["response_summary"] for qt in ("technician", "manager", "executive", "vendor", "all queues empty"))
+
+
+def test_copilot_action_mentions_escalated_and_overdue():
+    """Action response should reference escalation and overdue counts."""
+    r = client.post(
+        "/api/operations/copilot/query",
+        params={"tenant_id": TENANT},
+        json={"asked_by": "coo@hospital.org",
+              "query_text": "What actions need attention?",
+              "query_type": "action"},
+        headers=HEADERS,
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert "escalated" in data["response_summary"]
+    assert "overdue" in data["response_summary"]
+
+
+# --- 3. Step timeout enforcement ---
+
+def test_scan_timeouts_no_timeouts_returns_zero():
+    """Scanning a tenant with no overdue steps returns zero processed."""
+    r = client.post(
+        "/api/operations/executions/scan-timeouts",
+        params={"tenant_id": f"p22-clean-{TS}"},
+        headers=HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["timeouts_processed"] == 0
+    assert data["scanned_executions"] == 0
+
+
+def test_scan_timeouts_escalates_overdue_step():
+    """A step past its timeout with on_timeout=escalate should escalate the execution."""
+    from app.models.p22_operations import WorkflowStepExecution
+    from app.deps import get_db
+    from datetime import timedelta
+
+    wf = client.post(
+        "/api/operations/workflows",
+        params={"tenant_id": TENANT},
+        json={"name": f"Timeout WF {TS}", "workflow_type": "inspection",
+              "approval_required": False, "sla_hours": 24,
+              "created_by": "admin@lumenai.io"},
+        headers=HEADERS,
+    ).json()
+    client.post(
+        f"/api/operations/workflows/{wf['id']}/steps",
+        params={"tenant_id": TENANT},
+        json={"step_order": 1, "name": "Timed Step", "step_type": "action",
+              "assignee_role": "technician", "timeout_hours": 1,
+              "on_timeout": "escalate"},
+        headers=HEADERS,
+    )
+    ex = client.post(
+        f"/api/operations/workflows/{wf['id']}/execute",
+        params={"tenant_id": TENANT},
+        json={"resource_type": "instrument", "resource_id": f"INS-TO-{TS}",
+              "triggered_by": "tech@hospital.org"},
+        headers=HEADERS,
+    ).json()
+    ex_id = ex["id"]
+
+    # Manually back-date the step execution's created_at so it appears overdue
+    db = next(get_db())
+    se = db.query(WorkflowStepExecution).filter_by(execution_id=ex_id).first()
+    assert se is not None
+    se.created_at = datetime.utcnow() - timedelta(hours=2)
+    db.commit()
+    db.close()
+
+    r = client.post(
+        "/api/operations/executions/scan-timeouts",
+        params={"tenant_id": TENANT},
+        headers=HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["timeouts_processed"] >= 1
+    timed = next((d for d in data["details"] if d["execution_id"] == ex_id), None)
+    assert timed is not None
+    assert timed["policy"] == "escalate"
+
+    # Execution should now be escalated
+    execs = client.get(
+        "/api/operations/executions",
+        params={"tenant_id": TENANT, "status": "escalated"},
+        headers=HEADERS,
+    ).json()
+    assert any(e["id"] == ex_id for e in execs)
+
+
+def test_scan_timeouts_skip_policy():
+    """A step with on_timeout=skip should be marked skipped."""
+    from app.models.p22_operations import WorkflowStepExecution
+    from app.deps import get_db
+    from datetime import timedelta
+
+    wf = client.post(
+        "/api/operations/workflows",
+        params={"tenant_id": TENANT},
+        json={"name": f"Skip WF {TS}", "workflow_type": "notification",
+              "approval_required": False, "created_by": "admin@lumenai.io"},
+        headers=HEADERS,
+    ).json()
+    client.post(
+        f"/api/operations/workflows/{wf['id']}/steps",
+        params={"tenant_id": TENANT},
+        json={"step_order": 1, "name": "Optional Notify", "step_type": "notification",
+              "assignee_role": "manager", "timeout_hours": 1, "on_timeout": "skip"},
+        headers=HEADERS,
+    )
+    ex = client.post(
+        f"/api/operations/workflows/{wf['id']}/execute",
+        params={"tenant_id": TENANT},
+        json={"resource_type": "capa", "resource_id": f"CAPA-SK-{TS}",
+              "triggered_by": "admin@hospital.org"},
+        headers=HEADERS,
+    ).json()
+
+    db = next(get_db())
+    se = db.query(WorkflowStepExecution).filter_by(execution_id=ex["id"]).first()
+    se.created_at = datetime.utcnow() - timedelta(hours=2)
+    db.commit()
+    db.close()
+
+    r = client.post(
+        "/api/operations/executions/scan-timeouts",
+        params={"tenant_id": TENANT},
+        headers=HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    skipped = [d for d in data["details"] if d["execution_id"] == ex["id"]]
+    assert len(skipped) >= 1
+    assert skipped[0]["policy"] == "skip"
