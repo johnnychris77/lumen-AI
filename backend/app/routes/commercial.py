@@ -361,19 +361,16 @@ def _active_users(db: Session, tenant_id: str | None) -> int:
     return int(q.scalar() or 0)
 
 
-@router.get("/customer-success/health-score")
-def health_score(
-    tenant_id: str | None = Query(default=None),
-    onboarding_pct: float = Query(default=100.0, ge=0, le=100),
-    training_pct: float = Query(default=100.0, ge=0, le=100),
-    _=Depends(require_roles("admin", "executive")),
-    db: Session = Depends(get_db),
-):
-    """Composite customer health score (0–100) for renewal/expansion triage.
+def _latest_snapshot(db: Session, tenant_id: str | None):
+    q = db.query(models.CustomerSuccessSnapshot)
+    if tenant_id:
+        q = q.filter(models.CustomerSuccessSnapshot.tenant_id == tenant_id)
+    return q.order_by(models.CustomerSuccessSnapshot.captured_at.desc()).first()
 
-    onboarding_pct and training_pct are supplied by the CSM; adoption and
-    utilization are derived from inspection activity.
-    """
+
+def _compute_health(db: Session, tenant_id: str | None,
+                    onboarding_pct: float, training_pct: float) -> dict:
+    """Pure-ish health computation shared by the GET endpoint and snapshot POST."""
     insp_30 = _inspection_count(db, tenant_id, 30)
     insp_prev_30 = _inspection_count(db, tenant_id, 60) - insp_30
     users = _active_users(db, tenant_id)
@@ -416,6 +413,118 @@ def health_score(
         "human_review_required": True,
         "disclaimer": "Health score is an operational indicator for CSM triage, not a clinical measure.",
     }
+
+
+@router.get("/customer-success/health-score")
+def health_score(
+    tenant_id: str | None = Query(default=None),
+    onboarding_pct: float | None = Query(default=None, ge=0, le=100),
+    training_pct: float | None = Query(default=None, ge=0, le=100),
+    _=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    """Composite customer health score (0–100) for renewal/expansion triage.
+
+    onboarding_pct / training_pct precedence: explicit query params override;
+    otherwise the latest persisted snapshot is used; otherwise default 100.
+    """
+    snap = _latest_snapshot(db, tenant_id)
+    o_pct = onboarding_pct if onboarding_pct is not None else (
+        snap.onboarding_pct if snap else 100.0)
+    t_pct = training_pct if training_pct is not None else (
+        snap.training_pct if snap else 100.0)
+
+    result = _compute_health(db, tenant_id, o_pct, t_pct)
+    result["source"] = ("query" if (onboarding_pct is not None or training_pct is not None)
+                        else "snapshot" if snap else "default")
+    if snap:
+        result["last_snapshot_at"] = snap.captured_at.isoformat()
+    return result
+
+
+class SnapshotRequest(BaseModel):
+    tenant_id: str = Field(..., min_length=1)
+    onboarding_pct: float = Field(default=100.0, ge=0, le=100)
+    training_pct: float = Field(default=100.0, ge=0, le=100)
+
+
+@router.post("/customer-success/snapshot", status_code=201)
+def create_snapshot(
+    payload: SnapshotRequest,
+    current_user=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    """Persist a customer-success snapshot so health scores are reproducible and
+    trendable. Audit-logged."""
+    health = _compute_health(db, payload.tenant_id, payload.onboarding_pct, payload.training_pct)
+    snap = models.CustomerSuccessSnapshot(
+        tenant_id=payload.tenant_id,
+        captured_by=getattr(current_user, "email", "unknown"),
+        onboarding_pct=payload.onboarding_pct,
+        training_pct=payload.training_pct,
+        adoption_pct=health["dimensions"]["adoption"],
+        utilization_pct=health["dimensions"]["utilization"],
+        composite_score=health["composite_score"],
+        status=health["status"],
+    )
+    db.add(snap)
+    db.commit()
+    db.refresh(snap)
+
+    try:
+        log_audit_event(
+            db,
+            tenant_id=payload.tenant_id,
+            tenant_name="Commercial",
+            actor_email=getattr(current_user, "email", "unknown"),
+            actor_role=getattr(current_user, "role", "executive"),
+            action_type="customer_success_snapshot_created",
+            resource_type="customer_success_snapshot",
+            resource_id=str(snap.id),
+            details={"composite_score": health["composite_score"], "status": health["status"]},
+            compliance_flag=True,
+        )
+    except Exception:
+        pass
+
+    return {
+        "id": snap.id,
+        "tenant_id": snap.tenant_id,
+        "captured_at": snap.captured_at.isoformat(),
+        "composite_score": snap.composite_score,
+        "status": snap.status,
+        "dimensions": health["dimensions"],
+    }
+
+
+@router.get("/customer-success/trend")
+def health_trend(
+    tenant_id: str = Query(..., min_length=1),
+    limit: int = Query(default=24, ge=1, le=200),
+    _=Depends(require_roles("admin", "executive")),
+    db: Session = Depends(get_db),
+):
+    """Return persisted health-score snapshots over time for a tenant."""
+    rows = (
+        db.query(models.CustomerSuccessSnapshot)
+        .filter(models.CustomerSuccessSnapshot.tenant_id == tenant_id)
+        .order_by(models.CustomerSuccessSnapshot.captured_at.desc())
+        .limit(limit)
+        .all()
+    )
+    series = [
+        {
+            "captured_at": r.captured_at.isoformat(),
+            "composite_score": r.composite_score,
+            "status": r.status,
+            "onboarding_pct": r.onboarding_pct,
+            "training_pct": r.training_pct,
+            "adoption_pct": r.adoption_pct,
+            "utilization_pct": r.utilization_pct,
+        }
+        for r in reversed(rows)
+    ]
+    return {"tenant_id": tenant_id, "count": len(series), "series": series}
 
 
 @router.get("/customer-success/onboarding-status")
@@ -483,23 +592,29 @@ def expansion_opportunities(
         insp_prev_30 = _inspection_count(db, tenant_id, 60) - insp_30
         utilization_pct = min(100.0, (insp_30 / _FULL_UTILIZATION_30D) * 100.0)
 
-        if utilization_pct >= 80.0:
+        snap = _latest_snapshot(db, tenant_id)
+        health_status = snap.status if snap else None
+
+        # Strong upsell candidates are high-utilization AND not at-risk.
+        if utilization_pct >= 80.0 and health_status != "at_risk":
             opportunities.append({
                 "tenant_id": tenant_id,
                 "signal": "high_utilization",
                 "utilization_pct": round(utilization_pct, 1),
+                "health_status": health_status,
                 "recommended_action": "Upsell capacity / upgrade tier (human review)",
             })
 
-        if insp_prev_30 > 0:
-            change = (insp_30 - insp_prev_30) / insp_prev_30
-            if change <= -0.25:
-                renewal_risks.append({
-                    "tenant_id": tenant_id,
-                    "signal": "declining_activity",
-                    "change_pct": round(change * 100, 1),
-                    "recommended_action": "CSM outreach / adoption review (human review)",
-                })
+        # Renewal risk from declining activity OR a persisted at-risk health score.
+        change = (insp_30 - insp_prev_30) / insp_prev_30 if insp_prev_30 > 0 else 0.0
+        if (insp_prev_30 > 0 and change <= -0.25) or health_status == "at_risk":
+            renewal_risks.append({
+                "tenant_id": tenant_id,
+                "signal": "at_risk_health" if health_status == "at_risk" else "declining_activity",
+                "change_pct": round(change * 100, 1),
+                "health_status": health_status,
+                "recommended_action": "CSM outreach / adoption review (human review)",
+            })
 
     return {
         "opportunities": opportunities,

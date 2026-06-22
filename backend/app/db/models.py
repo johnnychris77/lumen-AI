@@ -51,6 +51,7 @@ from app.models.enterprise_hierarchy import (  # noqa: F401
     EnterpriseBaseline,
     FacilityReadinessScore,
 )
+from app.models.customer_success import CustomerSuccessSnapshot  # noqa: F401
 
 
 class TenantMembership(Base):
