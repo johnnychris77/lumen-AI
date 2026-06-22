@@ -845,6 +845,8 @@ from app.routes.accreditation import router as accreditation_router
 app.include_router(accreditation_router)
 from app.routes.p20_network_intelligence import router as p20_router
 app.include_router(p20_router)
+from app.routes.p22_operations import router as p22_router
+app.include_router(p22_router)
 
 from fastapi.openapi.utils import get_openapi
 

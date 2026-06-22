@@ -67,6 +67,10 @@ from app.models.p20_network_intelligence import (  # noqa: F401
     ResearchDataset, ResearchStudy, ResearchPublication,
     ExecutiveIntelligenceDashboard, ExecutiveIntelligenceSnapshot,
 )
+from app.models.p22_operations import (  # noqa: F401
+    OperationsWorkflow, WorkflowStep, WorkflowExecution, WorkflowStepExecution,
+    WorkQueueItem, OperationalRiskSnapshot, CopilotQuery, CopilotRecommendation,
+)
 
 
 class TenantMembership(Base):
