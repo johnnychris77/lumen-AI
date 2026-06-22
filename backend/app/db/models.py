@@ -41,6 +41,16 @@ from app.models.global_intelligence import (  # noqa: F401
     RegulatoryEvidencePackage,
 )
 from app.models.consent_record import ConsentRecord  # noqa: F401
+from app.models.enterprise_hierarchy import (  # noqa: F401
+    HealthSystem,
+    EnterpriseMarket,
+    EnterpriseRegion,
+    EnterpriseFacility,
+    EnterpriseDepartment,
+    OnboardingWorkflow,
+    EnterpriseBaseline,
+    FacilityReadinessScore,
+)
 
 
 class TenantMembership(Base):
