@@ -55,6 +55,10 @@ from app.models.customer_success import CustomerSuccessSnapshot  # noqa: F401
 from app.models.growth import (  # noqa: F401
     StrategicPartnership, ReferenceCustomer, PartnershipNote, NetworkBenchmarkSnapshot,
 )
+from app.models.accreditation import (  # noqa: F401
+    AccreditationProgram, EvidenceItem, ReadinessAssessment,
+    SurveyEvidencePackage, CertifiedSite,
+)
 
 
 class TenantMembership(Base):
