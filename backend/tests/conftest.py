@@ -4,6 +4,15 @@ from pathlib import Path
 
 import pytest
 
+# Enable dev-token auth for all tests. Must be set before any app module is
+# imported because deps.py reads these env vars at module load time.
+os.environ.setdefault("ENABLE_DEV_AUTH", "true")
+os.environ.setdefault("DEV_AUTH_TOKEN", "dev-token")
+os.environ.setdefault("DEV_SPD_MANAGER_TOKEN", "manager-token")
+os.environ.setdefault("DEV_VENDOR_TOKEN", "vendor-token")
+os.environ.setdefault("DEV_VIEWER_TOKEN", "viewer-token")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+
 # Ensure data/ directory exists before any module-level code in capa_service.py runs
 Path(os.path.join(os.path.dirname(__file__), "..", "data")).mkdir(exist_ok=True)
 from sqlalchemy import text
