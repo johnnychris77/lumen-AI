@@ -5,6 +5,7 @@ import {
   FilePlus,
   History,
   ClipboardCheck,
+  LineChart,
   Package,
   Store,
   BookOpen,
@@ -15,9 +16,13 @@ import {
   FileSearch,
   ShieldCheck,
   FileText,
+  Building2,
   TrendingUp,
   BarChart3,
   AlertTriangle,
+  Activity,
+  Users,
+  UserCheck,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -30,6 +35,8 @@ import { Badge } from "@/components/ui/badge";
 type NavLeaf = { to: string; label: string; icon: React.ElementType; roles?: string[] };
 type NavGroup = { label: string; roles?: string[]; items: NavLeaf[] };
 
+// `roles` restricts group visibility. Omitted = visible to all roles.
+// Backend enforces access — this is UX decluttering only.
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
@@ -43,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
       { to: "/intake-history", label: "Inspection History", icon: History },
       { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
+      { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
     ],
   },
   {
@@ -52,6 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/vendor-baseline-portal", label: "Vendor Baselines", icon: Store },
       { to: "/baseline-library", label: "Baseline Library", icon: BookOpen },
       { to: "/baseline-review", label: "Baseline Reviews", icon: CheckCircle2 },
+      { to: "/intake-history", label: "Intake History", icon: History },
     ],
   },
   {
@@ -63,26 +72,30 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Quality",
+    label: "Quality & Compliance",
     items: [
       { to: "/findings", label: "Findings", icon: FileSearch },
       { to: "/capa", label: "CAPA", icon: ShieldCheck },
       { to: "/audit-evidence", label: "Audit Evidence", icon: FileText },
+      { to: "/enterprise", label: "Enterprise Quality", icon: Building2 },
     ],
   },
   {
     label: "Analytics",
     items: [
-      { to: "/enterprise", label: "Executive Dashboard", icon: TrendingUp },
-      { to: "/pilot-analytics", label: "Benchmarking", icon: BarChart3 },
+      { to: "/pilot-analytics", label: "Executive Dashboard", icon: TrendingUp },
+      { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
+      { to: "/operations", label: "Operational Analytics", icon: Activity },
     ],
   },
   {
     label: "Administration",
-    roles: ["admin", "spd_manager", "executive"],
+    roles: ["admin", "spd_manager"],
     items: [
-      { to: "/accreditation", label: "Accreditation", icon: Settings },
+      { to: "/users", label: "Users", icon: Users },
+      { to: "/roles", label: "Roles", icon: UserCheck },
+      { to: "/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
@@ -170,7 +183,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
             )}
             <div className="space-y-0.5">
               {group.items.map((item) => (
-                <NavItem key={item.to} {...item} collapsed={collapsed} />
+                <NavItem key={`${item.to}-${item.label}`} {...item} collapsed={collapsed} />
               ))}
             </div>
           </div>
@@ -198,25 +211,45 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   );
 }
 
+function Breadcrumb({ path }: { path: string }) {
+  // Build label from first matching nav entry (breadcrumb uses first match, not last)
+  const label = React.useMemo(() => {
+    for (const group of NAV_GROUPS) {
+      for (const item of group.items) {
+        if (item.to === path) return item.label;
+      }
+    }
+    return path.replace(/^\//, "").replace(/-/g, " ") || "Dashboard";
+  }, [path]);
+
+  const segments = path.split("/").filter(Boolean);
+
+  return (
+    <nav className="flex items-center gap-1.5 text-xs text-slate-400" aria-label="Breadcrumb">
+      <span className="hover:text-slate-600 cursor-default">LumenAI</span>
+      {segments.map((seg, i) => (
+        <React.Fragment key={i}>
+          <span>/</span>
+          {i === segments.length - 1 ? (
+            <span className="text-slate-700 font-medium capitalize">{label}</span>
+          ) : (
+            <span className="capitalize">{seg.replace(/-/g, " ")}</span>
+          )}
+        </React.Fragment>
+      ))}
+      {segments.length === 0 && <><span>/</span><span className="text-slate-700 font-medium">Dashboard</span></>}
+    </nav>
+  );
+}
+
 function Header() {
   const location = useLocation();
   const role = localStorage.getItem("role") || "viewer";
 
-  const breadcrumb = React.useMemo(() => {
-    const path = location.pathname;
-    // Derive the label from the nav config so it never goes stale as routes grow.
-    const map: Record<string, string> = {};
-    for (const group of NAV_GROUPS) {
-      for (const item of group.items) map[item.to] = item.label;
-    }
-    return map[path] || path.replace("/", "").replace(/-/g, " ");
-  }, [location.pathname]);
-
   return (
     <header className="flex h-16 items-center border-b border-slate-200 bg-white px-6 gap-4 shrink-0">
       <div className="flex-1 min-w-0">
-        <h1 className="text-sm font-semibold text-slate-900 capitalize">{breadcrumb}</h1>
-        <p className="text-xs text-slate-500">LumenAI · Healthcare Sterile Processing ERP</p>
+        <Breadcrumb path={location.pathname} />
       </div>
 
       <div className="flex items-center gap-3">

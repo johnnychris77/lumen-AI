@@ -33,6 +33,12 @@ const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselin
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
 const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
+const BaselineLibraryPage = lazy(() => import("./pages/BaselineLibraryPage"));
+const InstrumentPassportPage = lazy(() => import("./pages/InstrumentPassportPage"));
+const AuditEvidencePage = lazy(() => import("./pages/AuditEvidencePage"));
+const UsersPage = lazy(() => import("./pages/UsersPage"));
+const RolesPage = lazy(() => import("./pages/RolesPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 // Legacy dashboard kept at /legacy for reference
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
@@ -123,6 +129,12 @@ function App() {
                       <Route path="/vendor-intelligence" element={<VendorIntelligencePage />} />
                       <Route path="/digital-twin" element={<DigitalTwinPage />} />
                       <Route path="/quality-intelligence" element={<QualityIntelligencePage />} />
+                      <Route path="/baseline-library" element={<BaselineLibraryPage />} />
+                      <Route path="/instrument-passport" element={<InstrumentPassportPage />} />
+                      <Route path="/audit-evidence" element={<AuditEvidencePage />} />
+                      <Route path="/users" element={<UsersPage />} />
+                      <Route path="/roles" element={<RolesPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"
