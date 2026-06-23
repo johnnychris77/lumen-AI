@@ -31,6 +31,7 @@ type FormFields = {
   serial_number: string;
   barcode: string;
   qr_code: string;
+  udi: string;
   keydot_id: string;
   finding_categories: FindingCategory[];
   risk_level: string;
@@ -108,6 +109,7 @@ const initialForm: FormFields = {
   serial_number: "",
   barcode: "",
   qr_code: "",
+  udi: "",
   keydot_id: "",
   finding_categories: [],
   risk_level: "",
@@ -256,6 +258,7 @@ export default function NewInspectionPage() {
         serial_number: form.serial_number,
         barcode: form.barcode,
         qr_code: form.qr_code,
+        udi: form.udi || undefined,
         keydot_id: form.keydot_id,
         finding_categories: form.finding_categories,
         risk_level: form.risk_level,
@@ -548,13 +551,27 @@ export default function NewInspectionPage() {
 
             <div>
               <label htmlFor="qr_code" className="block text-sm font-medium text-gray-700">
-                QR Code / UDI
+                QR Code
               </label>
               <input
                 id="qr_code"
                 type="text"
                 value={form.qr_code}
                 onChange={setStr("qr_code")}
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="udi" className="block text-sm font-medium text-gray-700">
+                UDI
+              </label>
+              <input
+                id="udi"
+                type="text"
+                value={form.udi}
+                onChange={setStr("udi")}
+                placeholder="(01)…"
                 className={inputCls}
               />
             </div>
