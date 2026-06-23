@@ -305,7 +305,7 @@ export default function NewInspectionPage() {
           allImages.forEach((f) => fd.append("images", f));
           await fetch(`${API_BASE}/api/inspections/upload-images`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: hdrs["Authorization"] },
             body: fd,
           });
         } catch {

@@ -29,6 +29,9 @@ const GlobalInfrastructureConsole = lazy(() => import("./pages/GlobalInfrastruct
 const VendorIntelligencePage = lazy(() => import("./pages/VendorIntelligencePage"));
 const DigitalTwinPage = lazy(() => import("./pages/DigitalTwinPage"));
 const QualityIntelligencePage = lazy(() => import("./pages/QualityIntelligencePage"));
+const DemoImageLibraryPage = lazy(() => import("./pages/DemoImageLibraryPage"));
+const BaselineImageUploadPage = lazy(() => import("./pages/BaselineImageUploadPage"));
+const InspectionImageUploadPage = lazy(() => import("./pages/InspectionImageUploadPage"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
@@ -135,6 +138,9 @@ function App() {
                       <Route path="/users" element={<UsersPage />} />
                       <Route path="/roles" element={<RolesPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
+                      <Route path="/demo-image-library" element={<DemoImageLibraryPage />} />
+                      <Route path="/baseline-image-upload" element={<BaselineImageUploadPage />} />
+                      <Route path="/inspection-image-upload" element={<InspectionImageUploadPage />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"

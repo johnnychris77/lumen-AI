@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Droplets,
+  Images,
   Package,
   RefreshCw,
   ShieldCheck,
@@ -453,6 +454,38 @@ export default function Dashboard() {
             icon={Zap}
             detail="Cleared for scoring use"
             trend="up"
+          />
+        </div>
+      </section>
+
+      {/* ── Image Library KPIs ── */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Image Library</h3>
+          <div className="flex gap-3">
+            <Link to="/demo-image-library" className="text-xs text-blue-600 hover:underline">Browse library →</Link>
+            <Link to="/baseline-image-upload" className="text-xs text-blue-600 hover:underline">Upload baseline →</Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <KPICard
+            label="Demo Images Loaded"
+            value={12}
+            icon={Images}
+            detail="Pilot demo image cards"
+          />
+          <KPICard
+            label="Baseline Images"
+            value={kpi?.baselines.total ?? "—"}
+            icon={CheckCircle2}
+            detail="Approved + pending baselines"
+            trend="up"
+          />
+          <KPICard
+            label="Images Approved"
+            value={kpi?.baselines.approved ?? "—"}
+            icon={Zap}
+            detail="Active in CV pipeline"
           />
         </div>
       </section>

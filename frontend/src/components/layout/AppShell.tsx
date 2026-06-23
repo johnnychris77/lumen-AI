@@ -13,6 +13,8 @@ import {
   Database,
   CreditCard,
   ScanLine,
+  Images,
+  Upload,
   FileSearch,
   ShieldCheck,
   FileText,
@@ -69,6 +71,9 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/infrastructure", label: "Instrument Registry", icon: Database },
       { to: "/instrument-passport", label: "Instrument Passport", icon: CreditCard },
       { to: "/vendor-intake", label: "Barcode / QR / KeyDot", icon: ScanLine },
+      { to: "/demo-image-library", label: "Image Library", icon: Images },
+      { to: "/baseline-image-upload", label: "Upload Baseline Image", icon: Upload },
+      { to: "/inspection-image-upload", label: "Upload Inspection Image", icon: Upload },
     ],
   },
   {
