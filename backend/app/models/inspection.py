@@ -37,6 +37,13 @@ class Inspection(Base):
     vendor_name: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
     site_name: Mapped[str] = mapped_column(String(100), default="default-site", nullable=False)
 
+    # Pilot Sprint 7 additions — facility/department/tray and instrument identity
+    facility_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tray_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    instrument_barcode: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    instrument_udi: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     alert_status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
     alert_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     alert_notes: Mapped[str] = mapped_column(String(1000), default="", nullable=False)

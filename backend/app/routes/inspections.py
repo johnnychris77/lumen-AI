@@ -44,6 +44,12 @@ class InspectionCreate(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=100.0)  # DQ-11
     file_name: str = Field("", max_length=255)
     tenant_name: str = Field("", max_length=255)
+    # Sprint 7 additions — facility/department/tray/instrument identity
+    facility_name: Optional[str] = Field(None, max_length=255)
+    department: Optional[str] = Field(None, max_length=255)
+    tray_id: Optional[str] = Field(None, max_length=100)
+    instrument_barcode: Optional[str] = Field(None, max_length=255)
+    instrument_udi: Optional[str] = Field(None, max_length=255)
 
     @field_validator("instrument_type")
     @classmethod
