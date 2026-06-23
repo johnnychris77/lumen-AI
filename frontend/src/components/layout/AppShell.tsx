@@ -8,6 +8,7 @@ import {
   LineChart,
   Package,
   Store,
+  Thermometer,
   BookOpen,
   CheckCircle2,
   Database,
@@ -41,9 +42,12 @@ type NavGroup = { label: string; roles?: string[]; items: NavLeaf[] };
 // Backend enforces access — this is UX decluttering only.
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Overview",
+    label: "Executive",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/executive-command-center", label: "Command Center", icon: BarChart3 },
+      { to: "/surgical-readiness", label: "Surgical Readiness", icon: Thermometer },
+      { to: "/global-registry", label: "Global Registry", icon: Database },
     ],
   },
   {

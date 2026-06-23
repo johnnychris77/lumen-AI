@@ -43,6 +43,11 @@ const UsersPage = lazy(() => import("./pages/UsersPage"));
 const RolesPage = lazy(() => import("./pages/RolesPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
+// Phase 10 pages
+const ExecutiveCommandCenterPage = lazy(() => import("./pages/ExecutiveCommandCenterPage"));
+const GlobalRegistryPage = lazy(() => import("./pages/GlobalRegistryPage"));
+const SurgicalReadinessDashboard = lazy(() => import("./pages/SurgicalReadinessDashboard"));
+
 // Legacy dashboard kept at /legacy for reference
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -134,6 +139,9 @@ function App() {
                       <Route path="/quality-intelligence" element={<QualityIntelligencePage />} />
                       <Route path="/baseline-library" element={<BaselineLibraryPage />} />
                       <Route path="/instrument-passport" element={<InstrumentPassportPage />} />
+                      <Route path="/executive-command-center" element={<ExecutiveCommandCenterPage />} />
+                      <Route path="/global-registry" element={<GlobalRegistryPage />} />
+                      <Route path="/surgical-readiness" element={<SurgicalReadinessDashboard />} />
                       <Route path="/audit-evidence" element={<AuditEvidencePage />} />
                       <Route path="/users" element={<UsersPage />} />
                       <Route path="/roles" element={<RolesPage />} />
