@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getImagesByInstrument, getImagesByIdentifier, MANIFEST_INSTRUMENTS } from "../data/pilotImageManifest";
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
 const headers = () => ({
@@ -205,7 +206,7 @@ function InstrumentsTab() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
-              {["Type", "Lifecycle Status", "Verified", "Cycles", "UDI", "Verification Method"].map((h) => (
+              {["Type", "Lifecycle Status", "Verified", "Cycles", "UDI", "Verification Method", "Pilot Images"].map((h) => (
                 <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-600">{h}</th>
               ))}
             </tr>
@@ -227,6 +228,22 @@ function InstrumentsTab() {
                 <td className="px-3 py-2">{String(inst.total_cycle_count ?? 0)}</td>
                 <td className="px-3 py-2 font-mono text-xs">{String(inst.udi ?? "—")}</td>
                 <td className="px-3 py-2 capitalize">{String(inst.verification_method ?? "—")}</td>
+                <td className="px-3 py-2">
+                  {(() => {
+                    const itype = String(inst.instrument_type ?? "");
+                    const matched = MANIFEST_INSTRUMENTS.find((m) =>
+                      itype.toLowerCase().includes(m.toLowerCase()) || m.toLowerCase().includes(itype.toLowerCase())
+                    );
+                    const imgs = matched ? getImagesByInstrument(matched) : [];
+                    return imgs.length > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700 font-medium">
+                        {imgs.length} image{imgs.length !== 1 ? "s" : ""}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-xs">—</span>
+                    );
+                  })()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -642,6 +659,63 @@ function PassportTab() {
           </div>
         )}
         <div className="mt-3"><HumanReviewBadge /></div>
+
+        {selectedId && <PassportImageGallery instrumentId={selectedId} instruments={instruments} />}
+      </div>
+    </div>
+  );
+}
+
+function PassportImageGallery({
+  instrumentId,
+  instruments,
+}: {
+  instrumentId: string;
+  instruments: Record<string, unknown>[];
+}) {
+  const inst = instruments.find((i) => String(i.id ?? "") === instrumentId);
+  const udi = inst ? String(inst.udi ?? inst.internal_id ?? "") : "";
+  const itype = inst ? String(inst.instrument_type ?? "") : "";
+
+  // Match by UDI/barcode identifier first, fall back to instrument type
+  const byId = udi ? getImagesByIdentifier(udi) : [];
+  const byType = (() => {
+    const matched = MANIFEST_INSTRUMENTS.find((m) =>
+      itype.toLowerCase().includes(m.toLowerCase()) || m.toLowerCase().includes(itype.toLowerCase())
+    );
+    return matched ? getImagesByInstrument(matched) : [];
+  })();
+
+  const images = byId.length > 0 ? byId : byType;
+
+  if (images.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      <p className="text-xs font-semibold text-slate-600 mb-2">
+        Pilot Images ({images.length})
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {images.map((img) => (
+          <div key={img.id} className="rounded border border-slate-200 overflow-hidden bg-slate-50">
+            <img
+              src={img.available ? img.imageSrc : img.placeholderSrc}
+              alt={`${img.instrumentName} — ${img.imageType}`}
+              className="w-full h-28 object-cover"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src !== img.placeholderSrc) target.src = img.placeholderSrc;
+              }}
+            />
+            <div className="px-2 py-1.5">
+              <p className="text-xs font-medium text-slate-700 capitalize">{img.imageType}</p>
+              {img.findingCategory && img.findingCategory !== "none" && (
+                <p className="text-xs text-slate-500 capitalize">{img.findingCategory.replace(/_/g, " ")}</p>
+              )}
+              <p className="text-xs text-slate-400 mt-0.5">{img.facilityName}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
