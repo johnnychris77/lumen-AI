@@ -48,6 +48,14 @@ const ExecutiveCommandCenterPage = lazy(() => import("./pages/ExecutiveCommandCe
 const GlobalRegistryPage = lazy(() => import("./pages/GlobalRegistryPage"));
 const SurgicalReadinessDashboard = lazy(() => import("./pages/SurgicalReadinessDashboard"));
 
+// Phase 11 pages
+const CustomerOnboardingPage = lazy(() => import("./pages/CustomerOnboardingPage"));
+const CustomerSuccessDashboard = lazy(() => import("./pages/CustomerSuccessDashboard"));
+const DeploymentReadinessPage = lazy(() => import("./pages/DeploymentReadinessPage"));
+const TrainingCenterPage = lazy(() => import("./pages/TrainingCenterPage"));
+const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
+const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
+
 // Legacy dashboard kept at /legacy for reference
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -149,6 +157,12 @@ function App() {
                       <Route path="/demo-image-library" element={<DemoImageLibraryPage />} />
                       <Route path="/baseline-image-upload" element={<BaselineImageUploadPage />} />
                       <Route path="/inspection-image-upload" element={<InspectionImageUploadPage />} />
+                      <Route path="/customer-onboarding" element={<CustomerOnboardingPage />} />
+                      <Route path="/customer-success" element={<CustomerSuccessDashboard />} />
+                      <Route path="/deployment-readiness" element={<DeploymentReadinessPage />} />
+                      <Route path="/training-center" element={<TrainingCenterPage />} />
+                      <Route path="/roi-center" element={<ROICenterPage />} />
+                      <Route path="/subscription-readiness" element={<SubscriptionReadinessPage />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"

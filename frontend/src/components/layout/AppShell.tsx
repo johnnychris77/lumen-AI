@@ -99,6 +99,18 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Customer Success",
+    roles: ["admin", "spd_manager"],
+    items: [
+      { to: "/customer-onboarding", label: "Onboarding Center", icon: Building2 },
+      { to: "/customer-success", label: "Customer Health", icon: TrendingUp },
+      { to: "/deployment-readiness", label: "Deployment Readiness", icon: ShieldCheck },
+      { to: "/training-center", label: "Training Center", icon: BookOpen },
+      { to: "/roi-center", label: "ROI Center", icon: BarChart3 },
+      { to: "/subscription-readiness", label: "Subscription", icon: CreditCard },
+    ],
+  },
+  {
     label: "Administration",
     roles: ["admin", "spd_manager"],
     items: [
