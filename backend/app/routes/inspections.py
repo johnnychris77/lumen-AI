@@ -11,6 +11,7 @@ from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
 from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.analytics.risk_engine import calculate_risk
 
 router = APIRouter(tags=["inspections"])
 
@@ -100,6 +101,11 @@ def inspection_response(row: models.Inspection) -> dict:
         "risk_score": row.risk_score,
         "vendor_name": row.vendor_name,
         "site_name": row.site_name,
+        "facility_name": row.facility_name,
+        "department": row.department,
+        "tray_id": row.tray_id,
+        "instrument_barcode": row.instrument_barcode,
+        "instrument_udi": row.instrument_udi,
     }
 
 
@@ -135,6 +141,7 @@ async def create_inspection(
     tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
     tenant_name = body.tenant_name or getattr(current_user, "tenant_name", "") or tenant_id
 
+    conf_val = (body.confidence or 0.0) / 100.0 if body.confidence is not None else 0.0
     row = models.Inspection(
         file_name=body.file_name or "manual-entry",
         tenant_id=tenant_id,
@@ -146,8 +153,14 @@ async def create_inspection(
         instrument_type=body.instrument_type,
         detected_issue=body.detected_issue,
         inference_mode="manual",
+        risk_score=calculate_risk(body.detected_issue, conf_val),
         vendor_name=body.vendor_name or "unknown",
         site_name=body.site_name,
+        facility_name=body.facility_name,
+        department=body.department,
+        tray_id=body.tray_id,
+        instrument_barcode=body.instrument_barcode,
+        instrument_udi=body.instrument_udi,
         inference_timestamp=datetime.now(timezone.utc),
     )
     db.add(row)
