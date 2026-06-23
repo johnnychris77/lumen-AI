@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useNotifications } from "@/lib/notifications";
+import { NotificationPanel } from "@/components/ui/NotificationPanel";
 import {
   LayoutDashboard,
   FilePlus,
@@ -34,6 +36,7 @@ import {
   Rocket,
   GraduationCap,
   DollarSign,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +102,14 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
+    ],
+  },
+  {
+    label: "Enterprise",
+    roles: ["admin", "spd_manager"],
+    items: [
+      { to: "/network-dashboard", label: "Network Dashboard", icon: Building2 },
+      { to: "/image-quality", label: "Image Quality", icon: Camera },
     ],
   },
   {
@@ -282,6 +293,8 @@ function Breadcrumb({ path }: { path: string }) {
 function Header() {
   const location = useLocation();
   const role = localStorage.getItem("role") || "viewer";
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { unreadCount } = useNotifications();
 
   return (
     <header className="flex h-16 items-center border-b border-slate-200 bg-white px-6 gap-4 shrink-0">
@@ -293,12 +306,19 @@ function Header() {
         <Badge variant="secondary" className="capitalize hidden sm:inline-flex">
           {role.replace(/_/g, " ")}
         </Badge>
-        <button
-          className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
-          aria-label="Notifications"
-        >
-          <Bell className="h-4 w-4" />
-        </button>
+        <div className="relative">
+          <button
+            className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
+            aria-label="Notifications"
+            onClick={() => setNotifOpen(o => !o)}
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+            )}
+          </button>
+          <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
+        </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
           {(localStorage.getItem("actor") || "U")[0].toUpperCase()}
         </div>

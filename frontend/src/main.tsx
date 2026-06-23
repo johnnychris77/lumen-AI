@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider } from "@/lib/auth";
+import { NotificationProvider } from "@/lib/notifications";
 import { Spinner } from "@/components/ui/spinner";
 
 // New Tailwind pages
@@ -47,6 +48,10 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ExecutiveCommandCenterPage = lazy(() => import("./pages/ExecutiveCommandCenterPage"));
 const GlobalRegistryPage = lazy(() => import("./pages/GlobalRegistryPage"));
 const SurgicalReadinessDashboard = lazy(() => import("./pages/SurgicalReadinessDashboard"));
+
+// Phase 13 pages
+const NetworkDashboardPage = lazy(() => import("./pages/NetworkDashboardPage"));
+const ImageQualityPage = lazy(() => import("./pages/ImageQualityPage"));
 
 // Phase 12 pages
 const GoLiveCenterPage = lazy(() => import("./pages/GoLiveCenterPage"));
@@ -111,6 +116,7 @@ class ErrorBoundary extends React.Component<
 function App() {
   return (
     <AuthProvider>
+      <NotificationProvider>
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
@@ -166,6 +172,8 @@ function App() {
                       <Route path="/demo-image-library" element={<DemoImageLibraryPage />} />
                       <Route path="/baseline-image-upload" element={<BaselineImageUploadPage />} />
                       <Route path="/inspection-image-upload" element={<InspectionImageUploadPage />} />
+                      <Route path="/network-dashboard" element={<NetworkDashboardPage />} />
+                      <Route path="/image-quality" element={<ImageQualityPage />} />
                       <Route path="/go-live-center" element={<GoLiveCenterPage />} />
                       <Route path="/implementation-tracker" element={<ImplementationTrackerPage />} />
                       <Route path="/training-compliance" element={<TrainingCompliancePage />} />
@@ -196,6 +204,7 @@ function App() {
           </Routes>
         </ErrorBoundary>
       </BrowserRouter>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

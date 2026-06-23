@@ -111,6 +111,42 @@ function exportReport(d: RealizationData, facility: string) {
   URL.revokeObjectURL(url);
 }
 
+function exportCSV(d: RealizationData, facility: string) {
+  const rows = [
+    ["LumenAI Value Realization Report"],
+    ["Facility", facility],
+    ["Period", `Month ${d.month} ${d.year}`],
+    ["Generated", new Date().toISOString().split("T")[0]],
+    [],
+    ["Metric", "Value"],
+    ["Inspections Completed", d.inspections],
+    ["Total Findings", d.findings],
+    ["Critical Findings", d.criticalFindings],
+    ["CAPAs Completed", d.capasCompleted],
+    ["Baseline Coverage (%)", d.baselineCoveragePct],
+    ["Active Users", d.activeUsers],
+    [],
+    ["Value Category", "Amount (USD)"],
+    ["Time Saved (hours)", d.timeSavedHrs],
+    ["Labor Value", d.laborValueUsd],
+    ["Critical Finding Avoidance", d.findingAvoidanceUsd],
+    ["CAPA Workflow Value", d.capaValueUsd],
+    ["SSI Risk Reduction (%)", d.ssiRiskReductionPct],
+    ["SSI Avoidance Value (Annual Est.)", d.ssiAvoidanceValueUsd],
+    ["Total Estimated Value", d.totalValueUsd],
+    [],
+    ["Disclaimer", "Estimates are for business case purposes only. LumenAI makes no claim of clinical outcome guarantees or FDA clearance."],
+  ];
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `lumenai-value-report-${d.year}-${String(d.month).padStart(2, "0")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ValueRealizationPage() {
   const [data, setData] = useState<RealizationData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,13 +188,22 @@ export default function ValueRealizationPage() {
           </div>
         </div>
         {data && (
-          <button
-            onClick={() => exportReport(data, facility)}
-            className="flex items-center gap-2 text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export Report
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportCSV(data, facility)}
+              className="flex items-center gap-2 text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
+            <button
+              onClick={() => exportReport(data, facility)}
+              className="flex items-center gap-2 text-sm border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export TXT
+            </button>
+          </div>
         )}
       </div>
 

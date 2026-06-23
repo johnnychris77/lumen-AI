@@ -1,5 +1,19 @@
-import { useState } from "react";
-import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronUp, User } from "lucide-react";
+import { useState, useCallback } from "react";
+import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronUp, User, RotateCcw } from "lucide-react";
+
+const STORAGE_KEY = "impl_tracker_statuses";
+
+function loadOverrides(): Record<string, TaskStatus> {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveOverrides(o: Record<string, TaskStatus>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(o));
+}
 
 type TaskStatus = "complete" | "in-progress" | "blocked" | "pending";
 
@@ -117,11 +131,14 @@ function phasePct(phase: Phase) {
   return Math.round((done / phase.tasks.length) * 100);
 }
 
-function PhaseCard({ phase }: { phase: Phase }) {
-  const [open, setOpen] = useState(phase.tasks.some(t => t.status === "in-progress" || t.status === "blocked"));
-  const pct = phasePct(phase);
-  const blocked = phase.tasks.filter(t => t.status === "blocked");
-  const inProgress = phase.tasks.filter(t => t.status === "in-progress");
+const STATUS_CYCLE: TaskStatus[] = ["pending", "in-progress", "complete", "blocked"];
+
+function PhaseCard({ phase, overrides, onToggle }: { phase: Phase; overrides: Record<string, TaskStatus>; onToggle: (id: string) => void }) {
+  const tasks = phase.tasks.map(t => ({ ...t, status: overrides[t.id] ?? t.status }));
+  const [open, setOpen] = useState(tasks.some(t => t.status === "in-progress" || t.status === "blocked"));
+  const pct = phasePct({ ...phase, tasks });
+  const blocked = tasks.filter(t => t.status === "blocked");
+  const inProgress = tasks.filter(t => t.status === "in-progress");
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -159,9 +176,15 @@ function PhaseCard({ phase }: { phase: Phase }) {
 
       {open && (
         <div className="border-t border-slate-100 divide-y divide-slate-50">
-          {phase.tasks.map(task => (
+          {tasks.map(task => (
             <div key={task.id} className={`flex items-start gap-3 px-5 py-3 ${task.status === "blocked" ? "bg-red-50" : ""}`}>
-              <div className="mt-0.5">{statusIcon(task.status)}</div>
+              <button
+                className="mt-0.5 hover:scale-110 transition-transform"
+                title="Click to cycle status"
+                onClick={() => onToggle(task.id)}
+              >
+                {statusIcon(task.status)}
+              </button>
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-0.5">
                   <span className={`text-sm ${task.status === "complete" ? "text-slate-500 line-through" : "text-slate-800"}`}>
@@ -188,7 +211,26 @@ function PhaseCard({ phase }: { phase: Phase }) {
 }
 
 export default function ImplementationTrackerPage() {
-  const allTasks = PHASES.flatMap(p => p.tasks);
+  const [overrides, setOverrides] = useState<Record<string, TaskStatus>>(loadOverrides);
+
+  const toggleStatus = useCallback((id: string) => {
+    setOverrides(prev => {
+      const basePhase = PHASES.flatMap(p => p.tasks).find(t => t.id === id);
+      const current = prev[id] ?? basePhase?.status ?? "pending";
+      const nextIdx = (STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length;
+      const next = STATUS_CYCLE[nextIdx];
+      const updated = { ...prev, [id]: next };
+      saveOverrides(updated);
+      return updated;
+    });
+  }, []);
+
+  const resetAll = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY);
+    setOverrides({});
+  }, []);
+
+  const allTasks = PHASES.flatMap(p => p.tasks).map(t => ({ ...t, status: overrides[t.id] ?? t.status }));
   const completedCount = allTasks.filter(t => t.status === "complete").length;
   const blockedCount = allTasks.filter(t => t.status === "blocked").length;
   const inProgressCount = allTasks.filter(t => t.status === "in-progress").length;
@@ -202,6 +244,12 @@ export default function ImplementationTrackerPage() {
       </div>
 
       {/* Summary bar */}
+      <div className="flex items-center justify-end">
+        <button onClick={resetAll} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors">
+          <RotateCcw className="h-3.5 w-3.5" />
+          Reset to defaults
+        </button>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Overall Progress", value: `${overallPct}%`, color: "text-indigo-700 bg-indigo-50 border-indigo-200" },
@@ -217,8 +265,9 @@ export default function ImplementationTrackerPage() {
       </div>
 
       {/* Phase cards */}
+      <p className="text-xs text-slate-400">Click any task status icon to cycle it (pending → in-progress → complete → blocked). Changes are saved locally.</p>
       <div className="space-y-3">
-        {PHASES.map(phase => <PhaseCard key={phase.id} phase={phase} />)}
+        {PHASES.map(phase => <PhaseCard key={phase.id} phase={phase} overrides={overrides} onToggle={toggleStatus} />)}
       </div>
     </div>
   );

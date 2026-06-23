@@ -41,9 +41,9 @@ function scoreStatus(score: number): ReadinessStatus {
 }
 
 function ScoreGauge({ score }: { score: number }) {
-  const color = score >= 80 ? "bg-emerald-500" : score >= 55 ? "bg-amber-500" : "bg-red-500";
-  const label = score >= 80 ? "GO-LIVE READY" : score >= 55 ? "NEARLY READY" : "NOT READY";
-  const labelColor = score >= 80 ? "text-emerald-700" : score >= 55 ? "text-amber-700" : "text-red-700";
+  const color = score >= 75 ? "bg-emerald-500" : score >= 55 ? "bg-amber-500" : "bg-red-500";
+  const label = score >= 75 ? "GO-LIVE READY" : score >= 55 ? "NEARLY READY" : "NOT READY";
+  const labelColor = score >= 75 ? "text-emerald-700" : score >= 55 ? "text-amber-700" : "text-red-700";
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="relative w-36 h-36 rounded-full border-8 border-slate-100 flex items-center justify-center shadow-inner">
@@ -162,7 +162,12 @@ export default function GoLiveCenterPage() {
     load();
   }, []);
 
-  const overallStatus = scoreStatus(goLiveScore);
+  function goLiveScoreStatus(score: number): ReadinessStatus {
+    if (score >= 75) return "ready";
+    if (score >= 55) return "caution";
+    return "not-ready";
+  }
+  const overallStatus = goLiveScoreStatus(goLiveScore);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -187,7 +192,7 @@ export default function GoLiveCenterPage() {
               <p className="text-sm text-slate-600">
                 Composite score across onboarding, training, baseline coverage, inspection volume, deployment health, and CAPA workflow. A score ≥ 80 signals the deployment is ready for first live inspections.
               </p>
-              {goLiveScore < 80 && (
+              {goLiveScore < 75 && (
                 <div className="mt-3 space-y-1">
                   <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Blocking items</p>
                   {dimensions.filter(d => d.score < 80).map(d => (
