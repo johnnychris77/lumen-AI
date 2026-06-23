@@ -48,6 +48,15 @@ const ExecutiveCommandCenterPage = lazy(() => import("./pages/ExecutiveCommandCe
 const GlobalRegistryPage = lazy(() => import("./pages/GlobalRegistryPage"));
 const SurgicalReadinessDashboard = lazy(() => import("./pages/SurgicalReadinessDashboard"));
 
+// Phase 12 pages
+const GoLiveCenterPage = lazy(() => import("./pages/GoLiveCenterPage"));
+const ImplementationTrackerPage = lazy(() => import("./pages/ImplementationTrackerPage"));
+const TrainingCompliancePage = lazy(() => import("./pages/TrainingCompliancePage"));
+const BaselineReadinessPage = lazy(() => import("./pages/BaselineReadinessPage"));
+const InspectionReadinessPage = lazy(() => import("./pages/InspectionReadinessPage"));
+const ExecutiveAdoptionPage = lazy(() => import("./pages/ExecutiveAdoptionPage"));
+const ValueRealizationPage = lazy(() => import("./pages/ValueRealizationPage"));
+
 // Phase 11 pages
 const CustomerOnboardingPage = lazy(() => import("./pages/CustomerOnboardingPage"));
 const CustomerSuccessDashboard = lazy(() => import("./pages/CustomerSuccessDashboard"));
@@ -157,6 +166,13 @@ function App() {
                       <Route path="/demo-image-library" element={<DemoImageLibraryPage />} />
                       <Route path="/baseline-image-upload" element={<BaselineImageUploadPage />} />
                       <Route path="/inspection-image-upload" element={<InspectionImageUploadPage />} />
+                      <Route path="/go-live-center" element={<GoLiveCenterPage />} />
+                      <Route path="/implementation-tracker" element={<ImplementationTrackerPage />} />
+                      <Route path="/training-compliance" element={<TrainingCompliancePage />} />
+                      <Route path="/baseline-readiness" element={<BaselineReadinessPage />} />
+                      <Route path="/inspection-readiness" element={<InspectionReadinessPage />} />
+                      <Route path="/executive-adoption" element={<ExecutiveAdoptionPage />} />
+                      <Route path="/value-realization" element={<ValueRealizationPage />} />
                       <Route path="/customer-onboarding" element={<CustomerOnboardingPage />} />
                       <Route path="/customer-success" element={<CustomerSuccessDashboard />} />
                       <Route path="/deployment-readiness" element={<DeploymentReadinessPage />} />

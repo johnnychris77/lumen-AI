@@ -31,6 +31,9 @@ import {
   ChevronRight,
   Bell,
   LogOut,
+  Rocket,
+  GraduationCap,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +99,19 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
+    ],
+  },
+  {
+    label: "Go-Live",
+    roles: ["admin", "spd_manager"],
+    items: [
+      { to: "/go-live-center", label: "Go-Live Center", icon: Rocket },
+      { to: "/implementation-tracker", label: "Implementation Tracker", icon: ClipboardCheck },
+      { to: "/training-compliance", label: "Training Compliance", icon: GraduationCap },
+      { to: "/baseline-readiness", label: "Baseline Readiness", icon: Package },
+      { to: "/inspection-readiness", label: "Inspection Readiness", icon: ScanLine },
+      { to: "/executive-adoption", label: "Executive Adoption", icon: TrendingUp },
+      { to: "/value-realization", label: "Value Realization", icon: DollarSign },
     ],
   },
   {
