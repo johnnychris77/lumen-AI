@@ -6,7 +6,6 @@ import { PredictiveAnalyticsDashboard } from "@/components/PredictiveAnalyticsDa
 import { RegulatoryComplianceDashboard } from "@/components/RegulatoryComplianceDashboard";
 import { InspectionCopilotDashboard } from "@/components/InspectionCopilotDashboard";
 import { DigitalTwinDashboard } from "@/components/DigitalTwinDashboard";
-import ManufacturerPortal from "@/pages/ManufacturerPortal";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useTierUpgrade } from "@/hooks/useTierUpgrade";
 
@@ -136,15 +135,7 @@ type BaselineKPIs = {
 };
 
 export default function DashboardApp() {
-  // Route to ManufacturerPortal when on /manufacturer path or manufacturers.* subdomain
-  if (typeof window !== "undefined" && (
-    window.location.hostname.startsWith("manufacturers.") ||
-    window.location.pathname === "/manufacturer"
-  )) {
-    return <ManufacturerPortal />;
-  }
-
-  const [summary, setSummary] = useState<Summary | null>(null);
+const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Inspection[]>([]);
   const [health, setHealth] = useState("checking");
   const [error, setError] = useState("");
