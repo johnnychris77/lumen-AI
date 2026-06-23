@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { CSSProperties } from "react";
 
 type BaselineComparisonResult = {
@@ -146,6 +147,7 @@ export default function EnterpriseIntakeHistoryPanel() {
                 <th style={th}>Risk</th>
                 <th style={th}>Action</th>
                 <th style={th}>Workflow</th>
+                <th style={th}>Passport</th>
               </tr>
             </thead>
             <tbody>
@@ -176,6 +178,14 @@ export default function EnterpriseIntakeHistoryPanel() {
                     </td>
                     <td style={td}>{item.recommended_action || "—"}</td>
                     <td style={td}>{item.workflow_status || "pending"}</td>
+                    <td style={td} onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        to={`/infrastructure?tab=passport&instrument=${encodeURIComponent(item.instrument_name || "")}`}
+                        style={{ fontSize: "12px", color: "#4f46e5", textDecoration: "underline", whiteSpace: "nowrap" }}
+                      >
+                        View →
+                      </Link>
+                    </td>
                   </tr>
                 );
               })}

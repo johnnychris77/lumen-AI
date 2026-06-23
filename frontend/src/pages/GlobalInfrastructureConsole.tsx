@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { getImagesByInstrument, getImagesByIdentifier, MANIFEST_INSTRUMENTS } from "../data/pilotImageManifest";
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
@@ -61,7 +62,10 @@ function StatusBadge({ status }: { status: string }) {
 type Tab = "dashboard" | "instruments" | "passport" | "readiness" | "registry" | "spd-registry" | "forecasts" | "credentials";
 
 export default function GlobalInfrastructureConsole() {
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab | null) ?? "dashboard";
+  const deepLinkInstrument = searchParams.get("instrument") ?? "";
+  const [tab, setTab] = useState<Tab>(initialTab);
   const TABS: { id: Tab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
     { id: "instruments", label: "Instrument Identities" },
@@ -100,7 +104,7 @@ export default function GlobalInfrastructureConsole() {
 
       {tab === "dashboard" && <DashboardTab />}
       {tab === "instruments" && <InstrumentsTab />}
-      {tab === "passport" && <PassportTab />}
+      {tab === "passport" && <PassportTab deepLinkInstrument={deepLinkInstrument} />}
       {tab === "readiness" && <ReadinessTab />}
       {tab === "registry" && <RegistryTab />}
       {tab === "spd-registry" && <SPDRegistryTab />}
@@ -515,9 +519,10 @@ function ForecastsTab() {
 }
 
 // --- Instrument Passport Tab ---
-function PassportTab() {
+function PassportTab({ deepLinkInstrument = "" }: { deepLinkInstrument?: string }) {
   const [instruments, setInstruments] = useState<Record<string, unknown>[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const deepLinked = useRef(false);
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [form, setForm] = useState({ event_type: "inspection", outcome: "pass", finding_severity: "none", notes: "" });
@@ -527,7 +532,22 @@ function PassportTab() {
   useEffect(() => {
     fetch(`${API}/api/infrastructure/instruments`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setInstruments(d.instruments ?? d ?? []));
+      .then((d) => {
+        const list: Record<string, unknown>[] = d.instruments ?? d ?? [];
+        setInstruments(list);
+        // Auto-select instrument from deep-link query param on first load
+        if (deepLinkInstrument && !deepLinked.current) {
+          deepLinked.current = true;
+          const match = list.find(
+            (inst) =>
+              String(inst.udi ?? "").toLowerCase().includes(deepLinkInstrument.toLowerCase()) ||
+              String(inst.barcode ?? "").toLowerCase() === deepLinkInstrument.toLowerCase() ||
+              String(inst.internal_id ?? "").toLowerCase() === deepLinkInstrument.toLowerCase()
+          );
+          if (match) loadPassport(String(match.id ?? ""));
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadPassport = (id: string) => {

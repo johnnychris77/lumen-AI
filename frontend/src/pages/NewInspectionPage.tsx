@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import { FormSection } from "@/components/ui/FormSection";
@@ -45,26 +45,36 @@ type FieldErrors = Partial<Record<keyof FormFields, string>>;
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const INSTRUMENT_TYPES = [
+  // Lumened scopes — most common for pilot fleet
+  { value: "scope", label: "Scope (Lumened)" },
+  { value: "flexible_ureteroscope", label: "Flexible Ureteroscope" },
+  { value: "bronchoscope", label: "Bronchoscope" },
+  { value: "colonoscope", label: "Colonoscope" },
+  { value: "cystoscope", label: "Cystoscope" },
+  { value: "hysteroscope", label: "Hysteroscope" },
+  { value: "laparoscope", label: "Laparoscope" },
+  { value: "arthroscope", label: "Arthroscope" },
+  { value: "nephroscope", label: "Nephroscope" },
+  // Non-lumened instruments
   { value: "scissors", label: "Scissors" },
   { value: "forceps", label: "Forceps" },
   { value: "clamp", label: "Clamp" },
   { value: "needle_holder", label: "Needle Holder" },
   { value: "retractor", label: "Retractor" },
   { value: "scalpel_handle", label: "Scalpel Handle" },
-  { value: "scope", label: "Scope" },
   { value: "drill", label: "Drill" },
   { value: "other", label: "Other" },
 ];
 
-const FINDING_CATEGORIES: { value: FindingCategory; label: string }[] = [
-  { value: "blood", label: "Blood" },
-  { value: "bone", label: "Bone" },
-  { value: "tissue", label: "Tissue" },
-  { value: "debris", label: "Debris" },
-  { value: "corrosion", label: "Corrosion" },
-  { value: "crack", label: "Crack" },
-  { value: "insulation_damage", label: "Insulation Damage" },
-  { value: "other", label: "Other" },
+const FINDING_CATEGORIES: { value: FindingCategory; label: string; tooltip: string }[] = [
+  { value: "blood", label: "Blood", tooltip: "Visible blood residue in lumen or on instrument surface" },
+  { value: "bone", label: "Bone", tooltip: "Calcified tissue or bone fragment visible in channel" },
+  { value: "tissue", label: "Tissue", tooltip: "Soft tissue or protein residue visible in lumen" },
+  { value: "debris", label: "Debris / Bioburden", tooltip: "Non-specific particulate, organic matter, or buildup" },
+  { value: "corrosion", label: "Corrosion", tooltip: "Rust, pitting, or surface degradation of metal" },
+  { value: "crack", label: "Crack / Fracture", tooltip: "Visible structural break, fracture, or delamination" },
+  { value: "insulation_damage", label: "Insulation Damage", tooltip: "Damage to electrical insulation on monopolar/bipolar instruments" },
+  { value: "other", label: "Other", tooltip: "Any finding not covered by categories above" },
 ];
 
 const RISK_LEVELS = [
@@ -130,6 +140,10 @@ export default function NewInspectionPage() {
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
 
+  const [submittedRiskScore, setSubmittedRiskScore] = useState<number | null>(null);
+  const [barcodeScanned, setBarcodeScanned] = useState(false);
+  const [noBaselineWarning, setNoBaselineWarning] = useState(false);
+
   const inspectionInputRef = useRef<HTMLInputElement>(null);
   const borescopeInputRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +182,26 @@ export default function NewInspectionPage() {
   function onBlurStr(key: keyof FormFields) {
     return () => validateField(key, form[key]);
   }
+
+  // ── baseline warning on instrument type change ─────────────────────────────
+
+  const checkBaseline = useCallback(async (instrumentType: string) => {
+    if (!instrumentType) { setNoBaselineWarning(false); return; }
+    try {
+      const hdrs = headers();
+      const r = await fetch(
+        `${API_BASE}/api/baseline-library?instrument_category=${encodeURIComponent(instrumentType)}&status=approved&limit=1`,
+        { headers: hdrs }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        const items = Array.isArray(d) ? d : d.items ?? [];
+        setNoBaselineWarning(items.length === 0);
+      }
+    } catch {
+      // non-fatal — don't block form on network error
+    }
+  }, [headers]);
 
   // ── finding category checkboxes ────────────────────────────────────────────
 
@@ -231,6 +265,12 @@ export default function NewInspectionPage() {
       errors.finding_categories = "Select at least one finding category.";
     }
     setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setTimeout(() => {
+        const el = document.querySelector<HTMLElement>("[data-field-error]");
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+    }
     return Object.keys(errors).length === 0;
   }
 
@@ -292,13 +332,16 @@ export default function NewInspectionPage() {
       }
 
       let id = "";
+      let riskScore: number | null = null;
       try {
         const data = await res.json();
         id = String(data?.id || data?.inspection_id || "");
+        riskScore = data?.risk_score != null ? Number(data.risk_score) : null;
       } catch {
         // ignore
       }
       setSubmittedId(id);
+      setSubmittedRiskScore(riskScore);
 
       // Upload images if any were selected
       const allImages = [...inspectionImages, ...borescopeImages];
@@ -332,6 +375,9 @@ export default function NewInspectionPage() {
     setFieldErrors({});
     setBanner(null);
     setSubmittedId(null);
+    setSubmittedRiskScore(null);
+    setNoBaselineWarning(false);
+    setBarcodeScanned(false);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -357,13 +403,29 @@ export default function NewInspectionPage() {
       )}
 
       {submittedId !== null && banner?.type === "success" && (
-        <button
-          type="button"
-          onClick={resetForm}
-          className="text-sm text-blue-600 underline"
-        >
-          Submit Another Inspection
-        </button>
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+          {submittedRiskScore !== null && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-emerald-800 font-medium">AI Risk Score:</span>
+              <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-bold ${
+                submittedRiskScore >= 80 ? "bg-red-600 text-white" :
+                submittedRiskScore >= 60 ? "bg-orange-500 text-white" :
+                submittedRiskScore >= 40 ? "bg-amber-400 text-slate-900" :
+                "bg-emerald-100 text-emerald-800"
+              }`}>
+                {submittedRiskScore} / 100
+              </span>
+              <span className="text-xs text-slate-500">Human review required</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={resetForm}
+            className="text-sm text-blue-600 underline"
+          >
+            Submit Another Inspection
+          </button>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
@@ -482,7 +544,10 @@ export default function NewInspectionPage() {
               <select
                 id="instrument_type"
                 value={form.instrument_type}
-                onChange={setStr("instrument_type")}
+                onChange={(e) => {
+                  setStr("instrument_type")(e);
+                  checkBaseline(e.target.value);
+                }}
                 onBlur={onBlurStr("instrument_type")}
                 required
                 className={inputCls}
@@ -495,6 +560,11 @@ export default function NewInspectionPage() {
                 ))}
               </select>
               <FieldError message={fieldErrors.instrument_type} />
+              {noBaselineWarning && (
+                <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  ⚠ No approved baseline found for this instrument type — risk score accuracy may be reduced.
+                </p>
+              )}
             </div>
 
             <div>
@@ -539,13 +609,18 @@ export default function NewInspectionPage() {
             <div>
               <label htmlFor="barcode" className="block text-sm font-medium text-gray-700">
                 Barcode
+                {barcodeScanned && (
+                  <span className="ml-2 text-xs font-medium text-emerald-600">✓ Scanned</span>
+                )}
               </label>
               <input
                 id="barcode"
                 type="text"
                 value={form.barcode}
-                onChange={setStr("barcode")}
+                onChange={(e) => { setStr("barcode")(e); setBarcodeScanned(false); }}
+                onBlur={() => { if (form.barcode.trim()) setBarcodeScanned(true); }}
                 className={inputCls}
+                placeholder="Scan or type barcode…"
               />
             </div>
 
@@ -599,7 +674,8 @@ export default function NewInspectionPage() {
               {FINDING_CATEGORIES.map((cat) => (
                 <label
                   key={cat.value}
-                  className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+                  className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer group"
+                  title={cat.tooltip}
                 >
                   <input
                     type="checkbox"
@@ -607,7 +683,8 @@ export default function NewInspectionPage() {
                     onChange={() => toggleCategory(cat.value)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  {cat.label}
+                  <span>{cat.label}</span>
+                  <span className="text-gray-400 text-xs cursor-help" title={cat.tooltip}>?</span>
                 </label>
               ))}
               <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer col-span-full">

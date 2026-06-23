@@ -410,8 +410,8 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {(["blood", "bone", "tissue", "debris", "corrosion", "crack"] as const).map((key) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              {(["blood", "bone", "tissue", "debris", "corrosion", "crack", "insulation_damage"] as const).map((key) => (
                 <CategoryKPICard key={key} catKey={key} count={cats[key] ?? 0} />
               ))}
             </div>
@@ -458,34 +458,40 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ── Image Library KPIs ── */}
+      {/* ── Baseline Coverage KPI ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Image Library</h3>
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Baseline Coverage</h3>
           <div className="flex gap-3">
-            <Link to="/demo-image-library" className="text-xs text-blue-600 hover:underline">Browse library →</Link>
+            <Link to="/demo-image-library" className="text-xs text-blue-600 hover:underline">Image library →</Link>
             <Link to="/baseline-image-upload" className="text-xs text-blue-600 hover:underline">Upload baseline →</Link>
           </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            label="Demo Images Loaded"
-            value={12}
+            label="Baseline Coverage"
+            value={kpi ? `${kpi.baselines.approval_rate}%` : "—"}
+            icon={ShieldCheck}
+            detail="Approved baselines / total"
+            trend={kpi && kpi.baselines.approval_rate >= 80 ? "up" : "neutral"}
+          />
+          <KPICard
+            label="Awaiting Approval"
+            value={kpi?.baselines.pending ?? "—"}
+            icon={Clock}
+            detail="Pending baseline review"
+          />
+          <KPICard
+            label="Demo Images"
+            value={20}
             icon={Images}
-            detail="Pilot demo image cards"
+            detail="Pilot manifest placeholder images"
           />
           <KPICard
-            label="Baseline Images"
-            value={kpi?.baselines.total ?? "—"}
-            icon={CheckCircle2}
-            detail="Approved + pending baselines"
-            trend="up"
-          />
-          <KPICard
-            label="Images Approved"
-            value={kpi?.baselines.approved ?? "—"}
-            icon={Zap}
-            detail="Active in CV pipeline"
+            label="High-Risk Instruments"
+            value={kpi?.high_risk_instruments ?? "—"}
+            icon={AlertTriangle}
+            detail="Instruments with risk score ≥ 80"
           />
         </div>
       </section>

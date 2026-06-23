@@ -217,6 +217,22 @@ export default function BaselineImageUploadPage() {
         </p>
       </div>
 
+      {/* Capture guidelines */}
+      <details className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+        <summary className="cursor-pointer font-medium text-blue-800 select-none">
+          📷 Image Capture Guidelines
+        </summary>
+        <ul className="mt-3 space-y-1.5 text-blue-900 text-xs list-none">
+          <li><strong>Format:</strong> JPEG or PNG</li>
+          <li><strong>Resolution:</strong> Minimum 1920×1080 (1080p); 4K preferred for borescope images</li>
+          <li><strong>File size:</strong> Maximum 20 MB per image</li>
+          <li><strong>Lighting:</strong> White LED illumination; avoid flash flare at lumen entry</li>
+          <li><strong>Required angles:</strong> (1) lumen entry, (2) distal tip, (3) insertion tube shaft</li>
+          <li><strong>Naming:</strong> <code className="bg-blue-100 px-1 rounded">{"{facility}_{instrument_id}_{YYYYMMDD}_{seq}.jpg"}</code></li>
+          <li className="text-red-800 font-medium">⚠ PHI: Do not photograph patient labels, wristbands, or medical records in frame.</li>
+        </ul>
+      </details>
+
       {result && (
         <div
           className={`flex items-start gap-3 rounded-lg p-4 border ${
