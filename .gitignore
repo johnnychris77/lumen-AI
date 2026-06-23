@@ -62,5 +62,6 @@ tmp/
 baselines/
 .venv-pdf/
 data/
+!frontend/src/data/
 *.sqlite
 .venv-backend/
