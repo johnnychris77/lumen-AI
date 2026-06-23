@@ -2,31 +2,27 @@ import React, { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  ClipboardList,
-  ShieldCheck,
-  FileSearch,
-  BarChart3,
-  Building2,
-  Package,
-  CheckCircle2,
+  FilePlus,
   History,
+  ClipboardCheck,
+  Package,
   Store,
+  BookOpen,
+  CheckCircle2,
+  Database,
+  CreditCard,
+  ScanLine,
+  FileSearch,
+  ShieldCheck,
+  FileText,
+  TrendingUp,
+  BarChart3,
+  AlertTriangle,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Bell,
   LogOut,
-  Award,
-  Briefcase,
-  TrendingUp,
-  LineChart,
-  Network,
-  Workflow,
-  Globe,
-  BookOpen,
-  Cpu,
-  GitBranch,
-  Factory,
-  BrainCircuit,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -34,65 +30,59 @@ import { Badge } from "@/components/ui/badge";
 type NavLeaf = { to: string; label: string; icon: React.ElementType; roles?: string[] };
 type NavGroup = { label: string; roles?: string[]; items: NavLeaf[] };
 
-// `roles` (when present) restricts visibility. Omitted = visible to all roles.
-// The backend still enforces access via require_roles — this is UX decluttering.
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/operations", label: "Operations", icon: Building2 },
-      { to: "/analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
   {
     label: "Inspection Intelligence",
-    roles: ["admin", "spd_manager", "vendor_user", "viewer"],
     items: [
-      { to: "/vendor-intake", label: "Vendor Intake", icon: ClipboardList },
-      { to: "/intake-history", label: "Intake History", icon: History },
-      { to: "/manufacturer-baselines", label: "Manufacturer Baselines", icon: Package },
-      { to: "/baseline-review", label: "Baseline Review", icon: CheckCircle2 },
-      { to: "/vendor-baseline-portal", label: "Vendor Baseline Portal", icon: Store },
+      { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
+      { to: "/intake-history", label: "Inspection History", icon: History },
+      { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
     ],
   },
   {
-    label: "Quality & Compliance",
+    label: "Baselines",
+    items: [
+      { to: "/manufacturer-baselines", label: "Manufacturer Baselines", icon: Package },
+      { to: "/vendor-baseline-portal", label: "Vendor Baselines", icon: Store },
+      { to: "/baseline-library", label: "Baseline Library", icon: BookOpen },
+      { to: "/baseline-review", label: "Baseline Reviews", icon: CheckCircle2 },
+    ],
+  },
+  {
+    label: "Instruments",
+    items: [
+      { to: "/infrastructure", label: "Instrument Registry", icon: Database },
+      { to: "/instrument-passport", label: "Instrument Passport", icon: CreditCard },
+      { to: "/vendor-intake", label: "Barcode / QR / KeyDot", icon: ScanLine },
+    ],
+  },
+  {
+    label: "Quality",
+    items: [
+      { to: "/findings", label: "Findings", icon: FileSearch },
+      { to: "/capa", label: "CAPA", icon: ShieldCheck },
+      { to: "/audit-evidence", label: "Audit Evidence", icon: FileText },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { to: "/enterprise", label: "Executive Dashboard", icon: TrendingUp },
+      { to: "/pilot-analytics", label: "Benchmarking", icon: BarChart3 },
+      { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
+    ],
+  },
+  {
+    label: "Administration",
     roles: ["admin", "spd_manager", "executive"],
     items: [
-      { to: "/findings", label: "Findings Queue", icon: FileSearch },
-      { to: "/capa", label: "CAPA Workflow", icon: ShieldCheck },
-      { to: "/accreditation", label: "Accreditation", icon: Award },
-    ],
-  },
-  {
-    label: "Enterprise & Growth",
-    roles: ["admin", "executive"],
-    items: [
-      { to: "/enterprise", label: "Enterprise", icon: Building2 },
-      { to: "/commercial", label: "Commercial", icon: Briefcase },
-      { to: "/growth", label: "Growth", icon: TrendingUp },
-      { to: "/pilot-analytics", label: "Pilot Analytics", icon: LineChart },
-      { to: "/vendor-intelligence", label: "Vendor Intelligence", icon: Factory },
-    ],
-  },
-  {
-    label: "Network Intelligence",
-    roles: ["admin", "executive"],
-    items: [
-      { to: "/network-intelligence", label: "Network Intelligence", icon: Network },
-      { to: "/global-intelligence", label: "Global Surgical Intelligence", icon: Globe },
-      { to: "/global-standards", label: "Standards & Benchmarks", icon: BookOpen },
-      { to: "/infrastructure", label: "Quality Infrastructure", icon: Cpu },
-      { to: "/quality-intelligence", label: "Quality Intelligence", icon: BrainCircuit },
-    ],
-  },
-  {
-    label: "Autonomous Operations",
-    roles: ["admin", "manager", "executive"],
-    items: [
-      { to: "/autonomous-operations", label: "Operations Platform", icon: Workflow },
-      { to: "/digital-twin", label: "Digital Twin", icon: GitBranch },
+      { to: "/accreditation", label: "Accreditation", icon: Settings },
     ],
   },
 ];
