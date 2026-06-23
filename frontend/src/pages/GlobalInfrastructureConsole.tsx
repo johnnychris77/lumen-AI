@@ -57,16 +57,19 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "instruments" | "readiness" | "registry" | "forecasts";
+type Tab = "dashboard" | "instruments" | "passport" | "readiness" | "registry" | "spd-registry" | "forecasts" | "credentials";
 
 export default function GlobalInfrastructureConsole() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const TABS: { id: Tab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
     { id: "instruments", label: "Instrument Identities" },
+    { id: "passport", label: "Instrument Passport" },
     { id: "readiness", label: "Readiness Index" },
     { id: "registry", label: "Quality Registry" },
+    { id: "spd-registry", label: "SPD Registry" },
     { id: "forecasts", label: "Predictive Forecasts" },
+    { id: "credentials", label: "API Credentials" },
   ];
 
   return (
@@ -96,9 +99,12 @@ export default function GlobalInfrastructureConsole() {
 
       {tab === "dashboard" && <DashboardTab />}
       {tab === "instruments" && <InstrumentsTab />}
+      {tab === "passport" && <PassportTab />}
       {tab === "readiness" && <ReadinessTab />}
       {tab === "registry" && <RegistryTab />}
+      {tab === "spd-registry" && <SPDRegistryTab />}
       {tab === "forecasts" && <ForecastsTab />}
+      {tab === "credentials" && <CredentialsTab />}
     </div>
   );
 }
@@ -487,6 +493,439 @@ function ForecastsTab() {
       {forecasts.length === 0 && (
         <p className="text-sm text-slate-500 text-center py-8">No forecasts available.</p>
       )}
+    </div>
+  );
+}
+
+// --- Instrument Passport Tab ---
+function PassportTab() {
+  const [instruments, setInstruments] = useState<Record<string, unknown>[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [events, setEvents] = useState<Record<string, unknown>[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [form, setForm] = useState({ event_type: "inspection", outcome: "pass", finding_severity: "none", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/infrastructure/instruments`, { headers: headers() })
+      .then((r) => r.json())
+      .then((d) => setInstruments(d.instruments ?? d ?? []));
+  }, []);
+
+  const loadPassport = (id: string) => {
+    setSelectedId(id);
+    setLoadingEvents(true);
+    fetch(`${API}/api/infrastructure/instruments/${id}/passport`, { headers: headers() })
+      .then((r) => r.json())
+      .then((d) => setEvents(d.events ?? d ?? []))
+      .finally(() => setLoadingEvents(false));
+  };
+
+  const addEvent = async () => {
+    if (!selectedId) return;
+    setSubmitting(true);
+    setMsg(null);
+    try {
+      const r = await fetch(`${API}/api/infrastructure/instruments/${selectedId}/passport`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(form),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setMsg("Event recorded.");
+        loadPassport(selectedId);
+      } else {
+        setMsg(d.detail ?? "Error recording event.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const EVENT_TYPES = ["inspection", "sterilization", "maintenance", "repair", "transfer", "quarantine", "retirement"];
+  const SEV_TYPES = ["none", "minor", "major", "critical"];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <p className="text-xs font-semibold text-slate-600 mb-2">Select Instrument</p>
+        <select
+          value={selectedId}
+          onChange={(e) => loadPassport(e.target.value)}
+          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mb-4"
+        >
+          <option value="">— choose instrument —</option>
+          {instruments.map((inst, i) => (
+            <option key={i} value={String(inst.id ?? i)}>
+              {String(inst.instrument_type ?? "Unknown")} — {String(inst.udi ?? inst.internal_id ?? inst.id ?? i)}
+            </option>
+          ))}
+        </select>
+
+        {selectedId && (
+          <div className="border border-slate-200 rounded p-4 bg-slate-50">
+            <p className="text-xs font-semibold text-slate-600 mb-3">Log New Event</p>
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs text-slate-500">Event Type</label>
+                <select value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-sm mt-0.5">
+                  {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Outcome</label>
+                <select value={form.outcome} onChange={(e) => setForm({ ...form, outcome: e.target.value })}
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-sm mt-0.5">
+                  {["pass", "fail", "conditional", "completed", "escalated"].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Finding Severity</label>
+                <select value={form.finding_severity} onChange={(e) => setForm({ ...form, finding_severity: e.target.value })}
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-sm mt-0.5">
+                  {SEV_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Notes</label>
+                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-sm mt-0.5" rows={2} />
+              </div>
+              <button onClick={addEvent} disabled={submitting}
+                className="w-full bg-slate-900 text-white text-sm rounded px-3 py-1.5 hover:bg-slate-700 disabled:opacity-50">
+                {submitting ? "Saving…" : "Record Event"}
+              </button>
+              {msg && <p className="text-xs text-green-700">{msg}</p>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="md:col-span-2">
+        <p className="text-xs font-semibold text-slate-600 mb-2">
+          Passport History {selectedId ? `— ${events.length} event(s)` : ""}
+        </p>
+        {loadingEvents && <p className="text-sm text-slate-500">Loading…</p>}
+        {!loadingEvents && !selectedId && (
+          <p className="text-sm text-slate-400 py-8 text-center">Select an instrument to view its passport.</p>
+        )}
+        {!loadingEvents && selectedId && (
+          <div className="overflow-x-auto rounded border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  {["Event Type", "Outcome", "Severity", "Cycle Count", "Timestamp"].map((h) => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-600">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((ev, i) => (
+                  <tr key={i} className="border-t border-slate-100">
+                    <td className="px-3 py-2 capitalize">{String(ev.event_type ?? "—")}</td>
+                    <td className="px-3 py-2 capitalize">{String(ev.outcome ?? "—")}</td>
+                    <td className="px-3 py-2 capitalize">{String(ev.finding_severity ?? "—")}</td>
+                    <td className="px-3 py-2">{String(ev.cycle_count_at_event ?? "—")}</td>
+                    <td className="px-3 py-2 text-slate-400 text-xs">
+                      {ev.created_at ? new Date(String(ev.created_at)).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+                {events.length === 0 && (
+                  <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-400 text-sm">No events recorded yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="mt-3"><HumanReviewBadge /></div>
+      </div>
+    </div>
+  );
+}
+
+// --- SPD Registry Tab ---
+function SPDRegistryTab() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Record<string, unknown>[]>([]);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [defectHistory, setDefectHistory] = useState<{ udi: string; history: Record<string, unknown>[] } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/network/registry/stats`, { headers: headers() })
+      .then((r) => r.json())
+      .then(setStats);
+    fetch(`${API}/api/network/registry/search?q=`, { headers: headers() })
+      .then((r) => r.json())
+      .then((d) => setResults(d.results ?? d ?? []));
+  }, []);
+
+  const search = () => {
+    setLoading(true);
+    fetch(`${API}/api/network/registry/search?q=${encodeURIComponent(query)}`, { headers: headers() })
+      .then((r) => r.json())
+      .then((d) => setResults(d.results ?? d ?? []))
+      .finally(() => setLoading(false));
+  };
+
+  const loadDefectHistory = (udi: string) => {
+    fetch(`${API}/api/network/registry/${encodeURIComponent(udi)}/defect-history`, { headers: headers() })
+      .then((r) => r.json())
+      .then((d) => setDefectHistory({ udi, history: d.history ?? d ?? [] }));
+  };
+
+  return (
+    <div>
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {Object.entries(stats).filter(([k]) => typeof stats[k] === "number").map(([k, v]) => (
+            <div key={k} className="rounded border border-slate-200 bg-white p-3">
+              <p className="text-xs text-slate-500 capitalize">{k.replace(/_/g, " ")}</p>
+              <p className="text-xl font-bold text-slate-900 mt-0.5">{String(v)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Search by UDI, manufacturer, instrument type…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && search()}
+          className="border border-slate-300 rounded px-3 py-1.5 text-sm flex-1"
+        />
+        <button onClick={search} disabled={loading}
+          className="bg-slate-900 text-white text-sm rounded px-4 py-1.5 hover:bg-slate-700 disabled:opacity-50">
+          {loading ? "Searching…" : "Search"}
+        </button>
+      </div>
+
+      <div className="overflow-x-auto rounded border border-slate-200 mb-6">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {["UDI", "Instrument Type", "Manufacturer", "Version", "Defect History"].map((h) => (
+                <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-600">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((entry, i) => (
+              <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2 font-mono text-xs">{String(entry.udi ?? "—")}</td>
+                <td className="px-3 py-2 capitalize">{String(entry.instrument_type ?? "—")}</td>
+                <td className="px-3 py-2">{String(entry.manufacturer ?? "—")}</td>
+                <td className="px-3 py-2">{String(entry.version ?? "—")}</td>
+                <td className="px-3 py-2">
+                  {entry.udi && (
+                    <button onClick={() => loadDefectHistory(String(entry.udi))}
+                      className="text-xs text-blue-600 hover:underline">
+                      View history
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {results.length === 0 && (
+              <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-400 text-sm">No registry entries found.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {defectHistory && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-700 mb-3">
+            Defect History — <span className="font-mono text-xs">{defectHistory.udi}</span>
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50">
+                <tr>
+                  {["Finding Type", "Severity", "Date", "Outcome"].map((h) => (
+                    <th key={h} className="px-3 py-1.5 text-left font-semibold text-slate-600">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {defectHistory.history.map((d, i) => (
+                  <tr key={i} className="border-t border-slate-100">
+                    <td className="px-3 py-1.5 capitalize">{String(d.finding_type ?? "—")}</td>
+                    <td className="px-3 py-1.5 capitalize">{String(d.severity ?? "—")}</td>
+                    <td className="px-3 py-1.5 text-slate-400">{d.date ? new Date(String(d.date)).toLocaleDateString() : "—"}</td>
+                    <td className="px-3 py-1.5 capitalize">{String(d.outcome ?? "—")}</td>
+                  </tr>
+                ))}
+                {defectHistory.history.length === 0 && (
+                  <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-400">No defect history.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      <div className="mt-3"><HumanReviewBadge /></div>
+    </div>
+  );
+}
+
+// --- API Credentials Tab ---
+function CredentialsTab() {
+  const [creds, setCreds] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ consumer_type: "hospital", label: "", scopes: ["readiness"] });
+  const [issuedKey, setIssuedKey] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const ALL_SCOPES = ["readiness", "passport", "registry", "lifecycle", "quality_signals", "forecasts", "benchmarks", "all"];
+  const CONSUMER_TYPES = ["hospital", "manufacturer", "researcher", "governance"];
+
+  const load = () => {
+    setLoading(true);
+    fetch(`${API}/api/infrastructure/api-credentials`, { headers: headers() })
+      .then((r) => r.json())
+      .then((d) => setCreds(d.credentials ?? d ?? []))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const issue = async () => {
+    setSubmitting(true);
+    setMsg(null);
+    setIssuedKey(null);
+    try {
+      const r = await fetch(`${API}/api/infrastructure/api-credentials`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ consumer_type: form.consumer_type, label: form.label, scopes: form.scopes }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setIssuedKey(d.api_key ?? null);
+        setMsg("Credential issued. Copy the API key now — it will not be shown again.");
+        load();
+      } else {
+        setMsg(d.detail ?? "Error issuing credential.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const revoke = async (id: unknown) => {
+    setMsg(null);
+    const r = await fetch(`${API}/api/infrastructure/api-credentials/${id}/revoke`, {
+      method: "POST", headers: headers(),
+    });
+    const d = await r.json();
+    setMsg(r.ok ? "Credential revoked." : (d.detail ?? "Error."));
+    load();
+  };
+
+  const toggleScope = (scope: string) => {
+    setForm((f) => ({
+      ...f,
+      scopes: f.scopes.includes(scope) ? f.scopes.filter((s) => s !== scope) : [...f.scopes, scope],
+    }));
+  };
+
+  return (
+    <div className="grid md:grid-cols-3 gap-6">
+      <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+        <p className="text-sm font-semibold text-slate-700 mb-3">Issue New Credential</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-slate-500">Consumer Type</label>
+            <select value={form.consumer_type} onChange={(e) => setForm({ ...form, consumer_type: e.target.value })}
+              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-0.5">
+              {CONSUMER_TYPES.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Label</label>
+            <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })}
+              placeholder="e.g. County Hospital API"
+              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-0.5" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1">Scopes</label>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_SCOPES.map((s) => (
+                <button key={s} onClick={() => toggleScope(s)}
+                  className={`px-2 py-0.5 rounded text-xs border ${form.scopes.includes(s) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={issue} disabled={submitting || form.scopes.length === 0}
+            className="w-full bg-slate-900 text-white text-sm rounded px-3 py-1.5 hover:bg-slate-700 disabled:opacity-50">
+            {submitting ? "Issuing…" : "Issue Credential"}
+          </button>
+          {msg && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">{msg}</p>}
+          {issuedKey && (
+            <div className="rounded bg-green-50 border border-green-200 p-2">
+              <p className="text-xs text-green-800 font-semibold mb-1">API Key (copy now — shown once):</p>
+              <p className="font-mono text-xs break-all text-green-900 select-all">{issuedKey}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="md:col-span-2">
+        <p className="text-xs font-semibold text-slate-600 mb-2">Active Credentials</p>
+        {loading && <p className="text-sm text-slate-500">Loading…</p>}
+        <div className="overflow-x-auto rounded border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                {["Consumer Type", "Label", "Scopes", "Status", "Expires", "Action"].map((h) => (
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-600">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {creds.map((c, i) => (
+                <tr key={i} className="border-t border-slate-100">
+                  <td className="px-3 py-2 capitalize">{String(c.consumer_type ?? "—")}</td>
+                  <td className="px-3 py-2">{String(c.label ?? "—")}</td>
+                  <td className="px-3 py-2 text-xs">
+                    {Array.isArray(c.scopes) ? (c.scopes as string[]).join(", ") : String(c.scopes ?? "—")}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`text-xs font-medium ${c.status === "active" ? "text-green-700" : "text-slate-400"}`}>
+                      {String(c.status ?? "—")}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-400">
+                    {c.expires_at ? new Date(String(c.expires_at)).toLocaleDateString() : "Never"}
+                  </td>
+                  <td className="px-3 py-2">
+                    {c.status === "active" && (
+                      <button onClick={() => revoke(c.id)}
+                        className="text-xs text-red-600 hover:underline">
+                        Revoke
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {creds.length === 0 && (
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400 text-sm">No credentials issued.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-slate-400 mt-2">API keys are hashed on issuance and cannot be retrieved after creation.</p>
+      </div>
     </div>
   );
 }

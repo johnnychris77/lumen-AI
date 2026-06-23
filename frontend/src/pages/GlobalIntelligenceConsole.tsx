@@ -317,9 +317,11 @@ function RegulatoryEvidenceTab() {
 const TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "signals", label: "Global Signals" },
+  { id: "review", label: "Signal Review" },
   { id: "registry", label: "Risk Registry" },
   { id: "warnings", label: "Recall Warnings" },
   { id: "evidence", label: "Regulatory Evidence" },
+  { id: "enrollment", label: "GSIN Enrollment" },
 ];
 
 export default function GlobalIntelligenceConsole() {
@@ -354,9 +356,263 @@ export default function GlobalIntelligenceConsole() {
 
       {tab === "dashboard" && <DashboardTab />}
       {tab === "signals" && <SignalsTab />}
+      {tab === "review" && <SignalReviewTab />}
       {tab === "registry" && <RiskRegistryTab />}
       {tab === "warnings" && <RecallWarningsTab />}
       {tab === "evidence" && <RegulatoryEvidenceTab />}
+      {tab === "enrollment" && <EnrollmentTab />}
+    </div>
+  );
+}
+
+// --- Signal Review Tab ---
+function SignalReviewTab() {
+  const [signals, setSignals] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState<{ id: unknown; text: string } | null>(null);
+  const [submitting, setSubmitting] = useState<unknown>(null);
+
+  const load = () => {
+    setLoading(true);
+    fetch(`${API}/api/global-intelligence/signals?status=pending_review`, { headers: AUTH() })
+      .then((r) => r.json())
+      .then((d) => setSignals(d.signals ?? d ?? []))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const review = async (signalId: unknown, decision: "approve" | "reject", rationale: string) => {
+    setSubmitting(signalId);
+    setMsg(null);
+    try {
+      const r = await fetch(`${API}/api/global-intelligence/signals/${signalId}/review`, {
+        method: "POST",
+        headers: AUTH(),
+        body: JSON.stringify({ decision, rationale }),
+      });
+      const d = await r.json();
+      setMsg({ id: signalId, text: r.ok ? `Signal ${decision}d.` : (d.detail ?? "Error.") });
+      if (r.ok) load();
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  return (
+    <div>
+      <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800 mb-4">
+        <strong>Governance Board:</strong> Review pending signals before network publication. Approval
+        enforces k-anonymity ≥10 contributing facilities. All review decisions are audit-logged.
+      </div>
+      {loading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!loading && signals.filter((s) => s.status === "pending_review").length === 0 && (
+        <p className="text-sm text-slate-400 text-center py-8">No signals pending governance review.</p>
+      )}
+      <div className="space-y-4">
+        {signals.filter((s) => s.status === "pending_review").map((sig, i) => (
+          <SignalReviewCard key={i} signal={sig} submitting={submitting} onReview={review}
+            msg={msg?.id === sig.id ? msg.text : null} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SignalReviewCard({ signal, submitting, onReview, msg }: {
+  signal: Record<string, unknown>;
+  submitting: unknown;
+  onReview: (id: unknown, decision: "approve" | "reject", rationale: string) => void;
+  msg: string | null;
+}) {
+  const [rationale, setRationale] = useState("");
+  return (
+    <div className="border border-slate-200 rounded-lg p-4 bg-white">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 capitalize">
+            {String(signal.signal_type ?? "Unknown signal").replace(/_/g, " ")}
+          </p>
+          <p className="text-xs text-slate-500">
+            Region: {String(signal.region ?? "Global")} · Facilities: {String(signal.facility_count ?? "—")} · Severity: {String(signal.severity ?? "—")}
+          </p>
+        </div>
+        <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-200 rounded px-2 py-0.5">Pending Review</span>
+      </div>
+      <textarea
+        placeholder="Governance rationale (required for rejection)…"
+        value={rationale}
+        onChange={(e) => setRationale(e.target.value)}
+        className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs mb-3 resize-none"
+        rows={2}
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={() => onReview(signal.id, "approve", rationale)}
+          disabled={submitting === signal.id}
+          className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          Approve & Publish
+        </button>
+        <button
+          onClick={() => onReview(signal.id, "reject", rationale)}
+          disabled={submitting === signal.id || !rationale}
+          className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+        >
+          Reject
+        </button>
+      </div>
+      {msg && <p className="text-xs text-green-700 mt-2">{msg}</p>}
+    </div>
+  );
+}
+
+// --- GSIN Enrollment Tab ---
+function EnrollmentTab() {
+  const [status, setStatus] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [enrollMsg, setEnrollMsg] = useState<string | null>(null);
+  const [dpaMsg, setDpaMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [dpaSubmitting, setDpaSubmitting] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [dpaAccepted, setDpaAccepted] = useState(false);
+
+  const loadStatus = () => {
+    setLoading(true);
+    fetch(`${API}/api/global-intelligence/participant-status`, { headers: AUTH() })
+      .then((r) => r.json())
+      .then(setStatus)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadStatus(); }, []);
+
+  const enroll = async () => {
+    setSubmitting(true);
+    setEnrollMsg(null);
+    try {
+      const r = await fetch(`${API}/api/global-intelligence/enroll`, {
+        method: "POST",
+        headers: AUTH(),
+        body: JSON.stringify({ organization_name: orgName }),
+      });
+      const d = await r.json();
+      setEnrollMsg(r.ok ? "Enrollment request submitted. Sign the DPA to activate." : (d.detail ?? "Error."));
+      if (r.ok) loadStatus();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const signDpa = async () => {
+    if (!dpaAccepted) return;
+    setDpaSubmitting(true);
+    setDpaMsg(null);
+    try {
+      const r = await fetch(`${API}/api/global-intelligence/sign-dpa`, {
+        method: "POST",
+        headers: AUTH(),
+        body: JSON.stringify({ attestation: "I confirm this organization has authority to sign this DPA" }),
+      });
+      const d = await r.json();
+      setDpaMsg(r.ok ? "DPA signed. Enrollment is now active." : (d.detail ?? "Error."));
+      if (r.ok) loadStatus();
+    } finally {
+      setDpaSubmitting(false);
+    }
+  };
+
+  if (loading) return <p className="text-sm text-slate-500">Loading…</p>;
+
+  const enrolled = status?.enrolled as boolean;
+  const dpaSignedStatus = status?.dpa_signed as boolean;
+  const participantStatus = status?.status as string;
+
+  return (
+    <div className="max-w-xl">
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-6">
+        <strong>Global Surgical Intelligence Network (GSIN):</strong> Enroll to contribute anonymized
+        quality signals to the network and access global intelligence. A signed Data Processing Agreement
+        (DPA) is required before data sharing begins.
+      </div>
+
+      {/* Status card */}
+      <div className="border border-slate-200 rounded-lg p-4 bg-white mb-6">
+        <p className="text-sm font-semibold text-slate-700 mb-3">Participation Status</p>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-xs text-slate-500">Enrolled</p>
+            <p className={`text-lg font-bold mt-1 ${enrolled ? "text-green-700" : "text-slate-400"}`}>
+              {enrolled ? "Yes" : "No"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">DPA Signed</p>
+            <p className={`text-lg font-bold mt-1 ${dpaSignedStatus ? "text-green-700" : "text-amber-600"}`}>
+              {dpaSignedStatus ? "Yes" : "Pending"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Status</p>
+            <p className="text-lg font-bold mt-1 text-slate-700 capitalize">{participantStatus ?? "—"}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Enroll step */}
+      {!enrolled && (
+        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 mb-4">
+          <p className="text-sm font-semibold text-slate-700 mb-3">Step 1 — Submit Enrollment Request</p>
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs text-slate-500">Organization Name</label>
+              <input value={orgName} onChange={(e) => setOrgName(e.target.value)}
+                placeholder="e.g. Memorial Health System"
+                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mt-0.5" />
+            </div>
+            <button onClick={enroll} disabled={submitting || !orgName}
+              className="w-full bg-blue-600 text-white text-sm rounded px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50">
+              {submitting ? "Submitting…" : "Enroll in GSIN"}
+            </button>
+            {enrollMsg && <p className="text-xs text-green-700">{enrollMsg}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* DPA step */}
+      {enrolled && !dpaSignedStatus && (
+        <div className="border border-amber-200 rounded-lg p-4 bg-amber-50 mb-4">
+          <p className="text-sm font-semibold text-amber-800 mb-3">Step 2 — Sign Data Processing Agreement</p>
+          <div className="bg-white border border-slate-200 rounded p-3 text-xs text-slate-700 mb-3 space-y-1 max-h-32 overflow-y-auto">
+            <p><strong>Data Processing Agreement — Summary</strong></p>
+            <p>• All contributed data will be anonymized to k-anonymity ≥5 before network publication.</p>
+            <p>• No facility identifiers, patient data, or instrument serial numbers will be shared.</p>
+            <p>• Data is used solely for network quality intelligence and benchmarking purposes.</p>
+            <p>• You may withdraw from GSIN at any time with 30 days notice.</p>
+            <p>• Network outputs are labeled "potential signals" — no causation is implied.</p>
+          </div>
+          <label className="flex items-start gap-2 text-xs text-slate-700 mb-3 cursor-pointer">
+            <input type="checkbox" checked={dpaAccepted} onChange={(e) => setDpaAccepted(e.target.checked)} className="mt-0.5" />
+            I confirm this organization has authority to sign this DPA and agree to the terms above.
+          </label>
+          <button onClick={signDpa} disabled={dpaSubmitting || !dpaAccepted}
+            className="w-full bg-amber-600 text-white text-sm rounded px-3 py-1.5 hover:bg-amber-700 disabled:opacity-50">
+            {dpaSubmitting ? "Signing…" : "Sign DPA & Activate Enrollment"}
+          </button>
+          {dpaMsg && <p className="text-xs text-green-700 mt-2">{dpaMsg}</p>}
+        </div>
+      )}
+
+      {enrolled && dpaSignedStatus && (
+        <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+          <p className="text-sm font-semibold text-green-800">Active GSIN Participant</p>
+          <p className="text-xs text-green-700 mt-1">
+            Your organization is enrolled and DPA is signed. Quality signals are being contributed
+            to the network according to your privacy settings.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,9 @@ const AutonomousOperationsConsole = lazy(() => import("./pages/AutonomousOperati
 const GlobalIntelligenceConsole = lazy(() => import("./pages/GlobalIntelligenceConsole"));
 const GlobalStandardsConsole = lazy(() => import("./pages/GlobalStandardsConsole"));
 const GlobalInfrastructureConsole = lazy(() => import("./pages/GlobalInfrastructureConsole"));
+const VendorIntelligencePage = lazy(() => import("./pages/VendorIntelligencePage"));
+const DigitalTwinPage = lazy(() => import("./pages/DigitalTwinPage"));
+const QualityIntelligencePage = lazy(() => import("./pages/QualityIntelligencePage"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
@@ -117,6 +120,9 @@ function App() {
                       <Route path="/global-intelligence" element={<GlobalIntelligenceConsole />} />
                       <Route path="/global-standards" element={<GlobalStandardsConsole />} />
                       <Route path="/infrastructure" element={<GlobalInfrastructureConsole />} />
+                      <Route path="/vendor-intelligence" element={<VendorIntelligencePage />} />
+                      <Route path="/digital-twin" element={<DigitalTwinPage />} />
+                      <Route path="/quality-intelligence" element={<QualityIntelligencePage />} />
                       <Route path="/legacy" element={<DashboardApp />} />
                       <Route
                         path="*"

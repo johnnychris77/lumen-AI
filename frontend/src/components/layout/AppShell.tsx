@@ -24,6 +24,9 @@ import {
   Globe,
   BookOpen,
   Cpu,
+  GitBranch,
+  Factory,
+  BrainCircuit,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/commercial", label: "Commercial", icon: Briefcase },
       { to: "/growth", label: "Growth", icon: TrendingUp },
       { to: "/pilot-analytics", label: "Pilot Analytics", icon: LineChart },
+      { to: "/vendor-intelligence", label: "Vendor Intelligence", icon: Factory },
     ],
   },
   {
@@ -80,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/global-intelligence", label: "Global Surgical Intelligence", icon: Globe },
       { to: "/global-standards", label: "Standards & Benchmarks", icon: BookOpen },
       { to: "/infrastructure", label: "Quality Infrastructure", icon: Cpu },
+      { to: "/quality-intelligence", label: "Quality Intelligence", icon: BrainCircuit },
     ],
   },
   {
@@ -87,6 +92,7 @@ const NAV_GROUPS: NavGroup[] = [
     roles: ["admin", "manager", "executive"],
     items: [
       { to: "/autonomous-operations", label: "Operations Platform", icon: Workflow },
+      { to: "/digital-twin", label: "Digital Twin", icon: GitBranch },
     ],
   },
 ];
