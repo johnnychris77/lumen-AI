@@ -300,7 +300,12 @@ export default function NewInspectionPage() {
         file_name: allImages[0]?.name || "inspection_image",
         has_image: true,
         image_sha256: imageSha256,
-        // findings are optional — omit if not provided
+        // Risk level is AI-determined — never required from technician
+        risk_level: "pending_ai_analysis",
+        // Finding categories submitted as-is (empty [] is valid — AI will determine)
+        finding_categories: form.finding_categories.length > 0
+          ? form.finding_categories
+          : ["pending_ai_analysis"],
         ...(form.finding_categories.length > 0 && {
           detected_issue: form.finding_categories[0],
           stain_detected: form.finding_categories.some(
@@ -622,6 +627,20 @@ export default function NewInspectionPage() {
             title="Inspection Images"
             description="Required. Upload at least one image. AI will check the manufacturer baseline and generate findings and risk score automatically."
           >
+            {/* Pre-upload status — always visible so technician knows what happens next */}
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              Upload an image first. LumenAI will compare against the approved manufacturer baseline and suggest findings / risk.
+              Finding Categories and Risk Level are set by AI — <strong>technicians do not enter them</strong>.
+            </div>
+
+            {/* No-baseline early warning (shown when instrument type is selected but no baseline exists) */}
+            {noBaselineWarning && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <strong>No approved manufacturer baseline found.</strong>{" "}
+                Supervisor review required before final scoring. Technicians do not set baseline status — this is system-controlled.
+              </div>
+            )}
+
             <div>
               <RequiredLabel label="Inspection Images" />
               <ImageFileInput
@@ -655,7 +674,7 @@ export default function NewInspectionPage() {
           >
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Finding Categories <span className="text-slate-400 font-normal text-xs">(optional — AI will predict from image)</span>
+                Finding Categories (AI suggested after image upload)
               </label>
               <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {FINDING_CATEGORIES.map((cat) => (
