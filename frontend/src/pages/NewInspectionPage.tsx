@@ -5,7 +5,7 @@ import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 
-// ─── types ───────────────────────────────────────────────────────────────────
+// ─── types ─────────────────────────────────────────────────────────────────── v2
 
 type FindingCategory =
   | "blood" | "bone" | "tissue" | "debris"
