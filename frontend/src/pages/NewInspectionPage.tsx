@@ -1,21 +1,15 @@
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 
-// ─── types ───────────────────────────────────────────────────────────────────
+// ─── types ─────────────────────────────────────────────────────────────────── v2
 
 type FindingCategory =
-  | "blood"
-  | "bone"
-  | "tissue"
-  | "debris"
-  | "corrosion"
-  | "crack"
-  | "insulation_damage"
-  | "other";
+  | "blood" | "bone" | "tissue" | "debris"
+  | "corrosion" | "crack" | "insulation_damage" | "other";
 
 type FormFields = {
   facility_name: string;
@@ -31,67 +25,84 @@ type FormFields = {
   serial_number: string;
   barcode: string;
   qr_code: string;
+  udi: string;
   keydot_id: string;
   finding_categories: FindingCategory[];
-  risk_level: string;
   notes: string;
-  baseline_status: string;
-  baseline_source: string;
 };
 
-type FieldErrors = Partial<Record<keyof FormFields, string>>;
+type FieldErrors = Partial<Record<keyof FormFields | "images", string>>;
+
+type AIPrediction = {
+  id: string;
+  risk_score: number;
+  score_status: string;
+  baseline_status: string;
+  baseline_source: string | null;
+  supervisor_review_required: boolean;
+  detected_issue: string;
+  confidence: number;
+  instrument_type: string;
+};
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const INSTRUMENT_TYPES = [
+  { value: "scope", label: "Scope (Lumened)" },
+  { value: "flexible_ureteroscope", label: "Flexible Ureteroscope" },
+  { value: "bronchoscope", label: "Bronchoscope" },
+  { value: "colonoscope", label: "Colonoscope" },
+  { value: "cystoscope", label: "Cystoscope" },
+  { value: "hysteroscope", label: "Hysteroscope" },
+  { value: "laparoscope", label: "Laparoscope" },
+  { value: "arthroscope", label: "Arthroscope" },
+  { value: "nephroscope", label: "Nephroscope" },
   { value: "scissors", label: "Scissors" },
   { value: "forceps", label: "Forceps" },
   { value: "clamp", label: "Clamp" },
   { value: "needle_holder", label: "Needle Holder" },
   { value: "retractor", label: "Retractor" },
   { value: "scalpel_handle", label: "Scalpel Handle" },
-  { value: "scope", label: "Scope" },
   { value: "drill", label: "Drill" },
   { value: "other", label: "Other" },
 ];
 
-const FINDING_CATEGORIES: { value: FindingCategory; label: string }[] = [
-  { value: "blood", label: "Blood" },
-  { value: "bone", label: "Bone" },
-  { value: "tissue", label: "Tissue" },
-  { value: "debris", label: "Debris" },
-  { value: "corrosion", label: "Corrosion" },
-  { value: "crack", label: "Crack" },
-  { value: "insulation_damage", label: "Insulation Damage" },
-  { value: "other", label: "Other" },
+const FINDING_CATEGORIES: { value: FindingCategory; label: string; tooltip: string }[] = [
+  { value: "blood", label: "Blood", tooltip: "Visible blood residue in lumen or on instrument surface" },
+  { value: "bone", label: "Bone", tooltip: "Calcified tissue or bone fragment visible in channel" },
+  { value: "tissue", label: "Tissue", tooltip: "Soft tissue or protein residue visible in lumen" },
+  { value: "debris", label: "Debris / Bioburden", tooltip: "Non-specific particulate, organic matter, or buildup" },
+  { value: "corrosion", label: "Corrosion", tooltip: "Rust, pitting, or surface degradation of metal" },
+  { value: "crack", label: "Crack / Fracture", tooltip: "Visible structural break, fracture, or delamination" },
+  { value: "insulation_damage", label: "Insulation Damage", tooltip: "Damage to electrical insulation on monopolar/bipolar instruments" },
+  { value: "other", label: "Other", tooltip: "Any finding not covered by categories above" },
 ];
 
-const RISK_LEVELS = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "critical", label: "Critical" },
-];
-
-const BASELINE_STATUSES = [
-  { value: "matched", label: "Matched" },
-  { value: "no_baseline", label: "No Baseline" },
-  { value: "deviation", label: "Deviation" },
-  { value: "unknown", label: "Unknown" },
+const OVERRIDE_SOURCES = [
+  { value: "vendor", label: "Vendor Baseline" },
+  { value: "hospital", label: "Hospital Baseline" },
+  { value: "manufacturer", label: "Alternate Manufacturer" },
+  { value: "manual_review", label: "Manual Review" },
+  { value: "none", label: "No Baseline — Manual Assessment Only" },
 ];
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 function nowDatetimeLocal() {
-  const d = new Date();
-  // format: YYYY-MM-DDTHH:mm
-  return d.toISOString().slice(0, 16);
+  return new Date().toISOString().slice(0, 16);
 }
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function riskColor(score: number) {
+  if (score >= 80) return "bg-red-600 text-white";
+  if (score >= 60) return "bg-orange-500 text-white";
+  if (score >= 40) return "bg-amber-400 text-slate-900";
+  return "bg-emerald-100 text-emerald-800";
 }
 
 const initialForm: FormFields = {
@@ -108,12 +119,10 @@ const initialForm: FormFields = {
   serial_number: "",
   barcode: "",
   qr_code: "",
+  udi: "",
   keydot_id: "",
   finding_categories: [],
-  risk_level: "",
   notes: "",
-  baseline_status: "",
-  baseline_source: "",
 };
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -126,7 +135,13 @@ export default function NewInspectionPage() {
   const [borescopeImages, setBorescopeImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<AIPrediction | null>(null);
+  const [overrideSource, setOverrideSource] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overriding, setOverriding] = useState(false);
+  const [overrideBanner, setOverrideBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [barcodeScanned, setBarcodeScanned] = useState(false);
+  const [noBaselineWarning, setNoBaselineWarning] = useState(false);
 
   const inspectionInputRef = useRef<HTMLInputElement>(null);
   const borescopeInputRef = useRef<HTMLInputElement>(null);
@@ -146,26 +161,35 @@ export default function NewInspectionPage() {
     setFieldErrors((e) => { const n = { ...e }; delete n[key]; return n; });
   }
 
-  function validateField(key: keyof FormFields, value: FormFields[typeof key]) {
-    const required: (keyof FormFields)[] = [
-      "facility_name",
-      "technician_name",
-      "inspection_date",
-      "tray_name",
-      "instrument_name",
-      "instrument_type",
-      "risk_level",
-    ];
-    if (required.includes(key) && !String(value).trim()) {
-      setFieldErrors((e) => ({ ...e, [key]: "This field is required." }));
-    } else {
-      clearError(key);
-    }
+  function onBlurRequired(key: keyof FormFields, label: string) {
+    return () => {
+      if (!String(form[key]).trim()) {
+        setFieldErrors((e) => ({ ...e, [key]: `${label} is required.` }));
+      } else {
+        clearError(key);
+      }
+    };
   }
 
-  function onBlurStr(key: keyof FormFields) {
-    return () => validateField(key, form[key]);
-  }
+  // ── baseline pre-check on instrument type change ───────────────────────────
+
+  const checkBaseline = useCallback(async (instrumentType: string) => {
+    if (!instrumentType) { setNoBaselineWarning(false); return; }
+    try {
+      const hdrs = headers();
+      const r = await fetch(
+        `${API_BASE}/api/baseline-library?instrument_category=${encodeURIComponent(instrumentType)}&status=approved&limit=1`,
+        { headers: hdrs }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        const items = Array.isArray(d) ? d : d.items ?? [];
+        setNoBaselineWarning(items.length === 0);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [headers]);
 
   // ── finding category checkboxes ────────────────────────────────────────────
 
@@ -179,12 +203,6 @@ export default function NewInspectionPage() {
           : [...f.finding_categories, cat],
       };
     });
-    clearError("finding_categories");
-  }
-
-  function clearFindings() {
-    setForm((f) => ({ ...f, finding_categories: [] }));
-    clearError("finding_categories");
   }
 
   // ── image handling ─────────────────────────────────────────────────────────
@@ -196,39 +214,46 @@ export default function NewInspectionPage() {
     const files = Array.from(e.target.files || []);
     const valid = files.filter((f) => f.size <= MAX_FILE_BYTES);
     const oversized = files.filter((f) => f.size > MAX_FILE_BYTES);
-    setter(valid);
-    if (oversized.length) {
-      alert(`${oversized.length} file(s) exceed 10 MB and were removed.`);
-    }
+    setter((prev) => [...prev, ...valid]);
+    if (oversized.length) alert(`${oversized.length} file(s) exceed 10 MB and were skipped.`);
+    // clear image error once files added
+    if (valid.length > 0) setFieldErrors((e) => { const n = { ...e }; delete n.images; return n; });
   }
 
-  function removeImage(
-    index: number,
-    setter: React.Dispatch<React.SetStateAction<File[]>>
-  ) {
+  function removeImage(index: number, setter: React.Dispatch<React.SetStateAction<File[]>>) {
     setter((prev) => prev.filter((_, i) => i !== index));
   }
 
   // ── validation ─────────────────────────────────────────────────────────────
+  // Image is required. Findings and risk are always optional (AI determines them).
 
   function validate(): boolean {
     const errors: FieldErrors = {};
-    const requiredStr: { key: keyof FormFields; label: string }[] = [
+
+    const required: { key: keyof FormFields; label: string }[] = [
       { key: "facility_name", label: "Facility / Site" },
       { key: "technician_name", label: "Technician Name" },
       { key: "inspection_date", label: "Inspection Date & Time" },
       { key: "tray_name", label: "Tray Name" },
       { key: "instrument_name", label: "Instrument Name" },
       { key: "instrument_type", label: "Instrument Type" },
-      { key: "risk_level", label: "Risk Level" },
     ];
-    for (const { key, label } of requiredStr) {
+    for (const { key, label } of required) {
       if (!String(form[key]).trim()) errors[key] = `${label} is required.`;
     }
-    if (form.finding_categories.length === 0) {
-      errors.finding_categories = "Select at least one finding category.";
+
+    const allImages = [...inspectionImages, ...borescopeImages];
+    if (allImages.length === 0) {
+      errors.images = "At least one inspection image is required for AI analysis.";
     }
+
     setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setTimeout(() => {
+        const el = document.querySelector<HTMLElement>("[data-field-error]");
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+    }
     return Object.keys(errors).length === 0;
   }
 
@@ -242,29 +267,32 @@ export default function NewInspectionPage() {
     setSubmitting(true);
     try {
       const hdrs = headers();
-      const payload = {
-        facility_name: form.facility_name,
-<<<<<<< HEAD
-        department: form.department,
-        technician_name: form.technician_name,
-        inspection_date: form.inspection_date,
-        tray_name: form.tray_name,
-        tray_id: form.tray_id,
-        instrument_name: form.instrument_name,
+      const allImages = [...inspectionImages, ...borescopeImages];
+
+      // Step 1: Upload images first
+      let imageSha256: string | undefined;
+      try {
+        const fd = new FormData();
+        allImages.forEach((f) => fd.append("images", f));
+        const imgRes = await fetch(`${API_BASE}/api/inspections/upload-images`, {
+          method: "POST",
+          headers: { Authorization: hdrs["Authorization"] },
+          body: fd,
+        });
+        if (imgRes.ok) {
+          const imgData = await imgRes.json();
+          imageSha256 = imgData?.images?.[0]?.sha256;
+        }
+      } catch {
+        // non-fatal — inspection can still be created
+      }
+
+      // Step 2: Submit inspection record (findings optional — AI will determine)
+      const payload: Record<string, unknown> = {
         instrument_type: form.instrument_type,
-        manufacturer: form.manufacturer,
-        model_number: form.model_number,
-        serial_number: form.serial_number,
-        barcode: form.barcode,
-        qr_code: form.qr_code,
-        keydot_id: form.keydot_id,
-        finding_categories: form.finding_categories,
-        risk_level: form.risk_level,
-        notes: form.notes,
-        baseline_status: form.baseline_status,
-        baseline_source: form.baseline_source,
-        source: "pilot_inspection_form",
-=======
+        site_name: form.facility_name,
+        vendor_name: form.manufacturer || "unknown",
+        facility_name: form.facility_name,
         department: form.department || undefined,
         tray_id: form.tray_id || undefined,
         instrument_barcode: form.barcode || undefined,
@@ -285,7 +313,6 @@ export default function NewInspectionPage() {
           ),
           material_type: "stainless_steel",
         }),
->>>>>>> 96d1cdc (fix(inspection): remove required validation for findings/risk, add AI workflow labels and baseline warning)
       };
 
       const res = await fetch(`${API_BASE}/api/inspections`, {
@@ -295,50 +322,43 @@ export default function NewInspectionPage() {
       });
 
       if (res.status === 401 || res.status === 403) {
-        setBanner({ type: "error", message: `${res.status}` });
+        setBanner({ type: "error", message: "Access denied. Please log in again." });
         return;
       }
-
       if (!res.ok) {
         let msg = `Submission failed (${res.status}).`;
         try {
-          const data = await res.json();
-          msg = data?.detail || data?.message || msg;
-        } catch {
-          // ignore parse error
-        }
+          const d = await res.json();
+          if (Array.isArray(d?.detail)) {
+            msg = d.detail.map((e: { msg: string }) => e.msg).join("; ");
+          } else {
+            msg = d?.detail || d?.message || msg;
+          }
+        } catch { /* ignore */ }
         setBanner({ type: "error", message: msg });
         return;
       }
 
-      let id = "";
-      try {
-        const data = await res.json();
-        id = String(data?.id || data?.inspection_id || "");
-      } catch {
-        // ignore
-      }
-      setSubmittedId(id);
-
-      // Upload images if any were selected
-      const allImages = [...inspectionImages, ...borescopeImages];
-      if (allImages.length > 0) {
-        try {
-          const fd = new FormData();
-          allImages.forEach((f) => fd.append("images", f));
-          await fetch(`${API_BASE}/api/inspections/upload-images`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: fd,
-          });
-        } catch {
-          // Image upload failure is non-fatal — inspection record already saved
-        }
-      }
+      const data = await res.json();
+      setPrediction({
+        id: String(data.id),
+        risk_score: data.risk_score ?? 0,
+        score_status: data.score_status ?? "pending",
+        baseline_status: data.baseline_status ?? "not_checked",
+        baseline_source: data.baseline_source ?? null,
+        supervisor_review_required: data.supervisor_review_required ?? false,
+        detected_issue: data.detected_issue ?? "unknown",
+        confidence: data.confidence ?? 0,
+        instrument_type: data.instrument_type ?? form.instrument_type,
+      });
 
       setBanner({
         type: "success",
-        message: `Inspection submitted successfully.${id ? ` ID: ${id}` : ""}${allImages.length > 0 ? ` ${allImages.length} image(s) uploaded.` : ""}`,
+        message: `Inspection #${data.id} submitted. ${allImages.length} image(s) uploaded. ${
+          data.supervisor_review_required
+            ? "⚠ Supervisor review required — no approved baseline found."
+            : "✓ AI analysis complete."
+        }`,
       });
     } finally {
       setSubmitting(false);
@@ -351,7 +371,12 @@ export default function NewInspectionPage() {
     setBorescopeImages([]);
     setFieldErrors({});
     setBanner(null);
-    setSubmittedId(null);
+    setPrediction(null);
+    setOverrideSource("");
+    setOverrideReason("");
+    setOverrideBanner(null);
+    setNoBaselineWarning(false);
+    setBarcodeScanned(false);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -364,8 +389,56 @@ export default function NewInspectionPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">New Inspection</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Capture instrument findings for sterile processing quality review.
+          Upload an image — AI will identify findings, check the manufacturer baseline, and generate a risk score automatically.
         </p>
+      </div>
+
+      {/* Field requirements summary */}
+      <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+          <div className="px-4 py-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Required by technician</p>
+            <ul className="text-xs text-slate-700 space-y-1">
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Facility / Site</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Technician Name</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Inspection Date &amp; Time</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Tray Name</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Instrument Name &amp; Type</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> At least 1 inspection image</li>
+            </ul>
+          </div>
+          <div className="px-4 py-3 bg-slate-50">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Determined by AI — not required</p>
+            <ul className="text-xs text-slate-500 space-y-1">
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Finding Categories (AI predicts from image)</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Risk Level (AI scores after baseline check)</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Match Status (system checks automatically)</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Source (supervisor sets if no match)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Workflow diagram */}
+      <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-800 space-y-1">
+        <p className="font-semibold text-blue-900">Inspection Workflow</p>
+        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          {[
+            "1. Identify Instrument",
+            "→",
+            "2. Upload Image",
+            "→",
+            "3. AI Baseline Check",
+            "→",
+            "4. AI Prediction (findings + risk)",
+            "→",
+            "5. Supervisor Review (if no baseline)",
+          ].map((step, i) => (
+            step === "→"
+              ? <span key={i} className="text-blue-400">→</span>
+              : <span key={i} className="bg-white border border-blue-200 rounded px-2 py-0.5">{step}</span>
+          ))}
+        </div>
       </div>
 
       {banner && (
@@ -376,144 +449,85 @@ export default function NewInspectionPage() {
         />
       )}
 
-      {submittedId !== null && banner?.type === "success" && (
-        <button
-          type="button"
-          onClick={resetForm}
-          className="text-sm text-blue-600 underline"
-        >
-          Submit Another Inspection
-        </button>
+      {/* AI Prediction Panel — shown after submission */}
+      {prediction && (
+        <AIPredictionPanel
+          prediction={prediction}
+          overrideSource={overrideSource}
+          setOverrideSource={setOverrideSource}
+          overrideReason={overrideReason}
+          setOverrideReason={setOverrideReason}
+          overriding={overriding}
+          overrideBanner={overrideBanner}
+          onOverride={async () => {
+            setOverriding(true);
+            try {
+              const hdrs = headers();
+              const r = await fetch(`${API_BASE}/api/inspections/${prediction.id}/baseline-override`, {
+                method: "POST",
+                headers: hdrs,
+                body: JSON.stringify({ baseline_source: overrideSource, override_reason: overrideReason }),
+              });
+              if (r.ok) {
+                const d = await r.json();
+                setPrediction((p) => p ? {
+                  ...p,
+                  risk_score: d.risk_score ?? p.risk_score,
+                  score_status: d.score_status ?? p.score_status,
+                  baseline_status: d.baseline_status ?? p.baseline_status,
+                  supervisor_review_required: false,
+                  baseline_source: overrideSource,
+                } : p);
+                setOverrideBanner({ type: "success", message: `Override applied. Risk score: ${d.risk_score}/100.` });
+              } else {
+                const err = await r.json().catch(() => ({}));
+                setOverrideBanner({ type: "error", message: Array.isArray(err?.detail) ? err.detail.map((e: { msg: string }) => e.msg).join("; ") : (err?.detail || `Override failed (${r.status})`) });
+              }
+            } catch {
+              setOverrideBanner({ type: "error", message: "Network error during override." });
+            } finally {
+              setOverriding(false);
+            }
+          }}
+          onReset={resetForm}
+        />
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-6">
-        {/* Section 1 — Facility & Assignment */}
-        <FormSection
-          title="Facility & Assignment"
-          description="Who is performing this inspection and where."
-        >
-          <div>
-            <RequiredLabel label="Facility / Site" />
-            <input
-              id="facility_name"
-              type="text"
-              value={form.facility_name}
-              onChange={setStr("facility_name")}
-              onBlur={onBlurStr("facility_name")}
-              required
-              className={inputCls}
-              placeholder="e.g. Memorial Regional"
-            />
-            <FieldError message={fieldErrors.facility_name} />
-          </div>
-
-          <div>
-            <label htmlFor="department" className="block text-sm font-medium text-gray-700">
-              Department / Unit
-            </label>
-            <input
-              id="department"
-              type="text"
-              value={form.department}
-              onChange={setStr("department")}
-              className={inputCls}
-              placeholder="e.g. Decontamination"
-            />
-          </div>
-
-          <div>
-            <RequiredLabel label="Technician Name" />
-            <input
-              id="technician_name"
-              type="text"
-              value={form.technician_name}
-              onChange={setStr("technician_name")}
-              onBlur={onBlurStr("technician_name")}
-              required
-              className={inputCls}
-            />
-            <FieldError message={fieldErrors.technician_name} />
-          </div>
-
-          <div>
-            <RequiredLabel label="Inspection Date & Time" />
-            <input
-              id="inspection_date"
-              type="datetime-local"
-              value={form.inspection_date}
-              onChange={setStr("inspection_date")}
-              onBlur={onBlurStr("inspection_date")}
-              required
-              className={inputCls}
-            />
-            <FieldError message={fieldErrors.inspection_date} />
-          </div>
-        </FormSection>
-
-        {/* Section 2 — Tray Information */}
-        <FormSection title="Tray Information">
-          <div>
-            <RequiredLabel label="Tray Name" />
-            <input
-              id="tray_name"
-              type="text"
-              value={form.tray_name}
-              onChange={setStr("tray_name")}
-              onBlur={onBlurStr("tray_name")}
-              required
-              className={inputCls}
-            />
-            <FieldError message={fieldErrors.tray_name} />
-          </div>
-
-          <div>
-            <label htmlFor="tray_id" className="block text-sm font-medium text-gray-700">
-              Tray ID / Tray Number
-            </label>
-            <input
-              id="tray_id"
-              type="text"
-              value={form.tray_id}
-              onChange={setStr("tray_id")}
-              className={inputCls}
-            />
-          </div>
-        </FormSection>
-
-        {/* Section 3 — Instrument Identification */}
-        <FormSection title="Instrument Identification">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {!prediction && (
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+          {/* Section 1 — Facility & Assignment */}
+          <FormSection title="Facility & Assignment" description="Who is performing this inspection and where.">
             <div>
-              <RequiredLabel label="Instrument Name" />
+              <RequiredLabel label="Facility / Site" />
               <input
-                id="instrument_name"
-                type="text"
-                value={form.instrument_name}
-                onChange={setStr("instrument_name")}
-                onBlur={onBlurStr("instrument_name")}
-                required
+                id="facility_name" type="text" value={form.facility_name}
+                onChange={setStr("facility_name")}
+                onBlur={onBlurRequired("facility_name", "Facility / Site")}
+                className={inputCls} placeholder="e.g. Memorial Regional"
+              />
+              <FieldError message={fieldErrors.facility_name} />
+            </div>
+            <div>
+              <label htmlFor="department" className="block text-sm font-medium text-gray-700">Department / Unit</label>
+              <input id="department" type="text" value={form.department} onChange={setStr("department")} className={inputCls} placeholder="e.g. Decontamination" />
+            </div>
+            <div>
+              <RequiredLabel label="Technician Name" />
+              <input
+                id="technician_name" type="text" value={form.technician_name}
+                onChange={setStr("technician_name")}
+                onBlur={onBlurRequired("technician_name", "Technician Name")}
                 className={inputCls}
               />
-              <FieldError message={fieldErrors.instrument_name} />
+              <FieldError message={fieldErrors.technician_name} />
             </div>
-
             <div>
-              <RequiredLabel label="Instrument Type" />
-              <select
-                id="instrument_type"
-                value={form.instrument_type}
-                onChange={setStr("instrument_type")}
-                onBlur={onBlurStr("instrument_type")}
-                required
+              <RequiredLabel label="Inspection Date & Time" />
+              <input
+                id="inspection_date" type="datetime-local" value={form.inspection_date}
+                onChange={setStr("inspection_date")}
+                onBlur={onBlurRequired("inspection_date", "Inspection Date & Time")}
                 className={inputCls}
-<<<<<<< HEAD
-              >
-                <option value="">Select type…</option>
-                {INSTRUMENT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-=======
               />
               <FieldError message={fieldErrors.inspection_date} />
             </div>
@@ -674,238 +688,42 @@ export default function NewInspectionPage() {
                     <span>{cat.label}</span>
                     <span className="text-gray-400 text-xs cursor-help" title={cat.tooltip}>?</span>
                   </label>
->>>>>>> 96d1cdc (fix(inspection): remove required validation for findings/risk, add AI workflow labels and baseline warning)
                 ))}
-              </select>
-              <FieldError message={fieldErrors.instrument_type} />
+              </div>
             </div>
-
             <div>
-              <label htmlFor="manufacturer" className="block text-sm font-medium text-gray-700">
-                Manufacturer
-              </label>
-              <input
-                id="manufacturer"
-                type="text"
-                value={form.manufacturer}
-                onChange={setStr("manufacturer")}
-                className={inputCls}
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Inspection Notes <span className="text-slate-400 font-normal text-xs">(optional)</span></label>
+              <textarea
+                id="notes" value={form.notes} onChange={setStr("notes")} rows={3}
+                className={inputCls} placeholder="Add shift context, tray details, or observations."
               />
             </div>
+          </FormSection>
 
-            <div>
-              <label htmlFor="model_number" className="block text-sm font-medium text-gray-700">
-                Model Number
-              </label>
-              <input
-                id="model_number"
-                type="text"
-                value={form.model_number}
-                onChange={setStr("model_number")}
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="serial_number" className="block text-sm font-medium text-gray-700">
-                Serial Number
-              </label>
-              <input
-                id="serial_number"
-                type="text"
-                value={form.serial_number}
-                onChange={setStr("serial_number")}
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="barcode" className="block text-sm font-medium text-gray-700">
-                Barcode
-              </label>
-              <input
-                id="barcode"
-                type="text"
-                value={form.barcode}
-                onChange={setStr("barcode")}
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="qr_code" className="block text-sm font-medium text-gray-700">
-                QR Code / UDI
-              </label>
-              <input
-                id="qr_code"
-                type="text"
-                value={form.qr_code}
-                onChange={setStr("qr_code")}
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="keydot_id" className="block text-sm font-medium text-gray-700">
-                KeyDot ID
-              </label>
-              <input
-                id="keydot_id"
-                type="text"
-                value={form.keydot_id}
-                onChange={setStr("keydot_id")}
-                className={inputCls}
-              />
-            </div>
-          </div>
-        </FormSection>
-
-        {/* Section 4 — Findings */}
-        <FormSection title="Findings" description="Select all applicable finding categories.">
-          <div>
-            <RequiredLabel label="Finding Categories" />
-            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {FINDING_CATEGORIES.map((cat) => (
-                <label
-                  key={cat.value}
-                  className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.finding_categories.includes(cat.value)}
-                    onChange={() => toggleCategory(cat.value)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  {cat.label}
-                </label>
-              ))}
-              <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer col-span-full">
-                <input
-                  type="checkbox"
-                  checked={form.finding_categories.length === 0}
-                  onChange={clearFindings}
-                  className="rounded border-gray-300 text-gray-400 focus:ring-gray-400"
-                />
-                No findings
-              </label>
-            </div>
-            <FieldError message={fieldErrors.finding_categories} />
+          {/* AI workflow clarification — shown just above submit */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1">
+            <p className="font-semibold text-slate-700">What happens after you submit?</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li><strong>Finding Categories and Risk Level are NOT required</strong> — AI predicts both from the image.</li>
+              <li>Baseline Match Status is determined automatically — technicians do not set it.</li>
+              <li>If no approved manufacturer baseline is found, the result is flagged for <strong>supervisor review</strong> before final scoring.</li>
+            </ul>
           </div>
 
-          <div>
-            <RequiredLabel label="Risk Level" />
-            <select
-              id="risk_level"
-              value={form.risk_level}
-              onChange={setStr("risk_level")}
-              onBlur={onBlurStr("risk_level")}
-              required
-              className={inputCls}
+          {/* Submit */}
+          <div className="flex flex-col gap-3">
+            <button
+              type="submit" disabled={submitting}
+              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <option value="">Select risk level…</option>
-              {RISK_LEVELS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-            <FieldError message={fieldErrors.risk_level} />
+              {submitting ? "Uploading image & running AI analysis…" : "Submit Inspection & Run AI Analysis"}
+            </button>
+            <p className="text-xs text-gray-500 text-center">
+              AI findings require qualified human review before clinical action. All AI outputs include human_review_required: true.
+            </p>
           </div>
-
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-              Inspection Notes
-            </label>
-            <textarea
-              id="notes"
-              value={form.notes}
-              onChange={setStr("notes")}
-              rows={4}
-              className={inputCls}
-              placeholder="Add shift context, tray details, or follow-up notes."
-            />
-          </div>
-        </FormSection>
-
-        {/* Section 5 — Baseline Reference */}
-        <FormSection title="Baseline Reference">
-          <div>
-            <label htmlFor="baseline_status" className="block text-sm font-medium text-gray-700">
-              Baseline Match Status
-            </label>
-            <select
-              id="baseline_status"
-              value={form.baseline_status}
-              onChange={setStr("baseline_status")}
-              className={inputCls}
-            >
-              <option value="">Select status…</option>
-              {BASELINE_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="baseline_source" className="block text-sm font-medium text-gray-700">
-              Baseline Source / Reference
-            </label>
-            <input
-              id="baseline_source"
-              type="text"
-              value={form.baseline_source}
-              onChange={setStr("baseline_source")}
-              className={inputCls}
-            />
-          </div>
-        </FormSection>
-
-        {/* Section 6 — Images */}
-        <FormSection
-          title="Images"
-          description="Max 10 MB per file. Images are stored locally and noted on the record."
-        >
-          <ImageFileInput
-            id="inspection_images"
-            label="Inspection Images"
-            files={inspectionImages}
-            inputRef={inspectionInputRef}
-            onChange={(e) => handleImages(e, setInspectionImages)}
-            onRemove={(i) => removeImage(i, setInspectionImages)}
-          />
-
-          <ImageFileInput
-            id="borescope_images"
-            label="Borescope Images"
-            files={borescopeImages}
-            inputRef={borescopeInputRef}
-            onChange={(e) => handleImages(e, setBorescopeImages)}
-            onRemove={(i) => removeImage(i, setBorescopeImages)}
-          />
-
-          <p className="text-xs text-gray-500 mt-1">
-            Images are uploaded securely after form submission. Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained in the database.
-          </p>
-        </FormSection>
-
-        {/* Submit */}
-        <div className="flex flex-col gap-3">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {submitting ? "Submitting…" : "Submit Inspection"}
-          </button>
-
-          <p className="text-xs text-gray-500 text-center">
-            Your inspection will be reviewed by the quality team. High and critical findings trigger
-            immediate review.
-          </p>
-        </div>
-      </form>
+        </form>
+      )}
 
       {/* Quick links */}
       <nav className="flex flex-wrap gap-3 text-xs text-blue-600 border-t pt-4">
@@ -913,6 +731,167 @@ export default function NewInspectionPage() {
         <Link to="/intake-history" className="hover:underline">Intake History</Link>
         <Link to="/vendor-intake" className="hover:underline">Vendor Intake</Link>
       </nav>
+    </div>
+  );
+}
+
+// ─── AI Prediction Panel ──────────────────────────────────────────────────────
+
+function AIPredictionPanel({
+  prediction,
+  overrideSource,
+  setOverrideSource,
+  overrideReason,
+  setOverrideReason,
+  overriding,
+  overrideBanner,
+  onOverride,
+  onReset,
+}: {
+  prediction: AIPrediction;
+  overrideSource: string;
+  setOverrideSource: (v: string) => void;
+  overrideReason: string;
+  setOverrideReason: (v: string) => void;
+  overriding: boolean;
+  overrideBanner: { type: "success" | "error"; message: string } | null;
+  onOverride: () => void;
+  onReset: () => void;
+}) {
+  const isScored = prediction.score_status === "scored" || prediction.score_status === "scored_after_override";
+  const isSupervisorRequired = prediction.supervisor_review_required;
+
+  return (
+    <div className="space-y-4">
+      {/* AI Prediction Card */}
+      <div className={`rounded-xl border-2 p-5 space-y-4 ${isSupervisorRequired ? "border-amber-400 bg-amber-50" : "border-emerald-300 bg-emerald-50"}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI Prediction — Inspection #{prediction.id}</p>
+            <h2 className="text-lg font-bold text-slate-900 mt-0.5">
+              {isSupervisorRequired ? "⚠ Supervisor Review Required" : "✓ AI Analysis Complete"}
+            </h2>
+          </div>
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${isSupervisorRequired ? "bg-amber-200 text-amber-900" : "bg-emerald-200 text-emerald-900"}`}>
+            {prediction.score_status.replace(/_/g, " ")}
+          </span>
+        </div>
+
+        {isSupervisorRequired && (
+          <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-1">
+            <p className="font-semibold">⚠ Manufacturer baseline not found — Supervisor review required before final scoring.</p>
+            <p className="text-xs text-amber-700">
+              No approved manufacturer baseline exists for this instrument type.
+              Risk scoring is locked until a supervisor or admin applies a baseline override.
+              Technicians cannot set baseline status — this is system-controlled.
+            </p>
+          </div>
+        )}
+
+        {/* Prediction grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <PredictionField label="Predicted Findings" value={
+            prediction.detected_issue === "unknown" || prediction.detected_issue === ""
+              ? "Pending AI analysis"
+              : prediction.detected_issue.replace(/_/g, " ")
+          } />
+          <PredictionField label="Confidence" value={
+            prediction.confidence > 0
+              ? `${(prediction.confidence).toFixed(0)}%`
+              : "Pending"
+          } />
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-medium">Predicted Risk</span>
+            {isScored ? (
+              <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-sm font-bold w-fit ${riskColor(prediction.risk_score)}`}>
+                {prediction.risk_score} / 100
+              </span>
+            ) : (
+              <span className="mt-1 text-sm text-slate-400 italic">Not scored — baseline required</span>
+            )}
+          </div>
+          <PredictionField label="Baseline Source" value={
+            prediction.baseline_source
+              ? prediction.baseline_source.replace(/_/g, " ")
+              : prediction.baseline_status.replace(/_/g, " ")
+          } />
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Human review required. All AI findings represent potential associations only — qualified clinician review is mandatory before any clinical action.
+        </p>
+      </div>
+
+      {/* Supervisor Override Panel */}
+      {isSupervisorRequired && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+          <p className="text-sm font-semibold text-slate-800">Supervisor Baseline Override</p>
+          <p className="text-xs text-slate-500">Supervisors and admins only. Select an alternate baseline source and provide an override justification to unlock final scoring.</p>
+
+          {overrideBanner && (
+            <div className={`rounded px-3 py-2 text-sm ${overrideBanner.type === "success" ? "bg-emerald-100 text-emerald-800" : "bg-red-50 text-red-700"}`}>
+              {overrideBanner.message}
+            </div>
+          )}
+
+          {overrideBanner?.type !== "success" && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Alternate Baseline Source</label>
+                <select
+                  value={overrideSource}
+                  onChange={(e) => setOverrideSource(e.target.value)}
+                  className="block w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">Select baseline source…</option>
+                  {OVERRIDE_SOURCES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Override Justification <span className="text-red-500">*</span></label>
+                <textarea
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  rows={2}
+                  placeholder="Provide clinical justification for selecting this baseline source (min 10 characters)…"
+                  className="block w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                />
+                {overrideReason.length > 0 && overrideReason.length < 10 && (
+                  <p className="text-xs text-red-600 mt-1">Justification must be at least 10 characters.</p>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={overriding || !overrideSource || overrideReason.length < 10}
+                onClick={onOverride}
+                className="rounded bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {overriding ? "Applying override…" : "Apply Baseline Override & Unlock Score"}
+              </button>
+              <p className="text-xs text-slate-400">Override creates an audit event. Action is logged with your identity, role, timestamp, and justification.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onReset}
+        className="text-sm text-blue-600 underline"
+      >
+        Submit Another Inspection
+      </button>
+    </div>
+  );
+}
+
+function PredictionField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-slate-500 font-medium">{label}</span>
+      <span className="mt-1 text-sm font-semibold text-slate-800 capitalize">{value}</span>
     </div>
   );
 }
@@ -938,16 +917,9 @@ function ImageFileInput({
 
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-gray-700">
-        {label}
-      </label>
+      {label && <label htmlFor={id} className="block text-sm font-medium text-gray-700">{label}</label>}
       <input
-        ref={inputRef}
-        id={id}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={onChange}
+        ref={inputRef} id={id} type="file" accept="image/*" multiple onChange={onChange}
         className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
       />
       {files.length > 0 && (
