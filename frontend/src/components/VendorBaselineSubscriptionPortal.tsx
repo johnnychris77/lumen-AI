@@ -1,9 +1,3 @@
-
-  const [bundleHashToVerify, setBundleHashToVerify] = useState("");
-  const [bundleVerificationLoading, setBundleVerificationLoading] = useState(false);
-  const [bundleVerificationError, setBundleVerificationError] = useState("");
-  const [bundleVerificationResult, setBundleVerificationResult] =
-    useState<ComplianceEvidenceSummaryResponse | null>(null);
 import { useEffect, useState } from "react";
 
 const API_BASE =
@@ -366,6 +360,11 @@ export default function VendorBaselineSubscriptionPortal() {
   const [packetVerificationError, setPacketVerificationError] = useState("");
   const [packetVerification, setPacketVerification] = useState<PacketHashVerificationResponse | null>(null);
   const [error, setError] = useState("");
+  const [bundleHashToVerify, setBundleHashToVerify] = useState("");
+  const [bundleVerificationLoading, setBundleVerificationLoading] = useState(false);
+  const [bundleVerificationError, setBundleVerificationError] = useState("");
+  const [bundleVerificationResult, setBundleVerificationResult] =
+    useState<ComplianceEvidenceSummaryResponse | null>(null);
 
   const [form, setForm] = useState({
     vendor_name: "Stryker",
