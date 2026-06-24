@@ -1,17 +1,17 @@
 import "./index.css";
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications";
 import { Spinner } from "@/components/ui/spinner";
 
-// New Tailwind pages
+// Non-lazy pages (small, critical path)
 import Dashboard from "./pages/Dashboard";
 import VendorIntake from "./pages/VendorIntake";
 
-// Existing pages (lazy-loaded, wrapped in AppShell)
+// Lazy-loaded pages
 const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
@@ -43,17 +43,11 @@ const AuditEvidencePage = lazy(() => import("./pages/AuditEvidencePage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
 const RolesPage = lazy(() => import("./pages/RolesPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-
-// Phase 10 pages
 const ExecutiveCommandCenterPage = lazy(() => import("./pages/ExecutiveCommandCenterPage"));
 const GlobalRegistryPage = lazy(() => import("./pages/GlobalRegistryPage"));
 const SurgicalReadinessDashboard = lazy(() => import("./pages/SurgicalReadinessDashboard"));
-
-// Phase 13 pages
 const NetworkDashboardPage = lazy(() => import("./pages/NetworkDashboardPage"));
 const ImageQualityPage = lazy(() => import("./pages/ImageQualityPage"));
-
-// Phase 12 pages
 const GoLiveCenterPage = lazy(() => import("./pages/GoLiveCenterPage"));
 const ImplementationTrackerPage = lazy(() => import("./pages/ImplementationTrackerPage"));
 const TrainingCompliancePage = lazy(() => import("./pages/TrainingCompliancePage"));
@@ -61,18 +55,16 @@ const BaselineReadinessPage = lazy(() => import("./pages/BaselineReadinessPage")
 const InspectionReadinessPage = lazy(() => import("./pages/InspectionReadinessPage"));
 const ExecutiveAdoptionPage = lazy(() => import("./pages/ExecutiveAdoptionPage"));
 const ValueRealizationPage = lazy(() => import("./pages/ValueRealizationPage"));
-
-// Phase 11 pages
 const CustomerOnboardingPage = lazy(() => import("./pages/CustomerOnboardingPage"));
 const CustomerSuccessDashboard = lazy(() => import("./pages/CustomerSuccessDashboard"));
 const DeploymentReadinessPage = lazy(() => import("./pages/DeploymentReadinessPage"));
 const TrainingCenterPage = lazy(() => import("./pages/TrainingCenterPage"));
 const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
 const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
-
-// Legacy dashboard kept at /legacy for reference
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+
+// ─── Loading spinner shown during lazy chunk loads ────────────────────────────
 
 function PageLoader() {
   return (
@@ -83,7 +75,9 @@ function PageLoader() {
   );
 }
 
-class ErrorBoundary extends React.Component<
+// ─── Top-level error boundary — catches crashes in ANY part of the tree ───────
+
+class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
 > {
@@ -94,18 +88,38 @@ class ErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Log to console in all environments so developers can diagnose
+    console.error("[LumenAI] Uncaught render error:", error, info.componentStack);
+  }
   render() {
     if (this.state.error) {
       return (
-        <div className="p-8 text-center">
-          <h2 className="text-lg font-semibold text-red-700 mb-2">Something went wrong</h2>
-          <p className="text-sm text-slate-600 mb-4">{this.state.error.message}</p>
-          <button
-            className="text-sm text-blue-600 hover:underline"
-            onClick={() => this.setState({ error: null })}
-          >
-            Try again
-          </button>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
+          <div className="max-w-md w-full text-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-red-100 mx-auto">
+              <span className="text-3xl">⚠</span>
+            </div>
+            <h1 className="text-xl font-bold text-slate-900">Something went wrong loading LumenAI</h1>
+            <p className="text-sm text-slate-600">{this.state.error.message}</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => { this.setState({ error: null }); window.location.href = "/"; }}
+              >
+                Back to Dashboard
+              </button>
+              <button
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                onClick={() => window.location.reload()}
+              >
+                Reload page
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              If this keeps happening, check the browser console for details.
+            </p>
+          </div>
         </div>
       );
     }
@@ -113,102 +127,165 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+// ─── Per-page error boundary — catches chunk load failures and page crashes ───
+
+class PageErrorBoundary extends React.Component<
+  { children: React.ReactNode; pageName?: string },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; pageName?: string }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error(`[LumenAI] Page error${this.props.pageName ? ` (${this.props.pageName})` : ""}:`, error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
+          <p className="text-slate-600 font-medium">This page encountered an error.</p>
+          <p className="text-sm text-slate-400">{this.state.error.message}</p>
+          <div className="flex gap-3">
+            <button
+              className="text-sm text-blue-600 underline"
+              onClick={() => this.setState({ error: null })}
+            >
+              Try again
+            </button>
+            <Link to="/" className="text-sm text-slate-500 underline">
+              Return to Dashboard
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── Wrap a lazy page with both Suspense and a per-page error boundary ────────
+
+function Page({ children, name }: { children: React.ReactNode; name?: string }) {
+  return (
+    <PageErrorBoundary pageName={name}>
+      <Suspense fallback={<PageLoader />}>
+        {children}
+      </Suspense>
+    </PageErrorBoundary>
+  );
+}
+
+// ─── Not Found page ───────────────────────────────────────────────────────────
+
+function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
+      <p className="text-4xl font-bold text-slate-300">404</p>
+      <p className="text-slate-600 font-medium">Page not found</p>
+      <p className="text-sm text-slate-400">The page you're looking for doesn't exist or has moved.</p>
+      <Link to="/" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+        Back to Dashboard
+      </Link>
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+
 function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-      <BrowserRouter>
-        <ErrorBoundary>
-          <Routes>
-            {/* Login — rendered outside AppShell (no nav) */}
-            <Route
-              path="/login"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <LoginPage />
-                </Suspense>
-              }
-            />
-            {/* All app routes live inside the AppShell */}
-            <Route
-              path="/*"
-              element={
-                <AppShell>
-                  <Suspense fallback={<PageLoader />}>
+    // RootErrorBoundary is OUTERMOST — catches crashes in AuthProvider,
+    // NotificationProvider, or any component below
+    <RootErrorBoundary>
+      <AuthProvider>
+        <NotificationProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Login — no AppShell */}
+              <Route
+                path="/login"
+                element={
+                  <Page name="Login">
+                    <LoginPage />
+                  </Page>
+                }
+              />
+
+              {/* All app routes inside AppShell */}
+              <Route
+                path="/*"
+                element={
+                  <AppShell>
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/vendor-intake" element={<VendorIntake />} />
-                      <Route path="/operations" element={<OperationsDashboard />} />
-                      <Route path="/inspection/new" element={<NewInspectionPage />} />
-                      <Route path="/findings" element={<FindingsQueuePage />} />
-                      <Route path="/capa" element={<CapaQueuePage />} />
-                      <Route path="/analytics" element={<AnalyticsDashboardPage />} />
-                      <Route path="/manufacturer-baselines" element={<ManufacturerBaselinesPage />} />
-                      <Route path="/baseline-review" element={<BaselineReviewPage />} />
-                      <Route path="/vendor-baseline-portal" element={<VendorBaselinePortalPage />} />
-                      <Route path="/intake-history" element={<IntakeHistoryPage />} />
-                      <Route path="/pilot-analytics" element={<PilotAnalyticsDashboard />} />
-                      <Route path="/enterprise" element={<EnterpriseDashboard />} />
-                      <Route path="/commercial" element={<CommercialConsole />} />
-                      <Route path="/growth" element={<GrowthConsole />} />
-                      <Route path="/accreditation" element={<AccreditationConsole />} />
-                      <Route path="/network-intelligence" element={<NetworkIntelligenceConsole />} />
-                      <Route path="/autonomous-operations" element={<AutonomousOperationsConsole />} />
-                      <Route path="/global-intelligence" element={<GlobalIntelligenceConsole />} />
-                      <Route path="/global-standards" element={<GlobalStandardsConsole />} />
-                      <Route path="/infrastructure" element={<GlobalInfrastructureConsole />} />
-                      <Route path="/vendor-intelligence" element={<VendorIntelligencePage />} />
-                      <Route path="/digital-twin" element={<DigitalTwinPage />} />
-                      <Route path="/quality-intelligence" element={<QualityIntelligencePage />} />
-                      <Route path="/baseline-library" element={<BaselineLibraryPage />} />
-                      <Route path="/instrument-passport" element={<InstrumentPassportPage />} />
-                      <Route path="/executive-command-center" element={<ExecutiveCommandCenterPage />} />
-                      <Route path="/global-registry" element={<GlobalRegistryPage />} />
-                      <Route path="/surgical-readiness" element={<SurgicalReadinessDashboard />} />
-                      <Route path="/audit-evidence" element={<AuditEvidencePage />} />
-                      <Route path="/users" element={<UsersPage />} />
-                      <Route path="/roles" element={<RolesPage />} />
-                      <Route path="/settings" element={<SettingsPage />} />
-                      <Route path="/demo-image-library" element={<DemoImageLibraryPage />} />
-                      <Route path="/baseline-image-upload" element={<BaselineImageUploadPage />} />
-                      <Route path="/inspection-image-upload" element={<InspectionImageUploadPage />} />
-                      <Route path="/network-dashboard" element={<NetworkDashboardPage />} />
-                      <Route path="/image-quality" element={<ImageQualityPage />} />
-                      <Route path="/go-live-center" element={<GoLiveCenterPage />} />
-                      <Route path="/implementation-tracker" element={<ImplementationTrackerPage />} />
-                      <Route path="/training-compliance" element={<TrainingCompliancePage />} />
-                      <Route path="/baseline-readiness" element={<BaselineReadinessPage />} />
-                      <Route path="/inspection-readiness" element={<InspectionReadinessPage />} />
-                      <Route path="/executive-adoption" element={<ExecutiveAdoptionPage />} />
-                      <Route path="/value-realization" element={<ValueRealizationPage />} />
-                      <Route path="/customer-onboarding" element={<CustomerOnboardingPage />} />
-                      <Route path="/customer-success" element={<CustomerSuccessDashboard />} />
-                      <Route path="/deployment-readiness" element={<DeploymentReadinessPage />} />
-                      <Route path="/training-center" element={<TrainingCenterPage />} />
-                      <Route path="/roi-center" element={<ROICenterPage />} />
-                      <Route path="/subscription-readiness" element={<SubscriptionReadinessPage />} />
-                      <Route path="/legacy" element={<DashboardApp />} />
-                      <Route
-                        path="*"
-                        element={
-                          <div className="text-center py-16">
-                            <p className="text-slate-500 text-sm">Page not found</p>
-                          </div>
-                        }
-                      />
+                      <Route path="/" element={<Page name="Dashboard"><Dashboard /></Page>} />
+                      <Route path="/vendor-intake" element={<Page name="VendorIntake"><VendorIntake /></Page>} />
+                      <Route path="/operations" element={<Page name="Operations"><OperationsDashboard /></Page>} />
+                      <Route path="/inspection/new" element={<Page name="NewInspection"><NewInspectionPage /></Page>} />
+                      <Route path="/findings" element={<Page name="Findings"><FindingsQueuePage /></Page>} />
+                      <Route path="/capa" element={<Page name="CAPA"><CapaQueuePage /></Page>} />
+                      <Route path="/analytics" element={<Page name="Analytics"><AnalyticsDashboardPage /></Page>} />
+                      <Route path="/manufacturer-baselines" element={<Page name="ManufacturerBaselines"><ManufacturerBaselinesPage /></Page>} />
+                      <Route path="/baseline-review" element={<Page name="BaselineReview"><BaselineReviewPage /></Page>} />
+                      <Route path="/vendor-baseline-portal" element={<Page name="VendorBaselines"><VendorBaselinePortalPage /></Page>} />
+                      <Route path="/intake-history" element={<Page name="IntakeHistory"><IntakeHistoryPage /></Page>} />
+                      <Route path="/pilot-analytics" element={<Page name="PilotAnalytics"><PilotAnalyticsDashboard /></Page>} />
+                      <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
+                      <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />
+                      <Route path="/growth" element={<Page name="Growth"><GrowthConsole /></Page>} />
+                      <Route path="/accreditation" element={<Page name="Accreditation"><AccreditationConsole /></Page>} />
+                      <Route path="/network-intelligence" element={<Page name="NetworkIntelligence"><NetworkIntelligenceConsole /></Page>} />
+                      <Route path="/autonomous-operations" element={<Page name="AutonomousOps"><AutonomousOperationsConsole /></Page>} />
+                      <Route path="/global-intelligence" element={<Page name="GlobalIntelligence"><GlobalIntelligenceConsole /></Page>} />
+                      <Route path="/global-standards" element={<Page name="GlobalStandards"><GlobalStandardsConsole /></Page>} />
+                      <Route path="/infrastructure" element={<Page name="Infrastructure"><GlobalInfrastructureConsole /></Page>} />
+                      <Route path="/vendor-intelligence" element={<Page name="VendorIntelligence"><VendorIntelligencePage /></Page>} />
+                      <Route path="/digital-twin" element={<Page name="DigitalTwin"><DigitalTwinPage /></Page>} />
+                      <Route path="/quality-intelligence" element={<Page name="QualityIntelligence"><QualityIntelligencePage /></Page>} />
+                      <Route path="/baseline-library" element={<Page name="BaselineLibrary"><BaselineLibraryPage /></Page>} />
+                      <Route path="/instrument-passport" element={<Page name="InstrumentPassport"><InstrumentPassportPage /></Page>} />
+                      <Route path="/executive-command-center" element={<Page name="CommandCenter"><ExecutiveCommandCenterPage /></Page>} />
+                      <Route path="/global-registry" element={<Page name="GlobalRegistry"><GlobalRegistryPage /></Page>} />
+                      <Route path="/surgical-readiness" element={<Page name="SurgicalReadiness"><SurgicalReadinessDashboard /></Page>} />
+                      <Route path="/audit-evidence" element={<Page name="AuditEvidence"><AuditEvidencePage /></Page>} />
+                      <Route path="/users" element={<Page name="Users"><UsersPage /></Page>} />
+                      <Route path="/roles" element={<Page name="Roles"><RolesPage /></Page>} />
+                      <Route path="/settings" element={<Page name="Settings"><SettingsPage /></Page>} />
+                      <Route path="/demo-image-library" element={<Page name="DemoImageLibrary"><DemoImageLibraryPage /></Page>} />
+                      <Route path="/baseline-image-upload" element={<Page name="BaselineImageUpload"><BaselineImageUploadPage /></Page>} />
+                      <Route path="/inspection-image-upload" element={<Page name="InspectionImageUpload"><InspectionImageUploadPage /></Page>} />
+                      <Route path="/network-dashboard" element={<Page name="NetworkDashboard"><NetworkDashboardPage /></Page>} />
+                      <Route path="/image-quality" element={<Page name="ImageQuality"><ImageQualityPage /></Page>} />
+                      <Route path="/go-live-center" element={<Page name="GoLiveCenter"><GoLiveCenterPage /></Page>} />
+                      <Route path="/implementation-tracker" element={<Page name="ImplementationTracker"><ImplementationTrackerPage /></Page>} />
+                      <Route path="/training-compliance" element={<Page name="TrainingCompliance"><TrainingCompliancePage /></Page>} />
+                      <Route path="/baseline-readiness" element={<Page name="BaselineReadiness"><BaselineReadinessPage /></Page>} />
+                      <Route path="/inspection-readiness" element={<Page name="InspectionReadiness"><InspectionReadinessPage /></Page>} />
+                      <Route path="/executive-adoption" element={<Page name="ExecutiveAdoption"><ExecutiveAdoptionPage /></Page>} />
+                      <Route path="/value-realization" element={<Page name="ValueRealization"><ValueRealizationPage /></Page>} />
+                      <Route path="/customer-onboarding" element={<Page name="CustomerOnboarding"><CustomerOnboardingPage /></Page>} />
+                      <Route path="/customer-success" element={<Page name="CustomerSuccess"><CustomerSuccessDashboard /></Page>} />
+                      <Route path="/deployment-readiness" element={<Page name="DeploymentReadiness"><DeploymentReadinessPage /></Page>} />
+                      <Route path="/training-center" element={<Page name="TrainingCenter"><TrainingCenterPage /></Page>} />
+                      <Route path="/roi-center" element={<Page name="ROICenter"><ROICenterPage /></Page>} />
+                      <Route path="/subscription-readiness" element={<Page name="SubscriptionReadiness"><SubscriptionReadinessPage /></Page>} />
+                      <Route path="/legacy" element={<Page name="Legacy"><DashboardApp /></Page>} />
+                      <Route path="*" element={<NotFound />} />
                     </Routes>
-                  </Suspense>
-                </AppShell>
-              }
-            />
-          </Routes>
-        </ErrorBoundary>
-      </BrowserRouter>
-      </NotificationProvider>
-    </AuthProvider>
+                  </AppShell>
+                }
+              />
+            </Routes>
+          </BrowserRouter>
+        </NotificationProvider>
+      </AuthProvider>
+    </RootErrorBoundary>
   );
 }
 
 const root = document.getElementById("root");
-if (!root) throw new Error("Missing root element");
+if (!root) throw new Error("Missing #root element — check index.html");
 ReactDOM.createRoot(root).render(<App />);
