@@ -506,7 +506,10 @@ export default function VendorBaselineSubscriptionPortal() {
   }
 
   useEffect(() => {
-    loadRecords();
+    loadRecords().catch((err) => {
+      setError(err instanceof Error ? err.message : "Failed to load vendor baseline records.");
+      setLoading(false);
+    });
   }, []);
 
   

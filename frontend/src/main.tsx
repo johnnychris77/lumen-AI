@@ -1,5 +1,5 @@
 import "./index.css";
-import React, { Suspense, lazy, useEffect } from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
@@ -7,11 +7,27 @@ import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications";
 import { Spinner } from "@/components/ui/spinner";
 
-// Reload the page once on chunk-load failures (e.g. deploy-time cache busting).
-// Prevents white page on hard refresh when old chunk hashes are cached.
+// ─── Global error recovery ───────────────────────────────────────────────────
+// Chunk-load failures (e.g. after a deploy re-hashes asset filenames) cause a
+// white page because the browser cached the old chunk URL which is now a 404.
+// Reload once per session to pick up the new asset manifest.
 window.addEventListener("error", (e) => {
   const src = (e.target as HTMLScriptElement | null)?.src ?? "";
   if (src.includes("/assets/") && !sessionStorage.getItem("chunk_reload")) {
+    sessionStorage.setItem("chunk_reload", "1");
+    window.location.reload();
+  }
+}, true); // capture phase so it fires before React's own handlers
+
+// Promise-based dynamic import failures (React.lazy) surface as
+// unhandledrejection events — handle them the same way.
+window.addEventListener("unhandledrejection", (e) => {
+  const msg = String(e.reason?.message ?? e.reason ?? "");
+  if (
+    (msg.includes("Failed to fetch dynamically imported module") ||
+      msg.includes("Importing a module script failed")) &&
+    !sessionStorage.getItem("chunk_reload")
+  ) {
     sessionStorage.setItem("chunk_reload", "1");
     window.location.reload();
   }

@@ -388,6 +388,32 @@ export default function NewInspectionPage() {
         </p>
       </div>
 
+      {/* Field requirements summary */}
+      <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+          <div className="px-4 py-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Required by technician</p>
+            <ul className="text-xs text-slate-700 space-y-1">
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Facility / Site</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Technician Name</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Inspection Date &amp; Time</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Tray Name</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> Instrument Name &amp; Type</li>
+              <li className="flex items-center gap-1.5"><span className="text-red-500">*</span> At least 1 inspection image</li>
+            </ul>
+          </div>
+          <div className="px-4 py-3 bg-slate-50">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Determined by AI — not required</p>
+            <ul className="text-xs text-slate-500 space-y-1">
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Finding Categories (AI predicts from image)</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Risk Level (AI scores after baseline check)</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Match Status (system checks automatically)</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Source (supervisor sets if no match)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Workflow diagram */}
       <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-800 space-y-1">
         <p className="font-semibold text-blue-900">Inspection Workflow</p>
@@ -733,9 +759,13 @@ function AIPredictionPanel({
         </div>
 
         {isSupervisorRequired && (
-          <div className="rounded-lg border border-amber-300 bg-white px-4 py-3 text-sm text-amber-900">
-            <strong>Manufacturer baseline not found.</strong> Supervisor review required before final scoring.<br />
-            <span className="text-xs text-amber-700 mt-0.5 block">A supervisor or admin must apply a baseline override to unlock the risk score.</span>
+          <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-1">
+            <p className="font-semibold">⚠ Manufacturer baseline not found — Supervisor review required before final scoring.</p>
+            <p className="text-xs text-amber-700">
+              No approved manufacturer baseline exists for this instrument type.
+              Risk scoring is locked until a supervisor or admin applies a baseline override.
+              Technicians cannot set baseline status — this is system-controlled.
+            </p>
           </div>
         )}
 
