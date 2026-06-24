@@ -141,6 +141,11 @@ export default function NewInspectionPage() {
   const [submittedId, setSubmittedId] = useState<string | null>(null);
 
   const [submittedRiskScore, setSubmittedRiskScore] = useState<number | null>(null);
+  const [submittedData, setSubmittedData] = useState<Record<string, unknown> | null>(null);
+  const [overrideSource, setOverrideSource] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overriding, setOverriding] = useState(false);
+  const [overrideBanner, setOverrideBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [barcodeScanned, setBarcodeScanned] = useState(false);
   const [noBaselineWarning, setNoBaselineWarning] = useState(false);
 
@@ -256,13 +261,14 @@ export default function NewInspectionPage() {
       { key: "tray_name", label: "Tray Name" },
       { key: "instrument_name", label: "Instrument Name" },
       { key: "instrument_type", label: "Instrument Type" },
-      { key: "risk_level", label: "Risk Level" },
     ];
     for (const { key, label } of requiredStr) {
       if (!String(form[key]).trim()) errors[key] = `${label} is required.`;
     }
-    if (form.finding_categories.length === 0) {
-      errors.finding_categories = "Select at least one finding category.";
+    // findings are optional when images are present
+    const hasImages = inspectionImages.length > 0 || borescopeImages.length > 0;
+    if (!hasImages && form.finding_categories.length === 0) {
+      errors.finding_categories = "Select at least one finding category, or upload images.";
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -284,6 +290,29 @@ export default function NewInspectionPage() {
     setSubmitting(true);
     try {
       const hdrs = headers();
+      const allImages = [...inspectionImages, ...borescopeImages];
+      const hasImages = allImages.length > 0;
+
+      // Upload images first so SHA-256 can accompany the record
+      let imageSha256: string | undefined;
+      if (hasImages) {
+        try {
+          const fd = new FormData();
+          allImages.forEach((f) => fd.append("images", f));
+          const imgRes = await fetch(`${API_BASE}/api/inspections/upload-images`, {
+            method: "POST",
+            headers: { Authorization: hdrs["Authorization"] },
+            body: fd,
+          });
+          if (imgRes.ok) {
+            const imgData = await imgRes.json();
+            imageSha256 = imgData?.images?.[0]?.sha256;
+          }
+        } catch {
+          // non-fatal — proceed without sha256
+        }
+      }
+
       const payload = {
         facility_name: form.facility_name,
         department: form.department,
@@ -301,11 +330,15 @@ export default function NewInspectionPage() {
         udi: form.udi || undefined,
         keydot_id: form.keydot_id,
         finding_categories: form.finding_categories,
-        risk_level: form.risk_level,
         notes: form.notes,
-        baseline_status: form.baseline_status,
-        baseline_source: form.baseline_source,
+        has_image: hasImages,
+        image_sha256: imageSha256,
         source: "pilot_inspection_form",
+        // findings — optional when image present
+        ...(form.finding_categories.length > 0 && {
+          detected_issue: form.finding_categories[0],
+        }),
+        ...(form.risk_level && { risk_level: form.risk_level }),
       };
 
       const res = await fetch(`${API_BASE}/api/inspections`, {
@@ -337,31 +370,16 @@ export default function NewInspectionPage() {
         const data = await res.json();
         id = String(data?.id || data?.inspection_id || "");
         riskScore = data?.risk_score != null ? Number(data.risk_score) : null;
+        setSubmittedData(data);
       } catch {
         // ignore
       }
       setSubmittedId(id);
       setSubmittedRiskScore(riskScore);
 
-      // Upload images if any were selected
-      const allImages = [...inspectionImages, ...borescopeImages];
-      if (allImages.length > 0) {
-        try {
-          const fd = new FormData();
-          allImages.forEach((f) => fd.append("images", f));
-          await fetch(`${API_BASE}/api/inspections/upload-images`, {
-            method: "POST",
-            headers: { Authorization: hdrs["Authorization"] },
-            body: fd,
-          });
-        } catch {
-          // Image upload failure is non-fatal — inspection record already saved
-        }
-      }
-
       setBanner({
         type: "success",
-        message: `Inspection submitted successfully.${id ? ` ID: ${id}` : ""}${allImages.length > 0 ? ` ${allImages.length} image(s) uploaded.` : ""}`,
+        message: `Inspection submitted successfully.${id ? ` ID: ${id}` : ""}${hasImages ? ` ${allImages.length} image(s) uploaded.` : ""}`,
       });
     } finally {
       setSubmitting(false);
@@ -376,6 +394,10 @@ export default function NewInspectionPage() {
     setBanner(null);
     setSubmittedId(null);
     setSubmittedRiskScore(null);
+    setSubmittedData(null);
+    setOverrideSource("");
+    setOverrideReason("");
+    setOverrideBanner(null);
     setNoBaselineWarning(false);
     setBarcodeScanned(false);
   }
@@ -403,19 +425,99 @@ export default function NewInspectionPage() {
       )}
 
       {submittedId !== null && banner?.type === "success" && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-          {submittedRiskScore !== null && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-emerald-800 font-medium">AI Risk Score:</span>
-              <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-bold ${
-                submittedRiskScore >= 80 ? "bg-red-600 text-white" :
-                submittedRiskScore >= 60 ? "bg-orange-500 text-white" :
-                submittedRiskScore >= 40 ? "bg-amber-400 text-slate-900" :
-                "bg-emerald-100 text-emerald-800"
-              }`}>
-                {submittedRiskScore} / 100
-              </span>
-              <span className="text-xs text-slate-500">Human review required</span>
+        <div className="space-y-3">
+          {/* Supervisor Review Required */}
+          {submittedData?.supervisor_review_required && (
+            <div className="rounded-lg border-2 border-amber-400 bg-amber-50 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-amber-600 text-xl">⚠</span>
+                <div>
+                  <p className="font-semibold text-amber-900">No approved manufacturer baseline found. Supervisor review required before final scoring.</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Inspection ID {submittedId} has been saved. A supervisor or admin must select an alternate baseline source and provide an override reason before the risk score is finalized.
+                  </p>
+                </div>
+              </div>
+              {/* Override form */}
+              {overrideBanner && (
+                <div className={`rounded px-3 py-2 text-sm ${overrideBanner.type === "success" ? "bg-emerald-100 text-emerald-800" : "bg-red-50 text-red-700"}`}>
+                  {overrideBanner.message}
+                </div>
+              )}
+              {!overrideBanner || overrideBanner.type !== "success" ? (
+                <div className="space-y-2 border-t border-amber-200 pt-3">
+                  <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Supervisor Baseline Override</p>
+                  <select
+                    value={overrideSource}
+                    onChange={e => setOverrideSource(e.target.value)}
+                    className="block w-full rounded border border-amber-300 px-2 py-1.5 text-sm"
+                  >
+                    <option value="">Select baseline source…</option>
+                    <option value="vendor">Vendor Baseline</option>
+                    <option value="hospital">Hospital Baseline</option>
+                    <option value="manufacturer">Alternate Manufacturer</option>
+                    <option value="manual_review">Manual Review</option>
+                    <option value="none">No Baseline — Manual Assessment Only</option>
+                  </select>
+                  <textarea
+                    value={overrideReason}
+                    onChange={e => setOverrideReason(e.target.value)}
+                    rows={2}
+                    placeholder="Override reason (required, min 10 characters)…"
+                    className="block w-full rounded border border-amber-300 px-2 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    disabled={overriding || !overrideSource || overrideReason.length < 10}
+                    onClick={async () => {
+                      setOverriding(true);
+                      try {
+                        const hdrs = headers();
+                        const r = await fetch(`${API_BASE}/api/inspections/${submittedId}/baseline-override`, {
+                          method: "POST",
+                          headers: hdrs,
+                          body: JSON.stringify({ baseline_source: overrideSource, override_reason: overrideReason }),
+                        });
+                        if (r.ok) {
+                          const d = await r.json();
+                          setSubmittedData(d);
+                          setOverrideBanner({ type: "success", message: `Override applied. Risk score: ${d.risk_score}/100. Score status: ${d.score_status}.` });
+                        } else {
+                          const err = await r.json().catch(() => ({}));
+                          setOverrideBanner({ type: "error", message: err?.detail || `Override failed (${r.status})` });
+                        }
+                      } catch {
+                        setOverrideBanner({ type: "error", message: "Network error during override." });
+                      } finally {
+                        setOverriding(false);
+                      }
+                    }}
+                    className="rounded bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {overriding ? "Applying…" : "Apply Override"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+          {/* Normal scored result */}
+          {!submittedData?.supervisor_review_required && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+              {submittedRiskScore !== null && submittedData?.score_status === "scored" && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-emerald-800 font-medium">AI Risk Score:</span>
+                  <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-bold ${
+                    submittedRiskScore >= 80 ? "bg-red-600 text-white" :
+                    submittedRiskScore >= 60 ? "bg-orange-500 text-white" :
+                    submittedRiskScore >= 40 ? "bg-amber-400 text-slate-900" :
+                    "bg-emerald-100 text-emerald-800"
+                  }`}>
+                    {submittedRiskScore} / 100
+                  </span>
+                  <span className="text-xs text-slate-500">Human review required</span>
+                </div>
+              )}
+              <p className="text-xs text-emerald-700">Baseline: {String(submittedData?.baseline_status || "checked")}</p>
             </div>
           )}
           <button
@@ -666,10 +768,53 @@ export default function NewInspectionPage() {
           </div>
         </FormSection>
 
-        {/* Section 4 — Findings */}
-        <FormSection title="Findings" description="Select all applicable finding categories.">
+        {/* Section 4 — Images (upload before findings so baseline check can run) */}
+        <FormSection
+          title="Images"
+          description="Upload inspection images first. The system will check for an approved manufacturer baseline. Max 10 MB per file."
+        >
+          <ImageFileInput
+            id="inspection_images"
+            label="Inspection Images"
+            files={inspectionImages}
+            inputRef={inspectionInputRef}
+            onChange={(e) => handleImages(e, setInspectionImages)}
+            onRemove={(i) => removeImage(i, setInspectionImages)}
+          />
+
+          <ImageFileInput
+            id="borescope_images"
+            label="Borescope Images"
+            files={borescopeImages}
+            inputRef={borescopeInputRef}
+            onChange={(e) => handleImages(e, setBorescopeImages)}
+            onRemove={(i) => removeImage(i, setBorescopeImages)}
+          />
+
+          <p className="text-xs text-gray-500 mt-1">
+            Only SHA-256 hash is stored — raw images are not retained in the database.
+          </p>
+        </FormSection>
+
+        {/* Section 5 — Findings (optional when images are uploaded) */}
+        <FormSection
+          title="Findings"
+          description={
+            inspectionImages.length > 0 || borescopeImages.length > 0
+              ? "Optional — AI will predict findings from uploaded images. Add manual observations if known."
+              : "Required when no images are uploaded. Select all applicable finding categories."
+          }
+        >
           <div>
-            <RequiredLabel label="Finding Categories" />
+            <label className="block text-sm font-medium text-gray-700">
+              Finding Categories
+              {inspectionImages.length === 0 && borescopeImages.length === 0 && (
+                <span className="text-red-500 ml-1">*</span>
+              )}
+              {(inspectionImages.length > 0 || borescopeImages.length > 0) && (
+                <span className="ml-2 text-xs font-normal text-slate-500">(optional — AI will predict from image)</span>
+              )}
+            </label>
             <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
               {FINDING_CATEGORIES.map((cat) => (
                 <label
@@ -701,26 +846,6 @@ export default function NewInspectionPage() {
           </div>
 
           <div>
-            <RequiredLabel label="Risk Level" />
-            <select
-              id="risk_level"
-              value={form.risk_level}
-              onChange={setStr("risk_level")}
-              onBlur={onBlurStr("risk_level")}
-              required
-              className={inputCls}
-            >
-              <option value="">Select risk level…</option>
-              {RISK_LEVELS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-            <FieldError message={fieldErrors.risk_level} />
-          </div>
-
-          <div>
             <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
               Inspection Notes
             </label>
@@ -733,69 +858,6 @@ export default function NewInspectionPage() {
               placeholder="Add shift context, tray details, or follow-up notes."
             />
           </div>
-        </FormSection>
-
-        {/* Section 5 — Baseline Reference */}
-        <FormSection title="Baseline Reference">
-          <div>
-            <label htmlFor="baseline_status" className="block text-sm font-medium text-gray-700">
-              Baseline Match Status
-            </label>
-            <select
-              id="baseline_status"
-              value={form.baseline_status}
-              onChange={setStr("baseline_status")}
-              className={inputCls}
-            >
-              <option value="">Select status…</option>
-              {BASELINE_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="baseline_source" className="block text-sm font-medium text-gray-700">
-              Baseline Source / Reference
-            </label>
-            <input
-              id="baseline_source"
-              type="text"
-              value={form.baseline_source}
-              onChange={setStr("baseline_source")}
-              className={inputCls}
-            />
-          </div>
-        </FormSection>
-
-        {/* Section 6 — Images */}
-        <FormSection
-          title="Images"
-          description="Max 10 MB per file. Images are stored locally and noted on the record."
-        >
-          <ImageFileInput
-            id="inspection_images"
-            label="Inspection Images"
-            files={inspectionImages}
-            inputRef={inspectionInputRef}
-            onChange={(e) => handleImages(e, setInspectionImages)}
-            onRemove={(i) => removeImage(i, setInspectionImages)}
-          />
-
-          <ImageFileInput
-            id="borescope_images"
-            label="Borescope Images"
-            files={borescopeImages}
-            inputRef={borescopeInputRef}
-            onChange={(e) => handleImages(e, setBorescopeImages)}
-            onRemove={(i) => removeImage(i, setBorescopeImages)}
-          />
-
-          <p className="text-xs text-gray-500 mt-1">
-            Images are uploaded securely after form submission. Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained in the database.
-          </p>
         </FormSection>
 
         {/* Submit */}

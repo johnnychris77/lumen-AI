@@ -60,3 +60,14 @@ class Inspection(Base):
     qa_override_instrument_type: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     qa_override_detected_issue: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     qa_override_risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Phase 14 — baseline governance
+    has_image: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_status: Mapped[str] = mapped_column(String(50), default="not_checked", nullable=False)
+    baseline_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    score_status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    supervisor_review_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    override_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    override_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
