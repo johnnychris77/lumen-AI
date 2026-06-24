@@ -244,6 +244,7 @@ export default function NewInspectionPage() {
       const hdrs = headers();
       const payload = {
         facility_name: form.facility_name,
+<<<<<<< HEAD
         department: form.department,
         technician_name: form.technician_name,
         inspection_date: form.inspection_date,
@@ -263,6 +264,28 @@ export default function NewInspectionPage() {
         baseline_status: form.baseline_status,
         baseline_source: form.baseline_source,
         source: "pilot_inspection_form",
+=======
+        department: form.department || undefined,
+        tray_id: form.tray_id || undefined,
+        instrument_barcode: form.barcode || undefined,
+        instrument_udi: form.udi || undefined,
+        file_name: allImages[0]?.name || "inspection_image",
+        has_image: true,
+        image_sha256: imageSha256,
+        // Risk level is AI-determined — never required from technician
+        risk_level: "pending_ai_analysis",
+        // Finding categories submitted as-is (empty [] is valid — AI will determine)
+        finding_categories: form.finding_categories.length > 0
+          ? form.finding_categories
+          : ["pending_ai_analysis"],
+        ...(form.finding_categories.length > 0 && {
+          detected_issue: form.finding_categories[0],
+          stain_detected: form.finding_categories.some(
+            (c) => ["blood", "bone", "tissue", "debris"].includes(c)
+          ),
+          material_type: "stainless_steel",
+        }),
+>>>>>>> 96d1cdc (fix(inspection): remove required validation for findings/risk, add AI workflow labels and baseline warning)
       };
 
       const res = await fetch(`${API_BASE}/api/inspections`, {
@@ -483,12 +506,175 @@ export default function NewInspectionPage() {
                 onBlur={onBlurStr("instrument_type")}
                 required
                 className={inputCls}
+<<<<<<< HEAD
               >
                 <option value="">Select type…</option>
                 {INSTRUMENT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>
+=======
+              />
+              <FieldError message={fieldErrors.inspection_date} />
+            </div>
+          </FormSection>
+
+          {/* Section 2 — Tray Information */}
+          <FormSection title="Tray Information">
+            <div>
+              <RequiredLabel label="Tray Name" />
+              <input
+                id="tray_name" type="text" value={form.tray_name}
+                onChange={setStr("tray_name")}
+                onBlur={onBlurRequired("tray_name", "Tray Name")}
+                className={inputCls}
+              />
+              <FieldError message={fieldErrors.tray_name} />
+            </div>
+            <div>
+              <label htmlFor="tray_id" className="block text-sm font-medium text-gray-700">Tray ID / Tray Number</label>
+              <input id="tray_id" type="text" value={form.tray_id} onChange={setStr("tray_id")} className={inputCls} />
+            </div>
+          </FormSection>
+
+          {/* Section 3 — Instrument Identification */}
+          <FormSection title="Instrument Identification">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <RequiredLabel label="Instrument Name" />
+                <input
+                  id="instrument_name" type="text" value={form.instrument_name}
+                  onChange={setStr("instrument_name")}
+                  onBlur={onBlurRequired("instrument_name", "Instrument Name")}
+                  className={inputCls}
+                />
+                <FieldError message={fieldErrors.instrument_name} />
+              </div>
+              <div>
+                <RequiredLabel label="Instrument Type" />
+                <select
+                  id="instrument_type" value={form.instrument_type}
+                  onChange={(e) => { setStr("instrument_type")(e); checkBaseline(e.target.value); }}
+                  onBlur={onBlurRequired("instrument_type", "Instrument Type")}
+                  className={inputCls}
+                >
+                  <option value="">Select type…</option>
+                  {INSTRUMENT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <FieldError message={fieldErrors.instrument_type} />
+                {noBaselineWarning && (
+                  <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                    ⚠ No approved manufacturer baseline found — inspection will require supervisor review.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="manufacturer" className="block text-sm font-medium text-gray-700">Manufacturer</label>
+                <input id="manufacturer" type="text" value={form.manufacturer} onChange={setStr("manufacturer")} className={inputCls} />
+              </div>
+              <div>
+                <label htmlFor="model_number" className="block text-sm font-medium text-gray-700">Model Number</label>
+                <input id="model_number" type="text" value={form.model_number} onChange={setStr("model_number")} className={inputCls} />
+              </div>
+              <div>
+                <label htmlFor="serial_number" className="block text-sm font-medium text-gray-700">Serial Number</label>
+                <input id="serial_number" type="text" value={form.serial_number} onChange={setStr("serial_number")} className={inputCls} />
+              </div>
+              <div>
+                <label htmlFor="barcode" className="block text-sm font-medium text-gray-700">
+                  Barcode{barcodeScanned && <span className="ml-2 text-xs font-medium text-emerald-600">✓ Scanned</span>}
+                </label>
+                <input
+                  id="barcode" type="text" value={form.barcode}
+                  onChange={(e) => { setStr("barcode")(e); setBarcodeScanned(false); }}
+                  onBlur={() => { if (form.barcode.trim()) setBarcodeScanned(true); }}
+                  className={inputCls} placeholder="Scan or type barcode…"
+                />
+              </div>
+              <div>
+                <label htmlFor="qr_code" className="block text-sm font-medium text-gray-700">QR Code</label>
+                <input id="qr_code" type="text" value={form.qr_code} onChange={setStr("qr_code")} className={inputCls} />
+              </div>
+              <div>
+                <label htmlFor="udi" className="block text-sm font-medium text-gray-700">UDI</label>
+                <input id="udi" type="text" value={form.udi} onChange={setStr("udi")} placeholder="(01)…" className={inputCls} />
+              </div>
+              <div>
+                <label htmlFor="keydot_id" className="block text-sm font-medium text-gray-700">KeyDot ID</label>
+                <input id="keydot_id" type="text" value={form.keydot_id} onChange={setStr("keydot_id")} className={inputCls} />
+              </div>
+            </div>
+          </FormSection>
+
+          {/* Section 4 — Images (REQUIRED — AI analysis runs on these) */}
+          <FormSection
+            title="Inspection Images"
+            description="Required. Upload at least one image. AI will check the manufacturer baseline and generate findings and risk score automatically."
+          >
+            {/* Pre-upload status — always visible so technician knows what happens next */}
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              Upload an image first. LumenAI will compare against the approved manufacturer baseline and suggest findings / risk.
+              Finding Categories and Risk Level are set by AI — <strong>technicians do not enter them</strong>.
+            </div>
+
+            {/* No-baseline early warning (shown when instrument type is selected but no baseline exists) */}
+            {noBaselineWarning && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <strong>No approved manufacturer baseline found.</strong>{" "}
+                Supervisor review required before final scoring. Technicians do not set baseline status — this is system-controlled.
+              </div>
+            )}
+
+            <div>
+              <RequiredLabel label="Inspection Images" />
+              <ImageFileInput
+                id="inspection_images"
+                label=""
+                files={inspectionImages}
+                inputRef={inspectionInputRef}
+                onChange={(e) => handleImages(e, setInspectionImages)}
+                onRemove={(i) => removeImage(i, setInspectionImages)}
+              />
+              <FieldError message={fieldErrors.images} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Borescope Images <span className="text-slate-400 font-normal">(optional)</span></label>
+              <ImageFileInput
+                id="borescope_images"
+                label=""
+                files={borescopeImages}
+                inputRef={borescopeInputRef}
+                onChange={(e) => handleImages(e, setBorescopeImages)}
+                onRemove={(i) => removeImage(i, setBorescopeImages)}
+              />
+            </div>
+            <p className="text-xs text-gray-500">Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
+          </FormSection>
+
+          {/* Section 5 — Manual Observations (always optional) */}
+          <FormSection
+            title="Manual Observations"
+            description="Optional. If you observed specific findings, you may note them here. AI prediction will run regardless."
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Finding Categories (AI suggested after image upload)
+              </label>
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {FINDING_CATEGORIES.map((cat) => (
+                  <label key={cat.value} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer" title={cat.tooltip}>
+                    <input
+                      type="checkbox"
+                      checked={form.finding_categories.includes(cat.value)}
+                      onChange={() => toggleCategory(cat.value)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>{cat.label}</span>
+                    <span className="text-gray-400 text-xs cursor-help" title={cat.tooltip}>?</span>
+                  </label>
+>>>>>>> 96d1cdc (fix(inspection): remove required validation for findings/risk, add AI workflow labels and baseline warning)
                 ))}
               </select>
               <FieldError message={fieldErrors.instrument_type} />
