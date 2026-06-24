@@ -1,11 +1,21 @@
 import "./index.css";
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications";
 import { Spinner } from "@/components/ui/spinner";
+
+// Reload the page once on chunk-load failures (e.g. deploy-time cache busting).
+// Prevents white page on hard refresh when old chunk hashes are cached.
+window.addEventListener("error", (e) => {
+  const src = (e.target as HTMLScriptElement | null)?.src ?? "";
+  if (src.includes("/assets/") && !sessionStorage.getItem("chunk_reload")) {
+    sessionStorage.setItem("chunk_reload", "1");
+    window.location.reload();
+  }
+});
 
 // Non-lazy pages (small, critical path)
 import Dashboard from "./pages/Dashboard";
@@ -130,15 +140,25 @@ class RootErrorBoundary extends React.Component<
 // ─── Per-page error boundary — catches chunk load failures and page crashes ───
 
 class PageErrorBoundary extends React.Component<
-  { children: React.ReactNode; pageName?: string },
-  { error: Error | null }
+  { children: React.ReactNode; pageName?: string; locationKey?: string },
+  { error: Error | null; locationKey?: string }
 > {
-  constructor(props: { children: React.ReactNode; pageName?: string }) {
+  constructor(props: { children: React.ReactNode; pageName?: string; locationKey?: string }) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, locationKey: props.locationKey };
   }
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+  // Auto-clear error when user navigates to a different route
+  static getDerivedStateFromProps(
+    props: { locationKey?: string },
+    state: { error: Error | null; locationKey?: string }
+  ) {
+    if (state.error && props.locationKey !== state.locationKey) {
+      return { error: null, locationKey: props.locationKey };
+    }
+    return { locationKey: props.locationKey };
   }
   componentDidCatch(error: Error) {
     console.error(`[LumenAI] Page error${this.props.pageName ? ` (${this.props.pageName})` : ""}:`, error);
@@ -168,10 +188,13 @@ class PageErrorBoundary extends React.Component<
 }
 
 // ─── Wrap a lazy page with both Suspense and a per-page error boundary ────────
+// locationKey resets the error boundary on route change so stale errors don't
+// linger when the user navigates away and back.
 
 function Page({ children, name }: { children: React.ReactNode; name?: string }) {
+  const loc = useLocation();
   return (
-    <PageErrorBoundary pageName={name}>
+    <PageErrorBoundary pageName={name} locationKey={loc.key}>
       <Suspense fallback={<PageLoader />}>
         {children}
       </Suspense>

@@ -655,6 +655,16 @@ export default function NewInspectionPage() {
             </div>
           </FormSection>
 
+          {/* AI workflow clarification — shown just above submit */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1">
+            <p className="font-semibold text-slate-700">What happens after you submit?</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li><strong>Finding Categories and Risk Level are NOT required</strong> — AI predicts both from the image.</li>
+              <li>Baseline Match Status is determined automatically — technicians do not set it.</li>
+              <li>If no approved manufacturer baseline is found, the result is flagged for <strong>supervisor review</strong> before final scoring.</li>
+            </ul>
+          </div>
+
           {/* Submit */}
           <div className="flex flex-col gap-3">
             <button
