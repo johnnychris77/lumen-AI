@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useCallback, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
@@ -129,6 +129,7 @@ const initialForm: FormFields = {
 
 export default function NewInspectionPage() {
   const { headers } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState<FormFields>(initialForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [inspectionImages, setInspectionImages] = useState<File[]>([]);
@@ -322,7 +323,8 @@ export default function NewInspectionPage() {
       });
 
       if (res.status === 401 || res.status === 403) {
-        setBanner({ type: "error", message: "Access denied. Please log in again." });
+        localStorage.removeItem("token");
+        navigate("/login", { replace: true });
         return;
       }
       if (!res.ok) {
