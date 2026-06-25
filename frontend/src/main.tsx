@@ -33,11 +33,11 @@ window.addEventListener("unhandledrejection", (e) => {
   }
 });
 
-// Non-lazy pages (small, critical path)
-import Dashboard from "./pages/Dashboard";
-import VendorIntake from "./pages/VendorIntake";
-
-// Lazy-loaded pages
+// All pages are lazy so any single page crash is caught by PageErrorBoundary
+// and never causes a full white-page. Dashboard and VendorIntake were previously
+// non-lazy; making them lazy ensures their import errors are also recoverable.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const VendorIntake = lazy(() => import("./pages/VendorIntake"));
 const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
@@ -325,6 +325,33 @@ function App() {
   );
 }
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Missing #root element — check index.html");
-ReactDOM.createRoot(root).render(<App />);
+// Boot-time safety net — if React itself fails to mount (rare but possible),
+// show an inline-styled fallback instead of a white page. Inline styles are
+// used deliberately so this renders even if the CSS bundle fails to load.
+function showBootError(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  const el = document.getElementById("root");
+  if (!el) return;
+  el.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;font-family:system-ui,sans-serif;padding:2rem">
+      <div style="max-width:420px;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:1rem">⚠️</div>
+        <h1 style="font-size:1.25rem;font-weight:700;color:#0f172a;margin-bottom:.5rem">LumenAI failed to load</h1>
+        <p style="color:#475569;font-size:.875rem;margin-bottom:1.5rem">${msg}</p>
+        <button onclick="sessionStorage.clear();window.location.href='/'"
+          style="background:#2563eb;color:#fff;border:none;border-radius:.5rem;padding:.625rem 1.25rem;font-size:.875rem;font-weight:600;cursor:pointer">
+          Clear cache &amp; retry
+        </button>
+        <p style="color:#94a3b8;font-size:.75rem;margin-top:1rem">Open browser console (F12) for full error details.</p>
+      </div>
+    </div>`;
+}
+
+try {
+  const root = document.getElementById("root");
+  if (!root) throw new Error("Missing #root element — check index.html");
+  ReactDOM.createRoot(root).render(<App />);
+} catch (err) {
+  console.error("[LumenAI] Fatal boot error:", err);
+  showBootError(err);
+}
