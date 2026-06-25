@@ -19,13 +19,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
+from app.enterprise_auth import get_request_tenant_id
 from app.models.p22_operations import (
     OperationsWorkflow,
     WorkflowStep,
@@ -104,7 +105,7 @@ class StepIn(BaseModel):
 
 @router.post("/workflows", status_code=201,
              dependencies=[Depends(require_roles("admin", "manager"))])
-def create_workflow(tenant_id: str = Query(...), body: WorkflowIn = ...,
+def create_workflow(request: Request, body: WorkflowIn = ...,
                     db: Session = Depends(get_db)):
     if body.workflow_type not in _WORKFLOW_TYPES:
         raise HTTPException(400, f"workflow_type must be one of {_WORKFLOW_TYPES}")
@@ -120,7 +121,7 @@ def create_workflow(tenant_id: str = Query(...), body: WorkflowIn = ...,
 
 
 @router.get("/workflows", dependencies=[Depends(require_roles("admin", "manager", "executive"))])
-def list_workflows(tenant_id: str = Query(...),
+def list_workflows(request: Request,
                    workflow_type: Optional[str] = Query(None),
                    db: Session = Depends(get_db)):
     q = db.query(OperationsWorkflow).filter_by(tenant_id=tenant_id, status="active")
@@ -135,7 +136,7 @@ def list_workflows(tenant_id: str = Query(...),
 
 @router.post("/workflows/{workflow_id}/steps", status_code=201,
              dependencies=[Depends(require_roles("admin", "manager"))])
-def add_step(workflow_id: int, tenant_id: str = Query(...), body: StepIn = ...,
+def add_step(workflow_id: int, request: Request, body: StepIn = ...,
              db: Session = Depends(get_db)):
     wf = db.query(OperationsWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
@@ -156,7 +157,7 @@ def add_step(workflow_id: int, tenant_id: str = Query(...), body: StepIn = ...,
 
 @router.get("/workflows/{workflow_id}/steps",
             dependencies=[Depends(require_roles("admin", "manager", "technician", "executive"))])
-def list_steps(workflow_id: int, tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def list_steps(workflow_id: int, request: Request, db: Session = Depends(get_db)):
     wf = db.query(OperationsWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
         raise HTTPException(404, "Workflow not found")
@@ -187,7 +188,7 @@ class ApprovalIn(BaseModel):
 
 @router.post("/workflows/{workflow_id}/execute", status_code=201,
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
-def execute_workflow(workflow_id: int, tenant_id: str = Query(...),
+def execute_workflow(workflow_id: int, request: Request,
                      body: ExecutionIn = ..., db: Session = Depends(get_db)):
     wf = db.query(OperationsWorkflow).filter_by(
         id=workflow_id, tenant_id=tenant_id, status="active").first()
@@ -258,7 +259,7 @@ def execute_workflow(workflow_id: int, tenant_id: str = Query(...),
 
 
 @router.get("/executions", dependencies=[Depends(require_roles("admin", "manager", "executive"))])
-def list_executions(tenant_id: str = Query(...),
+def list_executions(request: Request,
                     status: Optional[str] = Query(None),
                     db: Session = Depends(get_db)):
     q = db.query(WorkflowExecution).filter_by(tenant_id=tenant_id)
@@ -273,7 +274,7 @@ def list_executions(tenant_id: str = Query(...),
 
 @router.post("/executions/{execution_id}/approve",
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
-def approve_execution(execution_id: int, tenant_id: str = Query(...),
+def approve_execution(execution_id: int, request: Request,
                       body: ApprovalIn = ..., db: Session = Depends(get_db)):
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
@@ -296,7 +297,7 @@ def approve_execution(execution_id: int, tenant_id: str = Query(...),
 
 @router.post("/executions/{execution_id}/steps/{step_id}/complete",
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
-def complete_step(execution_id: int, step_id: int, tenant_id: str = Query(...),
+def complete_step(execution_id: int, step_id: int, request: Request,
                   assignee_email: str = Query(...), outcome: str = Query(...),
                   notes: Optional[str] = Query(None), db: Session = Depends(get_db)):
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
@@ -332,7 +333,7 @@ def complete_step(execution_id: int, step_id: int, tenant_id: str = Query(...),
 
 @router.post("/executions/{execution_id}/escalate",
              dependencies=[Depends(require_roles("admin", "manager"))])
-def escalate_execution(execution_id: int, tenant_id: str = Query(...),
+def escalate_execution(execution_id: int, request: Request,
                         escalated_by: str = Query(...), reason: str = Query(...),
                         db: Session = Depends(get_db)):
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
@@ -366,7 +367,7 @@ class QueueItemIn(BaseModel):
 
 @router.post("/work-queue", status_code=201,
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
-def add_queue_item(tenant_id: str = Query(...), body: QueueItemIn = ...,
+def add_queue_item(request: Request, body: QueueItemIn = ...,
                    db: Session = Depends(get_db)):
     if body.queue_type not in _QUEUE_TYPES:
         raise HTTPException(400, f"queue_type must be one of {_QUEUE_TYPES}")
@@ -384,7 +385,7 @@ def add_queue_item(tenant_id: str = Query(...), body: QueueItemIn = ...,
 
 @router.get("/work-queue",
             dependencies=[Depends(require_roles("admin", "manager", "technician", "executive"))])
-def list_queue_items(tenant_id: str = Query(...),
+def list_queue_items(request: Request,
                      queue_type: Optional[str] = Query(None),
                      status: Optional[str] = Query(None),
                      priority: Optional[str] = Query(None),
@@ -408,7 +409,7 @@ def list_queue_items(tenant_id: str = Query(...),
 
 @router.post("/work-queue/{item_id}/claim",
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
-def claim_queue_item(item_id: int, tenant_id: str = Query(...),
+def claim_queue_item(item_id: int, request: Request,
                      claimed_by: str = Query(...), db: Session = Depends(get_db)):
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
@@ -426,7 +427,7 @@ def claim_queue_item(item_id: int, tenant_id: str = Query(...),
 
 @router.post("/work-queue/{item_id}/complete",
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
-def complete_queue_item(item_id: int, tenant_id: str = Query(...),
+def complete_queue_item(item_id: int, request: Request,
                          completed_by: str = Query(...),
                          notes: Optional[str] = Query(None),
                          db: Session = Depends(get_db)):
@@ -447,7 +448,7 @@ def complete_queue_item(item_id: int, tenant_id: str = Query(...),
 
 @router.post("/work-queue/{item_id}/escalate",
              dependencies=[Depends(require_roles("admin", "manager"))])
-def escalate_queue_item(item_id: int, tenant_id: str = Query(...),
+def escalate_queue_item(item_id: int, request: Request,
                          escalated_by: str = Query(...), db: Session = Depends(get_db)):
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
@@ -487,7 +488,7 @@ class RiskSnapshotIn(BaseModel):
 
 @router.post("/command-center/snapshots", status_code=201,
              dependencies=[Depends(require_roles("admin", "executive"))])
-def create_snapshot(tenant_id: str = Query(...), body: RiskSnapshotIn = ...,
+def create_snapshot(request: Request, body: RiskSnapshotIn = ...,
                     db: Session = Depends(get_db)):
     if body.snapshot_type not in _SNAPSHOT_TYPES:
         raise HTTPException(400, f"snapshot_type must be one of {_SNAPSHOT_TYPES}")
@@ -503,7 +504,7 @@ def create_snapshot(tenant_id: str = Query(...), body: RiskSnapshotIn = ...,
 
 @router.get("/command-center/snapshots",
             dependencies=[Depends(require_roles("admin", "executive", "manager"))])
-def list_snapshots(tenant_id: str = Query(...),
+def list_snapshots(request: Request,
                    snapshot_type: Optional[str] = Query(None),
                    db: Session = Depends(get_db)):
     q = db.query(OperationalRiskSnapshot).filter_by(tenant_id=tenant_id)
@@ -519,7 +520,7 @@ def list_snapshots(tenant_id: str = Query(...),
 
 @router.get("/command-center/dashboard",
             dependencies=[Depends(require_roles("admin", "executive", "manager"))])
-def get_dashboard(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Live aggregate dashboard — derived from queue and execution state."""
     open_items = db.query(WorkQueueItem).filter(
         WorkQueueItem.tenant_id == tenant_id,
@@ -649,7 +650,7 @@ def _build_copilot_response(query_type: str, tenant_id: str, db) -> tuple[str, f
 
 @router.post("/executions/scan-timeouts",
              dependencies=[Depends(require_roles("admin"))])
-def scan_step_timeouts(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def scan_step_timeouts(request: Request, db: Session = Depends(get_db)):
     """Evaluate overdue WorkflowStepExecutions and enforce on_timeout policy.
 
     Policies:
@@ -709,7 +710,7 @@ def scan_step_timeouts(tenant_id: str = Query(...), db: Session = Depends(get_db
 
 @router.post("/copilot/query", status_code=201,
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
-def submit_copilot_query(tenant_id: str = Query(...), body: CopilotQueryIn = ...,
+def submit_copilot_query(request: Request, body: CopilotQueryIn = ...,
                           db: Session = Depends(get_db)):
     if body.query_type not in _QUERY_TYPES:
         raise HTTPException(400, f"query_type must be one of {_QUERY_TYPES}")
@@ -761,7 +762,7 @@ def submit_copilot_query(tenant_id: str = Query(...), body: CopilotQueryIn = ...
 
 @router.get("/copilot/recommendations",
             dependencies=[Depends(require_roles("admin", "manager", "executive"))])
-def list_recommendations(tenant_id: str = Query(...),
+def list_recommendations(request: Request,
                           review_status: Optional[str] = Query(None),
                           db: Session = Depends(get_db)):
     q = db.query(CopilotRecommendation).filter_by(tenant_id=tenant_id)
@@ -777,7 +778,7 @@ def list_recommendations(tenant_id: str = Query(...),
 
 @router.post("/copilot/recommendations/{rec_id}/review",
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
-def review_recommendation(rec_id: int, tenant_id: str = Query(...),
+def review_recommendation(rec_id: int, request: Request,
                             body: RecommendationReviewIn = ...,
                             db: Session = Depends(get_db)):
     if body.review_status not in _REVIEW_STATUSES:

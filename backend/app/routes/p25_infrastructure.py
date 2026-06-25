@@ -143,7 +143,7 @@ def get_instrument(
 
 
 @router.post("/instruments",
-             dependencies=[Depends(require_roles("admin", "manager", "technician"))])
+             dependencies=[Depends(require_roles("admin", "manager", "spd_manager", "technician"))])
 def register_instrument(
     body: RegisterIdentityRequest,
     request: Request,
@@ -210,7 +210,7 @@ def register_instrument(
 
 
 @router.post("/instruments/{instrument_id}/lifecycle",
-             dependencies=[Depends(require_roles("admin", "manager", "technician"))])
+             dependencies=[Depends(require_roles("admin", "manager", "spd_manager", "technician"))])
 def update_lifecycle_status(
     instrument_id: int,
     request: Request,
@@ -323,7 +323,7 @@ def get_passport(
 
 
 @router.post("/instruments/{instrument_id}/passport",
-             dependencies=[Depends(require_roles("admin", "manager", "technician"))])
+             dependencies=[Depends(require_roles("admin", "manager", "spd_manager", "technician"))])
 def add_passport_event(
     instrument_id: int,
     body: PassportEventRequest,

@@ -208,7 +208,7 @@ def approve_baseline_governance(
     require_enterprise_auth(request)
     tenant_id = _tenant(request)
 
-    record = db.query(BaselineGovernanceRecord).filter_by(id=record_id).first()
+    record = db.query(BaselineGovernanceRecord).filter_by(id=record_id, tenant_id=tenant_id).first()
     if record is None:
         raise HTTPException(status_code=404, detail={"error": "not_found"})
     if record.approval_status != "pending":
@@ -375,7 +375,7 @@ def approve_api_partner(
     require_enterprise_auth(request)
     tenant_id = _tenant(request)
 
-    app_record = db.query(APIPartnerApplication).filter_by(id=app_id).first()
+    app_record = db.query(APIPartnerApplication).filter_by(id=app_id, tenant_id=tenant_id).first()
     if app_record is None:
         raise HTTPException(status_code=404, detail={"error": "not_found"})
     if app_record.application_status != "pending":
