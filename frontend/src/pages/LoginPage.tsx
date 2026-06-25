@@ -1,10 +1,14 @@
 import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 
 export default function LoginPage() {
-  const { setAuth } = useAuth();
+  const { token, setAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string })?.from || "/";
+
+  if (token) return <Navigate to={from} replace />;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +50,7 @@ export default function LoginPage() {
         actor: email,
       });
 
-      navigate("/", { replace: true });
+      navigate(from, { replace: true });
     } catch {
       setError("Unable to reach the server. Please check your connection and try again.");
     } finally {

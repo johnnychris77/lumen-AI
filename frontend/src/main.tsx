@@ -1,9 +1,9 @@
 import "./index.css";
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -233,6 +233,17 @@ function NotFound() {
   );
 }
 
+// ─── Auth guard — redirects unauthenticated users to /login ──────────────────
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { token } = useAuth();
+  const loc = useLocation();
+  if (!token) {
+    return <Navigate to="/login" state={{ from: loc.pathname }} replace />;
+  }
+  return <>{children}</>;
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
@@ -254,10 +265,11 @@ function App() {
                 }
               />
 
-              {/* All app routes inside AppShell */}
+              {/* All app routes inside AppShell — require authentication */}
               <Route
                 path="/*"
                 element={
+                  <RequireAuth>
                   <AppShell>
                     <Routes>
                       <Route path="/" element={<Page name="Dashboard"><Dashboard /></Page>} />
@@ -315,6 +327,7 @@ function App() {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppShell>
+                  </RequireAuth>
                 }
               />
             </Routes>
