@@ -8,9 +8,13 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
-  // Serve index.html for all routes in dev and preview (SPA hard-refresh fix)
+  // Serve index.html for all routes in dev and preview (SPA hard-refresh fix).
+  // The public/ dir contains real subdirectories (dashboard/, portfolio/) that
+  // would otherwise intercept /dashboard etc. historyApiFallback ensures the
+  // dev server always falls back to index.html for unknown paths.
   server: {
     historyApiFallback: true,
+    fs: { strict: false },
   },
   preview: {
     historyApiFallback: true,
