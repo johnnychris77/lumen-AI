@@ -386,7 +386,7 @@ def review_signal(
             detail={"error": "invalid_decision", "message": "decision must be 'approve' or 'reject'"},
         )
 
-    signal = db.query(GlobalIntelligenceSignal).filter_by(id=signal_id).first()
+    signal = db.query(GlobalIntelligenceSignal).filter_by(id=signal_id, tenant_id=tenant_id).first()
     if signal is None:
         raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Signal not found."})
 
@@ -532,9 +532,12 @@ def sign_dpa(
     from datetime import datetime, timezone
     participant.dpa_signed = True
     participant.security_attestation_date = datetime.now(timezone.utc)
-    participant.enrollment_status = "active"
+    # Only activate if BAA is also signed — both documents required before contribution
+    if participant.baa_signed:
+        participant.enrollment_status = "active"
     db.commit()
 
+    enrollment_status = participant.enrollment_status
     log_audit_event(
         db,
         tenant_id=tenant_id,
@@ -544,15 +547,21 @@ def sign_dpa(
         action_type="global_intelligence.participant.dpa_signed",
         resource_type="gsin_participants",
         resource_id=str(participant.id),
-        details={"enrollment_status": "active"},
+        details={"enrollment_status": enrollment_status},
         compliance_flag=True,
     )
 
+    if enrollment_status == "active":
+        message = "DPA signed. Tenant enrollment is now active. You may now contribute anonymized signals to the network."
+    else:
+        message = "DPA signed. BAA signature is still required before enrollment becomes active."
+
     return {
         "status": "success",
-        "enrollment_status": "active",
+        "enrollment_status": enrollment_status,
         "dpa_signed": True,
-        "message": "DPA signed. Tenant enrollment is now active. You may now contribute anonymized signals to the network.",
+        "baa_signed": participant.baa_signed,
+        "message": message,
         "disclaimer": _DISCLAIMER,
     }
 

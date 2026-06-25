@@ -48,22 +48,16 @@ type AIPrediction = {
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const INSTRUMENT_TYPES = [
-  { value: "scope", label: "Scope (Lumened)" },
-  { value: "flexible_ureteroscope", label: "Flexible Ureteroscope" },
-  { value: "bronchoscope", label: "Bronchoscope" },
-  { value: "colonoscope", label: "Colonoscope" },
-  { value: "cystoscope", label: "Cystoscope" },
-  { value: "hysteroscope", label: "Hysteroscope" },
-  { value: "laparoscope", label: "Laparoscope" },
-  { value: "arthroscope", label: "Arthroscope" },
-  { value: "nephroscope", label: "Nephroscope" },
+  { value: "laparoscopic_grasper", label: "Laparoscopic Grasper" },
   { value: "scissors", label: "Scissors" },
   { value: "forceps", label: "Forceps" },
-  { value: "clamp", label: "Clamp" },
   { value: "needle_holder", label: "Needle Holder" },
   { value: "retractor", label: "Retractor" },
-  { value: "scalpel_handle", label: "Scalpel Handle" },
-  { value: "drill", label: "Drill" },
+  { value: "trocar", label: "Trocar" },
+  { value: "electrosurgical", label: "Electrosurgical" },
+  { value: "suction_irrigation", label: "Suction / Irrigation" },
+  { value: "clip_applier", label: "Clip Applier" },
+  { value: "stapler", label: "Stapler" },
   { value: "other", label: "Other" },
 ];
 
@@ -270,23 +264,22 @@ export default function NewInspectionPage() {
       const hdrs = headers();
       const allImages = [...inspectionImages, ...borescopeImages];
 
-      // Step 1: Upload images first
+      // Step 1: Upload images first — required for AI analysis
       let imageSha256: string | undefined;
-      try {
-        const fd = new FormData();
-        allImages.forEach((f) => fd.append("images", f));
-        const imgRes = await fetch(`${API_BASE}/api/inspections/upload-images`, {
-          method: "POST",
-          headers: { Authorization: hdrs["Authorization"] },
-          body: fd,
-        });
-        if (imgRes.ok) {
-          const imgData = await imgRes.json();
-          imageSha256 = imgData?.images?.[0]?.sha256;
-        }
-      } catch {
-        // non-fatal — inspection can still be created
+      const fd = new FormData();
+      allImages.forEach((f) => fd.append("images", f));
+      const imgRes = await fetch(`${API_BASE}/api/inspections/upload-images`, {
+        method: "POST",
+        headers: { Authorization: hdrs["Authorization"] },
+        body: fd,
+      });
+      if (!imgRes.ok) {
+        const errBody = await imgRes.json().catch(() => ({}));
+        setBanner({ type: "error", message: errBody?.detail || `Image upload failed (${imgRes.status}). Please try again.` });
+        return;
       }
+      const imgData = await imgRes.json();
+      imageSha256 = imgData?.images?.[0]?.sha256;
 
       // Step 2: Submit inspection record (findings optional — AI will determine)
       const payload: Record<string, unknown> = {
