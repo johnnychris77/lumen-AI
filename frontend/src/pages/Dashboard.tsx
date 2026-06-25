@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Droplets,
+  Images,
   Package,
   RefreshCw,
   ShieldCheck,
@@ -25,6 +26,7 @@ type Summary = {
   completed?: number;
   queued?: number;
   failed?: number;
+  open_findings?: number;
 };
 
 type Inspection = {
@@ -237,6 +239,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [kpi, setKpi] = useState<KpiSummary | null>(null);
+  const [capaOpen, setCapaOpen] = useState<number | null>(null);
   const [modules, setModules] = useState<ModuleStatus[]>(MODULES);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL_MS / 1000);
@@ -247,10 +250,11 @@ export default function Dashboard() {
     if (!silent) setLoading(true);
     setError("");
     try {
-      const [summaryRes, historyRes, kpiRes] = await Promise.allSettled([
+      const [summaryRes, historyRes, kpiRes, capaRes] = await Promise.allSettled([
         fetch(`${API_BASE}/api/history/summary`, { headers: hdrs }),
         fetch(`${API_BASE}/api/history?limit=10`, { headers: hdrs }),
         fetch(`${API_BASE}/api/enterprise/findings/kpi-summary`, { headers: hdrs }),
+        fetch(`${API_BASE}/api/capa`, { headers: hdrs }),
       ]);
 
       if (summaryRes.status === "fulfilled" && summaryRes.value.ok)
@@ -263,6 +267,12 @@ export default function Dashboard() {
 
       if (kpiRes.status === "fulfilled" && kpiRes.value.ok)
         setKpi(await kpiRes.value.json());
+
+      if (capaRes.status === "fulfilled" && capaRes.value.ok) {
+        const d = await capaRes.value.json();
+        const items: unknown[] = Array.isArray(d) ? d : d.items || [];
+        setCapaOpen(items.filter((c: unknown) => (c as { status?: string }).status === "open").length);
+      }
 
       setLastUpdated(new Date());
       setCountdown(REFRESH_INTERVAL_MS / 1000);
@@ -351,46 +361,57 @@ export default function Dashboard() {
         </Alert>
       )}
 
-      {/* Inspection workflow KPIs */}
+      {/* ── Operational KPIs ── */}
       <section>
-        <h3 className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Inspection Workflow</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Operational KPIs</h3>
+          <Link to="/intake-history" className="text-xs text-blue-600 hover:underline">Full history →</Link>
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard label="Total Inspections" value={summary?.total_inspections ?? "—"} icon={Activity} detail="All captured records" />
-          <KPICard label="Completed" value={summary?.completed ?? "—"} icon={CheckCircle2} detail="Workflow complete" trend="up" />
-          <KPICard label="Queued" value={summary?.queued ?? "—"} icon={Clock} detail="Awaiting triage" />
-          <KPICard label="Failed" value={summary?.failed ?? "—"} icon={XCircle} detail="Requires review" />
+          <KPICard
+            label="Total Inspections"
+            value={summary?.total_inspections ?? "—"}
+            icon={Activity}
+            detail="All captured inspection records"
+          />
+          <KPICard
+            label="Open Findings"
+            value={kpi?.total_findings ?? "—"}
+            icon={AlertTriangle}
+            detail="Active findings requiring review"
+          />
+          <KPICard
+            label="CAPAs Open"
+            value={capaOpen ?? "—"}
+            icon={ShieldCheck}
+            detail="Corrective actions in progress"
+          />
+          <KPICard
+            label="Baseline Coverage"
+            value={kpi ? `${kpi.baselines.approval_rate}%` : "—"}
+            icon={CheckCircle2}
+            detail="Approved baselines / total"
+            trend={kpi && kpi.baselines.approval_rate >= 80 ? "up" : "neutral"}
+          />
         </div>
       </section>
 
-      {/* Enterprise finding KPIs */}
+      {/* ── Contamination KPIs ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Enterprise Findings</h3>
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Contamination KPIs</h3>
           <Link to="/findings" className="text-xs text-blue-600 hover:underline">View findings queue →</Link>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <KPICard label="Total Findings" value={kpi?.total_findings ?? "—"} icon={Activity} detail="Enterprise intake records" />
-          <KPICard
-            label="High-Risk Instruments"
-            value={kpi?.high_risk_instruments ?? "—"}
-            icon={AlertTriangle}
-            detail="High or critical severity"
-          />
-          <KPICard label="Approved Baselines" value={kpi?.baselines.approved ?? "—"} icon={CheckCircle2} detail="Cleared for scoring use" trend="up" />
-          <KPICard label="Baseline Approval Rate" value={kpi ? `${kpi.baselines.approval_rate}%` : "—"} icon={TrendingUp} detail="Approved / total baselines" />
-        </div>
-
-        {/* Category breakdown */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Finding Category Breakdown</CardTitle>
+          <CardHeader className="pb-3">
             <CardDescription>
-              AI-detected finding types across all enterprise inspections. Red alert (!) indicates clinically significant residue types.
+              AI-detected contamination types across all enterprise inspections.
+              Red (!) flags are clinically significant residues requiring immediate review.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {Object.entries(CATEGORY_LABELS).map(([key]) => (
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              {(["blood", "bone", "tissue", "debris", "corrosion", "crack", "insulation_damage"] as const).map((key) => (
                 <CategoryKPICard key={key} catKey={key} count={cats[key] ?? 0} />
               ))}
             </div>
@@ -398,20 +419,80 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      {/* Baseline KPIs */}
+      {/* ── Pilot KPIs ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vendor Baseline Lifecycle</h3>
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pilot KPIs</h3>
           <div className="flex gap-3">
             <Link to="/baseline-review" className="text-xs text-blue-600 hover:underline">Review queue →</Link>
-            <Link to="/vendor-baseline-portal" className="text-xs text-blue-600 hover:underline">Baseline portal →</Link>
+            <Link to="/vendor-baseline-portal" className="text-xs text-blue-600 hover:underline">Vendor portal →</Link>
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard label="Total Baselines" value={kpi?.baselines.total ?? "—"} icon={Package} detail="All baseline records" />
-          <KPICard label="Pending Review" value={kpi?.baselines.pending ?? "—"} icon={Clock} detail="Awaiting hospital approval" />
-          <KPICard label="Vendor Submissions" value={kpi?.baselines.vendor_submissions ?? "—"} icon={ShieldCheck} detail="Submitted by vendors" />
-          <KPICard label="Approval Rate" value={kpi ? `${kpi.baselines.approval_rate}%` : "—"} icon={Zap} detail="Approved / total" />
+          <KPICard
+            label="Vendor Baselines"
+            value={kpi?.baselines.vendor_submissions ?? "—"}
+            icon={Package}
+            detail="Submitted by vendors"
+          />
+          <KPICard
+            label="Manufacturer Baselines"
+            value={kpi?.baselines.total ?? "—"}
+            icon={Package}
+            detail="All baseline records on file"
+            trend="up"
+          />
+          <KPICard
+            label="Pending Reviews"
+            value={kpi?.baselines.pending ?? "—"}
+            icon={Clock}
+            detail="Awaiting hospital approval"
+          />
+          <KPICard
+            label="Approved Baselines"
+            value={kpi?.baselines.approved ?? "—"}
+            icon={Zap}
+            detail="Cleared for scoring use"
+            trend="up"
+          />
+        </div>
+      </section>
+
+      {/* ── Baseline Coverage KPI ── */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Baseline Coverage</h3>
+          <div className="flex gap-3">
+            <Link to="/demo-image-library" className="text-xs text-blue-600 hover:underline">Image library →</Link>
+            <Link to="/baseline-image-upload" className="text-xs text-blue-600 hover:underline">Upload baseline →</Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            label="Baseline Coverage"
+            value={kpi ? `${kpi.baselines.approval_rate}%` : "—"}
+            icon={ShieldCheck}
+            detail="Approved baselines / total"
+            trend={kpi && kpi.baselines.approval_rate >= 80 ? "up" : "neutral"}
+          />
+          <KPICard
+            label="Awaiting Approval"
+            value={kpi?.baselines.pending ?? "—"}
+            icon={Clock}
+            detail="Pending baseline review"
+          />
+          <KPICard
+            label="Demo Images"
+            value={20}
+            icon={Images}
+            detail="Pilot manifest placeholder images"
+          />
+          <KPICard
+            label="High-Risk Instruments"
+            value={kpi?.high_risk_instruments ?? "—"}
+            icon={AlertTriangle}
+            detail="Instruments with risk score ≥ 80"
+          />
         </div>
       </section>
 

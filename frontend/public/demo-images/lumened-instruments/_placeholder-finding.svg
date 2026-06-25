@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#FEF2F2"/>
+  <rect width="400" height="3" fill="#DC2626"/>
+  <!-- Camera body -->
+  <rect x="155" y="95" width="90" height="68" rx="8" fill="#FECACA" stroke="#DC2626" stroke-width="2"/>
+  <!-- Lens ring -->
+  <circle cx="200" cy="129" r="22" fill="#FCA5A5" stroke="#B91C1C" stroke-width="2"/>
+  <circle cx="200" cy="129" r="13" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.5"/>
+  <circle cx="200" cy="129" r="6" fill="#DC2626" opacity="0.4"/>
+  <!-- Flash -->
+  <rect x="216" y="102" width="14" height="9" rx="2" fill="#FCA5A5" stroke="#DC2626" stroke-width="1.5"/>
+  <!-- Alert triangle overlay -->
+  <circle cx="200" cy="197" r="18" fill="#FEF2F2" stroke="#DC2626" stroke-width="2"/>
+  <path d="M200,183 L212,205 L188,205 Z" fill="#FECACA" stroke="#DC2626" stroke-width="2" stroke-linejoin="round"/>
+  <line x1="200" y1="190" x2="200" y2="198" stroke="#DC2626" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="200" cy="202" r="1.5" fill="#DC2626"/>
+  <!-- Finding box -->
+  <rect x="155" y="170" width="90" height="20" rx="3" fill="#FEE2E2" stroke="#FCA5A5" stroke-width="1" opacity="0.6"/>
+  <!-- Labels -->
+  <text x="200" y="238" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#991B1B">Finding Image</text>
+  <text x="200" y="258" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#DC2626">Replace with pilot photograph</text>
+  <text x="200" y="276" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#FCA5A5">LumenAI · Demo Placeholder</text>
+</svg>

@@ -1,9 +1,3 @@
-
-  const [bundleHashToVerify, setBundleHashToVerify] = useState("");
-  const [bundleVerificationLoading, setBundleVerificationLoading] = useState(false);
-  const [bundleVerificationError, setBundleVerificationError] = useState("");
-  const [bundleVerificationResult, setBundleVerificationResult] =
-    useState<ComplianceEvidenceSummaryResponse | null>(null);
 import { useEffect, useState } from "react";
 
 const API_BASE =
@@ -366,6 +360,11 @@ export default function VendorBaselineSubscriptionPortal() {
   const [packetVerificationError, setPacketVerificationError] = useState("");
   const [packetVerification, setPacketVerification] = useState<PacketHashVerificationResponse | null>(null);
   const [error, setError] = useState("");
+  const [bundleHashToVerify, setBundleHashToVerify] = useState("");
+  const [bundleVerificationLoading, setBundleVerificationLoading] = useState(false);
+  const [bundleVerificationError, setBundleVerificationError] = useState("");
+  const [bundleVerificationResult, setBundleVerificationResult] =
+    useState<ComplianceEvidenceSummaryResponse | null>(null);
 
   const [form, setForm] = useState({
     vendor_name: "Stryker",
@@ -507,7 +506,10 @@ export default function VendorBaselineSubscriptionPortal() {
   }
 
   useEffect(() => {
-    loadRecords();
+    loadRecords().catch((err) => {
+      setError(err instanceof Error ? err.message : "Failed to load vendor baseline records.");
+      setLoading(false);
+    });
   }, []);
 
   
@@ -624,12 +626,41 @@ return (
           </p>
         </div>
 
-        <button type="button" onClick={loadRecords} style={refreshButtonStyle}>
+        <button type="button" onClick={loadRecords} style={refreshButtonStyle} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh Library"}
         </button>
       </div>
 
-      {error ? <div style={errorStyle}>{error}</div> : null}
+      {/* Error state */}
+      {error ? (
+        <div style={{ ...errorStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => { setError(""); loadRecords(); }}
+            style={{ marginLeft: 12, padding: "4px 12px", background: "#fff", border: "1px solid #f87171", borderRadius: 6, cursor: "pointer", fontSize: 12 }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {/* Loading skeleton — shown on initial load when no records yet */}
+      {loading && records.length === 0 && !error ? (
+        <div style={{ padding: "32px 0", textAlign: "center", color: "#64748b", fontSize: 14 }}>
+          <div style={{ display: "inline-block", width: 24, height: 24, border: "3px solid #e2e8f0", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <p style={{ marginTop: 12 }}>Loading vendor baselines…</p>
+        </div>
+      ) : null}
+
+      {/* Empty state — loaded successfully but no records */}
+      {!loading && !error && records.length === 0 ? (
+        <div style={{ padding: "40px 0", textAlign: "center", color: "#94a3b8", fontSize: 14 }}>
+          <p style={{ fontSize: 32, marginBottom: 8 }}>📭</p>
+          <p style={{ fontWeight: 600, color: "#475569", marginBottom: 4 }}>No vendor baseline records found</p>
+          <p>Create your first baseline record using the form below, or check your subscription tier access.</p>
+        </div>
+      ) : null}
 
       <div style={summaryGridStyle}>
         <MetricCard label="Visible Records" value={records.length} />

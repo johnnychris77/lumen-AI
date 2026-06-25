@@ -9,9 +9,14 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
+from app.authz import require_roles
 from app.deps import get_db
 from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
-from app.models.global_intelligence import GlobalIntelligenceSignal, GSINParticipant
+from app.models.global_intelligence import (
+    GlobalIntelligenceSignal,
+    GlobalRecallEarlyWarning,
+    GSINParticipant,
+)
 from app.services.global_intelligence_service import (
     DISCLAIMER,
     get_global_dashboard,
@@ -49,6 +54,22 @@ class ContributeSignalRequest(BaseModel):
     signal_strength: float = 0.0
     trend_direction: str = "stable"
     association_reason: str = ""
+
+
+class ReviewSignalRequest(BaseModel):
+    decision: str  # "approve" | "reject"
+    reviewer_notes: str = ""
+
+
+class EnrollRequest(BaseModel):
+    participant_type: str  # hospital/vendor/manufacturer/regulator
+    region: str
+    contribution_categories: list[str] = []
+
+
+class NotifyRequest(BaseModel):
+    target: str  # "manufacturer" | "regulatory"
+    notification_notes: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +363,274 @@ def contribute_signal(
             "Contributed signal will not be published to the network until k-anonymity "
             "is verified (>=10 facilities) and Governance Board human review is completed."
         ),
+    }
+
+
+@router.post(
+    "/api/global-intelligence/signals/{signal_id}/review",
+    dependencies=[Depends(require_roles("admin", "executive"))],
+)
+def review_signal(
+    signal_id: int,
+    body: ReviewSignalRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Governance Board review: approve or reject a pending signal for network publication."""
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    if body.decision not in ("approve", "reject"):
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "invalid_decision", "message": "decision must be 'approve' or 'reject'"},
+        )
+
+    signal = db.query(GlobalIntelligenceSignal).filter_by(id=signal_id).first()
+    if signal is None:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Signal not found."})
+
+    if signal.human_review_completed:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "already_reviewed", "message": "Signal has already been reviewed."},
+        )
+
+    if body.decision == "approve":
+        if signal.facility_count < 10:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "k_anonymity_not_met",
+                    "message": "Cannot approve: signal requires ≥10 facilities for k-anonymity before publication.",
+                    "facility_count": signal.facility_count,
+                    "required": 10,
+                },
+            )
+        signal.k_anonymity_verified = True
+        signal.human_review_completed = True
+        signal.published = True
+        outcome = "approved_and_published"
+    else:
+        signal.human_review_completed = True
+        signal.published = False
+        outcome = "rejected"
+
+    db.commit()
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="admin",
+        action_type=f"global_intelligence.signal.{outcome}",
+        resource_type="global_intelligence_signals",
+        resource_id=str(signal_id),
+        details={"decision": body.decision, "reviewer_notes": body.reviewer_notes},
+        compliance_flag=True,
+    )
+
+    return {
+        "status": "success",
+        "signal_id": signal_id,
+        "decision": body.decision,
+        "outcome": outcome,
+        "published": signal.published,
+        "human_review_required": True,
+        "disclaimer": _DISCLAIMER,
+    }
+
+
+@router.post("/api/global-intelligence/enroll")
+def enroll_participant(
+    body: EnrollRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Enroll this tenant as a GSIN network participant (creates pending record)."""
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    existing = db.query(GSINParticipant).filter_by(tenant_id=tenant_id).first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "already_enrolled",
+                "message": f"Tenant already has a participant record with status '{existing.enrollment_status}'.",
+                "enrollment_status": existing.enrollment_status,
+            },
+        )
+
+    import json
+    participant = GSINParticipant(
+        tenant_id=tenant_id,
+        participant_type=body.participant_type,
+        region=body.region,
+        contribution_categories=json.dumps(body.contribution_categories),
+        baa_signed=False,
+        dpa_signed=False,
+        enrollment_status="pending",
+        minimum_contribution_met=False,
+    )
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="",
+        action_type="global_intelligence.participant.enroll",
+        resource_type="gsin_participants",
+        resource_id=str(participant.id),
+        details={"participant_type": body.participant_type, "region": body.region},
+        compliance_flag=True,
+    )
+
+    return {
+        "status": "success",
+        "participant_id": participant.id,
+        "enrollment_status": "pending",
+        "next_steps": [
+            "Sign the Data Processing Agreement (DPA) via POST /api/global-intelligence/sign-dpa",
+            "Ensure BAA is signed with your account administrator",
+            "Begin contributing anonymized signals once enrollment is active",
+        ],
+        "disclaimer": _DISCLAIMER,
+    }
+
+
+@router.post(
+    "/api/global-intelligence/sign-dpa",
+    dependencies=[Depends(require_roles("admin"))],
+)
+def sign_dpa(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Admin acknowledges DPA signing, activating this tenant's GSIN participation."""
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    participant = db.query(GSINParticipant).filter_by(tenant_id=tenant_id).first()
+    if participant is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_enrolled", "message": "Tenant has no participant record. Enroll first via POST /enroll."},
+        )
+
+    if participant.dpa_signed:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "already_signed", "message": "DPA is already marked as signed."},
+        )
+
+    from datetime import datetime, timezone
+    participant.dpa_signed = True
+    participant.security_attestation_date = datetime.now(timezone.utc)
+    participant.enrollment_status = "active"
+    db.commit()
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="admin",
+        action_type="global_intelligence.participant.dpa_signed",
+        resource_type="gsin_participants",
+        resource_id=str(participant.id),
+        details={"enrollment_status": "active"},
+        compliance_flag=True,
+    )
+
+    return {
+        "status": "success",
+        "enrollment_status": "active",
+        "dpa_signed": True,
+        "message": "DPA signed. Tenant enrollment is now active. You may now contribute anonymized signals to the network.",
+        "disclaimer": _DISCLAIMER,
+    }
+
+
+@router.post(
+    "/api/global-intelligence/recall-warnings/{warning_id}/notify",
+    dependencies=[Depends(require_roles("admin", "executive"))],
+)
+def notify_recall_warning(
+    warning_id: int,
+    body: NotifyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Record that a manufacturer or regulatory body has been notified about this early warning signal."""
+    require_enterprise_auth(request)
+    tenant_id = _tenant(request)
+
+    if body.target not in ("manufacturer", "regulatory"):
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "invalid_target", "message": "target must be 'manufacturer' or 'regulatory'"},
+        )
+
+    warning = db.query(GlobalRecallEarlyWarning).filter_by(id=warning_id).first()
+    if warning is None:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Recall warning not found."})
+
+    if body.target == "manufacturer":
+        if warning.manufacturer_notified:
+            raise HTTPException(
+                status_code=409,
+                detail={"error": "already_notified", "message": "Manufacturer has already been marked as notified."},
+            )
+        warning.manufacturer_notified = True
+        field_updated = "manufacturer_notified"
+    else:
+        if warning.regulatory_notified:
+            raise HTTPException(
+                status_code=409,
+                detail={"error": "already_notified", "message": "Regulatory body has already been marked as notified."},
+            )
+        warning.regulatory_notified = True
+        field_updated = "regulatory_notified"
+
+    # Escalate status if both parties notified
+    if warning.manufacturer_notified and warning.regulatory_notified:
+        warning.status = "escalated"
+
+    db.commit()
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=tenant_id,
+        actor_email=_actor(request),
+        actor_role="admin",
+        action_type=f"global_intelligence.recall_warning.notify_{body.target}",
+        resource_type="global_recall_early_warnings",
+        resource_id=str(warning_id),
+        details={"target": body.target, "notes": body.notification_notes},
+        compliance_flag=True,
+    )
+
+    return {
+        "status": "success",
+        "warning_id": warning_id,
+        "field_updated": field_updated,
+        "warning_status": warning.status,
+        "manufacturer_notified": warning.manufacturer_notified,
+        "regulatory_notified": warning.regulatory_notified,
+        "human_review_required": True,
+        "important_notice": (
+            "This records that a human-initiated notification was sent. "
+            "This is NOT a regulatory recall action. "
+            "All further steps require human review and regulatory consultation."
+        ),
+        "disclaimer": _DISCLAIMER,
     }
 
 

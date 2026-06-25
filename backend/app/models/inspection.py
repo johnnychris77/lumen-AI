@@ -37,6 +37,13 @@ class Inspection(Base):
     vendor_name: Mapped[str] = mapped_column(String(100), default="unknown", nullable=False)
     site_name: Mapped[str] = mapped_column(String(100), default="default-site", nullable=False)
 
+    # Pilot Sprint 7 additions — facility/department/tray and instrument identity
+    facility_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tray_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    instrument_barcode: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    instrument_udi: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     alert_status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
     alert_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     alert_notes: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
@@ -53,3 +60,14 @@ class Inspection(Base):
     qa_override_instrument_type: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     qa_override_detected_issue: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     qa_override_risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Phase 14 — baseline governance
+    has_image: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_status: Mapped[str] = mapped_column(String(50), default="not_checked", nullable=False)
+    baseline_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    score_status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    supervisor_review_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    override_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    override_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

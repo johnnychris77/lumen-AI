@@ -1,25 +1,42 @@
 import React, { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useNotifications } from "@/lib/notifications";
+import { NotificationPanel } from "@/components/ui/NotificationPanel";
 import {
   LayoutDashboard,
-  ClipboardList,
-  ShieldCheck,
-  FileSearch,
-  BarChart3,
-  Building2,
-  Package,
-  CheckCircle2,
+  FilePlus,
   History,
+  ClipboardCheck,
+  LineChart,
+  Package,
   Store,
+  Thermometer,
+  BookOpen,
+  CheckCircle2,
+  Database,
+  CreditCard,
+  ScanLine,
+  Images,
+  Upload,
+  FileSearch,
+  ShieldCheck,
+  FileText,
+  Building2,
+  TrendingUp,
+  BarChart3,
+  AlertTriangle,
+  Activity,
+  Users,
+  UserCheck,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Bell,
   LogOut,
-  Award,
-  Briefcase,
-  TrendingUp,
-  LineChart,
-  Network,
+  Rocket,
+  GraduationCap,
+  DollarSign,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -27,52 +44,106 @@ import { Badge } from "@/components/ui/badge";
 type NavLeaf = { to: string; label: string; icon: React.ElementType; roles?: string[] };
 type NavGroup = { label: string; roles?: string[]; items: NavLeaf[] };
 
-// `roles` (when present) restricts visibility. Omitted = visible to all roles.
-// The backend still enforces access via require_roles — this is UX decluttering.
+// `roles` restricts group visibility. Omitted = visible to all roles.
+// Backend enforces access — this is UX decluttering only.
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Overview",
+    label: "Executive",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/operations", label: "Operations", icon: Building2 },
-      { to: "/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/executive-command-center", label: "Command Center", icon: BarChart3 },
+      { to: "/surgical-readiness", label: "Surgical Readiness", icon: Thermometer },
+      { to: "/global-registry", label: "Global Registry", icon: Database },
     ],
   },
   {
     label: "Inspection Intelligence",
-    roles: ["admin", "spd_manager", "vendor_user", "viewer"],
     items: [
-      { to: "/vendor-intake", label: "Vendor Intake", icon: ClipboardList },
-      { to: "/intake-history", label: "Intake History", icon: History },
+      { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
+      { to: "/intake-history", label: "Inspection History", icon: History },
+      { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
+      { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
+    ],
+  },
+  {
+    label: "Baselines",
+    items: [
       { to: "/manufacturer-baselines", label: "Manufacturer Baselines", icon: Package },
-      { to: "/baseline-review", label: "Baseline Review", icon: CheckCircle2 },
-      { to: "/vendor-baseline-portal", label: "Vendor Baseline Portal", icon: Store },
+      { to: "/vendor-baseline-portal", label: "Vendor Baselines", icon: Store },
+      { to: "/baseline-library", label: "Baseline Library", icon: BookOpen },
+      { to: "/baseline-review", label: "Baseline Reviews", icon: CheckCircle2 },
+      { to: "/intake-history", label: "Intake History", icon: History },
+    ],
+  },
+  {
+    label: "Instruments",
+    items: [
+      { to: "/infrastructure", label: "Instrument Registry", icon: Database },
+      { to: "/instrument-passport", label: "Instrument Passport", icon: CreditCard },
+      { to: "/vendor-intake", label: "Barcode / QR / KeyDot", icon: ScanLine },
+      { to: "/demo-image-library", label: "Image Library", icon: Images },
+      { to: "/baseline-image-upload", label: "Upload Baseline Image", icon: Upload },
+      { to: "/inspection-image-upload", label: "Upload Inspection Image", icon: Upload },
     ],
   },
   {
     label: "Quality & Compliance",
-    roles: ["admin", "spd_manager", "executive"],
     items: [
-      { to: "/findings", label: "Findings Queue", icon: FileSearch },
-      { to: "/capa", label: "CAPA Workflow", icon: ShieldCheck },
-      { to: "/accreditation", label: "Accreditation", icon: Award },
+      { to: "/findings", label: "Findings", icon: FileSearch },
+      { to: "/capa", label: "CAPA", icon: ShieldCheck },
+      { to: "/audit-evidence", label: "Audit Evidence", icon: FileText },
+      { to: "/enterprise", label: "Enterprise Quality", icon: Building2 },
     ],
   },
   {
-    label: "Enterprise & Growth",
-    roles: ["admin", "executive"],
+    label: "Analytics",
     items: [
-      { to: "/enterprise", label: "Enterprise", icon: Building2 },
-      { to: "/commercial", label: "Commercial", icon: Briefcase },
-      { to: "/growth", label: "Growth", icon: TrendingUp },
-      { to: "/pilot-analytics", label: "Pilot Analytics", icon: LineChart },
+      { to: "/pilot-analytics", label: "Executive Dashboard", icon: TrendingUp },
+      { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
+      { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
+      { to: "/operations", label: "Operational Analytics", icon: Activity },
     ],
   },
   {
-    label: "Network Intelligence",
-    roles: ["admin", "executive"],
+    label: "Enterprise",
+    roles: ["admin", "spd_manager"],
     items: [
-      { to: "/network-intelligence", label: "Network Intelligence", icon: Network },
+      { to: "/network-dashboard", label: "Network Dashboard", icon: Building2 },
+      { to: "/image-quality", label: "Image Quality", icon: Camera },
+    ],
+  },
+  {
+    label: "Go-Live",
+    roles: ["admin", "spd_manager"],
+    items: [
+      { to: "/go-live-center", label: "Go-Live Center", icon: Rocket },
+      { to: "/implementation-tracker", label: "Implementation Tracker", icon: ClipboardCheck },
+      { to: "/training-compliance", label: "Training Compliance", icon: GraduationCap },
+      { to: "/baseline-readiness", label: "Baseline Readiness", icon: Package },
+      { to: "/inspection-readiness", label: "Inspection Readiness", icon: ScanLine },
+      { to: "/executive-adoption", label: "Executive Adoption", icon: TrendingUp },
+      { to: "/value-realization", label: "Value Realization", icon: DollarSign },
+    ],
+  },
+  {
+    label: "Customer Success",
+    roles: ["admin", "spd_manager"],
+    items: [
+      { to: "/customer-onboarding", label: "Onboarding Center", icon: Building2 },
+      { to: "/customer-success", label: "Customer Health", icon: TrendingUp },
+      { to: "/deployment-readiness", label: "Deployment Readiness", icon: ShieldCheck },
+      { to: "/training-center", label: "Training Center", icon: BookOpen },
+      { to: "/roi-center", label: "ROI Center", icon: BarChart3 },
+      { to: "/subscription-readiness", label: "Subscription", icon: CreditCard },
+    ],
+  },
+  {
+    label: "Administration",
+    roles: ["admin", "spd_manager"],
+    items: [
+      { to: "/users", label: "Users", icon: Users },
+      { to: "/roles", label: "Roles", icon: UserCheck },
+      { to: "/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
@@ -160,7 +231,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
             )}
             <div className="space-y-0.5">
               {group.items.map((item) => (
-                <NavItem key={item.to} {...item} collapsed={collapsed} />
+                <NavItem key={`${item.to}-${item.label}`} {...item} collapsed={collapsed} />
               ))}
             </div>
           </div>
@@ -188,37 +259,66 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   );
 }
 
+function Breadcrumb({ path }: { path: string }) {
+  // Build label from first matching nav entry (breadcrumb uses first match, not last)
+  const label = React.useMemo(() => {
+    for (const group of NAV_GROUPS) {
+      for (const item of group.items) {
+        if (item.to === path) return item.label;
+      }
+    }
+    return path.replace(/^\//, "").replace(/-/g, " ") || "Dashboard";
+  }, [path]);
+
+  const segments = path.split("/").filter(Boolean);
+
+  return (
+    <nav className="flex items-center gap-1.5 text-xs text-slate-400" aria-label="Breadcrumb">
+      <span className="hover:text-slate-600 cursor-default">LumenAI</span>
+      {segments.map((seg, i) => (
+        <React.Fragment key={i}>
+          <span>/</span>
+          {i === segments.length - 1 ? (
+            <span className="text-slate-700 font-medium capitalize">{label}</span>
+          ) : (
+            <span className="capitalize">{seg.replace(/-/g, " ")}</span>
+          )}
+        </React.Fragment>
+      ))}
+      {segments.length === 0 && <><span>/</span><span className="text-slate-700 font-medium">Dashboard</span></>}
+    </nav>
+  );
+}
+
 function Header() {
   const location = useLocation();
   const role = localStorage.getItem("role") || "viewer";
-
-  const breadcrumb = React.useMemo(() => {
-    const path = location.pathname;
-    // Derive the label from the nav config so it never goes stale as routes grow.
-    const map: Record<string, string> = {};
-    for (const group of NAV_GROUPS) {
-      for (const item of group.items) map[item.to] = item.label;
-    }
-    return map[path] || path.replace("/", "").replace(/-/g, " ");
-  }, [location.pathname]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { unreadCount } = useNotifications();
 
   return (
     <header className="flex h-16 items-center border-b border-slate-200 bg-white px-6 gap-4 shrink-0">
       <div className="flex-1 min-w-0">
-        <h1 className="text-sm font-semibold text-slate-900 capitalize">{breadcrumb}</h1>
-        <p className="text-xs text-slate-500">LumenAI · Healthcare Sterile Processing ERP</p>
+        <Breadcrumb path={location.pathname} />
       </div>
 
       <div className="flex items-center gap-3">
         <Badge variant="secondary" className="capitalize hidden sm:inline-flex">
           {role.replace(/_/g, " ")}
         </Badge>
-        <button
-          className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
-          aria-label="Notifications"
-        >
-          <Bell className="h-4 w-4" />
-        </button>
+        <div className="relative">
+          <button
+            className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
+            aria-label="Notifications"
+            onClick={() => setNotifOpen(o => !o)}
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+            )}
+          </button>
+          <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
+        </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
           {(localStorage.getItem("actor") || "U")[0].toUpperCase()}
         </div>

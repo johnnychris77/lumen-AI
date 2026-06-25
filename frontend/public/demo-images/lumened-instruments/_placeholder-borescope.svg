@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#F5F3FF"/>
+  <rect width="400" height="3" fill="#7C3AED"/>
+  <!-- Borescope tube -->
+  <rect x="135" y="118" width="130" height="18" rx="9" fill="#DDD6FE" stroke="#7C3AED" stroke-width="2"/>
+  <!-- Tip circle (lens) -->
+  <circle cx="138" cy="127" r="14" fill="#EDE9FE" stroke="#6D28D9" stroke-width="2"/>
+  <circle cx="138" cy="127" r="8" fill="#C4B5FD" stroke="#7C3AED" stroke-width="1.5"/>
+  <circle cx="138" cy="127" r="4" fill="#7C3AED" opacity="0.5"/>
+  <!-- Handle end -->
+  <rect x="262" y="112" width="28" height="30" rx="5" fill="#C4B5FD" stroke="#6D28D9" stroke-width="2"/>
+  <!-- LEDs on tip -->
+  <circle cx="130" cy="119" r="2.5" fill="#A78BFA"/>
+  <circle cx="130" cy="135" r="2.5" fill="#A78BFA"/>
+  <circle cx="146" cy="119" r="2.5" fill="#A78BFA"/>
+  <circle cx="146" cy="135" r="2.5" fill="#A78BFA"/>
+  <!-- Field-of-view cone -->
+  <path d="M138,127 L105,100 M138,127 L105,154" stroke="#A78BFA" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+  <!-- Circular scan ring -->
+  <circle cx="200" cy="127" r="40" fill="none" stroke="#C4B5FD" stroke-width="1" stroke-dasharray="5,4" opacity="0.5"/>
+  <!-- Labels -->
+  <text x="200" y="210" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#5B21B6">Borescope Image</text>
+  <text x="200" y="230" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#7C3AED">Replace with pilot photograph</text>
+  <text x="200" y="250" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#C4B5FD">LumenAI · Demo Placeholder</text>
+</svg>

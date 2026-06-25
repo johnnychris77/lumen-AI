@@ -11,6 +11,7 @@ from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
 from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.analytics.risk_engine import calculate_risk
 
 router = APIRouter(tags=["inspections"])
 
@@ -34,16 +35,29 @@ _ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/tiff"}
 # DQ-01..DQ-14: Pydantic schema enforced at submission boundary
 # ---------------------------------------------------------------------------
 
+_ALLOWED_BASELINE_SOURCES = {
+    "manufacturer", "vendor", "hospital", "none", "manual_review",
+}
+
+
 class InspectionCreate(BaseModel):
     instrument_type: str = Field(..., description="Must be an approved instrument type")
-    material_type: str = Field(..., description="Must be an approved material type")
-    stain_detected: bool
-    detected_issue: str = Field(..., description="Must be an approved issue type")
+    material_type: Optional[str] = Field(None, description="Must be an approved material type; optional when image present")
+    stain_detected: Optional[bool] = Field(None)
+    detected_issue: Optional[str] = Field(None, description="Must be an approved issue type; optional when image present")
     site_name: str = Field(..., min_length=1, max_length=100)
     vendor_name: str = Field("", max_length=100)
     confidence: Optional[float] = Field(None, ge=0.0, le=100.0)  # DQ-11
     file_name: str = Field("", max_length=255)
     tenant_name: str = Field("", max_length=255)
+    has_image: bool = Field(False)
+    image_sha256: Optional[str] = Field(None, max_length=64)
+    # Sprint 7 additions — facility/department/tray/instrument identity
+    facility_name: Optional[str] = Field(None, max_length=255)
+    department: Optional[str] = Field(None, max_length=255)
+    tray_id: Optional[str] = Field(None, max_length=100)
+    instrument_barcode: Optional[str] = Field(None, max_length=255)
+    instrument_udi: Optional[str] = Field(None, max_length=255)
 
     @field_validator("instrument_type")
     @classmethod
@@ -54,24 +68,55 @@ class InspectionCreate(BaseModel):
 
     @field_validator("material_type")
     @classmethod
-    def validate_material_type(cls, v: str) -> str:
-        if v not in _ALLOWED_MATERIAL_TYPES:
+    def validate_material_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _ALLOWED_MATERIAL_TYPES:
             raise ValueError(f"material_type '{v}' not in approved list: {sorted(_ALLOWED_MATERIAL_TYPES)}")
         return v
 
     @field_validator("detected_issue")
     @classmethod
-    def validate_detected_issue(cls, v: str) -> str:
-        if v not in _ALLOWED_DETECTED_ISSUES:
+    def validate_detected_issue(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _ALLOWED_DETECTED_ISSUES:
             raise ValueError(f"detected_issue '{v}' not in approved list: {sorted(_ALLOWED_DETECTED_ISSUES)}")
         return v
 
     @model_validator(mode="after")
-    def stain_requires_issue(self) -> "InspectionCreate":
-        # DQ-10: stain_detected=true must have a non-"none" detected_issue
+    def validate_findings_and_image(self) -> "InspectionCreate":
+        # DQ-10: stain_detected=true must have a non-"none" detected_issue (when findings provided)
         if self.stain_detected and self.detected_issue == "none":
             raise ValueError("detected_issue must not be 'none' when stain_detected is true")
+        # When no image, findings are required
+        if not self.has_image:
+            if self.material_type is None:
+                raise ValueError("material_type is required when no image is uploaded")
+            if self.detected_issue is None:
+                raise ValueError("detected_issue is required when no image is uploaded")
+            if self.stain_detected is None:
+                raise ValueError("stain_detected is required when no image is uploaded")
         return self
+
+
+class BaselineOverride(BaseModel):
+    baseline_source: str = Field(..., description="Alternate baseline source")
+    override_reason: str = Field(..., min_length=10, max_length=1000)
+
+    @field_validator("baseline_source")
+    @classmethod
+    def validate_baseline_source(cls, v: str) -> str:
+        if v not in _ALLOWED_BASELINE_SOURCES:
+            raise ValueError(f"baseline_source '{v}' not in allowed list: {sorted(_ALLOWED_BASELINE_SOURCES)}")
+        return v
+
+
+def _check_manufacturer_baseline(db: Session, instrument_type: str, tenant_id: str) -> bool:
+    """Return True if an approved manufacturer baseline exists for instrument_type."""
+    from app.models.baseline_library import BaselineLibraryEntry
+    entry = db.query(BaselineLibraryEntry).filter(
+        BaselineLibraryEntry.instrument_category == instrument_type,
+        BaselineLibraryEntry.baseline_type == "manufacturer",
+        BaselineLibraryEntry.approval_status == "approved",
+    ).first()
+    return entry is not None
 
 
 def inspection_response(row: models.Inspection) -> dict:
@@ -94,6 +139,21 @@ def inspection_response(row: models.Inspection) -> dict:
         "risk_score": row.risk_score,
         "vendor_name": row.vendor_name,
         "site_name": row.site_name,
+        "facility_name": row.facility_name,
+        "department": row.department,
+        "tray_id": row.tray_id,
+        "instrument_barcode": row.instrument_barcode,
+        "instrument_udi": row.instrument_udi,
+        # Phase 14 baseline governance fields
+        "has_image": row.has_image,
+        "image_sha256": row.image_sha256,
+        "baseline_status": row.baseline_status,
+        "baseline_source": row.baseline_source,
+        "score_status": row.score_status,
+        "supervisor_review_required": row.supervisor_review_required,
+        "override_reason": row.override_reason,
+        "override_by": row.override_by,
+        "override_at": row.override_at.isoformat() if row.override_at else None,
     }
 
 
@@ -129,20 +189,60 @@ async def create_inspection(
     tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
     tenant_name = body.tenant_name or getattr(current_user, "tenant_name", "") or tenant_id
 
+    conf_val = (body.confidence or 0.0) / 100.0 if body.confidence is not None else 0.0
+    detected_issue = body.detected_issue or "unknown"
+    material_type = body.material_type or "unknown"
+    stain_detected = body.stain_detected if body.stain_detected is not None else False
+
+    # Baseline governance: check for approved manufacturer baseline when image present
+    baseline_found = False
+    supervisor_review_required = False
+    baseline_status = "not_checked"
+    score_status = "pending"
+    risk_score_val = 0
+
+    if body.has_image:
+        baseline_found = _check_manufacturer_baseline(db, body.instrument_type, tenant_id)
+        if baseline_found:
+            baseline_status = "approved_baseline_found"
+            risk_score_val = calculate_risk(detected_issue, conf_val)
+            score_status = "scored"
+        else:
+            baseline_status = "no_approved_baseline"
+            supervisor_review_required = True
+            score_status = "supervisor_review_required"
+            risk_score_val = 0
+    else:
+        # No image: score immediately from provided findings
+        baseline_status = "not_applicable"
+        risk_score_val = calculate_risk(detected_issue, conf_val)
+        score_status = "scored"
+
     row = models.Inspection(
         file_name=body.file_name or "manual-entry",
         tenant_id=tenant_id,
         tenant_name=tenant_name,
-        stain_detected=body.stain_detected,
+        stain_detected=stain_detected,
         confidence=body.confidence if body.confidence is not None else 0.0,
-        material_type=body.material_type,
-        status="pending",
+        material_type=material_type,
+        status="pending" if not supervisor_review_required else "pending",
         instrument_type=body.instrument_type,
-        detected_issue=body.detected_issue,
-        inference_mode="manual",
+        detected_issue=detected_issue,
+        inference_mode="manual" if not body.has_image else "image_pending_baseline",
+        risk_score=risk_score_val,
         vendor_name=body.vendor_name or "unknown",
         site_name=body.site_name,
+        facility_name=body.facility_name,
+        department=body.department,
+        tray_id=body.tray_id,
+        instrument_barcode=body.instrument_barcode,
+        instrument_udi=body.instrument_udi,
         inference_timestamp=datetime.now(timezone.utc),
+        has_image=body.has_image,
+        image_sha256=body.image_sha256,
+        baseline_status=baseline_status,
+        score_status=score_status,
+        supervisor_review_required=supervisor_review_required,
     )
     db.add(row)
     db.commit()
@@ -207,6 +307,56 @@ async def update_inspection_status(
     )
 
     return {"id": row.id, "status": row.status, "updated": True}
+
+
+@router.post("/inspections/{inspection_id}/baseline-override", status_code=200)
+async def baseline_override(
+    inspection_id: int,
+    body: BaselineOverride,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Supervisor/admin can override missing baseline and unlock final scoring (spd_manager or admin only)."""
+    tenant_id = getattr(current_user, "tenant_id", None)
+
+    query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
+    if tenant_id and getattr(current_user, "role", "") != "admin":
+        query = query.filter(models.Inspection.tenant_id == tenant_id)
+
+    row = query.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
+    now = datetime.now(timezone.utc)
+
+    row.baseline_source = body.baseline_source
+    row.override_reason = body.override_reason
+    row.override_by = actor
+    row.override_at = now
+    row.supervisor_review_required = False
+    row.baseline_status = f"override_applied_{body.baseline_source}"
+    # Unlock scoring using available findings
+    conf_val = row.confidence / 100.0 if row.confidence else 0.0
+    issue = row.detected_issue if row.detected_issue not in ("unknown", "") else "none"
+    row.risk_score = calculate_risk(issue, conf_val)
+    row.score_status = "scored_after_override"
+    row.inference_mode = "override_scored"
+
+    db.commit()
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id or row.tenant_id,
+        tenant_name=row.tenant_name,
+        actor_email=actor,
+        actor_role=getattr(current_user, "role", "spd_manager"),
+        action_type="baseline_override_applied",
+        resource_type="inspection",
+        resource_id=str(row.id),
+    )
+
+    return inspection_response(row)
 
 
 @router.get("/pilot/metrics")

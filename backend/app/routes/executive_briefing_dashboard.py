@@ -353,7 +353,7 @@ def executive_dashboard_view():
   </main>
 
 <script>
-const token = localStorage.getItem("lumenai_token") || "dev-token";
+const token = localStorage.getItem("lumenai_token") || "";
 let tenantCache = [];
 
 function esc(value) {
