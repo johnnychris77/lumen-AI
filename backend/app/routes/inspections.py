@@ -100,6 +100,91 @@ class InspectionCreate(BaseModel):
         return self
 
 
+class ManufacturerBaselineCreate(BaseModel):
+    """Create an approved manufacturer baseline the scoring engine can use.
+
+    instrument_type must be one of the approved inspection instrument types so
+    that an inspection of the same type matches it exactly.
+    """
+    instrument_type: str = Field(..., description="Must be an approved instrument type")
+    manufacturer_name: str = Field(..., min_length=1, max_length=200)
+    model_name: str = Field("", max_length=200)
+    udi: Optional[str] = Field(None, max_length=255)
+    image_sha256: Optional[str] = Field(None, max_length=64)
+    baseline_source: str = Field("manufacturer", max_length=20)
+
+    @field_validator("instrument_type")
+    @classmethod
+    def _validate_type(cls, v: str) -> str:
+        if v not in _ALLOWED_INSTRUMENT_TYPES:
+            raise ValueError(f"instrument_type '{v}' not in approved list: {sorted(_ALLOWED_INSTRUMENT_TYPES)}")
+        return v
+
+    @field_validator("baseline_source")
+    @classmethod
+    def _validate_source(cls, v: str) -> str:
+        if v not in {"manufacturer", "vendor", "hospital"}:
+            raise ValueError("baseline_source must be manufacturer, vendor, or hospital")
+        return v
+
+
+@router.post("/baselines/manufacturer", status_code=201)
+async def create_manufacturer_baseline(
+    body: ManufacturerBaselineCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Create an approved baseline keyed to an instrument type (admin/spd_manager).
+
+    Writes to the BaselineLibraryEntry table the AI scoring engine reads, with
+    instrument_category == instrument_type so inspections match it exactly.
+    Approved on creation by an authorized supervisor — the governance gate is
+    satisfied by the approving role, not bypassed.
+    """
+    from app.models.baseline_library import BaselineLibraryEntry
+
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
+
+    entry = BaselineLibraryEntry(
+        udi=body.udi,
+        instrument_category=body.instrument_type,
+        manufacturer_name=body.manufacturer_name,
+        model_name=body.model_name or body.manufacturer_name,
+        baseline_type=body.baseline_source,
+        baseline_version="1.0",
+        approval_status="approved",
+        approved_by=actor,
+        approved_at=datetime.now(timezone.utc),
+        governance_notes=f"image_sha256={body.image_sha256}" if body.image_sha256 else None,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=getattr(current_user, "tenant_name", "") or tenant_id,
+        actor_email=actor,
+        actor_role=getattr(current_user, "role", "spd_manager"),
+        action_type="manufacturer_baseline_created",
+        resource_type="baseline_library",
+        resource_id=str(entry.id),
+    )
+
+    return {
+        "id": entry.id,
+        "instrument_type": entry.instrument_category,
+        "manufacturer_name": entry.manufacturer_name,
+        "model_name": entry.model_name,
+        "baseline_type": entry.baseline_type,
+        "approval_status": entry.approval_status,
+        "approved_by": entry.approved_by,
+    }
+
+
 class BaselineOverride(BaseModel):
     baseline_source: str = Field(..., description="Alternate baseline source")
     override_reason: str = Field(..., min_length=10, max_length=1000)

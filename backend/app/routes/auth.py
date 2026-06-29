@@ -7,6 +7,7 @@ router = APIRouter()
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str = "viewer"
 
 
 @router.post("/api/auth/login", response_model=Token)
@@ -36,14 +37,14 @@ async def login(
 
     # Delegate to auth_simple's verification logic
     try:
-        from app.routers.auth_simple import _verify_user, _make_token
+        from app.routers.auth_simple import _verify_user, _make_token, _user_role
         valid = _verify_user(user, pwd)
         if not valid:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
             )
-        return Token(access_token=_make_token(valid))
+        return Token(access_token=_make_token(valid), role=_user_role(valid))
     except HTTPException:
         raise
     except Exception:

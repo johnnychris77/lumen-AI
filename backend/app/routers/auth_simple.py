@@ -62,6 +62,21 @@ def _verify_user(u: str, password: str) -> Optional[str]:
             return None
         return row.username
 
+
+def _user_role(username: str) -> str:
+    """Return the stored role for a user so the frontend gets the real role,
+    not a hard-coded 'viewer' default. Falls back to 'viewer' if unavailable."""
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("SELECT role FROM users WHERE username=:u"), {"u": username}
+            ).fetchone()
+            if row and row.role:
+                return row.role
+    except Exception:
+        pass
+    return "viewer"
+
 @router.post("/login")
 async def login(request: Request, username: Optional[str] = Form(None), password: Optional[str] = Form(None)):
     _check_rate_limit(request.client.host if request.client else "unknown")
@@ -85,4 +100,4 @@ async def login(request: Request, username: Optional[str] = Form(None), password
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     token = _make_token(valid)
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "role": _user_role(valid)}
