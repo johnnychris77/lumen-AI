@@ -29,6 +29,24 @@ from sqlalchemy.orm import Session
 # Baseline resolution order — most authoritative first.
 BASELINE_PRIORITY = ["manufacturer", "vendor", "hospital"]
 
+# Human-readable labels + role (manufacturer is the authoritative primary;
+# vendor and hospital are fallbacks used only when no manufacturer baseline
+# is approved). Surfaced so the UI can state exactly what was compared.
+BASELINE_LABELS = {
+    "manufacturer": "Manufacturer baseline",
+    "vendor": "Vendor baseline",
+    "hospital": "Hospital baseline",
+}
+
+
+def _baseline_role(source: str) -> str:
+    return "primary" if source == "manufacturer" else "fallback"
+
+
+def _baseline_comparison_label(source: str) -> str:
+    label = BASELINE_LABELS.get(source, source)
+    return label if source == "manufacturer" else f"{label} (fallback)"
+
 # KPI categories the analysis reports on.
 CONTAMINATION_KPIS = ["blood", "bone", "tissue", "bioburden", "debris", "other_organic_residue"]
 CONDITION_KPIS = ["rust", "discoloration", "corrosion", "pitting", "crack", "insulation_damage", "missing_component"]
@@ -245,9 +263,12 @@ def analyze_inspection(
             f"Accept inspection with supervisor review of {', '.join(flagged)} finding(s)."
         )
 
+    source = resolution["baseline_source"]
     return {
         "analysis_status": "completed",
-        "baseline_source": resolution["baseline_source"],
+        "baseline_source": source,
+        "baseline_role": _baseline_role(source),
+        "baseline_comparison_label": _baseline_comparison_label(source),
         "baseline_version": resolution["baseline_version"],
         "baseline_match_score": baseline_match_score,
         "baseline_deviation_score": baseline_deviation_score,

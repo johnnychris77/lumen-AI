@@ -141,6 +141,9 @@ class TestAnalysisOutput:
             db.close()
         assert out["analysis_status"] == "completed"
         assert out["baseline_source"] == "manufacturer"
+        # Manufacturer is the authoritative primary comparison
+        assert out["baseline_role"] == "primary"
+        assert out["baseline_comparison_label"] == "Manufacturer baseline"
         assert isinstance(out["inspection_score"], int)
         assert 0 <= out["inspection_score"] <= 100
         assert out["risk_level"] in ("low", "medium", "high", "critical")
@@ -271,3 +274,26 @@ class TestInspectionApiAnalysis:
         data = resp.json()
         assert data["baseline_source"] == "vendor"
         assert data["analysis"]["baseline_source"] == "vendor"
+        # Vendor is clearly labeled a fallback, not the primary comparison
+        assert data["analysis"]["baseline_role"] == "fallback"
+        assert data["analysis"]["baseline_comparison_label"] == "Vendor baseline (fallback)"
+
+    def test_manufacturer_preferred_over_vendor_for_comparison(self):
+        # Both exist → comparison must use manufacturer (primary), not vendor
+        itype = "scissors"
+        _clear_baselines(itype)
+        _add_baseline(itype, "vendor")
+        _add_baseline(itype, "manufacturer")
+        resp = client.post("/api/inspections", json={
+            "instrument_type": itype,
+            "site_name": "Test Hospital",
+            "has_image": True,
+            "image_sha256": SHA,
+            "file_name": "img.jpg",
+        }, headers=AUTH_TECH)
+        assert resp.status_code == 201, resp.text
+        analysis = resp.json()["analysis"]
+        assert analysis["baseline_source"] == "manufacturer"
+        assert analysis["baseline_role"] == "primary"
+        # Clean up so other suites that expect no scissors baseline aren't polluted
+        _clear_baselines(itype)

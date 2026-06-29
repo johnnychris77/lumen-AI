@@ -137,7 +137,16 @@ export default function InspectionResultsHistory() {
                       : r.detected_issue.replace(/_/g, " ")}
                   </td>
                   <td className="px-5 py-2.5 capitalize text-slate-600">
-                    {r.baseline_source ? r.baseline_source.replace(/_/g, " ") : r.baseline_status.replace(/_/g, " ")}
+                    {r.baseline_source ? (
+                      <>
+                        {r.baseline_source.replace(/_/g, " ")}
+                        {r.baseline_source !== "manufacturer" && (
+                          <span className="ml-1 text-xs text-amber-600 normal-case">(fallback)</span>
+                        )}
+                      </>
+                    ) : (
+                      r.baseline_status.replace(/_/g, " ")
+                    )}
                   </td>
                   <td className="px-5 py-2.5">
                     {r.supervisor_review_required ? (
