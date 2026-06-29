@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { History, ChevronRight } from "lucide-react";
 import EnterpriseIntakeHistoryPanel from "../components/EnterpriseIntakeHistoryPanel";
+import InspectionResultsHistory from "../components/InspectionResultsHistory";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function IntakeHistoryPage() {
@@ -36,7 +37,10 @@ export default function IntakeHistoryPage() {
         </AlertDescription>
       </Alert>
 
-      {/* Component */}
+      {/* Inspection results from the New Inspection workflow */}
+      <InspectionResultsHistory />
+
+      {/* Enterprise governance intake history */}
       <EnterpriseIntakeHistoryPanel />
     </div>
   );
