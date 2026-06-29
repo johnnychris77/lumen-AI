@@ -34,11 +34,29 @@ def get_db():
         db.close()
 
 
+def _signing_secret() -> str | None:
+    """Resolve the exact secret auth_simple uses to SIGN login tokens.
+
+    auth_simple falls back to a fixed dev secret when SECRET_KEY is unset (in
+    non-production). Decoding here must use the same value or every token it
+    signs fails to decode — which silently 401s history/summary endpoints.
+    """
+    secret = os.getenv("SECRET_KEY")
+    if secret:
+        return secret
+    try:
+        # Import lazily to avoid import-time side effects / circular imports.
+        from app.routers.auth_simple import SECRET_KEY as AUTH_SECRET
+        return AUTH_SECRET or None
+    except Exception:
+        return None
+
+
 def _decode_jwt(token: str):
     """Attempt to decode a JWT signed by auth_simple's SECRET_KEY."""
     try:
         import jwt as pyjwt
-        secret = os.getenv("SECRET_KEY")
+        secret = _signing_secret()
         if not secret:
             return None
         payload = pyjwt.decode(token, secret, algorithms=["HS256"])
