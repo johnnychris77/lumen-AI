@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Package, ChevronRight } from "lucide-react";
 import ManufacturerBaselinePanel from "../components/ManufacturerBaselinePanel";
+import CreateManufacturerBaseline from "../components/CreateManufacturerBaseline";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function ManufacturerBaselinesPage() {
@@ -38,6 +39,9 @@ export default function ManufacturerBaselinesPage() {
           </Link>.
         </AlertDescription>
       </Alert>
+
+      {/* Create a new approved baseline (instrument + image) */}
+      <CreateManufacturerBaseline />
 
       {/* Component */}
       <ManufacturerBaselinePanel />
