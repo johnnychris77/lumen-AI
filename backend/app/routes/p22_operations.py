@@ -107,6 +107,7 @@ class StepIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "manager"))])
 def create_workflow(request: Request, body: WorkflowIn = ...,
                     db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     if body.workflow_type not in _WORKFLOW_TYPES:
         raise HTTPException(400, f"workflow_type must be one of {_WORKFLOW_TYPES}")
     if body.priority not in _PRIORITIES:
@@ -124,6 +125,7 @@ def create_workflow(request: Request, body: WorkflowIn = ...,
 def list_workflows(request: Request,
                    workflow_type: Optional[str] = Query(None),
                    db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     q = db.query(OperationsWorkflow).filter_by(tenant_id=tenant_id, status="active")
     if workflow_type:
         q = q.filter_by(workflow_type=workflow_type)
@@ -138,6 +140,7 @@ def list_workflows(request: Request,
              dependencies=[Depends(require_roles("admin", "manager"))])
 def add_step(workflow_id: int, request: Request, body: StepIn = ...,
              db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     wf = db.query(OperationsWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
         raise HTTPException(404, "Workflow not found")
@@ -158,6 +161,7 @@ def add_step(workflow_id: int, request: Request, body: StepIn = ...,
 @router.get("/workflows/{workflow_id}/steps",
             dependencies=[Depends(require_roles("admin", "manager", "technician", "executive"))])
 def list_steps(workflow_id: int, request: Request, db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     wf = db.query(OperationsWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
         raise HTTPException(404, "Workflow not found")
@@ -190,6 +194,7 @@ class ApprovalIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
 def execute_workflow(workflow_id: int, request: Request,
                      body: ExecutionIn = ..., db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     wf = db.query(OperationsWorkflow).filter_by(
         id=workflow_id, tenant_id=tenant_id, status="active").first()
     if not wf:
@@ -262,6 +267,7 @@ def execute_workflow(workflow_id: int, request: Request,
 def list_executions(request: Request,
                     status: Optional[str] = Query(None),
                     db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     q = db.query(WorkflowExecution).filter_by(tenant_id=tenant_id)
     if status:
         q = q.filter_by(status=status)
@@ -276,6 +282,7 @@ def list_executions(request: Request,
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
 def approve_execution(execution_id: int, request: Request,
                       body: ApprovalIn = ..., db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
         raise HTTPException(404, "Execution not found")
@@ -300,6 +307,7 @@ def approve_execution(execution_id: int, request: Request,
 def complete_step(execution_id: int, step_id: int, request: Request,
                   assignee_email: str = Query(...), outcome: str = Query(...),
                   notes: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
         raise HTTPException(404, "Execution not found")
@@ -336,6 +344,7 @@ def complete_step(execution_id: int, step_id: int, request: Request,
 def escalate_execution(execution_id: int, request: Request,
                         escalated_by: str = Query(...), reason: str = Query(...),
                         db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
         raise HTTPException(404, "Execution not found")
@@ -369,6 +378,7 @@ class QueueItemIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
 def add_queue_item(request: Request, body: QueueItemIn = ...,
                    db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     if body.queue_type not in _QUEUE_TYPES:
         raise HTTPException(400, f"queue_type must be one of {_QUEUE_TYPES}")
     if body.priority not in _PRIORITIES:
@@ -390,6 +400,7 @@ def list_queue_items(request: Request,
                      status: Optional[str] = Query(None),
                      priority: Optional[str] = Query(None),
                      db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     q = db.query(WorkQueueItem).filter_by(tenant_id=tenant_id)
     if queue_type:
         q = q.filter_by(queue_type=queue_type)
@@ -411,6 +422,7 @@ def list_queue_items(request: Request,
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
 def claim_queue_item(item_id: int, request: Request,
                      claimed_by: str = Query(...), db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
         raise HTTPException(404, "Queue item not found")
@@ -431,6 +443,7 @@ def complete_queue_item(item_id: int, request: Request,
                          completed_by: str = Query(...),
                          notes: Optional[str] = Query(None),
                          db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
         raise HTTPException(404, "Queue item not found")
@@ -450,6 +463,7 @@ def complete_queue_item(item_id: int, request: Request,
              dependencies=[Depends(require_roles("admin", "manager"))])
 def escalate_queue_item(item_id: int, request: Request,
                          escalated_by: str = Query(...), db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
         raise HTTPException(404, "Queue item not found")
@@ -490,6 +504,7 @@ class RiskSnapshotIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "executive"))])
 def create_snapshot(request: Request, body: RiskSnapshotIn = ...,
                     db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     if body.snapshot_type not in _SNAPSHOT_TYPES:
         raise HTTPException(400, f"snapshot_type must be one of {_SNAPSHOT_TYPES}")
     snap = OperationalRiskSnapshot(tenant_id=tenant_id, **body.model_dump())
@@ -507,6 +522,7 @@ def create_snapshot(request: Request, body: RiskSnapshotIn = ...,
 def list_snapshots(request: Request,
                    snapshot_type: Optional[str] = Query(None),
                    db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     q = db.query(OperationalRiskSnapshot).filter_by(tenant_id=tenant_id)
     if snapshot_type:
         q = q.filter_by(snapshot_type=snapshot_type)
@@ -522,6 +538,7 @@ def list_snapshots(request: Request,
             dependencies=[Depends(require_roles("admin", "executive", "manager"))])
 def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Live aggregate dashboard — derived from queue and execution state."""
+    tenant_id = get_request_tenant_id(request)
     open_items = db.query(WorkQueueItem).filter(
         WorkQueueItem.tenant_id == tenant_id,
         WorkQueueItem.status.in_(("open", "claimed", "in_progress")),
@@ -658,6 +675,7 @@ def scan_step_timeouts(request: Request, db: Session = Depends(get_db)):
       skip     — mark step completed with outcome=skipped
       block    — leave step pending; mark execution escalated for human review
     """
+    tenant_id = get_request_tenant_id(request)
     now = datetime.now(timezone.utc)
     processed = []
 
@@ -712,6 +730,7 @@ def scan_step_timeouts(request: Request, db: Session = Depends(get_db)):
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
 def submit_copilot_query(request: Request, body: CopilotQueryIn = ...,
                           db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     if body.query_type not in _QUERY_TYPES:
         raise HTTPException(400, f"query_type must be one of {_QUERY_TYPES}")
 
@@ -765,6 +784,7 @@ def submit_copilot_query(request: Request, body: CopilotQueryIn = ...,
 def list_recommendations(request: Request,
                           review_status: Optional[str] = Query(None),
                           db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     q = db.query(CopilotRecommendation).filter_by(tenant_id=tenant_id)
     if review_status:
         q = q.filter_by(review_status=review_status)
@@ -781,6 +801,7 @@ def list_recommendations(request: Request,
 def review_recommendation(rec_id: int, request: Request,
                             body: RecommendationReviewIn = ...,
                             db: Session = Depends(get_db)):
+    tenant_id = get_request_tenant_id(request)
     if body.review_status not in _REVIEW_STATUSES:
         raise HTTPException(400, f"review_status must be one of {_REVIEW_STATUSES}")
     rec = db.query(CopilotRecommendation).filter_by(id=rec_id, tenant_id=tenant_id).first()

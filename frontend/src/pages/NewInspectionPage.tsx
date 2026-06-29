@@ -33,6 +33,28 @@ type FormFields = {
 
 type FieldErrors = Partial<Record<keyof FormFields | "images", string>>;
 
+type PredictedFinding = {
+  type: string;
+  probability: number;
+  confidence: number;
+  severity: string;
+};
+
+type Analysis = {
+  analysis_status: string;
+  baseline_source: string | null;
+  baseline_match_score: number | null;
+  baseline_deviation_score: number | null;
+  inspection_score: number | null;
+  risk_level: string | null;
+  predicted_findings: PredictedFinding[];
+  kpi_summary: Record<string, boolean>;
+  identification: Record<string, boolean>;
+  recommendation: string;
+  human_review_required: boolean;
+  placeholder_scoring?: boolean;
+};
+
 type AIPrediction = {
   id: string;
   risk_score: number;
@@ -43,6 +65,7 @@ type AIPrediction = {
   detected_issue: string;
   confidence: number;
   instrument_type: string;
+  analysis: Analysis | null;
 };
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -291,6 +314,7 @@ export default function NewInspectionPage() {
         tray_id: form.tray_id || undefined,
         instrument_barcode: form.barcode || undefined,
         instrument_udi: form.udi || undefined,
+        keydot_id: form.keydot_id || undefined,
         file_name: allImages[0]?.name || "inspection_image",
         has_image: true,
         image_sha256: imageSha256,
@@ -345,6 +369,7 @@ export default function NewInspectionPage() {
         detected_issue: data.detected_issue ?? "unknown",
         confidence: data.confidence ?? 0,
         instrument_type: data.instrument_type ?? form.instrument_type,
+        analysis: data.analysis ?? null,
       });
 
       setBanner({
@@ -812,6 +837,11 @@ function AIPredictionPanel({
           } />
         </div>
 
+        {/* Full AI analysis output (placeholder scoring service) */}
+        {prediction.analysis && prediction.analysis.analysis_status === "completed" && (
+          <AnalysisDetails analysis={prediction.analysis} />
+        )}
+
         <p className="text-xs text-slate-500">
           Human review required. All AI findings represent potential associations only — qualified clinician review is mandatory before any clinical action.
         </p>
@@ -887,6 +917,119 @@ function PredictionField({ label, value }: { label: string; value: string }) {
     <div className="flex flex-col">
       <span className="text-xs text-slate-500 font-medium">{label}</span>
       <span className="mt-1 text-sm font-semibold text-slate-800 capitalize">{value}</span>
+    </div>
+  );
+}
+
+// ─── sub-component: full AI analysis output ──────────────────────────────────
+
+const RISK_LEVEL_STYLE: Record<string, string> = {
+  low: "bg-emerald-100 text-emerald-800",
+  medium: "bg-amber-200 text-amber-900",
+  high: "bg-orange-500 text-white",
+  critical: "bg-red-600 text-white",
+};
+
+// KPI cards the analysis panel always surfaces (contamination + condition).
+const KPI_DISPLAY: { key: string; label: string }[] = [
+  { key: "blood", label: "Blood" },
+  { key: "bone", label: "Bone" },
+  { key: "tissue", label: "Tissue" },
+  { key: "bioburden", label: "Bioburden" },
+  { key: "debris", label: "Debris" },
+  { key: "rust", label: "Rust" },
+  { key: "discoloration", label: "Discoloration" },
+  { key: "corrosion", label: "Corrosion" },
+  { key: "pitting", label: "Pitting" },
+  { key: "crack", label: "Crack" },
+  { key: "insulation_damage", label: "Insulation Damage" },
+  { key: "missing_component", label: "Missing Component" },
+];
+
+function AnalysisDetails({ analysis }: { analysis: Analysis }) {
+  const score = analysis.inspection_score ?? 0;
+  const risk = analysis.risk_level ?? "unknown";
+  const matchPct = analysis.baseline_match_score != null
+    ? `${Math.round(analysis.baseline_match_score * 100)}%`
+    : "—";
+
+  return (
+    <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+      {/* Score + risk + baseline headline */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="flex flex-col">
+          <span className="text-xs text-slate-500 font-medium">Inspection Score</span>
+          <span className="mt-1 text-2xl font-bold text-slate-900">{score}<span className="text-sm text-slate-400"> / 100</span></span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-xs text-slate-500 font-medium">Risk Level</span>
+          <span className={`mt-1 inline-flex w-fit items-center rounded-full px-2.5 py-1 text-sm font-bold capitalize ${RISK_LEVEL_STYLE[risk] ?? "bg-slate-200 text-slate-700"}`}>
+            {risk}
+          </span>
+        </div>
+        <PredictionField label="Baseline Source" value={analysis.baseline_source?.replace(/_/g, " ") ?? "—"} />
+        <PredictionField label="Baseline Match" value={matchPct} />
+      </div>
+
+      {/* KPI finding cards */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">KPI Findings</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {KPI_DISPLAY.map(({ key, label }) => {
+            const present = analysis.kpi_summary[key] === true;
+            const finding = analysis.predicted_findings.find((f) => f.type === key);
+            return (
+              <div
+                key={key}
+                className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
+                  present ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <span className="font-medium text-slate-700">{label}</span>
+                <span className="flex items-center gap-1.5">
+                  {finding && (
+                    <span className="text-xs text-slate-400">{Math.round(finding.probability * 100)}%</span>
+                  )}
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${present ? "bg-red-500" : "bg-emerald-400"}`} />
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Identification */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Identification</p>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {[
+            { key: "barcode_detected", label: "Barcode" },
+            { key: "qr_udi_detected", label: "QR / UDI" },
+            { key: "keydot_detected", label: "KeyDot" },
+          ].map(({ key, label }) => (
+            <span
+              key={key}
+              className={`rounded-full px-2.5 py-1 font-medium ${
+                analysis.identification[key] ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {label}: {analysis.identification[key] ? "detected" : "not detected"}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Recommended action */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Recommended Action</p>
+        <p className="text-sm text-slate-700">{analysis.recommendation}</p>
+      </div>
+
+      {analysis.placeholder_scoring && (
+        <p className="text-xs text-slate-400 italic">
+          Scoring produced by deterministic baseline-comparison service (placeholder). Not production computer vision.
+        </p>
+      )}
     </div>
   );
 }

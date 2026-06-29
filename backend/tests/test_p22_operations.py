@@ -900,10 +900,11 @@ def test_copilot_action_mentions_escalated_and_overdue():
 
 def test_scan_timeouts_no_timeouts_returns_zero():
     """Scanning a tenant with no overdue steps returns zero processed."""
+    # Tenant is now derived from the auth context (X-LumenAI-Tenant-Id),
+    # not a caller-supplied query param. Route the clean tenant via header.
     r = client.post(
         "/api/operations/executions/scan-timeouts",
-        params={"tenant_id": f"p22-clean-{TS}"},
-        headers=HEADERS,
+        headers={**HEADERS, "X-LumenAI-Tenant-Id": f"p22-clean-{TS}"},
     )
     assert r.status_code == 200
     data = r.json()
