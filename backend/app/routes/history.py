@@ -35,6 +35,19 @@ def inspection_response(row: models.Inspection) -> dict:
         "risk_score": row.risk_score,
         "vendor_name": row.vendor_name,
         "site_name": row.site_name,
+        # Inspection result fields so history shows what each run produced
+        "facility_name": row.facility_name,
+        "department": row.department,
+        "tray_id": row.tray_id,
+        "instrument_barcode": row.instrument_barcode,
+        "instrument_udi": row.instrument_udi,
+        "has_image": row.has_image,
+        "baseline_status": row.baseline_status,
+        "baseline_source": row.baseline_source,
+        "score_status": row.score_status,
+        "supervisor_review_required": row.supervisor_review_required,
+        # inspection_score is the inverse of risk_score (0-100 quality)
+        "inspection_score": (100 - row.risk_score) if row.score_status in ("scored", "scored_after_override") else None,
     }
 
 
