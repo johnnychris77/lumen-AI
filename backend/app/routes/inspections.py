@@ -12,6 +12,7 @@ from app.deps import get_db
 from app.db import models
 from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
 from app.analytics.risk_engine import calculate_risk
+from app.services.baseline_comparison_scoring_service import analyze_inspection
 
 router = APIRouter(tags=["inspections"])
 
@@ -58,6 +59,9 @@ class InspectionCreate(BaseModel):
     tray_id: Optional[str] = Field(None, max_length=100)
     instrument_barcode: Optional[str] = Field(None, max_length=255)
     instrument_udi: Optional[str] = Field(None, max_length=255)
+    keydot_id: Optional[str] = Field(None, max_length=255)
+    # Technician-declared finding categories (optional — AI determines findings)
+    finding_categories: Optional[List[str]] = Field(None)
 
     @field_validator("instrument_type")
     @classmethod
@@ -106,17 +110,6 @@ class BaselineOverride(BaseModel):
         if v not in _ALLOWED_BASELINE_SOURCES:
             raise ValueError(f"baseline_source '{v}' not in allowed list: {sorted(_ALLOWED_BASELINE_SOURCES)}")
         return v
-
-
-def _check_manufacturer_baseline(db: Session, instrument_type: str, tenant_id: str) -> bool:
-    """Return True if an approved manufacturer baseline exists for instrument_type."""
-    from app.models.baseline_library import BaselineLibraryEntry
-    entry = db.query(BaselineLibraryEntry).filter(
-        BaselineLibraryEntry.instrument_category == instrument_type,
-        BaselineLibraryEntry.baseline_type == "manufacturer",
-        BaselineLibraryEntry.approval_status == "approved",
-    ).first()
-    return entry is not None
 
 
 def inspection_response(row: models.Inspection) -> dict:
@@ -194,18 +187,37 @@ async def create_inspection(
     material_type = body.material_type or "unknown"
     stain_detected = body.stain_detected if body.stain_detected is not None else False
 
-    # Baseline governance: check for approved manufacturer baseline when image present
-    baseline_found = False
+    # Baseline governance + AI analysis when an image is present.
     supervisor_review_required = False
     baseline_status = "not_checked"
     score_status = "pending"
     risk_score_val = 0
+    baseline_source_val: Optional[str] = None
+    analysis: Optional[dict] = None
+
+    # Clean declared findings — drop the "pending_ai_analysis" placeholder.
+    declared = [
+        c for c in (body.finding_categories or [])
+        if c and c != "pending_ai_analysis"
+    ]
 
     if body.has_image:
-        baseline_found = _check_manufacturer_baseline(db, body.instrument_type, tenant_id)
-        if baseline_found:
+        analysis = analyze_inspection(
+            db,
+            instrument_type=body.instrument_type,
+            tenant_id=tenant_id,
+            has_image=True,
+            image_sha256=body.image_sha256,
+            declared_findings=declared,
+            instrument_barcode=body.instrument_barcode,
+            instrument_udi=body.instrument_udi,
+            keydot_id=body.keydot_id,
+        )
+        if analysis["analysis_status"] == "completed":
             baseline_status = "approved_baseline_found"
-            risk_score_val = calculate_risk(detected_issue, conf_val)
+            baseline_source_val = analysis["baseline_source"]
+            # inspection_score is 0–100 quality; risk_score is 0–100 risk (inverse).
+            risk_score_val = 100 - int(analysis["inspection_score"])
             score_status = "scored"
         else:
             baseline_status = "no_approved_baseline"
@@ -228,7 +240,7 @@ async def create_inspection(
         status="pending" if not supervisor_review_required else "pending",
         instrument_type=body.instrument_type,
         detected_issue=detected_issue,
-        inference_mode="manual" if not body.has_image else "image_pending_baseline",
+        inference_mode="manual" if not body.has_image else "baseline_comparison_scoring",
         risk_score=risk_score_val,
         vendor_name=body.vendor_name or "unknown",
         site_name=body.site_name,
@@ -241,6 +253,7 @@ async def create_inspection(
         has_image=body.has_image,
         image_sha256=body.image_sha256,
         baseline_status=baseline_status,
+        baseline_source=baseline_source_val,
         score_status=score_status,
         supervisor_review_required=supervisor_review_required,
     )
@@ -260,7 +273,11 @@ async def create_inspection(
         resource_id=str(row.id),
     )
 
-    return inspection_response(row)
+    response = inspection_response(row)
+    if analysis is not None:
+        # Attach the full explainable AI analysis output (placeholder scoring).
+        response["analysis"] = analysis
+    return response
 
 
 class StatusUpdate(BaseModel):
