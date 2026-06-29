@@ -88,11 +88,12 @@ def _pseudo(seed: int, salt: int) -> float:
     return int(h[:8], 16) / 0xFFFFFFFF
 
 
-def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[str, Any]:
-    """Resolve the most authoritative approved baseline for an instrument.
+# Approval-status values that mean a baseline is cleared for scoring use.
+_APPROVED_VALUES = {"approved", "active", "vendor_approved", "hospital_approved"}
 
-    Checks manufacturer → vendor → hospital. Returns the first approved match.
-    """
+
+def _resolve_from_library(db: Session, instrument_type: str) -> dict[str, Any] | None:
+    """Check the network BaselineLibraryEntry table (manufacturer → vendor → hospital)."""
     from app.models.baseline_library import BaselineLibraryEntry
 
     for source in BASELINE_PRIORITY:
@@ -112,6 +113,82 @@ def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[
                 "baseline_entry_id": entry.id,
                 "baseline_version": entry.baseline_version,
             }
+    return None
+
+
+def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] | None:
+    """Check the baselines users actually upload/approve through the UI.
+
+    The baseline upload + review workflow writes to
+    EnterpriseVendorBaselineSubscription (keyed by instrument_category /
+    instrument_name, with a per-record baseline_source of manufacturer /
+    vendor / hospital). Without this bridge, uploaded baselines are invisible
+    to the scoring engine and every image inspection falls through to
+    supervisor review.
+
+    Matches case-insensitively on instrument_category OR instrument_name and
+    only accepts records whose approval/baseline status is cleared for scoring.
+    Honours the manufacturer → vendor → hospital priority by source.
+    """
+    from sqlalchemy import func, or_
+    from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription as Sub
+
+    needle = instrument_type.replace("_", " ").lower()
+
+    rows = (
+        db.query(Sub)
+        .filter(
+            or_(
+                func.lower(Sub.instrument_category) == instrument_type.lower(),
+                func.lower(Sub.instrument_category) == needle,
+                func.lower(Sub.instrument_name) == needle,
+            )
+        )
+        .all()
+    )
+
+    approved = [
+        r for r in rows
+        if (r.approval_status or "").lower() in _APPROVED_VALUES
+        or (r.baseline_status or "").lower() in _APPROVED_VALUES
+    ]
+    if not approved:
+        return None
+
+    # Pick by source priority: manufacturer first, then vendor, then hospital.
+    def _priority(r) -> int:
+        src = (r.baseline_source or "vendor").lower()
+        return BASELINE_PRIORITY.index(src) if src in BASELINE_PRIORITY else len(BASELINE_PRIORITY)
+
+    best = min(approved, key=_priority)
+    source = (best.baseline_source or "vendor").lower()
+    if source not in BASELINE_PRIORITY:
+        source = "vendor"
+    return {
+        "baseline_found": True,
+        "baseline_source": source,
+        "baseline_entry_id": best.id,
+        "baseline_version": best.baseline_version,
+    }
+
+
+def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[str, Any]:
+    """Resolve the most authoritative approved baseline for an instrument.
+
+    Looks in two places so the engine sees baselines wherever they live:
+      1. The network BaselineLibraryEntry table.
+      2. The EnterpriseVendorBaselineSubscription table that the baseline
+         upload + review UI actually populates.
+    Both honour manufacturer → vendor → hospital priority. Returns the first
+    approved match.
+    """
+    resolution = _resolve_from_library(db, instrument_type)
+    if resolution is not None:
+        return resolution
+
+    resolution = _resolve_from_uploaded(db, instrument_type)
+    if resolution is not None:
+        return resolution
 
     return {
         "baseline_found": False,

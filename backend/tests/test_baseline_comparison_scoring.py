@@ -57,6 +57,38 @@ def _clear_baselines(instrument_type: str) -> None:
         db.close()
 
 
+def _add_uploaded_baseline(instrument_type: str, baseline_source: str = "manufacturer",
+                           approval_status: str = "approved") -> int:
+    """Simulate a baseline uploaded + reviewed through the UI (vendor-subscription table)."""
+    from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription
+    db = SessionLocal()
+    try:
+        row = EnterpriseVendorBaselineSubscription(
+            vendor_name="UI Upload",
+            instrument_name=instrument_type.replace("_", " "),
+            instrument_category=instrument_type,
+            baseline_source=baseline_source,
+            approval_status=approval_status,
+        )
+        db.add(row)
+        db.commit()
+        return row.id
+    finally:
+        db.close()
+
+
+def _clear_uploaded(instrument_type: str) -> None:
+    from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription
+    db = SessionLocal()
+    try:
+        db.query(EnterpriseVendorBaselineSubscription).filter(
+            EnterpriseVendorBaselineSubscription.instrument_category == instrument_type,
+        ).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
 # ── Baseline resolution priority ────────────────────────────────────────────
 
 class TestBaselineResolution:
@@ -98,6 +130,7 @@ class TestBaselineResolution:
     def test_missing_baseline_not_found(self):
         itype = "clip_applier"
         _clear_baselines(itype)
+        _clear_uploaded(itype)
         db = SessionLocal()
         try:
             res = resolve_baseline(db, itype, "default-tenant")
@@ -105,6 +138,33 @@ class TestBaselineResolution:
             db.close()
         assert res["baseline_found"] is False
         assert res["baseline_source"] is None
+
+    def test_uploaded_approved_baseline_is_used(self):
+        # A baseline uploaded + approved through the UI (vendor-subscription
+        # table) must be visible to the scoring engine.
+        itype = "needle_holder"
+        _clear_baselines(itype)
+        _clear_uploaded(itype)
+        _add_uploaded_baseline(itype, baseline_source="manufacturer", approval_status="approved")
+        db = SessionLocal()
+        try:
+            res = resolve_baseline(db, itype, "default-tenant")
+        finally:
+            db.close()
+        assert res["baseline_found"] is True
+        assert res["baseline_source"] == "manufacturer"
+
+    def test_uploaded_unapproved_baseline_not_used(self):
+        itype = "stapler"
+        _clear_baselines(itype)
+        _clear_uploaded(itype)
+        _add_uploaded_baseline(itype, baseline_source="manufacturer", approval_status="pending_hospital_review")
+        db = SessionLocal()
+        try:
+            res = resolve_baseline(db, itype, "default-tenant")
+        finally:
+            db.close()
+        assert res["baseline_found"] is False
 
 
 # ── Analysis output ─────────────────────────────────────────────────────────
