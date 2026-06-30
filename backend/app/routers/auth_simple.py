@@ -36,7 +36,7 @@ if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY environment variable must be set in production.")
     SECRET_KEY = "dev-only-secret-not-for-production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
