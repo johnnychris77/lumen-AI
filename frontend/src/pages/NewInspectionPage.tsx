@@ -74,7 +74,9 @@ type Analysis = {
   pass_fail?: string;
   predicted_findings: PredictedFinding[];
   kpi_summary: Record<string, boolean>;
-  identification: Record<string, boolean>;
+  identification: Record<string, boolean | string>;
+  identification_status?: string;
+  decoder_backend?: string;
   findings_summary?: string[];
   confidence?: number;
   confidence_level?: string;
@@ -373,6 +375,22 @@ export default function NewInspectionPage() {
       const imgData = await imgRes.json();
       imageSha256 = imgData?.images?.[0]?.sha256;
 
+      // Real identifier decode (pyzbar): auto-fill when the technician didn't
+      // type a value. Typed values always win. Tracks the source so the
+      // analysis can label decoded vs declared identifiers.
+      const decodedImg = (imgData?.images ?? []).find(
+        (im: { barcode_value?: string; qr_udi_value?: string }) =>
+          im?.barcode_value || im?.qr_udi_value,
+      );
+      const decodedBarcode = decodedImg?.barcode_value || "";
+      const decodedUdi = decodedImg?.qr_udi_value || "";
+      const barcodeFinal = form.barcode || decodedBarcode || undefined;
+      const udiFinal = form.udi || decodedUdi || undefined;
+      const identifierSource =
+        !form.barcode && !form.udi && (decodedBarcode || decodedUdi)
+          ? "pyzbar"
+          : "declared";
+
       // Step 2: Submit inspection record (findings optional — AI will determine)
       const payload: Record<string, unknown> = {
         instrument_type: form.instrument_type,
@@ -381,9 +399,10 @@ export default function NewInspectionPage() {
         facility_name: form.facility_name,
         department: form.department || undefined,
         tray_id: form.tray_id || undefined,
-        instrument_barcode: form.barcode || undefined,
-        instrument_udi: form.udi || undefined,
+        instrument_barcode: barcodeFinal,
+        instrument_udi: udiFinal,
         keydot_id: form.keydot_id || undefined,
+        identifier_source: identifierSource,
         file_name: allImages[0]?.name || "inspection_image",
         has_image: true,
         image_sha256: imageSha256,
@@ -1095,6 +1114,18 @@ const CLEANING_STYLE: Record<string, string> = {
   "Cleaning failure": "border-red-300 bg-red-50 text-red-900",
   "Supervisor review required": "border-orange-300 bg-orange-50 text-orange-900",
 };
+const ID_STATUS_STYLE: Record<string, string> = {
+  verified: "bg-emerald-100 text-emerald-800",
+  mismatch: "bg-red-100 text-red-800",
+  unverified: "bg-amber-100 text-amber-800",
+  not_detected: "bg-slate-100 text-slate-500",
+};
+const ID_STATUS_LABEL: Record<string, string> = {
+  verified: "Verified",
+  mismatch: "Mismatch",
+  unverified: "Unverified",
+  not_detected: "Not detected",
+};
 
 function AnalysisDetails({ analysis }: { analysis: Analysis }) {
   const score = analysis.inspection_score ?? 0;
@@ -1218,9 +1249,24 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         </div>
       )}
 
-      {/* Identification */}
+      {/* Identification — real decode-vs-baseline verification */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Identification</p>
+        <div className="mb-2 flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Identification</p>
+          {analysis.identification_status && (
+            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ID_STATUS_STYLE[analysis.identification_status] ?? "bg-slate-100 text-slate-600"}`}>
+              {ID_STATUS_LABEL[analysis.identification_status] ?? analysis.identification_status}
+            </span>
+          )}
+          {analysis.decoder_backend === "pyzbar" && (
+            <span className="text-xs text-slate-400">decoded from image</span>
+          )}
+        </div>
+        {analysis.identification_status === "mismatch" && (
+          <p className="mb-2 text-xs font-medium text-red-700">
+            Decoded identifier does not match the approved baseline — verify this is the correct instrument.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 text-xs">
           {[
             { key: "barcode_detected", label: "Barcode" },

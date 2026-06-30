@@ -300,6 +300,7 @@ def _resolve_from_library(db: Session, instrument_type: str) -> dict[str, Any] |
                 "baseline_source": source,
                 "baseline_entry_id": entry.id,
                 "baseline_version": entry.baseline_version,
+                "baseline_udi": entry.udi or "",
             }
     return None
 
@@ -357,6 +358,8 @@ def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] 
         "baseline_source": source,
         "baseline_entry_id": best.id,
         "baseline_version": best.baseline_version,
+        # Uploaded vendor-subscription baselines carry no UDI to verify against.
+        "baseline_udi": "",
     }
 
 
@@ -383,7 +386,35 @@ def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[
         "baseline_source": None,
         "baseline_entry_id": None,
         "baseline_version": None,
+        "baseline_udi": "",
     }
+
+
+def _normalize_identifier(value: str) -> str:
+    """Strip GS1 AI parentheses, spaces, and case for tolerant comparison."""
+    return "".join(ch for ch in (value or "") if ch.isalnum()).lower()
+
+
+def identifier_match(decoded: str, baseline_udi: str) -> tuple[str, bool]:
+    """Compare a decoded identifier against the approved baseline's UDI.
+
+    Returns (status, is_match) where status is one of:
+      not_detected — nothing decoded/declared
+      unverified   — value present but baseline has no UDI to check against
+      match        — decoded value matches the baseline UDI (or its device id)
+      mismatch     — decoded value present and does NOT match — wrong instrument
+    """
+    if not decoded:
+        return "not_detected", False
+    if not baseline_udi:
+        return "unverified", False
+    d = _normalize_identifier(decoded)
+    b = _normalize_identifier(baseline_udi)
+    if not d or not b:
+        return "unverified", False
+    if d == b or b in d or d in b:
+        return "match", True
+    return "mismatch", False
 
 
 def _risk_level(score: int) -> str:
@@ -526,6 +557,7 @@ def analyze_inspection(
     instrument_barcode: Optional[str] = None,
     instrument_udi: Optional[str] = None,
     keydot_id: Optional[str] = None,
+    decoder_backend: str = "declared",
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -606,16 +638,40 @@ def analyze_inspection(
             "spd_risk_impact": spd_risk_impact(spd_tier),
         })
 
-    # ── Identification detection / match ────────────────────────────────────
+    # ── Identification detection / match (real decode-vs-baseline) ──────────
+    # Values may be decoded from the image (pyzbar) or technician-declared; the
+    # match is a real comparison against the approved baseline's UDI.
+    baseline_udi = resolution.get("baseline_udi", "")
+    barcode_status, barcode_match = identifier_match(instrument_barcode or "", baseline_udi)
+    udi_status, udi_match = identifier_match(instrument_udi or "", baseline_udi)
+    # KeyDot has no UDI to verify against — detection only.
+    keydot_detected = bool(keydot_id)
+
+    # Overall identification verdict, worst-case first.
+    if barcode_status == "mismatch" or udi_status == "mismatch":
+        identification_status = "mismatch"
+    elif barcode_status == "match" or udi_status == "match":
+        identification_status = "verified"
+    elif instrument_barcode or instrument_udi or keydot_id:
+        identification_status = "unverified"
+    else:
+        identification_status = "not_detected"
+
     identification = {
         "barcode_detected": bool(instrument_barcode),
         "qr_udi_detected": bool(instrument_udi),
-        "keydot_detected": bool(keydot_id),
-        # Placeholder: a detected identifier is treated as a match against the
-        # resolved baseline. Real CV will compare decoded values.
-        "barcode_match": bool(instrument_barcode),
-        "qr_udi_match": bool(instrument_udi),
-        "keydot_match": bool(keydot_id),
+        "keydot_detected": keydot_detected,
+        "barcode_value": instrument_barcode or "",
+        "qr_udi_value": instrument_udi or "",
+        "keydot_value": keydot_id or "",
+        "barcode_match": barcode_match,
+        "qr_udi_match": udi_match,
+        "keydot_match": keydot_detected,
+        "barcode_status": barcode_status,
+        "qr_udi_status": udi_status,
+        "identification_status": identification_status,
+        "baseline_udi": baseline_udi,
+        "decoder_backend": decoder_backend,
     }
 
     # ── Baseline match / deviation ──────────────────────────────────────────
@@ -676,9 +732,13 @@ def analyze_inspection(
         if kpi_summary[f["type"]] and f["spd_risk"] == "high"
     ]
 
+    # A decoded identifier that does NOT match the approved baseline means the
+    # wrong instrument may be in front of the camera — force supervisor review.
+    identifier_mismatch = identification["identification_status"] == "mismatch"
+
     if remove_flags or spd_critical:
         risk_level = "critical"
-    elif critical_flags or spd_high:
+    elif critical_flags or spd_high or identifier_mismatch:
         risk_level = "high"
     else:
         risk_level = _risk_level(inspection_score)
@@ -792,6 +852,21 @@ def analyze_inspection(
     explanation = scoring_explanation(findings_by_kpi, baseline_match_score, source)
     top_risk_drivers = risk_drivers
 
+    # Surface identification verification in the explanation + action.
+    id_status = identification["identification_status"]
+    if id_status == "verified":
+        explanation.append("Instrument identifier matched the approved baseline.")
+    elif id_status == "mismatch":
+        explanation.append(
+            "Decoded identifier does NOT match the approved baseline — possible wrong instrument."
+        )
+        action = (
+            "Supervisor review required — decoded identifier does not match the "
+            "approved baseline (possible wrong instrument)."
+        )
+        if "Identifier mismatch" not in top_risk_drivers:
+            top_risk_drivers = ["Identifier mismatch", *top_risk_drivers]
+
     return {
         "analysis_status": "completed",
         "baseline_source": source,
@@ -806,6 +881,8 @@ def analyze_inspection(
         "predicted_findings": predicted_findings,
         "kpi_summary": kpi_summary,
         "identification": identification,
+        "identification_status": identification["identification_status"],
+        "decoder_backend": decoder_backend,
         "findings_summary": findings_summary,
         "confidence": overall_conf,
         "confidence_level": confidence_level,

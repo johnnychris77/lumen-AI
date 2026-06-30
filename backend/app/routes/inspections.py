@@ -12,6 +12,7 @@ from app.deps import get_db, get_current_user
 from app.db import models
 from app.enterprise_auth import get_request_tenant_id
 from app.analytics.risk_engine import calculate_risk
+from app.cv.identifier_decoder import decode_from_image_bytes
 from app.services.baseline_comparison_scoring_service import analyze_inspection
 
 router = APIRouter(tags=["inspections"])
@@ -77,6 +78,8 @@ class InspectionCreate(BaseModel):
     instrument_barcode: Optional[str] = Field(None, max_length=255)
     instrument_udi: Optional[str] = Field(None, max_length=255)
     keydot_id: Optional[str] = Field(None, max_length=255)
+    # How identifiers were obtained: "pyzbar" (decoded) or "declared" (typed).
+    identifier_source: Optional[str] = Field(None, max_length=20)
     # Technician-declared finding categories (optional — AI determines findings)
     finding_categories: Optional[List[str]] = Field(None)
 
@@ -323,6 +326,7 @@ async def create_inspection(
             instrument_barcode=body.instrument_barcode,
             instrument_udi=body.instrument_udi,
             keydot_id=body.keydot_id,
+            decoder_backend=body.identifier_source or "declared",
         )
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
@@ -605,6 +609,7 @@ async def upload_inspection_images(
                 detail=f"File '{img.filename}' exceeds 10 MB limit ({len(data) // 1024} KB).",
             )
         sha256 = hashlib.sha256(data).hexdigest()
+        decoded = decode_from_image_bytes(data)
         entry = {
             "filename": img.filename,
             "content_type": content_type,
@@ -613,6 +618,11 @@ async def upload_inspection_images(
             "tenant_id": tenant_id,
             "status": "received",
             "retained": False,
+            # Real identifier decode (pyzbar); empty when none found / lib absent.
+            "barcode_value": decoded.barcode_value,
+            "qr_udi_value": decoded.qr_value or decoded.udi_value,
+            "udi_device_id": decoded.udi_device_id,
+            "decoder_backend": decoded.decoder_backend,
         }
         retained = retain_image(
             db,
@@ -634,6 +644,67 @@ async def upload_inspection_images(
         "images": results,
         "retention_enabled": retention_enabled(),
         "note": "Image hashes recorded. Raw images are retained only when opt-in retention is enabled and consent is given.",
+    }
+
+
+@router.post("/inspections/decode-identifiers")
+async def decode_inspection_identifiers(
+    request: Request,
+    images: List[UploadFile] = File(...),
+    current_user=Depends(require_inspection_runner),
+):
+    """Decode instrument identifiers (barcode / QR / UDI) from uploaded images.
+
+    Real, deterministic decode via pyzbar (ZBar). Degrades gracefully: when the
+    ZBar native library is unavailable the response reports
+    ``decoder_available: false`` and empty values rather than failing — the
+    workflow then falls back to technician-declared identifiers.
+    """
+    decoder_available = False
+    first_values = {"barcode_value": "", "qr_udi_value": "", "udi_device_id": ""}
+    per_image = []
+    for img in images:
+        content_type = img.content_type or ""
+        if content_type not in _ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"File '{img.filename}' has unsupported type '{content_type}'.",
+            )
+        data = await img.read()
+        if len(data) > _MAX_IMAGE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File '{img.filename}' exceeds 10 MB limit.",
+            )
+        decoded = decode_from_image_bytes(data)
+        if decoded.decoder_backend == "pyzbar":
+            decoder_available = True
+        qr_udi = decoded.qr_value or decoded.udi_value
+        per_image.append({
+            "filename": img.filename,
+            "barcode_value": decoded.barcode_value,
+            "qr_udi_value": qr_udi,
+            "udi_device_id": decoded.udi_device_id,
+            "udi_lot": decoded.udi_lot,
+            "udi_serial": decoded.udi_serial,
+            "decoder_backend": decoded.decoder_backend,
+        })
+        # First non-empty decode wins for the convenience top-level values.
+        if not first_values["barcode_value"] and decoded.barcode_value:
+            first_values["barcode_value"] = decoded.barcode_value
+        if not first_values["qr_udi_value"] and qr_udi:
+            first_values["qr_udi_value"] = qr_udi
+        if not first_values["udi_device_id"] and decoded.udi_device_id:
+            first_values["udi_device_id"] = decoded.udi_device_id
+
+    return {
+        "decoder_available": decoder_available,
+        **first_values,
+        "images": per_image,
+        "note": (
+            "Identifiers decoded from the image when the ZBar library is present; "
+            "otherwise declare them manually."
+        ),
     }
 
 
