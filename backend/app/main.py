@@ -113,6 +113,16 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.p25_infrastructure")    # register P25 infrastructure tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
+    # Back-fill columns added to existing tables (create_all never alters them).
+    # Without this, an old production `inspections` table is missing newer columns
+    # and every inspection/history query 500s (surfacing as a CORS error).
+    try:
+        from app.db.column_migrator import ensure_columns
+        from app.models.inspection import Inspection
+        ensure_columns(engine, Inspection)
+    except Exception as _mig_e:
+        import logging
+        logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from app.services.prediction_scheduler import register_prediction_scheduler
