@@ -99,6 +99,35 @@ class TestHistoryShowsInspectionResults:
         assert record["supervisor_review_required"] is True
         assert record["inspection_score"] is None
 
+    def test_spd_verdict_persisted_and_in_history(self):
+        # The SPD risk-weighted verdict must be stored and surfaced in history,
+        # not just shown in the live analysis panel.
+        itype = "scissors"
+        _add_baseline(itype)
+        create = client.post("/api/inspections", json={
+            "instrument_type": itype,
+            "site_name": "History Hospital",
+            "has_image": True,
+            "image_sha256": SHA,
+            "file_name": "spd.jpg",
+            "finding_categories": ["blood"],
+        }, headers=AUTH_OPERATOR)
+        assert create.status_code == 201, create.text
+        body = create.json()
+        # Persisted on the create response
+        assert body["risk_level"] in ("low", "medium", "high", "critical")
+        assert body["recommended_action"]
+        assert body["overall_cleaning_assessment"]
+        # And the live analysis verdict matches what was stored
+        assert body["risk_level"] == body["analysis"]["risk_level"]
+
+        inspection_id = body["id"]
+        resp = client.get("/api/history?limit=100", headers=AUTH_ADMIN)
+        record = next(it for it in resp.json()["items"] if it["id"] == inspection_id)
+        assert record["risk_level"] == body["risk_level"]
+        assert record["recommended_action"] == body["recommended_action"]
+        assert record["overall_cleaning_assessment"] == body["overall_cleaning_assessment"]
+
     def test_history_summary_counts_inspections(self):
         itype = "forceps"
         _add_baseline(itype)

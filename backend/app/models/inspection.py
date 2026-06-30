@@ -71,3 +71,9 @@ class Inspection(Base):
     override_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     override_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # SPD risk-weighted verdict — persisted so dashboard/history reflect the SPD
+    # disposition, not just the live analysis panel.
+    risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    recommended_action: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    overall_cleaning_assessment: Mapped[str | None] = mapped_column(String(80), nullable=True)

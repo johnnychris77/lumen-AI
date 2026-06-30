@@ -16,6 +16,24 @@ type InspectionRecord = {
   supervisor_review_required: boolean;
   has_image: boolean;
   status: string;
+  // SPD risk-weighted verdict persisted with the inspection
+  risk_level: string | null;
+  recommended_action: string | null;
+  overall_cleaning_assessment: string | null;
+};
+
+const RISK_LEVEL_STYLE: Record<string, string> = {
+  low: "bg-emerald-100 text-emerald-800",
+  medium: "bg-amber-100 text-amber-800",
+  high: "bg-orange-100 text-orange-800",
+  critical: "bg-red-100 text-red-800",
+};
+
+const CLEANING_STYLE: Record<string, string> = {
+  Clean: "text-emerald-700",
+  "Residual contamination suspected": "text-amber-700",
+  "Cleaning failure": "text-red-700 font-semibold",
+  "Supervisor review required": "text-orange-700",
 };
 
 function scoreColor(score: number | null): string {
@@ -105,6 +123,7 @@ export default function InspectionResultsHistory() {
                 <th className="px-5 py-2 font-medium">Facility</th>
                 <th className="px-5 py-2 font-medium">Score</th>
                 <th className="px-5 py-2 font-medium">Risk</th>
+                <th className="px-5 py-2 font-medium">Cleaning</th>
                 <th className="px-5 py-2 font-medium">Finding</th>
                 <th className="px-5 py-2 font-medium">Baseline</th>
                 <th className="px-5 py-2 font-medium">Status</th>
@@ -129,7 +148,21 @@ export default function InspectionResultsHistory() {
                     )}
                   </td>
                   <td className="px-5 py-2.5 text-slate-700">
-                    {r.supervisor_review_required ? "—" : riskLabel(r.inspection_score)}
+                    {r.risk_level ? (
+                      <span
+                        title={r.recommended_action ?? undefined}
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold capitalize ${RISK_LEVEL_STYLE[r.risk_level] ?? "bg-slate-100 text-slate-600"}`}
+                      >
+                        {r.risk_level}
+                      </span>
+                    ) : r.supervisor_review_required ? (
+                      "—"
+                    ) : (
+                      riskLabel(r.inspection_score)
+                    )}
+                  </td>
+                  <td className={`px-5 py-2.5 text-xs ${r.overall_cleaning_assessment ? (CLEANING_STYLE[r.overall_cleaning_assessment] ?? "text-slate-600") : "text-slate-400"}`}>
+                    {r.overall_cleaning_assessment ?? "—"}
                   </td>
                   <td className="px-5 py-2.5 capitalize text-slate-600">
                     {r.detected_issue === "unknown" || r.detected_issue === ""

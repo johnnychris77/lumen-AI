@@ -249,6 +249,10 @@ def inspection_response(row: models.Inspection) -> dict:
         "override_reason": row.override_reason,
         "override_by": row.override_by,
         "override_at": row.override_at.isoformat() if row.override_at else None,
+        # SPD risk-weighted verdict
+        "risk_level": row.risk_level,
+        "recommended_action": row.recommended_action,
+        "overall_cleaning_assessment": row.overall_cleaning_assessment,
     }
 
 
@@ -303,6 +307,11 @@ async def create_inspection(
         if c and c != "pending_ai_analysis"
     ]
 
+    # SPD risk-weighted verdict to persist alongside the score.
+    risk_level_val: Optional[str] = None
+    recommended_action_val: Optional[str] = None
+    cleaning_assessment_val: Optional[str] = None
+
     if body.has_image:
         analysis = analyze_inspection(
             db,
@@ -315,6 +324,11 @@ async def create_inspection(
             instrument_udi=body.instrument_udi,
             keydot_id=body.keydot_id,
         )
+        # Persist the SPD verdict regardless of completion state so history and
+        # the dashboard show what the analysis concluded.
+        risk_level_val = analysis.get("risk_level")
+        recommended_action_val = analysis.get("recommended_action")
+        cleaning_assessment_val = analysis.get("overall_cleaning_assessment")
         if analysis["analysis_status"] == "completed":
             baseline_status = "approved_baseline_found"
             baseline_source_val = analysis["baseline_source"]
@@ -358,6 +372,9 @@ async def create_inspection(
         baseline_source=baseline_source_val,
         score_status=score_status,
         supervisor_review_required=supervisor_review_required,
+        risk_level=risk_level_val,
+        recommended_action=recommended_action_val,
+        overall_cleaning_assessment=cleaning_assessment_val,
     )
     db.add(row)
     db.commit()
