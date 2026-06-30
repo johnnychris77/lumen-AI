@@ -10,7 +10,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db, get_current_user
 from app.db import models
-from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_tenant_id
 from app.analytics.risk_engine import calculate_risk
 from app.services.baseline_comparison_scoring_service import analyze_inspection
 
@@ -598,9 +598,14 @@ async def upload_inspection_images(
 async def upload_baseline_images(
     request: Request,
     images: List[UploadFile] = File(...),
+    current_user=Depends(require_inspection_runner),
 ):
-    """Accept multipart baseline reference image uploads."""
-    require_enterprise_auth(request)
+    """Accept multipart baseline reference image uploads.
+
+    Uses the standard login-token auth (operator/spd_manager/admin) so the
+    Manufacturer Baseline form works with a normal login — the previous
+    enterprise-only auth rejected login tokens ("Authentication required").
+    """
     tenant_id = get_request_tenant_id(request)
 
     results = []

@@ -69,6 +69,26 @@ class TestManufacturerBaselineCreation:
         assert resp.status_code == 422
 
 
+class TestBaselineImageUploadAuth:
+    PNG = ("b.png", b"\x89PNG\r\n\x1a\n" + b"0" * 64, "image/png")
+
+    def test_operator_can_upload_baseline_image(self):
+        r = client.post("/api/baselines/upload-images",
+                        files={"images": self.PNG}, headers=AUTH_MGR)
+        assert r.status_code == 200, r.text
+        assert r.json()["images"][0]["sha256"]
+
+    def test_admin_can_upload_baseline_image(self):
+        r = client.post("/api/baselines/upload-images",
+                        files={"images": self.PNG}, headers=AUTH_ADMIN)
+        assert r.status_code == 200, r.text
+
+    def test_viewer_cannot_upload_baseline_image(self):
+        r = client.post("/api/baselines/upload-images",
+                        files={"images": self.PNG}, headers=AUTH_VIEWER)
+        assert r.status_code == 403
+
+
 class TestEndToEndScoring:
     def test_baseline_then_inspection_produces_score(self):
         itype = "needle_holder"

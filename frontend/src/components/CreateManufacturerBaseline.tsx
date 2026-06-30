@@ -50,6 +50,11 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
       });
+      if (imgRes.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        return;
+      }
       if (!imgRes.ok) {
         const e1 = await imgRes.json().catch(() => ({}));
         setBanner({ type: "error", message: e1?.detail || `Image upload failed (${imgRes.status}).` });
@@ -69,6 +74,11 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
           image_sha256: sha,
         }),
       });
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        return;
+      }
       if (res.status === 403) {
         setBanner({ type: "error", message: "You need admin or SPD-manager access to create a baseline." });
         return;
