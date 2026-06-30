@@ -168,25 +168,6 @@ _CORS_ORIGIN_REGEX = os.getenv(
     "CORS_ORIGIN_REGEX", r"https://([a-z0-9-]+\.)*onrender\.com"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_origin_regex=_CORS_ORIGIN_REGEX,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Authorization",
-        "Content-Type",
-        "X-LumenAI-Role",
-        "X-LumenAI-Tenant-Id",
-        "X-LumenAI-Tenant-Name",
-        "X-LumenAI-Actor",
-        "X-Tenant-Id",
-        "X-Tenant-Name",
-        "X-Requested-With",
-    ],
-)
-
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -222,6 +203,29 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(CorrelationIDMiddleware)
+
+# CORS must be the OUTERMOST middleware so it answers OPTIONS preflight before
+# any other middleware can reject it (a 403 on preflight surfaces as a browser
+# "Failed to fetch"). add_middleware stacks last-added = outermost, so this
+# registration intentionally comes after all others.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=_CORS_ORIGIN_REGEX,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-LumenAI-Role",
+        "X-LumenAI-Tenant-Id",
+        "X-LumenAI-Tenant-Name",
+        "X-LumenAI-Actor",
+        "X-Tenant-Id",
+        "X-Tenant-Name",
+        "X-Requested-With",
+    ],
+)
 
 
 # --- Observability endpoints ---
