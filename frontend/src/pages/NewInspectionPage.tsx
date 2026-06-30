@@ -42,11 +42,15 @@ type PredictedFinding = {
   status?: string;
 };
 
+type ScoreAdjustment = { kpi: string; label: string; points: number; severity: string; risk_tier: string };
+
 type Explainability = {
   baseline_source: string | null;
   baseline_match_score: number | null;
-  highest_findings: { type: string; label: string; probability: number; severity: string }[];
+  highest_findings: { type: string; label: string; probability: number; severity: string; risk_tier?: string }[];
+  primary_risk_driver?: string | null;
   risk_drivers: string[];
+  score_adjustments?: ScoreAdjustment[];
   confidence_level: string;
   rationale: string;
 };
@@ -70,9 +74,13 @@ type Analysis = {
   recommendation: string;
   reason?: string[];
   critical_flags?: string[];
+  score_adjustments?: ScoreAdjustment[];
+  primary_risk_driver?: string | null;
   explainability?: Explainability;
   human_review_required: boolean;
   placeholder_scoring?: boolean;
+  model_label?: string;
+  production_validated?: boolean;
 };
 
 type AIPrediction = {
@@ -1178,6 +1186,39 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         </div>
       </div>
 
+      {/* Primary risk driver */}
+      {analysis.primary_risk_driver && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Risk driver:</span>
+          <span className="capitalize font-medium text-slate-800">{analysis.primary_risk_driver}</span>
+        </div>
+      )}
+
+      {/* Why the score changed */}
+      {analysis.score_adjustments && analysis.score_adjustments.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Why this score</p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <span>Baseline match starting point</span>
+              <span className="font-medium">{analysis.baseline_match_score != null ? Math.round(analysis.baseline_match_score * 100) : "—"} pts</span>
+            </div>
+            {analysis.score_adjustments.map((a) => (
+              <div key={a.kpi} className="flex items-center justify-between text-sm">
+                <span className="capitalize text-slate-600">
+                  {a.label} <span className="text-xs text-slate-400">({a.severity}, {a.risk_tier.replace(/_/g, "–")} risk)</span>
+                </span>
+                <span className="font-medium text-red-600">{a.points} pts</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between border-t border-slate-200 pt-1 text-sm font-semibold text-slate-800">
+              <span>Final inspection score</span>
+              <span>{score} / 100</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recommended action with PASS/FAIL + reasons */}
       <div className={`rounded-lg border px-4 py-3 ${passFail === "PASS" ? "border-emerald-300 bg-emerald-50" : "border-red-300 bg-red-50"}`}>
         <div className="flex items-center gap-2 mb-1">
@@ -1226,12 +1267,11 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         <p className="text-xs">A future release will highlight detected regions on the uploaded image.</p>
       </div>
 
-      {analysis.placeholder_scoring && (
-        <p className="text-xs text-slate-400 italic">
-          Scoring produced by deterministic baseline-comparison service (placeholder). Not production computer vision —
-          per-KPI probabilities are heuristic, not pixel-level detections.
-        </p>
-      )}
+      <p className="text-xs text-slate-400 italic">
+        {analysis.model_label ?? "Baseline Comparison Scoring Model (pilot)"} — pilot scoring, not validated for
+        production diagnostic accuracy. Per-KPI probabilities are heuristic (baseline comparison), not pixel-level
+        computer-vision detections. Qualified human review is required.
+      </p>
     </div>
   );
 }
