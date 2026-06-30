@@ -173,6 +173,13 @@ export default function NewInspectionPage() {
 
   const inspectionInputRef = useRef<HTMLInputElement>(null);
   const borescopeInputRef = useRef<HTMLInputElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // Bring the result/banner into view — it renders above the long form, so
+  // after submitting from the bottom the user would otherwise see nothing.
+  function scrollToResult() {
+    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
 
   // ── field helpers ──────────────────────────────────────────────────────────
 
@@ -314,6 +321,7 @@ export default function NewInspectionPage() {
       if (!imgRes.ok) {
         const errBody = await imgRes.json().catch(() => ({}));
         setBanner({ type: "error", message: errBody?.detail || `Image upload failed (${imgRes.status}). Please try again.` });
+        scrollToResult();
         return;
       }
       const imgData = await imgRes.json();
@@ -363,6 +371,7 @@ export default function NewInspectionPage() {
         // Insufficient role (e.g. viewer) — show the server's actionable message.
         const d = await res.json().catch(() => ({}));
         setBanner({ type: "error", message: d?.detail || VIEWER_READONLY_MESSAGE });
+        scrollToResult();
         return;
       }
       if (!res.ok) {
@@ -376,6 +385,7 @@ export default function NewInspectionPage() {
           }
         } catch { /* ignore */ }
         setBanner({ type: "error", message: msg });
+        scrollToResult();
         return;
       }
 
@@ -401,6 +411,14 @@ export default function NewInspectionPage() {
             : "✓ AI analysis complete."
         }`,
       });
+      scrollToResult();
+    } catch (err) {
+      // Never fail silently — surface the error so the user knows what happened.
+      setBanner({
+        type: "error",
+        message: `Could not complete AI analysis: ${err instanceof Error ? err.message : "network error"}. Please try again.`,
+      });
+      scrollToResult();
     } finally {
       setSubmitting(false);
     }
@@ -495,6 +513,7 @@ export default function NewInspectionPage() {
         </div>
       </div>
 
+      <div ref={resultRef}>
       {banner && (
         <StatusBanner
           type={banner.type}
@@ -546,6 +565,7 @@ export default function NewInspectionPage() {
           onReset={resetForm}
         />
       )}
+      </div>
 
       {!prediction && (
         <form onSubmit={handleSubmit} noValidate className="space-y-6">
