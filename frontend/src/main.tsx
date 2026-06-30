@@ -68,6 +68,7 @@ const InstrumentPassportPage = lazy(() => import("./pages/InstrumentPassportPage
 const AuditEvidencePage = lazy(() => import("./pages/AuditEvidencePage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
 const RolesPage = lazy(() => import("./pages/RolesPage"));
+const UserManagementPage = lazy(() => import("./pages/UserManagementPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ExecutiveCommandCenterPage = lazy(() => import("./pages/ExecutiveCommandCenterPage"));
 const GlobalRegistryPage = lazy(() => import("./pages/GlobalRegistryPage"));
@@ -304,6 +305,7 @@ function App() {
                       <Route path="/audit-evidence" element={<Page name="AuditEvidence"><AuditEvidencePage /></Page>} />
                       <Route path="/users" element={<Page name="Users"><UsersPage /></Page>} />
                       <Route path="/roles" element={<Page name="Roles"><RolesPage /></Page>} />
+                      <Route path="/user-management" element={<Page name="UserManagement"><UserManagementPage /></Page>} />
                       <Route path="/settings" element={<Page name="Settings"><SettingsPage /></Page>} />
                       <Route path="/demo-image-library" element={<Page name="DemoImageLibrary"><DemoImageLibraryPage /></Page>} />
                       <Route path="/baseline-image-upload" element={<Page name="BaselineImageUpload"><BaselineImageUploadPage /></Page>} />

@@ -65,7 +65,22 @@ def _verify_user(u: str, password: str) -> Optional[str]:
 
 def _user_role(username: str) -> str:
     """Return the stored role for a user so the frontend gets the real role,
-    not a hard-coded 'viewer' default. Falls back to 'viewer' if unavailable."""
+    not a hard-coded 'viewer' default.
+
+    Resolution order: admin-managed role assignment table → users.role column →
+    'viewer'. The assignment table is the source of truth for roles granted via
+    the User Management UI / bootstrap.
+    """
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("SELECT role FROM user_role_assignments WHERE username=:u"),
+                {"u": username},
+            ).fetchone()
+            if row and row.role:
+                return row.role
+    except Exception:
+        pass
     try:
         with engine.begin() as conn:
             row = conn.execute(

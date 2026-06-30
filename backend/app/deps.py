@@ -7,7 +7,6 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.db import models
 
 _ENABLE_DEV_AUTH = os.getenv("ENABLE_DEV_AUTH", "false").strip().lower() in {"1", "true", "yes"}
 _APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
@@ -91,15 +90,14 @@ def get_current_user(
     if payload:
         username = payload.get("sub")
         if username:
-            user = (
-                db.query(models.User)
-                .filter(models.User.username == username)
-                .first()
-            )
-            if user:
-                return user
-            # Return a namespace if user row doesn't exist but JWT is valid
-            return SimpleNamespace(id=0, email=username, role="viewer")
+            # Resolve the real role from the admin-managed assignment table
+            # (falls back to users.role, then viewer).
+            try:
+                from app.routers.auth_simple import _user_role
+                role = _user_role(username)
+            except Exception:
+                role = "viewer"
+            return SimpleNamespace(id=0, email=username, username=username, role=role)
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
