@@ -555,13 +555,23 @@ def get_pilot_metrics(
 async def upload_inspection_images(
     request: Request,
     images: List[UploadFile] = File(...),
+    instrument_type: str = "unknown",
+    consent: bool = False,
+    db: Session = Depends(get_db),
     current_user=Depends(require_inspection_runner),
 ):
     """Accept multipart inspection image uploads. Stores SHA-256 hash + metadata only — no raw images in DB.
 
     Restricted to operator/spd_manager/admin — viewers are read-only.
+
+    When opt-in retention is enabled (``RETAIN_INSPECTION_IMAGES``) AND
+    ``consent=true`` is passed, the EXIF-stripped bytes are ALSO retained for
+    model training. Disabled by default — only hashes are kept otherwise.
     """
+    from app.services.image_retention_service import retain_image, retention_enabled
+
     tenant_id = get_request_tenant_id(request)
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     results = []
     for img in images:
@@ -578,19 +588,35 @@ async def upload_inspection_images(
                 detail=f"File '{img.filename}' exceeds 10 MB limit ({len(data) // 1024} KB).",
             )
         sha256 = hashlib.sha256(data).hexdigest()
-        results.append({
+        entry = {
             "filename": img.filename,
             "content_type": content_type,
             "size_bytes": len(data),
             "sha256": sha256,
             "tenant_id": tenant_id,
             "status": "received",
-        })
+            "retained": False,
+        }
+        retained = retain_image(
+            db,
+            data=data,
+            tenant_id=tenant_id,
+            instrument_type=instrument_type,
+            content_type=content_type,
+            source="inspection",
+            uploaded_by=actor,
+            consent=consent,
+        )
+        if retained is not None:
+            entry["retained"] = True
+            entry["retained_image_id"] = retained.id
+        results.append(entry)
 
     return {
         "uploaded": len(results),
         "images": results,
-        "note": "Image hashes recorded. Raw images are not stored in the database.",
+        "retention_enabled": retention_enabled(),
+        "note": "Image hashes recorded. Raw images are retained only when opt-in retention is enabled and consent is given.",
     }
 
 

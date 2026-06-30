@@ -111,6 +111,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.consent_record")       # register P20 consent record table
     importlib.import_module("app.models.p24_standards")        # register P24 standards tables
     importlib.import_module("app.models.p25_infrastructure")    # register P25 infrastructure tables
+    importlib.import_module("app.models.retained_image")        # register opt-in training-image store + labels
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -533,6 +534,9 @@ app.include_router(inspections_router, prefix=settings.API_PREFIX)
 
 from app.routes.admin_users import router as admin_users_router
 app.include_router(admin_users_router)
+
+from app.routes.ml_images import router as ml_images_router
+app.include_router(ml_images_router, prefix=settings.API_PREFIX)
 
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
