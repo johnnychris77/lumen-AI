@@ -147,8 +147,16 @@ const initialForm: FormFields = {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function NewInspectionPage() {
-  const { headers } = useAuth();
+  const { headers, role } = useAuth();
   const navigate = useNavigate();
+  // Operators / SPD managers / admins can run inspections; viewers are read-only.
+  const canRunInspection = role === "operator" || role === "spd_manager" || role === "admin";
+  const VIEWER_READONLY_MESSAGE =
+    "Viewer access is read-only. Ask an admin to assign Operator or SPD Manager access to run inspections.";
+  const ROLE_LABELS: Record<string, string> = {
+    admin: "Admin", spd_manager: "SPD Manager", supervisor: "Supervisor",
+    operator: "Operator", viewer: "Viewer", vendor_user: "Vendor",
+  };
   const [form, setForm] = useState<FormFields>(initialForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [inspectionImages, setInspectionImages] = useState<File[]>([]);
@@ -282,6 +290,11 @@ export default function NewInspectionPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setBanner(null);
+    // Viewers are read-only — block and explain, never fail silently.
+    if (!canRunInspection) {
+      setBanner({ type: "error", message: VIEWER_READONLY_MESSAGE });
+      return;
+    }
     if (!validate()) return;
 
     setSubmitting(true);
@@ -341,9 +354,15 @@ export default function NewInspectionPage() {
         body: JSON.stringify(payload),
       });
 
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         localStorage.removeItem("token");
         navigate("/login", { replace: true });
+        return;
+      }
+      if (res.status === 403) {
+        // Insufficient role (e.g. viewer) — show the server's actionable message.
+        const d = await res.json().catch(() => ({}));
+        setBanner({ type: "error", message: d?.detail || VIEWER_READONLY_MESSAGE });
         return;
       }
       if (!res.ok) {
@@ -408,12 +427,25 @@ export default function NewInspectionPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 py-6 px-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">New Inspection</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Upload an image — AI will identify findings, check the manufacturer baseline, and generate a risk score automatically.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">New Inspection</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Upload an image — AI will identify findings, check the manufacturer baseline, and generate a risk score automatically.
+          </p>
+        </div>
+        <span className="shrink-0 mt-1 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          Role: {ROLE_LABELS[role] ?? role}
+        </span>
       </div>
+
+      {/* Viewer read-only banner */}
+      {!canRunInspection && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">Read-only access</p>
+          <p className="mt-0.5">{VIEWER_READONLY_MESSAGE}</p>
+        </div>
+      )}
 
       {/* Field requirements summary */}
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -672,6 +704,7 @@ export default function NewInspectionPage() {
                 inputRef={inspectionInputRef}
                 onChange={(e) => handleImages(e, setInspectionImages)}
                 onRemove={(i) => removeImage(i, setInspectionImages)}
+                disabled={!canRunInspection}
               />
               <FieldError message={fieldErrors.images} />
             </div>
@@ -684,6 +717,7 @@ export default function NewInspectionPage() {
                 inputRef={borescopeInputRef}
                 onChange={(e) => handleImages(e, setBorescopeImages)}
                 onRemove={(i) => removeImage(i, setBorescopeImages)}
+                disabled={!canRunInspection}
               />
             </div>
             <p className="text-xs text-gray-500">Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
@@ -735,10 +769,15 @@ export default function NewInspectionPage() {
           {/* Submit */}
           <div className="flex flex-col gap-3">
             <button
-              type="submit" disabled={submitting}
+              type="submit" disabled={submitting || !canRunInspection}
+              title={!canRunInspection ? VIEWER_READONLY_MESSAGE : undefined}
               className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? "Uploading image & running AI analysis…" : "Submit Inspection & Run AI Analysis"}
+              {!canRunInspection
+                ? "Viewer access — cannot run inspections"
+                : submitting
+                  ? "Uploading image & running AI analysis…"
+                  : "Submit Inspection & Run AI Analysis"}
             </button>
             <p className="text-xs text-gray-500 text-center">
               AI findings require qualified human review before clinical action. All AI outputs include human_review_required: true.
@@ -1064,6 +1103,7 @@ function ImageFileInput({
   inputRef,
   onChange,
   onRemove,
+  disabled,
 }: {
   id: string;
   label: string;
@@ -1071,6 +1111,7 @@ function ImageFileInput({
   inputRef: React.RefObject<HTMLInputElement>;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
+  disabled?: boolean;
 }) {
   const totalBytes = files.reduce((s, f) => s + f.size, 0);
 
@@ -1078,8 +1119,8 @@ function ImageFileInput({
     <div>
       {label && <label htmlFor={id} className="block text-sm font-medium text-gray-700">{label}</label>}
       <input
-        ref={inputRef} id={id} type="file" accept="image/*" multiple onChange={onChange}
-        className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+        ref={inputRef} id={id} type="file" accept="image/*" multiple onChange={onChange} disabled={disabled}
+        className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
       />
       {files.length > 0 && (
         <div className="mt-2 space-y-1">

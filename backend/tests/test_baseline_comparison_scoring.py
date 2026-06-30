@@ -22,7 +22,7 @@ from app.services.baseline_comparison_scoring_service import (
 
 client = TestClient(app)
 
-AUTH_TECH = {"Authorization": "Bearer viewer-token"}
+AUTH_TECH = {"Authorization": "Bearer operator-token"}
 
 # Deterministic 64-char hex sha256 used to seed scoring.
 SHA = "a1b2c3d4" + "0" * 56

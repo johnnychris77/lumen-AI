@@ -10,7 +10,9 @@ client = TestClient(app)
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}      # admin role
 AUTH_MGR = {"Authorization": "Bearer manager-token"}     # spd_manager role
 AUTH_VIEWER = {"Authorization": "Bearer viewer-token"}   # viewer role (cannot override)
-AUTH_TECH = AUTH_VIEWER  # alias: no dedicated technician token; viewer represents restricted role
+# Operators run inspections but cannot override baselines. Viewers are now
+# read-only and cannot submit inspections at all.
+AUTH_TECH = {"Authorization": "Bearer operator-token"}
 
 
 INSPECTION_WITH_IMAGE = {

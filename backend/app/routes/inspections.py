@@ -8,13 +8,30 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.authz import require_roles
-from app.deps import get_db
+from app.deps import get_db, get_current_user
 from app.db import models
 from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
 from app.analytics.risk_engine import calculate_risk
 from app.services.baseline_comparison_scoring_service import analyze_inspection
 
 router = APIRouter(tags=["inspections"])
+
+# Roles permitted to upload images, run AI analysis, and submit inspections.
+# Viewers are read-only. Operators run inspections; spd_manager/admin also override.
+_INSPECTION_RUN_ROLES = {"operator", "spd_manager", "admin"}
+_VIEWER_READONLY_MESSAGE = (
+    "Viewer access is read-only. Ask an admin to assign Operator or SPD Manager "
+    "access to run inspections."
+)
+
+
+def require_inspection_runner(current_user=Depends(get_current_user)):
+    """Allow operator/spd_manager/admin to run inspections; reject viewers with a
+    clear, actionable 403 message (not a silent failure)."""
+    role = getattr(current_user, "role", "viewer")
+    if role not in _INSPECTION_RUN_ROLES:
+        raise HTTPException(status_code=403, detail=_VIEWER_READONLY_MESSAGE)
+    return current_user
 
 _ALLOWED_INSTRUMENT_TYPES = {
     "laparoscopic_grasper", "retractor", "scissors", "needle_holder",
@@ -239,7 +256,7 @@ def inspection_response(row: models.Inspection) -> dict:
 async def get_inspection(
     inspection_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
 ):
     tenant_id = getattr(current_user, "tenant_id", None)
 
@@ -261,7 +278,7 @@ async def create_inspection(
     body: InspectionCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+    current_user=Depends(require_inspection_runner),
 ):
     """Submit a new inspection record. Enforces DQ-01..DQ-14 validation rules."""
     tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
@@ -538,9 +555,12 @@ def get_pilot_metrics(
 async def upload_inspection_images(
     request: Request,
     images: List[UploadFile] = File(...),
+    current_user=Depends(require_inspection_runner),
 ):
-    """Accept multipart inspection image uploads. Stores SHA-256 hash + metadata only — no raw images in DB."""
-    require_enterprise_auth(request)
+    """Accept multipart inspection image uploads. Stores SHA-256 hash + metadata only — no raw images in DB.
+
+    Restricted to operator/spd_manager/admin — viewers are read-only.
+    """
     tenant_id = get_request_tenant_id(request)
 
     results = []
