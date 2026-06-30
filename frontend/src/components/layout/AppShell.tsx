@@ -141,6 +141,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Administration",
     roles: ["admin", "spd_manager"],
     items: [
+      { to: "/user-management", label: "User Roles", icon: UserCheck },
       { to: "/users", label: "Users", icon: Users },
       { to: "/roles", label: "Roles", icon: UserCheck },
       { to: "/settings", label: "Settings", icon: Settings },
