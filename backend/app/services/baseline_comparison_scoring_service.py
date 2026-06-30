@@ -96,12 +96,41 @@ def status_from_probability(p: float) -> str:
     return "escalate"
 
 
-def _finding_phrase(label: str, severity: str) -> str:
-    if severity == "none":
+def _severity_index(p: float) -> int:
+    """0–10% → 0, 11–30% → 1, 31–60% → 2, 61%+ → 3."""
+    pct = p * 100
+    if pct <= 10:
+        return 0
+    if pct <= 30:
+        return 1
+    if pct <= 60:
+        return 2
+    return 3
+
+
+# KPI-specific severity scales. Findings not listed use the generic scale.
+_SEVERITY_SCALES = {
+    "blood": ["none", "trace", "visible", "heavy"],
+    "rust": ["none", "surface rust", "moderate rust", "heavy rust"],
+    "corrosion": ["none", "minor", "moderate", "severe"],
+}
+_GENERIC_SCALE = ["none", "low", "moderate", "high"]
+
+
+def kpi_severity(kpi: str, p: float) -> str:
+    """Return the severity label for a KPI using its specific scale when defined
+    (blood: none/trace/visible/heavy, rust: none/surface/moderate/heavy rust,
+    corrosion: none/minor/moderate/severe), else the generic scale."""
+    scale = _SEVERITY_SCALES.get(kpi, _GENERIC_SCALE)
+    return scale[_severity_index(p)]
+
+
+def _finding_phrase(label: str, severity_index: int) -> str:
+    if severity_index == 0:
         return f"No {label} detected"
-    if severity == "low":
+    if severity_index == 1:
         return f"Minor {label} detected"
-    if severity == "moderate":
+    if severity_index == 2:
         return f"{label.capitalize()} detected"
     return f"Significant {label} detected"
 
@@ -117,12 +146,41 @@ _DECLARED_TO_KPI = {
     "other": "other_organic_residue",
 }
 
-# Per-KPI risk weight (how much a positive finding deducts from the score).
+# Clinical risk tier per KPI (drives prioritisation + risk-driver explanation).
+#   high           — contamination / structural integrity; aggressive score hit
+#   severity_based — corrosion/rust: tier rises with severity (heavy → high)
+#   low_medium     — bone (low unless organic contamination suspected)
+#   low            — cosmetic / wear unless structural integrity affected
+_RISK_TIER = {
+    "blood": "high", "bioburden": "high", "tissue": "high",
+    "other_organic_residue": "high", "crack": "high", "missing_component": "high",
+    "insulation_damage": "high",
+    "corrosion": "severity_based", "rust": "severity_based",
+    "bone": "low_medium",
+    "debris": "medium",
+    "discoloration": "low", "pitting": "low",
+}
+
+
+def risk_tier(kpi: str, p: float) -> str:
+    """Effective risk tier — severity-based KPIs (corrosion/rust) escalate to
+    high at severe/heavy severity, medium at moderate, else low."""
+    tier = _RISK_TIER.get(kpi, "medium")
+    if tier == "severity_based":
+        idx = _severity_index(p)
+        return "high" if idx >= 3 else "medium" if idx == 2 else "low"
+    return tier
+
+
+# Per-KPI risk weight — how much a positive finding deducts from the score.
+# Contamination (blood/bioburden/tissue/organic), cracks, and missing components
+# deduct far more aggressively than cosmetic discoloration / wear.
 _KPI_WEIGHT = {
-    "blood": 28, "bone": 24, "tissue": 24, "bioburden": 20,
-    "debris": 16, "other_organic_residue": 10,
-    "rust": 14, "discoloration": 8, "corrosion": 22, "pitting": 16,
-    "crack": 30, "insulation_damage": 30, "missing_component": 26,
+    "blood": 36, "bioburden": 33, "tissue": 31, "other_organic_residue": 29,
+    "crack": 38, "missing_component": 35, "insulation_damage": 30,
+    "corrosion": 24, "rust": 18,            # severity scales via probability
+    "bone": 16, "debris": 16,               # low–medium
+    "discoloration": 5, "pitting": 10,      # cosmetic / wear
 }
 
 
@@ -332,8 +390,12 @@ def analyze_inspection(
             "label": KPI_LABELS.get(kpi, kpi),
             "probability": probability,
             "confidence": confidence,
-            "severity": severity_from_probability(probability),
+            # KPI-specific severity scale (blood: trace/visible/heavy,
+            # rust: surface/moderate/heavy, corrosion: minor/moderate/severe).
+            "severity": kpi_severity(kpi, probability),
+            "severity_index": _severity_index(probability),
             "status": status_from_probability(probability),
+            "risk_tier": risk_tier(kpi, probability),
         })
 
     # ── Identification detection / match ────────────────────────────────────
@@ -360,10 +422,20 @@ def analyze_inspection(
     # Start from baseline match, deduct weighted KPI penalties, add a small
     # identification-match bonus.
     score = baseline_match_score * 100.0
+    score_adjustments: list[dict[str, Any]] = []
     for kpi, present in kpi_summary.items():
         if present:
             finding = next(f for f in predicted_findings if f["type"] == kpi)
-            score -= _KPI_WEIGHT.get(kpi, 10) * finding["probability"]
+            deduction = round(_KPI_WEIGHT.get(kpi, 10) * finding["probability"], 1)
+            score -= deduction
+            score_adjustments.append({
+                "kpi": kpi,
+                "label": KPI_LABELS.get(kpi, kpi),
+                "points": -deduction,
+                "severity": finding["severity"],
+                "risk_tier": finding["risk_tier"],
+            })
+    score_adjustments.sort(key=lambda a: a["points"])  # largest deduction first
 
     id_matches = sum(
         1 for k in ("barcode_match", "qr_udi_match", "keydot_match") if identification[k]
@@ -397,8 +469,7 @@ def analyze_inspection(
     if not critical_flags:
         findings_summary.append("No critical contamination detected")
     for kpi in summary_kpis:
-        sev = severity_from_probability(prob.get(kpi, 0.0))
-        findings_summary.append(_finding_phrase(KPI_LABELS[kpi], sev))
+        findings_summary.append(_finding_phrase(KPI_LABELS[kpi], _severity_index(prob.get(kpi, 0.0))))
 
     # ── Recommendation (no causation language) ──────────────────────────────
     if remove_flags:
@@ -430,8 +501,7 @@ def analyze_inspection(
              f"{round(baseline_match_score * 100)}%."
     ]
     for kpi in ["blood", "bone", "tissue", "corrosion", "crack"]:
-        sev = severity_from_probability(prob.get(kpi, 0.0))
-        reason.append(_finding_phrase(KPI_LABELS[kpi], sev) + ".")
+        reason.append(_finding_phrase(KPI_LABELS[kpi], _severity_index(prob.get(kpi, 0.0))) + ".")
     if critical_flags:
         reason.append(
             "One or more findings exceeded the escalation threshold: "
@@ -452,25 +522,33 @@ def analyze_inspection(
 
     # ── Explainability ──────────────────────────────────────────────────────
     top_findings = sorted(predicted_findings, key=lambda f: f["probability"], reverse=True)[:3]
-    risk_drivers = (
-        [KPI_LABELS.get(k, k) for k in critical_flags]
-        if critical_flags
-        else ["No KPI above escalation threshold"]
-    )
+    # Risk drivers: prefer critical breaches, else the largest score deductions.
+    if critical_flags:
+        risk_drivers = [KPI_LABELS.get(k, k) for k in critical_flags]
+    elif score_adjustments:
+        risk_drivers = [a["label"] for a in score_adjustments[:3]]
+    else:
+        risk_drivers = ["No KPI above escalation threshold"]
+    primary_risk_driver = risk_drivers[0] if risk_drivers else None
+
     explainability = {
         "baseline_source": resolution["baseline_source"],
         "baseline_match_score": baseline_match_score,
         "highest_findings": [
             {"type": f["type"], "label": KPI_LABELS.get(f["type"], f["type"]),
-             "probability": f["probability"], "severity": severity_from_probability(f["probability"])}
+             "probability": f["probability"], "severity": f["severity"],
+             "risk_tier": f["risk_tier"]}
             for f in top_findings
         ],
+        "primary_risk_driver": primary_risk_driver,
         "risk_drivers": risk_drivers,
+        "score_adjustments": score_adjustments,
         "confidence_level": confidence_level,
         "rationale": (
-            "Score derived from the approved baseline match, weighted KPI findings, and "
-            "identification matches. Risk and recommendation are driven by whether any KPI "
-            "exceeds its escalation threshold."
+            "Score starts from the approved baseline match, then each KPI finding deducts "
+            "points weighted by its clinical risk tier (contamination, cracks, and missing "
+            "components deduct most; cosmetic discoloration and wear deduct least). Risk and "
+            "recommendation are driven by whether any KPI exceeds its escalation threshold."
         ),
     }
 
@@ -495,7 +573,11 @@ def analyze_inspection(
         "recommendation": recommendation,
         "reason": reason,
         "critical_flags": critical_flags,
+        "score_adjustments": score_adjustments,
+        "primary_risk_driver": explainability["primary_risk_driver"],
         "explainability": explainability,
         "human_review_required": True,
         "placeholder_scoring": True,
+        "model_label": "Baseline Comparison Scoring Model (pilot)",
+        "production_validated": False,
     }

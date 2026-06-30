@@ -4,6 +4,8 @@ from app.services.baseline_comparison_scoring_service import (
     analyze_inspection,
     severity_from_probability,
     status_from_probability,
+    kpi_severity,
+    risk_tier,
 )
 from app.db.session import SessionLocal
 from app.models.baseline_library import BaselineLibraryEntry
@@ -105,6 +107,68 @@ class TestCriticalEscalation:
         assert out["risk_level"] == "critical"
         assert "Remove from service" in out["recommendation"]
 
+    def test_blood_deducts_more_than_discoloration(self):
+        # Same probability, blood (high risk) must hurt the score far more than
+        # discoloration (cosmetic). Compare via score_adjustments weights.
+        blood_out = _analyze("scissors", declared=["blood"])
+        disc_adj = next((a for a in blood_out["score_adjustments"] if a["kpi"] == "blood"), None)
+        assert disc_adj is not None
+        # blood is a high-tier driver
+        assert disc_adj["risk_tier"] == "high"
+
+    def test_score_adjustments_and_primary_driver(self):
+        out = _analyze("scissors", declared=["blood"])
+        assert out["score_adjustments"], "must explain why score changed"
+        assert out["primary_risk_driver"] is not None
+        # largest deduction listed first (most negative points)
+        pts = [a["points"] for a in out["score_adjustments"]]
+        assert pts == sorted(pts)
+
+    def test_model_labeled_as_pilot(self):
+        out = _analyze("forceps")
+        assert out["model_label"] == "Baseline Comparison Scoring Model (pilot)"
+        assert out["production_validated"] is False
+
+
+class TestSeverityScales:
+    def test_blood_severity_scale(self):
+        assert kpi_severity("blood", 0.05) == "none"
+        assert kpi_severity("blood", 0.20) == "trace"
+        assert kpi_severity("blood", 0.45) == "visible"
+        assert kpi_severity("blood", 0.80) == "heavy"
+
+    def test_rust_severity_scale(self):
+        assert kpi_severity("rust", 0.05) == "none"
+        assert kpi_severity("rust", 0.20) == "surface rust"
+        assert kpi_severity("rust", 0.45) == "moderate rust"
+        assert kpi_severity("rust", 0.80) == "heavy rust"
+
+    def test_corrosion_severity_scale(self):
+        assert kpi_severity("corrosion", 0.05) == "none"
+        assert kpi_severity("corrosion", 0.20) == "minor"
+        assert kpi_severity("corrosion", 0.45) == "moderate"
+        assert kpi_severity("corrosion", 0.80) == "severe"
+
+    def test_generic_scale_for_others(self):
+        assert kpi_severity("tissue", 0.20) == "low"
+        assert kpi_severity("tissue", 0.80) == "high"
+
+    def test_risk_tier_severity_based(self):
+        # rust/corrosion escalate with severity
+        assert risk_tier("rust", 0.05) == "low"
+        assert risk_tier("rust", 0.45) == "medium"
+        assert risk_tier("rust", 0.80) == "high"      # heavy rust = high
+        assert risk_tier("corrosion", 0.80) == "high"  # severe corrosion = high
+
+    def test_risk_tier_fixed(self):
+        assert risk_tier("blood", 0.5) == "high"
+        assert risk_tier("crack", 0.5) == "high"
+        assert risk_tier("missing_component", 0.5) == "high"
+        assert risk_tier("bone", 0.5) == "low_medium"
+        assert risk_tier("discoloration", 0.5) == "low"
+
+
+class TestMissingBaseline:
     def test_missing_baseline_still_supervisor_review(self):
         itype = "clip_applier"
         db = SessionLocal()
