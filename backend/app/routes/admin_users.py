@@ -24,7 +24,7 @@ from app.models.user_role_assignment import UserRoleAssignment
 
 router = APIRouter(prefix="/api/admin", tags=["admin-users"])
 
-ASSIGNABLE_ROLES = {"admin", "spd_manager", "supervisor", "viewer", "vendor_user"}
+ASSIGNABLE_ROLES = {"admin", "spd_manager", "supervisor", "operator", "viewer", "vendor_user"}
 
 
 def _upsert_role(db: Session, username: str, role: str, assigned_by: str) -> UserRoleAssignment:

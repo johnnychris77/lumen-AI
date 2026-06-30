@@ -9,6 +9,7 @@ import pytest
 os.environ.setdefault("ENABLE_DEV_AUTH", "true")
 os.environ.setdefault("DEV_AUTH_TOKEN", "dev-token")
 os.environ.setdefault("DEV_SPD_MANAGER_TOKEN", "manager-token")
+os.environ.setdefault("DEV_OPERATOR_TOKEN", "operator-token")
 os.environ.setdefault("DEV_VENDOR_TOKEN", "vendor-token")
 os.environ.setdefault("DEV_VIEWER_TOKEN", "viewer-token")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")

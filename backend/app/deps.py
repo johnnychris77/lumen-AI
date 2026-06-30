@@ -17,6 +17,7 @@ _DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and _APP_ENV not in {"production", "prod"}
 _DEV_ROLE_MAP: dict[str, str] = {
     os.getenv("DEV_AUTH_TOKEN", ""): "admin",
     os.getenv("DEV_SPD_MANAGER_TOKEN", ""): "spd_manager",
+    os.getenv("DEV_OPERATOR_TOKEN", ""): "operator",
     os.getenv("DEV_VENDOR_TOKEN", ""): "vendor_user",
     os.getenv("DEV_VIEWER_TOKEN", ""): "viewer",
 } if _DEV_AUTH_ACTIVE else {}

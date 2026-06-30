@@ -15,6 +15,7 @@ client = TestClient(app)
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}       # admin
 AUTH_MGR = {"Authorization": "Bearer manager-token"}      # spd_manager
 AUTH_VIEWER = {"Authorization": "Bearer viewer-token"}    # viewer
+AUTH_OPERATOR = {"Authorization": "Bearer operator-token"}  # operator (runs inspections)
 SHA = "c0ffee00" + "0" * 56
 
 
@@ -82,14 +83,14 @@ class TestEndToEndScoring:
         }, headers=AUTH_ADMIN)
         assert b.status_code == 201, b.text
 
-        # 2. Run an inspection on the same instrument type
+        # 2. Run an inspection on the same instrument type (operator runs inspections)
         ins = client.post("/api/inspections", json={
             "instrument_type": itype,
             "site_name": "Test Hospital",
             "has_image": True,
             "image_sha256": SHA,
             "file_name": "img.jpg",
-        }, headers=AUTH_VIEWER)
+        }, headers=AUTH_OPERATOR)
         assert ins.status_code == 201, ins.text
         analysis = ins.json()["analysis"]
 

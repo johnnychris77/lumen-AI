@@ -13,7 +13,7 @@ from app.models.baseline_library import BaselineLibraryEntry
 client = TestClient(app)
 
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
-AUTH_VIEWER = {"Authorization": "Bearer viewer-token"}
+AUTH_OPERATOR = {"Authorization": "Bearer operator-token"}
 
 SHA = "f00dcafe" + "0" * 56
 
@@ -42,7 +42,7 @@ def _create_inspection(instrument_type: str) -> int:
         "has_image": True,
         "image_sha256": SHA,
         "file_name": "hist.jpg",
-    }, headers=AUTH_VIEWER)
+    }, headers=AUTH_OPERATOR)
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
