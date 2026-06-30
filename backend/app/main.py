@@ -102,6 +102,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.instrument_registry")  # register P15 instrument registry table
     importlib.import_module("app.models.baseline_library")     # register P15 baseline library table
     importlib.import_module("app.models.user_role_assignment") # register admin role-assignment table
+    importlib.import_module("app.models.admin_credential")      # register admin credential table
     importlib.import_module("app.models.integrations")         # register P17 integration tables
     importlib.import_module("app.models.mobile")               # register P18 mobile tables
     importlib.import_module("app.models.quality_intelligence") # register P21 quality intelligence tables
