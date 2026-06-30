@@ -40,7 +40,14 @@ type PredictedFinding = {
   confidence: number;
   severity: string;
   status?: string;
+  spd_risk?: string;
+  spd_risk_impact?: string;
 };
+
+type SeverityByKpi = Record<
+  string,
+  { severity: string; probability: number; spd_risk: string; spd_risk_impact: string }
+>;
 
 type ScoreAdjustment = { kpi: string; label: string; points: number; severity: string; risk_tier: string };
 
@@ -72,6 +79,13 @@ type Analysis = {
   confidence?: number;
   confidence_level?: string;
   recommendation: string;
+  recommended_action?: string;
+  overall_cleaning_assessment?: string;
+  top_risk_drivers?: string[];
+  severity_by_kpi?: SeverityByKpi;
+  scoring_explanation?: string[];
+  spd_critical_drivers?: string[];
+  spd_high_drivers?: string[];
   reason?: string[];
   critical_flags?: string[];
   score_adjustments?: ScoreAdjustment[];
@@ -116,7 +130,7 @@ const FINDING_CATEGORIES: { value: FindingCategory; label: string; tooltip: stri
   { value: "blood", label: "Blood", tooltip: "Visible blood residue in lumen or on instrument surface" },
   { value: "bone", label: "Bone", tooltip: "Calcified tissue or bone fragment visible in channel" },
   { value: "tissue", label: "Tissue", tooltip: "Soft tissue or protein residue visible in lumen" },
-  { value: "debris", label: "Debris / Bioburden", tooltip: "Non-specific particulate, organic matter, or buildup" },
+  { value: "debris", label: "Debris / Particulate", tooltip: "Non-specific particulate, organic matter, or buildup" },
   { value: "corrosion", label: "Corrosion", tooltip: "Rust, pitting, or surface degradation of metal" },
   { value: "crack", label: "Crack / Fracture", tooltip: "Visible structural break, fracture, or delamination" },
   { value: "insulation_damage", label: "Insulation Damage", tooltip: "Damage to electrical insulation on monopolar/bipolar instruments" },
@@ -1030,7 +1044,6 @@ const KPI_DISPLAY: { key: string; label: string }[] = [
   { key: "blood", label: "Blood" },
   { key: "bone", label: "Bone" },
   { key: "tissue", label: "Tissue" },
-  { key: "bioburden", label: "Bioburden" },
   { key: "debris", label: "Debris" },
   { key: "other_organic_residue", label: "Other Organic Residue" },
   { key: "rust", label: "Rust" },
@@ -1068,6 +1081,19 @@ const SEVERITY_STYLE: Record<string, string> = {
   Low: "text-amber-600",
   Moderate: "text-orange-600",
   High: "text-red-600 font-semibold",
+};
+// SPD Risk Impact chip styling (Clear / Monitor / Review / Reprocess).
+const SPD_IMPACT_STYLE: Record<string, string> = {
+  Clear: "bg-emerald-100 text-emerald-800",
+  Monitor: "bg-amber-100 text-amber-800",
+  Review: "bg-orange-100 text-orange-800",
+  Reprocess: "bg-red-100 text-red-800",
+};
+const CLEANING_STYLE: Record<string, string> = {
+  Clean: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  "Residual contamination suspected": "border-amber-300 bg-amber-50 text-amber-900",
+  "Cleaning failure": "border-red-300 bg-red-50 text-red-900",
+  "Supervisor review required": "border-orange-300 bg-orange-50 text-orange-900",
 };
 
 function AnalysisDetails({ analysis }: { analysis: Analysis }) {
@@ -1144,26 +1170,53 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
             const status = finding?.status
               ? finding.status.charAt(0).toUpperCase() + finding.status.slice(1)
               : statusOf(p);
+            const impact = finding?.spd_risk_impact ?? "Clear";
             return (
               <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-slate-700">{label}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status] ?? "bg-slate-100 text-slate-600"}`}>
-                    {status}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SPD_IMPACT_STYLE[impact] ?? "bg-slate-100 text-slate-600"}`}>
+                    {impact}
                   </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs">
                   <span className="text-slate-500">Probability <span className="font-semibold text-slate-700">{pct}%</span></span>
                   <span className={SEVERITY_STYLE[severity] ?? "text-slate-500"}>Severity: {severity}</span>
                 </div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  SPD Risk Impact: <span className="font-medium text-slate-600">{impact}</span>
+                </div>
               </div>
             );
           })}
         </div>
         <p className="mt-1.5 text-xs text-slate-400">
-          Status: 0–10% Clear · 11–30% Monitor · 31–60% Review · 61%+ Escalate.
+          SPD Risk Impact: Clear (no action) · Monitor (low-risk) · Review (supervisor) · Reprocess (remove/clean).
         </p>
       </div>
+
+      {/* Overall Cleaning Assessment (replaces standalone bioburden KPI) */}
+      {analysis.overall_cleaning_assessment && (
+        <div className={`rounded-lg border px-4 py-3 ${CLEANING_STYLE[analysis.overall_cleaning_assessment] ?? "border-slate-200 bg-slate-50 text-slate-800"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-0.5">Overall Cleaning Assessment</p>
+          <p className="text-sm font-semibold">{analysis.overall_cleaning_assessment}</p>
+          <p className="mt-0.5 text-xs opacity-70">
+            Derived from blood, bone, tissue, organic residue and debris — not a standalone bioburden score.
+          </p>
+        </div>
+      )}
+
+      {/* Top risk drivers */}
+      {analysis.top_risk_drivers && analysis.top_risk_drivers.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Top Risk Drivers</p>
+          <div className="flex flex-wrap gap-1.5">
+            {analysis.top_risk_drivers.map((d, i) => (
+              <span key={i} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">{d}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Identification */}
       <div>
@@ -1234,8 +1287,26 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
             ))}
           </ul>
         )}
-        <p className="text-sm font-medium text-slate-800">{analysis.recommendation}</p>
+        {analysis.recommended_action && (
+          <p className="text-sm font-semibold text-slate-900">{analysis.recommended_action}</p>
+        )}
+        <p className="text-sm text-slate-700">{analysis.recommendation}</p>
       </div>
+
+      {/* Why the score changed — plain-language explanation */}
+      {analysis.scoring_explanation && analysis.scoring_explanation.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Reason Score Changed</p>
+          <ul className="space-y-0.5 text-sm text-slate-700">
+            {analysis.scoring_explanation.map((line, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className={line.startsWith("No ") ? "text-emerald-500" : "text-amber-500"}>•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Explainability */}
       {analysis.explainability && (

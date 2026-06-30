@@ -48,12 +48,18 @@ def _baseline_comparison_label(source: str) -> str:
     return label if source == "manufacturer" else f"{label} (fallback)"
 
 # KPI categories the analysis reports on.
-CONTAMINATION_KPIS = ["blood", "bone", "tissue", "bioburden", "debris", "other_organic_residue"]
+# NOTE: "bioburden" is intentionally NOT a standalone KPI — it is a clinical
+# umbrella term. An Overall Cleaning Assessment is derived instead from the
+# concrete contamination KPIs below (see CLEANING_KPIS / overall_cleaning_assessment).
+CONTAMINATION_KPIS = ["blood", "bone", "tissue", "debris", "other_organic_residue"]
 CONDITION_KPIS = ["rust", "discoloration", "corrosion", "pitting", "crack", "insulation_damage", "missing_component"]
+
+# Concrete contamination KPIs that feed the Overall Cleaning Assessment.
+CLEANING_KPIS = ["blood", "bone", "tissue", "other_organic_residue", "debris"]
 
 # Human-readable KPI labels for findings summaries.
 KPI_LABELS = {
-    "blood": "blood", "bone": "bone", "tissue": "tissue", "bioburden": "bioburden",
+    "blood": "blood", "bone": "bone", "tissue": "tissue",
     "debris": "debris", "other_organic_residue": "organic residue",
     "rust": "rust", "discoloration": "discoloration", "corrosion": "corrosion",
     "pitting": "pitting", "crack": "crack", "insulation_damage": "insulation damage",
@@ -63,13 +69,14 @@ KPI_LABELS = {
 # Critical KPI thresholds (probability). Exceeding one drives risk up and changes
 # the recommendation toward reprocess / supervisor review / remove from service.
 _CRITICAL_THRESHOLDS = {
-    "blood": 0.30, "bone": 0.30, "tissue": 0.30, "bioburden": 0.30,
+    "blood": 0.30, "bone": 0.30, "tissue": 0.30,
+    "other_organic_residue": 0.30,
     "rust": 0.60, "corrosion": 0.60, "crack": 0.30, "missing_component": 0.30,
 }
 # KPIs whose critical breach means the instrument should leave service.
 _REMOVE_FROM_SERVICE = {"crack", "missing_component"}
 # Contamination KPIs whose critical breach means reprocess + re-inspect.
-_REPROCESS = {"blood", "bone", "tissue", "bioburden"}
+_REPROCESS = {"blood", "bone", "tissue", "other_organic_residue"}
 
 
 def severity_from_probability(p: float) -> str:
@@ -113,8 +120,20 @@ _SEVERITY_SCALES = {
     "blood": ["none", "trace", "visible", "heavy"],
     "rust": ["none", "surface rust", "moderate rust", "heavy rust"],
     "corrosion": ["none", "minor", "moderate", "severe"],
+    "discoloration": ["none", "minor", "moderate", "severe"],
+    # Structural-damage scale for crack / missing component / insulation damage.
+    "crack": ["none", "cosmetic wear", "functional concern", "structural failure"],
+    "missing_component": ["none", "cosmetic wear", "functional concern", "structural failure"],
+    "insulation_damage": ["none", "cosmetic wear", "functional concern", "structural failure"],
+    "pitting": ["none", "cosmetic wear", "functional concern", "structural failure"],
 }
 _GENERIC_SCALE = ["none", "low", "moderate", "high"]
+
+# Every severity token that can appear in a predicted finding's "severity"
+# field — exposed so callers/tests can validate the richer SPD vocabulary.
+ALL_SEVERITY_TOKENS = {
+    tok for scale in _SEVERITY_SCALES.values() for tok in scale
+} | set(_GENERIC_SCALE)
 
 
 def kpi_severity(kpi: str, p: float) -> str:
@@ -152,7 +171,7 @@ _DECLARED_TO_KPI = {
 #   low_medium     — bone (low unless organic contamination suspected)
 #   low            — cosmetic / wear unless structural integrity affected
 _RISK_TIER = {
-    "blood": "high", "bioburden": "high", "tissue": "high",
+    "blood": "high", "tissue": "high",
     "other_organic_residue": "high", "crack": "high", "missing_component": "high",
     "insulation_damage": "high",
     "corrosion": "severity_based", "rust": "severity_based",
@@ -172,11 +191,68 @@ def risk_tier(kpi: str, p: float) -> str:
     return tier
 
 
+# ── SPD risk weighting ───────────────────────────────────────────────────────
+# Maps each KPI (and, where severity matters, its severity band) onto an SPD
+# operational risk tier. This is what drives the "SPD Risk Impact" column and
+# the override rule that forces High/Critical regardless of total score.
+#
+#   critical — must reprocess / remove from service before any use
+#   high     — supervisor review before release
+#   low      — monitor; cosmetic / wear only
+#
+# Severity bands use _severity_index(p): 0 none, 1 minor, 2 moderate, 3 severe.
+_SPD_ALWAYS_CRITICAL = {
+    "tissue", "other_organic_residue", "crack", "missing_component",
+    "insulation_damage",
+}
+_SPD_ALWAYS_HIGH = {"debris", "bone", "pitting"}
+
+
+def spd_risk_tier(kpi: str, p: float) -> str:
+    """SPD operational risk tier for a KPI at probability ``p``.
+
+    Returns "none" when the finding is absent (severity index 0), otherwise
+    "critical" / "high" / "low" per SPD priorities:
+      - blood: visible/heavy → critical, trace → high
+      - heavy rust / severe corrosion → critical; moderate → high; surface/minor → low
+      - tissue / organic residue / crack / missing component / insulation damage → critical
+      - debris / bone / pitting → high
+      - discoloration and other cosmetic findings → low
+    """
+    idx = _severity_index(p)
+    if idx == 0:
+        return "none"
+    if kpi == "blood":
+        return "critical" if idx >= 2 else "high"
+    if kpi in ("rust", "corrosion"):
+        return "critical" if idx >= 3 else "high" if idx == 2 else "low"
+    if kpi in _SPD_ALWAYS_CRITICAL:
+        return "critical"
+    if kpi in _SPD_ALWAYS_HIGH:
+        return "high"
+    # discoloration + anything cosmetic
+    return "low"
+
+
+# SPD Risk Impact label shown in the panel for each KPI.
+_SPD_IMPACT_LABEL = {
+    "none": "Clear",
+    "low": "Monitor",
+    "high": "Review",
+    "critical": "Reprocess",
+}
+
+
+def spd_risk_impact(tier: str) -> str:
+    """Human label for the SPD Risk Impact column (Clear/Monitor/Review/Reprocess)."""
+    return _SPD_IMPACT_LABEL.get(tier, "Review")
+
+
 # Per-KPI risk weight — how much a positive finding deducts from the score.
 # Contamination (blood/bioburden/tissue/organic), cracks, and missing components
 # deduct far more aggressively than cosmetic discoloration / wear.
 _KPI_WEIGHT = {
-    "blood": 36, "bioburden": 33, "tissue": 31, "other_organic_residue": 29,
+    "blood": 36, "tissue": 31, "other_organic_residue": 29,
     "crack": 38, "missing_component": 35, "insulation_damage": 30,
     "corrosion": 24, "rust": 18,            # severity scales via probability
     "bone": 16, "debris": 16,               # low–medium
@@ -320,6 +396,125 @@ def _risk_level(score: int) -> str:
     return "critical"
 
 
+def overall_cleaning_assessment(findings_by_kpi: dict[str, dict]) -> str:
+    """Derive the Overall Cleaning Assessment from the concrete contamination KPIs
+    (blood, bone, tissue, organic residue, debris) — replacing the standalone
+    "bioburden" KPI with a clinically meaningful summary.
+
+      Clean                            — no contamination signal
+      Residual contamination suspected — minor/uncertain contamination present
+      Cleaning failure                 — clear contamination (blood/tissue/organic
+                                         residue at moderate+ severity)
+    """
+    failure = False
+    residual = False
+    for kpi in CLEANING_KPIS:
+        f = findings_by_kpi.get(kpi)
+        if not f:
+            continue
+        idx = f["severity_index"]
+        if idx == 0:
+            continue
+        residual = True
+        if kpi in ("blood", "tissue", "other_organic_residue") and idx >= 2:
+            failure = True
+        if kpi == "debris" and idx >= 3:
+            failure = True
+    if failure:
+        return "Cleaning failure"
+    if residual:
+        return "Residual contamination suspected"
+    return "Clean"
+
+
+def recommended_action(findings_by_kpi: dict[str, dict], baseline_match_score: float) -> str:
+    """Map findings onto an SPD recommended action.
+
+    Priority: reprocess/remove > supervisor review > monitor > pass.
+    """
+    def present(kpi: str) -> dict | None:
+        f = findings_by_kpi.get(kpi)
+        return f if f and f["severity_index"] >= 1 else None
+
+    # REPROCESS / REMOVE FROM SERVICE
+    reprocess = []
+    for kpi in ("blood", "tissue", "other_organic_residue", "crack",
+                "missing_component", "insulation_damage"):
+        f = present(kpi)
+        if f and (kpi != "blood" or f["severity_index"] >= 2):
+            reprocess.append(KPI_LABELS[kpi])
+    for kpi in ("corrosion",):
+        f = present(kpi)
+        if f and f["severity_index"] >= 3:  # severe corrosion
+            reprocess.append("severe corrosion")
+    if reprocess:
+        return (
+            "Reprocess / remove from service — "
+            + ", ".join(sorted(set(reprocess)))
+            + ". Supervisor review required before any further use."
+        )
+
+    # SUPERVISOR REVIEW
+    supervisor = []
+    for kpi in ("debris", "bone"):
+        if present(kpi):
+            supervisor.append(KPI_LABELS[kpi])
+    for kpi in ("corrosion", "rust"):
+        f = present(kpi)
+        if f and f["severity_index"] == 2:  # moderate
+            supervisor.append(f["severity"])
+    if baseline_match_score < 0.70:
+        supervisor.append("baseline mismatch")
+    if supervisor:
+        return (
+            "Supervisor review recommended before release — "
+            + ", ".join(sorted(set(supervisor))) + "."
+        )
+
+    # MONITOR
+    monitor = []
+    for kpi in ("discoloration", "rust"):
+        f = present(kpi)
+        if f and f["severity_index"] == 1:  # minor / surface
+            monitor.append(f["severity"])
+    if monitor:
+        return (
+            "Monitor — low-risk findings only ("
+            + ", ".join(sorted(set(monitor)))
+            + "). Continue routine processing."
+        )
+
+    # PASS
+    return "Pass — no high-risk findings and baseline match strong. Release for use."
+
+
+def scoring_explanation(
+    findings_by_kpi: dict[str, dict],
+    baseline_match_score: float,
+    baseline_source: str,
+) -> list[str]:
+    """Plain-language, per-KPI reasons the score is what it is."""
+    label = BASELINE_LABELS.get(baseline_source, "Baseline")
+    lines = [f"{label} matched at {round(baseline_match_score * 100)}%."]
+    for kpi in ("blood", "tissue", "other_organic_residue", "debris", "bone",
+                "corrosion", "rust", "discoloration"):
+        f = findings_by_kpi.get(kpi)
+        if not f:
+            continue
+        idx = f["severity_index"]
+        name = KPI_LABELS[kpi]
+        if idx == 0:
+            lines.append(f"No {name} detected.")
+        elif f["spd_risk"] == "low":
+            lines.append(
+                f"{f['severity'].capitalize()} {name} was treated as low-risk "
+                "cosmetic variation."
+            )
+        else:
+            lines.append(f"{f['severity'].capitalize()} {name} reduced the score.")
+    return lines
+
+
 def analyze_inspection(
     db: Session,
     *,
@@ -361,6 +556,14 @@ def analyze_inspection(
             "recommendation": (
                 "No approved baseline found. Supervisor review required before final scoring."
             ),
+            "recommended_action": "Supervisor review required before release.",
+            "overall_cleaning_assessment": "Supervisor review required",
+            "top_risk_drivers": ["No approved baseline"],
+            "severity_by_kpi": {},
+            "scoring_explanation": [
+                "No approved baseline found for this instrument.",
+                "Final scoring is withheld until a supervisor reviews.",
+            ],
             "message": "No approved baseline found. Supervisor review required before final scoring.",
             "human_review_required": True,
             "placeholder_scoring": True,
@@ -385,17 +588,22 @@ def analyze_inspection(
 
         present = probability >= 0.5
         kpi_summary[kpi] = present
+        spd_tier = spd_risk_tier(kpi, probability)
         predicted_findings.append({
             "type": kpi,
             "label": KPI_LABELS.get(kpi, kpi),
             "probability": probability,
             "confidence": confidence,
             # KPI-specific severity scale (blood: trace/visible/heavy,
-            # rust: surface/moderate/heavy, corrosion: minor/moderate/severe).
+            # rust: surface/moderate/heavy, corrosion: minor/moderate/severe,
+            # damage: cosmetic wear/functional concern/structural failure).
             "severity": kpi_severity(kpi, probability),
             "severity_index": _severity_index(probability),
             "status": status_from_probability(probability),
             "risk_tier": risk_tier(kpi, probability),
+            # SPD operational weighting surfaced to the panel.
+            "spd_risk": spd_tier,
+            "spd_risk_impact": spd_risk_impact(spd_tier),
         })
 
     # ── Identification detection / match ────────────────────────────────────
@@ -454,9 +662,23 @@ def analyze_inspection(
     remove_flags = [k for k in critical_flags if k in _REMOVE_FROM_SERVICE]
     reprocess_flags = [k for k in critical_flags if k in _REPROCESS]
 
-    if remove_flags:
+    # ── SPD-weighted override ───────────────────────────────────────────────
+    # Any present finding whose SPD tier is critical/high forces the risk level
+    # up regardless of the numeric score (visible blood, tissue, organic
+    # residue, crack, missing component, severe corrosion, significant debris,
+    # bone residue, etc.).
+    spd_critical = [
+        f["type"] for f in predicted_findings
+        if kpi_summary[f["type"]] and f["spd_risk"] == "critical"
+    ]
+    spd_high = [
+        f["type"] for f in predicted_findings
+        if kpi_summary[f["type"]] and f["spd_risk"] == "high"
+    ]
+
+    if remove_flags or spd_critical:
         risk_level = "critical"
-    elif critical_flags:
+    elif critical_flags or spd_high:
         risk_level = "high"
     else:
         risk_level = _risk_level(inspection_score)
@@ -464,7 +686,7 @@ def analyze_inspection(
     pass_fail = "FAIL" if critical_flags else "PASS"
 
     # ── Findings summary (one line per key KPI) ─────────────────────────────
-    summary_kpis = ["blood", "bone", "tissue", "bioburden", "corrosion", "rust", "discoloration", "crack"]
+    summary_kpis = ["blood", "bone", "tissue", "corrosion", "rust", "discoloration", "crack"]
     findings_summary: list[str] = []
     if not critical_flags:
         findings_summary.append("No critical contamination detected")
@@ -553,6 +775,23 @@ def analyze_inspection(
     }
 
     source = resolution["baseline_source"]
+
+    # ── SPD-weighted summaries (severity, cleaning, action, explanation) ─────
+    findings_by_kpi = {f["type"]: f for f in predicted_findings}
+    severity_by_kpi = {
+        f["type"]: {
+            "severity": f["severity"],
+            "probability": f["probability"],
+            "spd_risk": f["spd_risk"],
+            "spd_risk_impact": f["spd_risk_impact"],
+        }
+        for f in predicted_findings
+    }
+    cleaning_assessment = overall_cleaning_assessment(findings_by_kpi)
+    action = recommended_action(findings_by_kpi, baseline_match_score)
+    explanation = scoring_explanation(findings_by_kpi, baseline_match_score, source)
+    top_risk_drivers = risk_drivers
+
     return {
         "analysis_status": "completed",
         "baseline_source": source,
@@ -571,6 +810,14 @@ def analyze_inspection(
         "confidence": overall_conf,
         "confidence_level": confidence_level,
         "recommendation": recommendation,
+        # SPD risk-weighted intelligence (new contract additions).
+        "recommended_action": action,
+        "overall_cleaning_assessment": cleaning_assessment,
+        "top_risk_drivers": top_risk_drivers,
+        "severity_by_kpi": severity_by_kpi,
+        "scoring_explanation": explanation,
+        "spd_critical_drivers": spd_critical,
+        "spd_high_drivers": spd_high,
         "reason": reason,
         "critical_flags": critical_flags,
         "score_adjustments": score_adjustments,

@@ -67,10 +67,13 @@ class TestCompletedOutput:
         assert out["pass_fail"] in ("PASS", "FAIL")
 
     def test_kpi_findings_have_severity_and_status(self):
+        from app.services.baseline_comparison_scoring_service import ALL_SEVERITY_TOKENS
         out = _analyze("forceps")
         for f in out["predicted_findings"]:
-            assert f["severity"] in ("none", "low", "moderate", "high")
+            assert f["severity"] in ALL_SEVERITY_TOKENS
             assert f["status"] in ("clear", "monitor", "review", "escalate")
+            assert f["spd_risk"] in ("none", "low", "high", "critical")
+            assert f["spd_risk_impact"] in ("Clear", "Monitor", "Review", "Reprocess")
             assert "label" in f
 
     def test_explainability_present(self):
