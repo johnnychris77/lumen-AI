@@ -35,8 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("actor");
-    // Full reload so all auth-derived state resets and RequireAuth sends to /login.
-    window.location.href = "/login";
+    // Reset auth state in-place (no full page reload). With an empty token the
+    // RequireAuth guard redirects to /login using already-loaded code, so a
+    // stale cached index.html can't blank the page on a fresh deploy.
+    setAuthState({ token: "", role: "viewer", actor: "" });
   }, []);
 
   const headers = useCallback(
