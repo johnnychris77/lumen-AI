@@ -160,9 +160,18 @@ if limiter is not None:
     except Exception:
         pass
 
+# Allow the Render-hosted frontend regardless of the exact ALLOWED_ORIGINS value
+# (it is set manually per-deploy and historically omitted the frontend host,
+# which blocked cross-origin POSTs from the SPA — "Failed to fetch"). The regex
+# permits any *.onrender.com origin; explicit origins still come from settings.
+_CORS_ORIGIN_REGEX = os.getenv(
+    "CORS_ORIGIN_REGEX", r"https://([a-z0-9-]+\.)*onrender\.com"
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[
