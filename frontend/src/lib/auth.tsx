@@ -12,6 +12,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   headers: () => Record<string, string>;
   setAuth: (state: AuthState) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -30,6 +31,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthState(state);
   }, []);
 
+  const logout = useCallback(() => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.removeItem("actor");
+    // Full reload so all auth-derived state resets and RequireAuth sends to /login.
+    window.location.href = "/login";
+  }, []);
+
   const headers = useCallback(
     () => ({
       "Content-Type": "application/json",
@@ -41,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ ...auth, headers, setAuth }}>
+    <AuthContext.Provider value={{ ...auth, headers, setAuth, logout }}>
       {children}
     </AuthContext.Provider>
   );
