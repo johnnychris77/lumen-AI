@@ -51,6 +51,60 @@ def _baseline_comparison_label(source: str) -> str:
 CONTAMINATION_KPIS = ["blood", "bone", "tissue", "bioburden", "debris", "other_organic_residue"]
 CONDITION_KPIS = ["rust", "discoloration", "corrosion", "pitting", "crack", "insulation_damage", "missing_component"]
 
+# Human-readable KPI labels for findings summaries.
+KPI_LABELS = {
+    "blood": "blood", "bone": "bone", "tissue": "tissue", "bioburden": "bioburden",
+    "debris": "debris", "other_organic_residue": "organic residue",
+    "rust": "rust", "discoloration": "discoloration", "corrosion": "corrosion",
+    "pitting": "pitting", "crack": "crack", "insulation_damage": "insulation damage",
+    "missing_component": "missing component",
+}
+
+# Critical KPI thresholds (probability). Exceeding one drives risk up and changes
+# the recommendation toward reprocess / supervisor review / remove from service.
+_CRITICAL_THRESHOLDS = {
+    "blood": 0.30, "bone": 0.30, "tissue": 0.30, "bioburden": 0.30,
+    "rust": 0.60, "corrosion": 0.60, "crack": 0.30, "missing_component": 0.30,
+}
+# KPIs whose critical breach means the instrument should leave service.
+_REMOVE_FROM_SERVICE = {"crack", "missing_component"}
+# Contamination KPIs whose critical breach means reprocess + re-inspect.
+_REPROCESS = {"blood", "bone", "tissue", "bioburden"}
+
+
+def severity_from_probability(p: float) -> str:
+    """0–10% None, 11–30% Low, 31–60% Moderate, 61%+ High (probability 0–1)."""
+    pct = p * 100
+    if pct <= 10:
+        return "none"
+    if pct <= 30:
+        return "low"
+    if pct <= 60:
+        return "moderate"
+    return "high"
+
+
+def status_from_probability(p: float) -> str:
+    """0–10% Clear, 11–30% Monitor, 31–60% Review, 61%+ Escalate (probability 0–1)."""
+    pct = p * 100
+    if pct <= 10:
+        return "clear"
+    if pct <= 30:
+        return "monitor"
+    if pct <= 60:
+        return "review"
+    return "escalate"
+
+
+def _finding_phrase(label: str, severity: str) -> str:
+    if severity == "none":
+        return f"No {label} detected"
+    if severity == "low":
+        return f"Minor {label} detected"
+    if severity == "moderate":
+        return f"{label.capitalize()} detected"
+    return f"Significant {label} detected"
+
 # Map technician-declared finding_categories onto KPI keys.
 _DECLARED_TO_KPI = {
     "blood": "blood",
@@ -198,16 +252,6 @@ def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[
     }
 
 
-def _severity(probability: float) -> str:
-    if probability >= 0.6:
-        return "high"
-    if probability >= 0.3:
-        return "medium"
-    if probability >= 0.1:
-        return "low"
-    return "none"
-
-
 def _risk_level(score: int) -> str:
     if score >= 85:
         return "low"
@@ -285,9 +329,11 @@ def analyze_inspection(
         kpi_summary[kpi] = present
         predicted_findings.append({
             "type": kpi,
+            "label": KPI_LABELS.get(kpi, kpi),
             "probability": probability,
             "confidence": confidence,
-            "severity": _severity(probability),
+            "severity": severity_from_probability(probability),
+            "status": status_from_probability(probability),
         })
 
     # ── Identification detection / match ────────────────────────────────────
@@ -324,21 +370,109 @@ def analyze_inspection(
     )
     score += id_matches * 2.0
     inspection_score = max(0, min(100, round(score)))
-    risk_level = _risk_level(inspection_score)
+
+    # ── Per-finding probability map for downstream logic ────────────────────
+    prob = {f["type"]: f["probability"] for f in predicted_findings}
+
+    # ── Critical KPI breaches drive risk + recommendation ───────────────────
+    critical_flags = [
+        kpi for kpi, thresh in _CRITICAL_THRESHOLDS.items()
+        if prob.get(kpi, 0.0) > thresh
+    ]
+    remove_flags = [k for k in critical_flags if k in _REMOVE_FROM_SERVICE]
+    reprocess_flags = [k for k in critical_flags if k in _REPROCESS]
+
+    if remove_flags:
+        risk_level = "critical"
+    elif critical_flags:
+        risk_level = "high"
+    else:
+        risk_level = _risk_level(inspection_score)
+
+    pass_fail = "FAIL" if critical_flags else "PASS"
+
+    # ── Findings summary (one line per key KPI) ─────────────────────────────
+    summary_kpis = ["blood", "bone", "tissue", "bioburden", "corrosion", "rust", "discoloration", "crack"]
+    findings_summary: list[str] = []
+    if not critical_flags:
+        findings_summary.append("No critical contamination detected")
+    for kpi in summary_kpis:
+        sev = severity_from_probability(prob.get(kpi, 0.0))
+        findings_summary.append(_finding_phrase(KPI_LABELS[kpi], sev))
 
     # ── Recommendation (no causation language) ──────────────────────────────
-    flagged = [k.replace("_", " ") for k, v in kpi_summary.items() if v]
-    if not flagged:
-        recommendation = "Accept inspection. No findings above threshold; routine processing recommended."
-    elif risk_level in ("high", "critical"):
+    if remove_flags:
+        names = ", ".join(KPI_LABELS[k] for k in remove_flags)
         recommendation = (
-            f"Quality review recommended. Possible {', '.join(flagged)} — "
-            "hold instrument for supervisor review before release."
+            f"Remove from service — possible {names} indicates a structural integrity concern. "
+            "Supervisor review required before any further use."
+        )
+    elif reprocess_flags:
+        names = ", ".join(KPI_LABELS[k] for k in reprocess_flags)
+        recommendation = (
+            f"Reprocess and re-inspect — possible {names} above the contamination threshold. "
+            "Supervisor review required before release."
+        )
+    elif critical_flags:
+        names = ", ".join(KPI_LABELS[k] for k in critical_flags)
+        recommendation = (
+            f"Supervisor review recommended — possible {names} above threshold. "
+            "Hold instrument until reviewed."
         )
     else:
-        recommendation = (
-            f"Accept inspection with supervisor review of {', '.join(flagged)} finding(s)."
+        recommendation = "Accept inspection. Continue routine processing."
+
+    # ── PASS/FAIL reason bullets ────────────────────────────────────────────
+    reason: list[str] = [
+        f"Manufacturer baseline matched at {round(baseline_match_score * 100)}%."
+        if resolution["baseline_source"] == "manufacturer"
+        else f"{BASELINE_LABELS.get(resolution['baseline_source'], 'Baseline')} matched at "
+             f"{round(baseline_match_score * 100)}%."
+    ]
+    for kpi in ["blood", "bone", "tissue", "corrosion", "crack"]:
+        sev = severity_from_probability(prob.get(kpi, 0.0))
+        reason.append(_finding_phrase(KPI_LABELS[kpi], sev) + ".")
+    if critical_flags:
+        reason.append(
+            "One or more findings exceeded the escalation threshold: "
+            + ", ".join(KPI_LABELS[k] for k in critical_flags) + "."
         )
+    else:
+        reason.append("All findings below escalation thresholds.")
+
+    # ── Overall confidence ──────────────────────────────────────────────────
+    confidences = [f["confidence"] for f in predicted_findings] or [0.8]
+    overall_conf = round(sum(confidences) / len(confidences), 2)
+    if overall_conf >= 0.85:
+        confidence_level = "High"
+    elif overall_conf >= 0.70:
+        confidence_level = "Medium"
+    else:
+        confidence_level = "Low"
+
+    # ── Explainability ──────────────────────────────────────────────────────
+    top_findings = sorted(predicted_findings, key=lambda f: f["probability"], reverse=True)[:3]
+    risk_drivers = (
+        [KPI_LABELS.get(k, k) for k in critical_flags]
+        if critical_flags
+        else ["No KPI above escalation threshold"]
+    )
+    explainability = {
+        "baseline_source": resolution["baseline_source"],
+        "baseline_match_score": baseline_match_score,
+        "highest_findings": [
+            {"type": f["type"], "label": KPI_LABELS.get(f["type"], f["type"]),
+             "probability": f["probability"], "severity": severity_from_probability(f["probability"])}
+            for f in top_findings
+        ],
+        "risk_drivers": risk_drivers,
+        "confidence_level": confidence_level,
+        "rationale": (
+            "Score derived from the approved baseline match, weighted KPI findings, and "
+            "identification matches. Risk and recommendation are driven by whether any KPI "
+            "exceeds its escalation threshold."
+        ),
+    }
 
     source = resolution["baseline_source"]
     return {
@@ -351,10 +485,17 @@ def analyze_inspection(
         "baseline_deviation_score": baseline_deviation_score,
         "inspection_score": inspection_score,
         "risk_level": risk_level,
+        "pass_fail": pass_fail,
         "predicted_findings": predicted_findings,
         "kpi_summary": kpi_summary,
         "identification": identification,
+        "findings_summary": findings_summary,
+        "confidence": overall_conf,
+        "confidence_level": confidence_level,
         "recommendation": recommendation,
+        "reason": reason,
+        "critical_flags": critical_flags,
+        "explainability": explainability,
         "human_review_required": True,
         "placeholder_scoring": True,
     }
