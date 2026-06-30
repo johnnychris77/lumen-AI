@@ -318,6 +318,12 @@ export default function NewInspectionPage() {
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
       });
+      if (imgRes.status === 401) {
+        // Token expired/invalid — clear it and send to login to re-authenticate.
+        localStorage.removeItem("token");
+        navigate("/login", { replace: true });
+        return;
+      }
       if (!imgRes.ok) {
         const errBody = await imgRes.json().catch(() => ({}));
         setBanner({ type: "error", message: errBody?.detail || `Image upload failed (${imgRes.status}). Please try again.` });
