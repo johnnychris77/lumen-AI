@@ -35,9 +35,20 @@ type FieldErrors = Partial<Record<keyof FormFields | "images", string>>;
 
 type PredictedFinding = {
   type: string;
+  label?: string;
   probability: number;
   confidence: number;
   severity: string;
+  status?: string;
+};
+
+type Explainability = {
+  baseline_source: string | null;
+  baseline_match_score: number | null;
+  highest_findings: { type: string; label: string; probability: number; severity: string }[];
+  risk_drivers: string[];
+  confidence_level: string;
+  rationale: string;
 };
 
 type Analysis = {
@@ -49,10 +60,17 @@ type Analysis = {
   baseline_deviation_score: number | null;
   inspection_score: number | null;
   risk_level: string | null;
+  pass_fail?: string;
   predicted_findings: PredictedFinding[];
   kpi_summary: Record<string, boolean>;
   identification: Record<string, boolean>;
+  findings_summary?: string[];
+  confidence?: number;
+  confidence_level?: string;
   recommendation: string;
+  reason?: string[];
+  critical_flags?: string[];
+  explainability?: Explainability;
   human_review_required: boolean;
   placeholder_scoring?: boolean;
 };
@@ -878,13 +896,15 @@ function AIPredictionPanel({
         {/* Prediction grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <PredictionField label="Predicted Findings" value={
-            prediction.detected_issue === "unknown" || prediction.detected_issue === ""
-              ? "Pending AI analysis"
-              : prediction.detected_issue.replace(/_/g, " ")
+            prediction.analysis?.analysis_status === "completed"
+              ? (prediction.analysis.critical_flags && prediction.analysis.critical_flags.length > 0
+                  ? prediction.analysis.critical_flags.map((c) => c.replace(/_/g, " ")).join(", ")
+                  : "No critical findings")
+              : "Pending AI analysis"
           } />
           <PredictionField label="Confidence" value={
-            prediction.confidence > 0
-              ? `${(prediction.confidence).toFixed(0)}%`
+            prediction.analysis?.analysis_status === "completed" && prediction.analysis.confidence != null
+              ? `${prediction.analysis.confidence_level ?? ""} (${Math.round((prediction.analysis.confidence) * 100)}%)`.trim()
               : "Pending"
           } />
           <div className="flex flex-col">
@@ -1004,6 +1024,7 @@ const KPI_DISPLAY: { key: string; label: string }[] = [
   { key: "tissue", label: "Tissue" },
   { key: "bioburden", label: "Bioburden" },
   { key: "debris", label: "Debris" },
+  { key: "other_organic_residue", label: "Other Organic Residue" },
   { key: "rust", label: "Rust" },
   { key: "discoloration", label: "Discoloration" },
   { key: "corrosion", label: "Corrosion" },
@@ -1012,6 +1033,34 @@ const KPI_DISPLAY: { key: string; label: string }[] = [
   { key: "insulation_damage", label: "Insulation Damage" },
   { key: "missing_component", label: "Missing Component" },
 ];
+
+// Display rules from probability (0–1). Mirrors the backend thresholds.
+function severityOf(p: number): string {
+  const pct = p * 100;
+  if (pct <= 10) return "None";
+  if (pct <= 30) return "Low";
+  if (pct <= 60) return "Moderate";
+  return "High";
+}
+function statusOf(p: number): string {
+  const pct = p * 100;
+  if (pct <= 10) return "Clear";
+  if (pct <= 30) return "Monitor";
+  if (pct <= 60) return "Review";
+  return "Escalate";
+}
+const STATUS_STYLE: Record<string, string> = {
+  Clear: "bg-emerald-100 text-emerald-800",
+  Monitor: "bg-amber-100 text-amber-800",
+  Review: "bg-orange-100 text-orange-800",
+  Escalate: "bg-red-100 text-red-800",
+};
+const SEVERITY_STYLE: Record<string, string> = {
+  None: "text-slate-500",
+  Low: "text-amber-600",
+  Moderate: "text-orange-600",
+  High: "text-red-600 font-semibold",
+};
 
 function AnalysisDetails({ analysis }: { analysis: Analysis }) {
   const score = analysis.inspection_score ?? 0;
@@ -1025,6 +1074,7 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
       ? `${analysis.baseline_source.replace(/_/g, " ")} baseline`
       : "—");
   const isFallback = analysis.baseline_role === "fallback";
+  const passFail = analysis.pass_fail ?? (analysis.critical_flags && analysis.critical_flags.length > 0 ? "FAIL" : "PASS");
 
   return (
     <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
@@ -1057,31 +1107,54 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         <PredictionField label="Baseline Match" value={matchPct} />
       </div>
 
-      {/* KPI finding cards */}
+      {/* Findings summary */}
+      {analysis.findings_summary && analysis.findings_summary.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Findings Summary</p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-sm text-slate-700">
+            {analysis.findings_summary.map((s, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className={s.startsWith("No ") ? "text-emerald-500" : "text-amber-500"}>•</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* KPI finding cards: name · probability · severity · status */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">KPI Findings</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {KPI_DISPLAY.map(({ key, label }) => {
-            const present = analysis.kpi_summary[key] === true;
             const finding = analysis.predicted_findings.find((f) => f.type === key);
+            const p = finding?.probability ?? 0;
+            const pct = Math.round(p * 100);
+            const severity = finding?.severity
+              ? finding.severity.charAt(0).toUpperCase() + finding.severity.slice(1)
+              : severityOf(p);
+            const status = finding?.status
+              ? finding.status.charAt(0).toUpperCase() + finding.status.slice(1)
+              : statusOf(p);
             return (
-              <div
-                key={key}
-                className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
-                  present ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50"
-                }`}
-              >
-                <span className="font-medium text-slate-700">{label}</span>
-                <span className="flex items-center gap-1.5">
-                  {finding && (
-                    <span className="text-xs text-slate-400">{Math.round(finding.probability * 100)}%</span>
-                  )}
-                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${present ? "bg-red-500" : "bg-emerald-400"}`} />
-                </span>
+              <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">{label}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status] ?? "bg-slate-100 text-slate-600"}`}>
+                    {status}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Probability <span className="font-semibold text-slate-700">{pct}%</span></span>
+                  <span className={SEVERITY_STYLE[severity] ?? "text-slate-500"}>Severity: {severity}</span>
+                </div>
               </div>
             );
           })}
         </div>
+        <p className="mt-1.5 text-xs text-slate-400">
+          Status: 0–10% Clear · 11–30% Monitor · 31–60% Review · 61%+ Escalate.
+        </p>
       </div>
 
       {/* Identification */}
@@ -1105,15 +1178,58 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         </div>
       </div>
 
-      {/* Recommended action */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Recommended Action</p>
-        <p className="text-sm text-slate-700">{analysis.recommendation}</p>
+      {/* Recommended action with PASS/FAIL + reasons */}
+      <div className={`rounded-lg border px-4 py-3 ${passFail === "PASS" ? "border-emerald-300 bg-emerald-50" : "border-red-300 bg-red-50"}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`rounded px-2 py-0.5 text-xs font-bold ${passFail === "PASS" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+            {passFail}
+          </span>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended Action</p>
+        </div>
+        {analysis.reason && analysis.reason.length > 0 && (
+          <ul className="mb-2 ml-1 space-y-0.5 text-sm text-slate-700">
+            {analysis.reason.map((r, i) => (
+              <li key={i} className="flex items-start gap-1.5"><span className="text-slate-400">–</span><span>{r}</span></li>
+            ))}
+          </ul>
+        )}
+        <p className="text-sm font-medium text-slate-800">{analysis.recommendation}</p>
+      </div>
+
+      {/* Explainability */}
+      {analysis.explainability && (
+        <details className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+            Why LumenAI scored this inspection this way
+          </summary>
+          <div className="mt-2 space-y-1.5 text-sm text-slate-600">
+            <p><span className="text-slate-500">Baseline source:</span> <span className="capitalize">{analysis.explainability.baseline_source ?? "—"}</span></p>
+            <p><span className="text-slate-500">Baseline match:</span> {analysis.explainability.baseline_match_score != null ? `${Math.round(analysis.explainability.baseline_match_score * 100)}%` : "—"}</p>
+            <div>
+              <span className="text-slate-500">Highest findings:</span>
+              <ul className="ml-3 mt-0.5 list-disc">
+                {analysis.explainability.highest_findings.map((f) => (
+                  <li key={f.type} className="capitalize">{f.label} — {Math.round(f.probability * 100)}% ({f.severity})</li>
+                ))}
+              </ul>
+            </div>
+            <p><span className="text-slate-500">Risk drivers:</span> {analysis.explainability.risk_drivers.join(", ")}</p>
+            <p><span className="text-slate-500">Confidence level:</span> {analysis.explainability.confidence_level}</p>
+            <p className="text-slate-500 italic">{analysis.explainability.rationale}</p>
+          </div>
+        </details>
+      )}
+
+      {/* Image evidence placeholder — never fake bounding boxes */}
+      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+        <p className="font-medium text-slate-600">Image evidence map not yet available.</p>
+        <p className="text-xs">A future release will highlight detected regions on the uploaded image.</p>
       </div>
 
       {analysis.placeholder_scoring && (
         <p className="text-xs text-slate-400 italic">
-          Scoring produced by deterministic baseline-comparison service (placeholder). Not production computer vision.
+          Scoring produced by deterministic baseline-comparison service (placeholder). Not production computer vision —
+          per-KPI probabilities are heuristic, not pixel-level detections.
         </p>
       )}
     </div>
