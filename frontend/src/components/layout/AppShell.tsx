@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useNotifications } from "@/lib/notifications";
+import { useAuth } from "@/lib/auth";
 import { NotificationPanel } from "@/components/ui/NotificationPanel";
 import {
   LayoutDashboard,
@@ -293,8 +294,9 @@ function Breadcrumb({ path }: { path: string }) {
 
 function Header() {
   const location = useLocation();
-  const role = localStorage.getItem("role") || "viewer";
+  const { role, actor, logout } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { unreadCount } = useNotifications();
 
   return (
@@ -320,8 +322,42 @@ function Header() {
           </button>
           <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
         </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-          {(localStorage.getItem("actor") || "U")[0].toUpperCase()}
+
+        {/* User menu */}
+        <div className="relative">
+          <button
+            onClick={() => setUserMenuOpen(o => !o)}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white hover:ring-2 hover:ring-blue-300"
+            aria-label="User menu"
+          >
+            {(actor || "U")[0].toUpperCase()}
+          </button>
+          {userMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
+              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-slate-200 bg-white shadow-lg z-20 py-1">
+                <div className="px-4 py-2 border-b border-slate-100">
+                  <p className="text-sm font-medium text-slate-800 truncate">{actor || "user"}</p>
+                  <p className="text-xs text-slate-500 capitalize">Role: {role.replace(/_/g, " ")}</p>
+                </div>
+                {(role === "admin" || role === "spd_manager") && (
+                  <NavLink
+                    to="/user-management"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Manage user roles
+                  </NavLink>
+                )}
+                <button
+                  onClick={() => { setUserMenuOpen(false); logout(); }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <LogOut className="h-4 w-4" /> Log out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>
