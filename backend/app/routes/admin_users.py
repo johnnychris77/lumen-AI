@@ -48,6 +48,10 @@ def _upsert_role(db: Session, username: str, role: str, assigned_by: str) -> Use
 
 class BootstrapRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=255, description="Email/username to elevate")
+    password: str | None = Field(
+        default=None, min_length=8, max_length=200,
+        description="Optional: set/replace a password so this account can log in as admin.",
+    )
 
 
 @router.post("/bootstrap")
@@ -61,6 +65,10 @@ def bootstrap_admin(
     The deployment owner sets ADMIN_BOOTSTRAP_TOKEN in the environment, then
     calls this once with the matching X-Bootstrap-Token header. Inert (404)
     when the secret is not configured so it can't be abused by default.
+
+    If a `password` is supplied, a real, login-capable admin credential is
+    created/updated so the founder can sign in even though there is no
+    registration flow.
     """
     secret = os.getenv("ADMIN_BOOTSTRAP_TOKEN", "").strip()
     if not secret:
@@ -69,6 +77,29 @@ def bootstrap_admin(
         raise HTTPException(status_code=403, detail="Invalid bootstrap token")
 
     row = _upsert_role(db, body.username, "admin", assigned_by="bootstrap")
+
+    credential_set = False
+    if body.password:
+        from datetime import datetime, timezone
+        from passlib.hash import bcrypt
+        from app.models.admin_credential import AdminCredential
+
+        cred = (
+            db.query(AdminCredential)
+            .filter(AdminCredential.username == body.username)
+            .first()
+        )
+        pw_hash = bcrypt.hash(body.password)
+        if cred:
+            cred.password_hash = pw_hash
+            cred.role = "admin"
+            cred.updated_at = datetime.now(timezone.utc)
+        else:
+            cred = AdminCredential(username=body.username, password_hash=pw_hash, role="admin")
+            db.add(cred)
+        db.commit()
+        credential_set = True
+
     log_audit_event(
         db,
         tenant_id="platform",
@@ -80,7 +111,12 @@ def bootstrap_admin(
         resource_id=str(row.id),
         compliance_flag=True,
     )
-    return {"username": row.username, "role": row.role, "status": "admin granted"}
+    return {
+        "username": row.username,
+        "role": row.role,
+        "status": "admin granted",
+        "login_password_set": credential_set,
+    }
 
 
 @router.get("/users")

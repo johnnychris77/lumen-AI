@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, HTTPException, Request, status
 
 router = APIRouter(tags=["system"])
 
@@ -13,17 +12,85 @@ async def health():
 
 
 @router.post("/auth/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: Request):
     """
-    Stub login that always returns a dev token.
+    Real login: validate credentials, return a signed JWT and the user's role.
 
-    Frontend (and curl) expect /api/auth/login to exist and return
-    an access_token + token_type.
+    Replaces a previous stub that handed out a hardcoded "dev-token" with no
+    role — which left every user stuck as "viewer" and the token unable to
+    authenticate role-gated endpoints. Accepts JSON {username|email, password}
+    or form-encoded credentials.
     """
-    # You *could* validate form_data.username/password here later.
+    username = None
+    password = None
+
+    # JSON body (what the frontend sends)
+    try:
+        data = await request.json()
+        if isinstance(data, dict):
+            username = data.get("username") or data.get("email")
+            password = data.get("password")
+    except Exception:
+        pass
+
+    # Form-encoded fallback (OAuth2-style clients)
+    if not (username and password):
+        try:
+            form = await request.form()
+            username = username or form.get("username")
+            password = password or form.get("password")
+        except Exception:
+            pass
+
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="username and password are required",
+        )
+
+    from app.routers.auth_simple import _verify_user, _make_token, _user_role
+
+    # 1) Validate against the self-managed admin credential table (founder bootstrap).
+    try:
+        from passlib.hash import bcrypt
+        from app.db.session import SessionLocal
+        from app.models.admin_credential import AdminCredential
+
+        db = SessionLocal()
+        try:
+            cred = (
+                db.query(AdminCredential)
+                .filter(AdminCredential.username == username)
+                .first()
+            )
+            if cred and bcrypt.verify(password, cred.password_hash):
+                return {
+                    "access_token": _make_token(username),
+                    "token_type": "bearer",
+                    "role": _user_role(username),
+                }
+        finally:
+            db.close()
+    except Exception:
+        # Credential table unavailable — fall through to legacy validation.
+        pass
+
+    # 2) Legacy users-table validation (defensive — schema may be absent).
+    try:
+        valid = _verify_user(username, password)
+    except Exception:
+        valid = None
+
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+
     return {
-        "access_token": "dev-token",
+        "access_token": _make_token(valid),
         "token_type": "bearer",
+        "role": _user_role(valid),
     }
 
 
