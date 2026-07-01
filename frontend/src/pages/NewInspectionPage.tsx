@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useCallback, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
+import ClinicalDecisionPanel from "@/components/ClinicalDecisionPanel";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
@@ -97,6 +98,8 @@ type Analysis = {
   placeholder_scoring?: boolean;
   model_label?: string;
   production_validated?: boolean;
+  // Phase 13 — Explainable Clinical Decision Support payload.
+  clinical_decision?: Parameters<typeof ClinicalDecisionPanel>[0]["cd"];
 };
 
 type AIPrediction = {
@@ -967,9 +970,21 @@ function AIPredictionPanel({
           } />
         </div>
 
-        {/* Full AI analysis output (placeholder scoring service) */}
+        {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
+        {prediction.analysis?.clinical_decision && (
+          <ClinicalDecisionPanel cd={prediction.analysis.clinical_decision} inspectionId={prediction.id} />
+        )}
+
+        {/* Detailed KPI breakdown (retained below the clinical summary) */}
         {prediction.analysis && prediction.analysis.analysis_status === "completed" && (
-          <AnalysisDetails analysis={prediction.analysis} />
+          <details className="rounded-lg border border-slate-200 bg-white">
+            <summary className="cursor-pointer px-4 py-2 text-sm font-semibold text-slate-700">
+              Full KPI detail
+            </summary>
+            <div className="p-1">
+              <AnalysisDetails analysis={prediction.analysis} />
+            </div>
+          </details>
         )}
 
         <p className="text-xs text-slate-500">

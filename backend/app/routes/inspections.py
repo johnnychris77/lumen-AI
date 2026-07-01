@@ -1,8 +1,10 @@
 import hashlib
+import io
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
@@ -278,6 +280,44 @@ async def get_inspection(
         raise HTTPException(status_code=404, detail="Not Found")
 
     return inspection_response(row)
+
+
+@router.get("/inspections/{inspection_id}/clinical-report.pdf")
+async def inspection_clinical_report(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Phase 13.8 — printable Clinical Decision Support PDF for an inspection.
+
+    Re-runs the deterministic analysis for the stored inspection (identical seed
+    → identical output) and renders the full explainable report.
+    """
+    tenant_id = getattr(current_user, "tenant_id", None)
+    query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
+    if tenant_id and getattr(current_user, "role", "") != "admin":
+        query = query.filter(models.Inspection.tenant_id == tenant_id)
+    row = query.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    from app.services.clinical_report_pdf import build_clinical_report_pdf
+
+    analysis = analyze_inspection(
+        db,
+        instrument_type=row.instrument_type,
+        tenant_id=row.tenant_id,
+        has_image=bool(row.has_image),
+        image_sha256=row.image_sha256,
+        instrument_barcode=row.instrument_barcode,
+        instrument_udi=row.instrument_udi,
+    )
+    pdf = build_clinical_report_pdf(row, analysis)
+    return StreamingResponse(
+        io.BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="lumenai-inspection-{row.id}.pdf"'},
+    )
 
 
 @router.post("/inspections", status_code=201)

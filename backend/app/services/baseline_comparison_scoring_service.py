@@ -546,6 +546,226 @@ def scoring_explanation(
     return lines
 
 
+# ── Phase 13: Explainable Clinical Decision Support ──────────────────────────
+
+# KPIs that describe structural/condition integrity (vs contamination).
+INTEGRITY_KPIS = [
+    "rust", "corrosion", "pitting", "crack", "discoloration",
+    "insulation_damage", "missing_component",
+]
+_STRUCTURAL_KPIS = {"crack", "missing_component", "insulation_damage"}
+
+# Static forward-looking roadmap (Phase 13.11) — advisory, no fabricated CV yet.
+AI_ROADMAP = [
+    "Visual heatmaps",
+    "Bounding boxes",
+    "Segmented contamination detection",
+    "Multi-image comparison",
+    "Temporal baseline drift",
+    "Predictive instrument degradation",
+    "Rust progression",
+    "Corrosion progression",
+    "Life-cycle prediction",
+]
+
+
+def _overall_result(result: dict) -> str:
+    """Collapse the analysis into one of the four clinical dispositions
+    (PASS / MONITOR / SUPERVISOR REVIEW / REMOVE FROM SERVICE)."""
+    if result.get("analysis_status") != "completed":
+        return "SUPERVISOR REVIEW"
+    f = {x["type"]: x for x in result["predicted_findings"]}
+
+    def idx(kpi: str) -> int:
+        return f.get(kpi, {}).get("severity_index", 0)
+
+    if any(idx(k) >= 1 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3:
+        return "REMOVE FROM SERVICE"
+    contam = (
+        idx("blood") >= 2 or idx("tissue") >= 1 or idx("other_organic_residue") >= 1
+        or idx("debris") >= 1 or idx("bone") >= 1
+    )
+    moderate_condition = idx("corrosion") == 2 or idx("rust") == 2
+    mismatch = result.get("identification", {}).get("identification_status") == "mismatch"
+    if contam or moderate_condition or mismatch or (result.get("baseline_match_score") or 1) < 0.70:
+        return "SUPERVISOR REVIEW"
+    if idx("discoloration") == 1 or idx("rust") == 1:
+        return "MONITOR"
+    return "PASS"
+
+
+def _integrity_status(findings_by_kpi: dict) -> str:
+    def idx(kpi: str) -> int:
+        return findings_by_kpi.get(kpi, {}).get("severity_index", 0)
+
+    if any(idx(k) >= 1 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3 or idx("rust") >= 3:
+        return "Remove From Service"
+    if idx("corrosion") >= 2 or idx("rust") >= 2 or idx("pitting") >= 2:
+        return "Repair Required"
+    if any(idx(k) == 1 for k in ("rust", "corrosion", "pitting", "discoloration")):
+        return "Monitor"
+    return "Acceptable"
+
+
+def _finding_view(f: dict) -> dict:
+    """Compact per-KPI view for the cleaning/integrity cards."""
+    return {
+        "type": f["type"],
+        "label": f["label"],
+        "detected": f["severity_index"] >= 1,
+        "probability": f["probability"],
+        "probability_pct": round(f["probability"] * 100),
+        "confidence": f["confidence"],
+        "confidence_pct": round(f["confidence"] * 100),
+        "severity": f["severity"],
+        "spd_risk": f.get("spd_risk", "none"),
+        "spd_risk_impact": f.get("spd_risk_impact", "Clear"),
+    }
+
+
+def clinical_reasoning(result: dict) -> list[str]:
+    """Narrative clinical reasoning grounded in the actual analysis output."""
+    f = {x["type"]: x for x in result["predicted_findings"]}
+    lines: list[str] = []
+    src = BASELINE_LABELS.get(result.get("baseline_source"), "Baseline")
+    match = result.get("baseline_match_score")
+    if match is not None:
+        lines.append(f"{src} matched at {round(match * 100)}%.")
+
+    for kpi in ("blood", "tissue", "other_organic_residue", "debris", "bone"):
+        fx = f.get(kpi)
+        if not fx:
+            continue
+        if fx["severity_index"] == 0:
+            lines.append(f"No {KPI_LABELS[kpi]} detected.")
+        else:
+            lines.append(f"{fx['severity'].capitalize()} {KPI_LABELS[kpi]} detected.")
+
+    structural = [KPI_LABELS[k] for k in _STRUCTURAL_KPIS if f.get(k, {}).get("severity_index", 0) >= 1]
+    condition = [
+        f"{f[k]['severity']}" for k in ("rust", "corrosion", "pitting")
+        if f.get(k, {}).get("severity_index", 0) >= 2
+    ]
+    cosmetic = [
+        KPI_LABELS[k] for k in ("discoloration", "rust")
+        if f.get(k, {}).get("severity_index", 0) == 1
+    ]
+    if structural:
+        lines.append("Structural concern identified: " + ", ".join(structural) + ".")
+    elif condition:
+        lines.append("Condition concern: " + ", ".join(condition) + ".")
+    elif cosmetic:
+        lines.append("Minor cosmetic " + " / ".join(cosmetic) + " detected; treated as low-risk.")
+    else:
+        lines.append("No structural defects identified.")
+
+    lines.append(result.get("recommended_action", "Routine processing recommended."))
+    return lines
+
+
+def executive_summary(result: dict, overall_result: str) -> list[str]:
+    """One-card plain-language executive summary."""
+    if result.get("analysis_status") != "completed":
+        return [
+            "No approved baseline available for this instrument.",
+            "Final scoring withheld pending supervisor review.",
+        ]
+    src = BASELINE_LABELS.get(result.get("baseline_source"), "Baseline")
+    lines = [
+        "Inspection completed.",
+        f"{src} matched at {round((result['baseline_match_score'] or 0) * 100)}%.",
+    ]
+    cleaning = result.get("overall_cleaning_assessment", "")
+    lines.append("No contamination detected." if cleaning == "Clean" else f"Cleaning: {cleaning}.")
+    integrity = result.get("clinical_decision_integrity_status")
+    if integrity:
+        lines.append(
+            "Instrument structurally intact."
+            if integrity == "Acceptable" else f"Instrument integrity: {integrity}."
+        )
+    lines.append(f"Recommended: {overall_result}.")
+    lines.append(result.get("recommended_action", ""))
+    return [ln for ln in lines if ln]
+
+
+def build_clinical_decision(result: dict) -> dict:
+    """Assemble the full Explainable-AI Clinical Decision Support payload
+    (Phases 13.1–13.11) from an already-computed analysis result."""
+    findings = {x["type"]: x for x in result.get("predicted_findings", [])}
+    overall = _overall_result(result)
+
+    # Integrity status is needed by the executive summary — stash it on result.
+    integrity_status = _integrity_status(findings) if findings else "Acceptable"
+    result["clinical_decision_integrity_status"] = integrity_status
+
+    # 13.2 Score breakdown
+    adj = {a["kpi"]: a["points"] for a in result.get("score_adjustments", [])}
+    breakdown_kpis = ["blood", "tissue", "other_organic_residue", "debris", "corrosion", "discoloration"]
+    match = result.get("baseline_match_score")
+    score_breakdown = {
+        "baseline_match_points": round(match * 100) if match is not None else None,
+        "items": [
+            {"label": KPI_LABELS[k], "points": adj.get(k, 0)}
+            for k in breakdown_kpis if k in findings
+        ],
+        "final_score": result.get("inspection_score"),
+        "note": "Final score starts from the baseline match, subtracts weighted "
+                "penalties, and may add a small identification-match bonus.",
+    }
+
+    # 13.3 Cleaning + 13.4 Integrity cards
+    cleaning_items = [_finding_view(findings[k]) for k in CLEANING_KPIS if k in findings]
+    integrity_items = [_finding_view(findings[k]) for k in INTEGRITY_KPIS if k in findings]
+
+    return {
+        # 13.1 Clinical Decision Summary
+        "overall_result": overall,
+        "summary": {
+            "inspection_score": result.get("inspection_score"),
+            "cleaning_assessment": result.get("overall_cleaning_assessment"),
+            "integrity_assessment": integrity_status,
+            "overall_risk": result.get("risk_level"),
+            "confidence": result.get("confidence_level"),
+            "confidence_pct": round((result.get("confidence") or 0) * 100),
+            "baseline_source": result.get("baseline_source"),
+        },
+        # 13.2
+        "score_breakdown": score_breakdown,
+        # 13.3
+        "cleaning": {"items": cleaning_items, "overall_status": result.get("overall_cleaning_assessment")},
+        # 13.4
+        "integrity": {"items": integrity_items, "overall_status": integrity_status},
+        # 13.5
+        "clinical_reasoning": clinical_reasoning(result),
+        # 13.6
+        "recommendation": {"result": overall, "action": result.get("recommended_action")},
+        # 13.7 Evidence (no fabricated CV overlays)
+        "evidence": {
+            "baseline_source": result.get("baseline_source"),
+            "baseline_comparison_label": result.get("baseline_comparison_label"),
+            "baseline_match_pct": round(match * 100) if match is not None else None,
+            "highest_risk_drivers": result.get("top_risk_drivers", []),
+            "confidence": result.get("confidence_level"),
+            "image_evidence_note": "Image evidence visualization coming in a future computer vision release.",
+        },
+        # 13.9
+        "executive_summary": executive_summary(result, overall),
+        # 13.10 Audit fields (persisted/loggable)
+        "audit": {
+            "baseline_version": result.get("baseline_version"),
+            "baseline_source": result.get("baseline_source"),
+            "model_label": result.get("model_label"),
+            "model_version": "baseline-comparison-pilot-1",
+            "confidence": result.get("confidence_level"),
+            "recommendation": overall,
+            "reasoning_captured": True,
+            "human_review_required": result.get("human_review_required", True),
+        },
+        # 13.11
+        "roadmap": AI_ROADMAP,
+    }
+
+
 def analyze_inspection(
     db: Session,
     *,
@@ -575,16 +795,22 @@ def analyze_inspection(
 
     # ── Governance gate: no approved baseline → no final score ──────────────
     if not resolution["baseline_found"]:
-        return {
+        no_baseline = {
             "analysis_status": "supervisor_review_required",
             "baseline_source": None,
+            "baseline_version": None,
+            "baseline_comparison_label": None,
             "baseline_match_score": None,
             "baseline_deviation_score": None,
             "inspection_score": None,
             "risk_level": None,
+            "confidence_level": None,
+            "confidence": None,
             "predicted_findings": [],
             "kpi_summary": {},
             "identification": {},
+            "score_adjustments": [],
+            "model_label": "Baseline Comparison Scoring Model (pilot)",
             "recommendation": (
                 "No approved baseline found. Supervisor review required before final scoring."
             ),
@@ -600,6 +826,8 @@ def analyze_inspection(
             "human_review_required": True,
             "placeholder_scoring": True,
         }
+        no_baseline["clinical_decision"] = build_clinical_decision(no_baseline)
+        return no_baseline
 
     seed = _seed_from(image_sha256, f"{instrument_type}:{instrument_barcode or ''}")
 
@@ -867,7 +1095,7 @@ def analyze_inspection(
         if "Identifier mismatch" not in top_risk_drivers:
             top_risk_drivers = ["Identifier mismatch", *top_risk_drivers]
 
-    return {
+    result = {
         "analysis_status": "completed",
         "baseline_source": source,
         "baseline_role": _baseline_role(source),
@@ -905,3 +1133,6 @@ def analyze_inspection(
         "model_label": "Baseline Comparison Scoring Model (pilot)",
         "production_validated": False,
     }
+    # Phase 13: Explainable Clinical Decision Support payload.
+    result["clinical_decision"] = build_clinical_decision(result)
+    return result
