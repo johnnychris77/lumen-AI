@@ -189,7 +189,7 @@ const initialForm: FormFields = {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function NewInspectionPage() {
-  const { headers, role } = useAuth();
+  const { headers, role, logout } = useAuth();
   const navigate = useNavigate();
   // Operators / SPD managers / admins can run inspections; viewers are read-only.
   const canRunInspection = role === "operator" || role === "spd_manager" || role === "admin";
@@ -361,8 +361,10 @@ export default function NewInspectionPage() {
         body: fd,
       });
       if (imgRes.status === 401) {
-        // Token expired/invalid — clear it and send to login to re-authenticate.
-        localStorage.removeItem("token");
+        // Token expired/invalid — clear BOTH localStorage and in-memory auth
+        // state (logout), otherwise /login sees the stale token and bounces
+        // straight back to the landing page without letting you re-authenticate.
+        logout();
         navigate("/login", { replace: true });
         return;
       }
@@ -428,7 +430,7 @@ export default function NewInspectionPage() {
       });
 
       if (res.status === 401) {
-        localStorage.removeItem("token");
+        logout();
         navigate("/login", { replace: true });
         return;
       }
