@@ -20,7 +20,7 @@ const INSTRUMENT_TYPES = [
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/tiff"];
 
 export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: () => void }) {
-  const { headers, role } = useAuth();
+  const { headers, role, logout } = useAuth();
   const [instrumentType, setInstrumentType] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
@@ -51,8 +51,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
         body: fd,
       });
       if (imgRes.status === 401) {
-        localStorage.removeItem("token");
-        window.location.href = "/login";
+        logout();
         return;
       }
       if (!imgRes.ok) {
@@ -75,8 +74,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
         }),
       });
       if (res.status === 401) {
-        localStorage.removeItem("token");
-        window.location.href = "/login";
+        logout();
         return;
       }
       if (res.status === 403) {

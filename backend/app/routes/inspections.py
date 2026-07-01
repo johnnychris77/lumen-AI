@@ -1,8 +1,10 @@
 import hashlib
+import io
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.deps import get_db, get_current_user
 from app.db import models
 from app.enterprise_auth import get_request_tenant_id
 from app.analytics.risk_engine import calculate_risk
+from app.cv.identifier_decoder import decode_from_image_bytes
 from app.services.baseline_comparison_scoring_service import analyze_inspection
 
 router = APIRouter(tags=["inspections"])
@@ -77,6 +80,8 @@ class InspectionCreate(BaseModel):
     instrument_barcode: Optional[str] = Field(None, max_length=255)
     instrument_udi: Optional[str] = Field(None, max_length=255)
     keydot_id: Optional[str] = Field(None, max_length=255)
+    # How identifiers were obtained: "pyzbar" (decoded) or "declared" (typed).
+    identifier_source: Optional[str] = Field(None, max_length=20)
     # Technician-declared finding categories (optional — AI determines findings)
     finding_categories: Optional[List[str]] = Field(None)
 
@@ -249,6 +254,10 @@ def inspection_response(row: models.Inspection) -> dict:
         "override_reason": row.override_reason,
         "override_by": row.override_by,
         "override_at": row.override_at.isoformat() if row.override_at else None,
+        # SPD risk-weighted verdict
+        "risk_level": row.risk_level,
+        "recommended_action": row.recommended_action,
+        "overall_cleaning_assessment": row.overall_cleaning_assessment,
     }
 
 
@@ -271,6 +280,44 @@ async def get_inspection(
         raise HTTPException(status_code=404, detail="Not Found")
 
     return inspection_response(row)
+
+
+@router.get("/inspections/{inspection_id}/clinical-report.pdf")
+async def inspection_clinical_report(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Phase 13.8 — printable Clinical Decision Support PDF for an inspection.
+
+    Re-runs the deterministic analysis for the stored inspection (identical seed
+    → identical output) and renders the full explainable report.
+    """
+    tenant_id = getattr(current_user, "tenant_id", None)
+    query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
+    if tenant_id and getattr(current_user, "role", "") != "admin":
+        query = query.filter(models.Inspection.tenant_id == tenant_id)
+    row = query.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    from app.services.clinical_report_pdf import build_clinical_report_pdf
+
+    analysis = analyze_inspection(
+        db,
+        instrument_type=row.instrument_type,
+        tenant_id=row.tenant_id,
+        has_image=bool(row.has_image),
+        image_sha256=row.image_sha256,
+        instrument_barcode=row.instrument_barcode,
+        instrument_udi=row.instrument_udi,
+    )
+    pdf = build_clinical_report_pdf(row, analysis)
+    return StreamingResponse(
+        io.BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="lumenai-inspection-{row.id}.pdf"'},
+    )
 
 
 @router.post("/inspections", status_code=201)
@@ -303,6 +350,11 @@ async def create_inspection(
         if c and c != "pending_ai_analysis"
     ]
 
+    # SPD risk-weighted verdict to persist alongside the score.
+    risk_level_val: Optional[str] = None
+    recommended_action_val: Optional[str] = None
+    cleaning_assessment_val: Optional[str] = None
+
     if body.has_image:
         analysis = analyze_inspection(
             db,
@@ -314,7 +366,13 @@ async def create_inspection(
             instrument_barcode=body.instrument_barcode,
             instrument_udi=body.instrument_udi,
             keydot_id=body.keydot_id,
+            decoder_backend=body.identifier_source or "declared",
         )
+        # Persist the SPD verdict regardless of completion state so history and
+        # the dashboard show what the analysis concluded.
+        risk_level_val = analysis.get("risk_level")
+        recommended_action_val = analysis.get("recommended_action")
+        cleaning_assessment_val = analysis.get("overall_cleaning_assessment")
         if analysis["analysis_status"] == "completed":
             baseline_status = "approved_baseline_found"
             baseline_source_val = analysis["baseline_source"]
@@ -358,6 +416,9 @@ async def create_inspection(
         baseline_source=baseline_source_val,
         score_status=score_status,
         supervisor_review_required=supervisor_review_required,
+        risk_level=risk_level_val,
+        recommended_action=recommended_action_val,
+        overall_cleaning_assessment=cleaning_assessment_val,
     )
     db.add(row)
     db.commit()
@@ -555,13 +616,23 @@ def get_pilot_metrics(
 async def upload_inspection_images(
     request: Request,
     images: List[UploadFile] = File(...),
+    instrument_type: str = "unknown",
+    consent: bool = False,
+    db: Session = Depends(get_db),
     current_user=Depends(require_inspection_runner),
 ):
     """Accept multipart inspection image uploads. Stores SHA-256 hash + metadata only — no raw images in DB.
 
     Restricted to operator/spd_manager/admin — viewers are read-only.
+
+    When opt-in retention is enabled (``RETAIN_INSPECTION_IMAGES``) AND
+    ``consent=true`` is passed, the EXIF-stripped bytes are ALSO retained for
+    model training. Disabled by default — only hashes are kept otherwise.
     """
+    from app.services.image_retention_service import retain_image, retention_enabled
+
     tenant_id = get_request_tenant_id(request)
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     results = []
     for img in images:
@@ -578,19 +649,102 @@ async def upload_inspection_images(
                 detail=f"File '{img.filename}' exceeds 10 MB limit ({len(data) // 1024} KB).",
             )
         sha256 = hashlib.sha256(data).hexdigest()
-        results.append({
+        decoded = decode_from_image_bytes(data)
+        entry = {
             "filename": img.filename,
             "content_type": content_type,
             "size_bytes": len(data),
             "sha256": sha256,
             "tenant_id": tenant_id,
             "status": "received",
-        })
+            "retained": False,
+            # Real identifier decode (pyzbar); empty when none found / lib absent.
+            "barcode_value": decoded.barcode_value,
+            "qr_udi_value": decoded.qr_value or decoded.udi_value,
+            "udi_device_id": decoded.udi_device_id,
+            "decoder_backend": decoded.decoder_backend,
+        }
+        retained = retain_image(
+            db,
+            data=data,
+            tenant_id=tenant_id,
+            instrument_type=instrument_type,
+            content_type=content_type,
+            source="inspection",
+            uploaded_by=actor,
+            consent=consent,
+        )
+        if retained is not None:
+            entry["retained"] = True
+            entry["retained_image_id"] = retained.id
+        results.append(entry)
 
     return {
         "uploaded": len(results),
         "images": results,
-        "note": "Image hashes recorded. Raw images are not stored in the database.",
+        "retention_enabled": retention_enabled(),
+        "note": "Image hashes recorded. Raw images are retained only when opt-in retention is enabled and consent is given.",
+    }
+
+
+@router.post("/inspections/decode-identifiers")
+async def decode_inspection_identifiers(
+    request: Request,
+    images: List[UploadFile] = File(...),
+    current_user=Depends(require_inspection_runner),
+):
+    """Decode instrument identifiers (barcode / QR / UDI) from uploaded images.
+
+    Real, deterministic decode via pyzbar (ZBar). Degrades gracefully: when the
+    ZBar native library is unavailable the response reports
+    ``decoder_available: false`` and empty values rather than failing — the
+    workflow then falls back to technician-declared identifiers.
+    """
+    decoder_available = False
+    first_values = {"barcode_value": "", "qr_udi_value": "", "udi_device_id": ""}
+    per_image = []
+    for img in images:
+        content_type = img.content_type or ""
+        if content_type not in _ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"File '{img.filename}' has unsupported type '{content_type}'.",
+            )
+        data = await img.read()
+        if len(data) > _MAX_IMAGE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File '{img.filename}' exceeds 10 MB limit.",
+            )
+        decoded = decode_from_image_bytes(data)
+        if decoded.decoder_backend == "pyzbar":
+            decoder_available = True
+        qr_udi = decoded.qr_value or decoded.udi_value
+        per_image.append({
+            "filename": img.filename,
+            "barcode_value": decoded.barcode_value,
+            "qr_udi_value": qr_udi,
+            "udi_device_id": decoded.udi_device_id,
+            "udi_lot": decoded.udi_lot,
+            "udi_serial": decoded.udi_serial,
+            "decoder_backend": decoded.decoder_backend,
+        })
+        # First non-empty decode wins for the convenience top-level values.
+        if not first_values["barcode_value"] and decoded.barcode_value:
+            first_values["barcode_value"] = decoded.barcode_value
+        if not first_values["qr_udi_value"] and qr_udi:
+            first_values["qr_udi_value"] = qr_udi
+        if not first_values["udi_device_id"] and decoded.udi_device_id:
+            first_values["udi_device_id"] = decoded.udi_device_id
+
+    return {
+        "decoder_available": decoder_available,
+        **first_values,
+        "images": per_image,
+        "note": (
+            "Identifiers decoded from the image when the ZBar library is present; "
+            "otherwise declare them manually."
+        ),
     }
 
 

@@ -261,7 +261,9 @@ class TestAnalysisOutput:
         assert out["kpi_summary"]["tissue"] is True
         assert out["kpi_summary"]["debris"] is True
 
-    def test_identification_match_reported(self):
+    def test_identification_detection_and_mismatch(self):
+        # _add_baseline stores udi "udi-{itype}-manufacturer"; the decoded values
+        # here do not match it → real comparison must report a mismatch.
         itype = "scissors"
         _clear_baselines(itype)
         _add_baseline(itype, "manufacturer")
@@ -278,7 +280,27 @@ class TestAnalysisOutput:
         assert ident["barcode_detected"] is True
         assert ident["qr_udi_detected"] is True
         assert ident["keydot_detected"] is True
+        # Decoded values differ from the baseline UDI → mismatch, not a fake match.
+        assert ident["barcode_match"] is False
+        assert ident["identification_status"] == "mismatch"
+        assert out["risk_level"] in ("high", "critical")
+
+    def test_identification_match_against_baseline_udi(self):
+        itype = "scissors"
+        _clear_baselines(itype)
+        _add_baseline(itype, "manufacturer")  # udi = "udi-scissors-manufacturer"
+        db = SessionLocal()
+        try:
+            out = analyze_inspection(
+                db, instrument_type=itype, tenant_id="default-tenant",
+                has_image=True, image_sha256=SHA,
+                instrument_barcode="udi-scissors-manufacturer",
+            )
+        finally:
+            db.close()
+        ident = out["identification"]
         assert ident["barcode_match"] is True
+        assert ident["identification_status"] == "verified"
 
 
 # ── End-to-end via API ──────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useCallback, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
+import ClinicalDecisionPanel from "@/components/ClinicalDecisionPanel";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
@@ -40,7 +41,14 @@ type PredictedFinding = {
   confidence: number;
   severity: string;
   status?: string;
+  spd_risk?: string;
+  spd_risk_impact?: string;
 };
+
+type SeverityByKpi = Record<
+  string,
+  { severity: string; probability: number; spd_risk: string; spd_risk_impact: string }
+>;
 
 type ScoreAdjustment = { kpi: string; label: string; points: number; severity: string; risk_tier: string };
 
@@ -67,11 +75,20 @@ type Analysis = {
   pass_fail?: string;
   predicted_findings: PredictedFinding[];
   kpi_summary: Record<string, boolean>;
-  identification: Record<string, boolean>;
+  identification: Record<string, boolean | string>;
+  identification_status?: string;
+  decoder_backend?: string;
   findings_summary?: string[];
   confidence?: number;
   confidence_level?: string;
   recommendation: string;
+  recommended_action?: string;
+  overall_cleaning_assessment?: string;
+  top_risk_drivers?: string[];
+  severity_by_kpi?: SeverityByKpi;
+  scoring_explanation?: string[];
+  spd_critical_drivers?: string[];
+  spd_high_drivers?: string[];
   reason?: string[];
   critical_flags?: string[];
   score_adjustments?: ScoreAdjustment[];
@@ -81,6 +98,8 @@ type Analysis = {
   placeholder_scoring?: boolean;
   model_label?: string;
   production_validated?: boolean;
+  // Phase 13 — Explainable Clinical Decision Support payload.
+  clinical_decision?: Parameters<typeof ClinicalDecisionPanel>[0]["cd"];
 };
 
 type AIPrediction = {
@@ -116,7 +135,7 @@ const FINDING_CATEGORIES: { value: FindingCategory; label: string; tooltip: stri
   { value: "blood", label: "Blood", tooltip: "Visible blood residue in lumen or on instrument surface" },
   { value: "bone", label: "Bone", tooltip: "Calcified tissue or bone fragment visible in channel" },
   { value: "tissue", label: "Tissue", tooltip: "Soft tissue or protein residue visible in lumen" },
-  { value: "debris", label: "Debris / Bioburden", tooltip: "Non-specific particulate, organic matter, or buildup" },
+  { value: "debris", label: "Debris / Particulate", tooltip: "Non-specific particulate, organic matter, or buildup" },
   { value: "corrosion", label: "Corrosion", tooltip: "Rust, pitting, or surface degradation of metal" },
   { value: "crack", label: "Crack / Fracture", tooltip: "Visible structural break, fracture, or delamination" },
   { value: "insulation_damage", label: "Insulation Damage", tooltip: "Damage to electrical insulation on monopolar/bipolar instruments" },
@@ -173,7 +192,7 @@ const initialForm: FormFields = {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function NewInspectionPage() {
-  const { headers, role } = useAuth();
+  const { headers, role, logout } = useAuth();
   const navigate = useNavigate();
   // Operators / SPD managers / admins can run inspections; viewers are read-only.
   const canRunInspection = role === "operator" || role === "spd_manager" || role === "admin";
@@ -345,8 +364,10 @@ export default function NewInspectionPage() {
         body: fd,
       });
       if (imgRes.status === 401) {
-        // Token expired/invalid — clear it and send to login to re-authenticate.
-        localStorage.removeItem("token");
+        // Token expired/invalid — clear BOTH localStorage and in-memory auth
+        // state (logout), otherwise /login sees the stale token and bounces
+        // straight back to the landing page without letting you re-authenticate.
+        logout();
         navigate("/login", { replace: true });
         return;
       }
@@ -359,6 +380,22 @@ export default function NewInspectionPage() {
       const imgData = await imgRes.json();
       imageSha256 = imgData?.images?.[0]?.sha256;
 
+      // Real identifier decode (pyzbar): auto-fill when the technician didn't
+      // type a value. Typed values always win. Tracks the source so the
+      // analysis can label decoded vs declared identifiers.
+      const decodedImg = (imgData?.images ?? []).find(
+        (im: { barcode_value?: string; qr_udi_value?: string }) =>
+          im?.barcode_value || im?.qr_udi_value,
+      );
+      const decodedBarcode = decodedImg?.barcode_value || "";
+      const decodedUdi = decodedImg?.qr_udi_value || "";
+      const barcodeFinal = form.barcode || decodedBarcode || undefined;
+      const udiFinal = form.udi || decodedUdi || undefined;
+      const identifierSource =
+        !form.barcode && !form.udi && (decodedBarcode || decodedUdi)
+          ? "pyzbar"
+          : "declared";
+
       // Step 2: Submit inspection record (findings optional — AI will determine)
       const payload: Record<string, unknown> = {
         instrument_type: form.instrument_type,
@@ -367,9 +404,10 @@ export default function NewInspectionPage() {
         facility_name: form.facility_name,
         department: form.department || undefined,
         tray_id: form.tray_id || undefined,
-        instrument_barcode: form.barcode || undefined,
-        instrument_udi: form.udi || undefined,
+        instrument_barcode: barcodeFinal,
+        instrument_udi: udiFinal,
         keydot_id: form.keydot_id || undefined,
+        identifier_source: identifierSource,
         file_name: allImages[0]?.name || "inspection_image",
         has_image: true,
         image_sha256: imageSha256,
@@ -395,7 +433,7 @@ export default function NewInspectionPage() {
       });
 
       if (res.status === 401) {
-        localStorage.removeItem("token");
+        logout();
         navigate("/login", { replace: true });
         return;
       }
@@ -932,9 +970,21 @@ function AIPredictionPanel({
           } />
         </div>
 
-        {/* Full AI analysis output (placeholder scoring service) */}
+        {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
+        {prediction.analysis?.clinical_decision && (
+          <ClinicalDecisionPanel cd={prediction.analysis.clinical_decision} inspectionId={prediction.id} />
+        )}
+
+        {/* Detailed KPI breakdown (retained below the clinical summary) */}
         {prediction.analysis && prediction.analysis.analysis_status === "completed" && (
-          <AnalysisDetails analysis={prediction.analysis} />
+          <details className="rounded-lg border border-slate-200 bg-white">
+            <summary className="cursor-pointer px-4 py-2 text-sm font-semibold text-slate-700">
+              Full KPI detail
+            </summary>
+            <div className="p-1">
+              <AnalysisDetails analysis={prediction.analysis} />
+            </div>
+          </details>
         )}
 
         <p className="text-xs text-slate-500">
@@ -1030,7 +1080,6 @@ const KPI_DISPLAY: { key: string; label: string }[] = [
   { key: "blood", label: "Blood" },
   { key: "bone", label: "Bone" },
   { key: "tissue", label: "Tissue" },
-  { key: "bioburden", label: "Bioburden" },
   { key: "debris", label: "Debris" },
   { key: "other_organic_residue", label: "Other Organic Residue" },
   { key: "rust", label: "Rust" },
@@ -1068,6 +1117,31 @@ const SEVERITY_STYLE: Record<string, string> = {
   Low: "text-amber-600",
   Moderate: "text-orange-600",
   High: "text-red-600 font-semibold",
+};
+// SPD Risk Impact chip styling (Clear / Monitor / Review / Reprocess).
+const SPD_IMPACT_STYLE: Record<string, string> = {
+  Clear: "bg-emerald-100 text-emerald-800",
+  Monitor: "bg-amber-100 text-amber-800",
+  Review: "bg-orange-100 text-orange-800",
+  Reprocess: "bg-red-100 text-red-800",
+};
+const CLEANING_STYLE: Record<string, string> = {
+  Clean: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  "Residual contamination suspected": "border-amber-300 bg-amber-50 text-amber-900",
+  "Cleaning failure": "border-red-300 bg-red-50 text-red-900",
+  "Supervisor review required": "border-orange-300 bg-orange-50 text-orange-900",
+};
+const ID_STATUS_STYLE: Record<string, string> = {
+  verified: "bg-emerald-100 text-emerald-800",
+  mismatch: "bg-red-100 text-red-800",
+  unverified: "bg-amber-100 text-amber-800",
+  not_detected: "bg-slate-100 text-slate-500",
+};
+const ID_STATUS_LABEL: Record<string, string> = {
+  verified: "Verified",
+  mismatch: "Mismatch",
+  unverified: "Unverified",
+  not_detected: "Not detected",
 };
 
 function AnalysisDetails({ analysis }: { analysis: Analysis }) {
@@ -1144,30 +1218,72 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
             const status = finding?.status
               ? finding.status.charAt(0).toUpperCase() + finding.status.slice(1)
               : statusOf(p);
+            const impact = finding?.spd_risk_impact ?? "Clear";
             return (
               <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-slate-700">{label}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status] ?? "bg-slate-100 text-slate-600"}`}>
-                    {status}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SPD_IMPACT_STYLE[impact] ?? "bg-slate-100 text-slate-600"}`}>
+                    {impact}
                   </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs">
                   <span className="text-slate-500">Probability <span className="font-semibold text-slate-700">{pct}%</span></span>
                   <span className={SEVERITY_STYLE[severity] ?? "text-slate-500"}>Severity: {severity}</span>
                 </div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  SPD Risk Impact: <span className="font-medium text-slate-600">{impact}</span>
+                </div>
               </div>
             );
           })}
         </div>
         <p className="mt-1.5 text-xs text-slate-400">
-          Status: 0–10% Clear · 11–30% Monitor · 31–60% Review · 61%+ Escalate.
+          SPD Risk Impact: Clear (no action) · Monitor (low-risk) · Review (supervisor) · Reprocess (remove/clean).
         </p>
       </div>
 
-      {/* Identification */}
+      {/* Overall Cleaning Assessment (replaces standalone bioburden KPI) */}
+      {analysis.overall_cleaning_assessment && (
+        <div className={`rounded-lg border px-4 py-3 ${CLEANING_STYLE[analysis.overall_cleaning_assessment] ?? "border-slate-200 bg-slate-50 text-slate-800"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-0.5">Overall Cleaning Assessment</p>
+          <p className="text-sm font-semibold">{analysis.overall_cleaning_assessment}</p>
+          <p className="mt-0.5 text-xs opacity-70">
+            Derived from blood, bone, tissue, organic residue and debris — not a standalone bioburden score.
+          </p>
+        </div>
+      )}
+
+      {/* Top risk drivers */}
+      {analysis.top_risk_drivers && analysis.top_risk_drivers.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Top Risk Drivers</p>
+          <div className="flex flex-wrap gap-1.5">
+            {analysis.top_risk_drivers.map((d, i) => (
+              <span key={i} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">{d}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Identification — real decode-vs-baseline verification */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Identification</p>
+        <div className="mb-2 flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Identification</p>
+          {analysis.identification_status && (
+            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ID_STATUS_STYLE[analysis.identification_status] ?? "bg-slate-100 text-slate-600"}`}>
+              {ID_STATUS_LABEL[analysis.identification_status] ?? analysis.identification_status}
+            </span>
+          )}
+          {analysis.decoder_backend === "pyzbar" && (
+            <span className="text-xs text-slate-400">decoded from image</span>
+          )}
+        </div>
+        {analysis.identification_status === "mismatch" && (
+          <p className="mb-2 text-xs font-medium text-red-700">
+            Decoded identifier does not match the approved baseline — verify this is the correct instrument.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 text-xs">
           {[
             { key: "barcode_detected", label: "Barcode" },
@@ -1234,8 +1350,26 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
             ))}
           </ul>
         )}
-        <p className="text-sm font-medium text-slate-800">{analysis.recommendation}</p>
+        {analysis.recommended_action && (
+          <p className="text-sm font-semibold text-slate-900">{analysis.recommended_action}</p>
+        )}
+        <p className="text-sm text-slate-700">{analysis.recommendation}</p>
       </div>
+
+      {/* Why the score changed — plain-language explanation */}
+      {analysis.scoring_explanation && analysis.scoring_explanation.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Reason Score Changed</p>
+          <ul className="space-y-0.5 text-sm text-slate-700">
+            {analysis.scoring_explanation.map((line, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className={line.startsWith("No ") ? "text-emerald-500" : "text-amber-500"}>•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Explainability */}
       {analysis.explainability && (

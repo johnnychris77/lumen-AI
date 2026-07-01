@@ -4,6 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LumenAI</title>
+    <!--
+      Self-healing white-page guard. This inline script runs even when the app
+      bundle fails to load (e.g. a stale cached index.html pointing at purged
+      /assets hashes after a redeploy). If the app has not mounted into #root a
+      few seconds after load, force ONE cache-busting reload to fetch a fresh
+      document + asset manifest. Guarded per session so it can never loop.
+    -->
+    <script>
+      (function () {
+        window.addEventListener("load", function () {
+          window.setTimeout(function () {
+            var root = document.getElementById("root");
+            var mounted = root && root.childElementCount > 0;
+            if (mounted) {
+              sessionStorage.removeItem("__spa_recover");
+              return;
+            }
+            if (!sessionStorage.getItem("__spa_recover")) {
+              sessionStorage.setItem("__spa_recover", "1");
+              var u = new URL(window.location.href);
+              u.searchParams.set("_cb", Date.now().toString());
+              window.location.replace(u.toString());
+            }
+          }, 5000);
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

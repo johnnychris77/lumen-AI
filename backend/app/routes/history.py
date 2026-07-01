@@ -46,6 +46,10 @@ def inspection_response(row: models.Inspection) -> dict:
         "baseline_source": row.baseline_source,
         "score_status": row.score_status,
         "supervisor_review_required": row.supervisor_review_required,
+        # SPD risk-weighted verdict persisted with the inspection
+        "risk_level": row.risk_level,
+        "recommended_action": row.recommended_action,
+        "overall_cleaning_assessment": row.overall_cleaning_assessment,
         # inspection_score is the inverse of risk_score (0-100 quality)
         "inspection_score": (100 - row.risk_score) if row.score_status in ("scored", "scored_after_override") else None,
     }

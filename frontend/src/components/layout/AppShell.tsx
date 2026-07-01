@@ -61,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Inspection Intelligence",
     items: [
       { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
+      { to: "/inspection/capture", label: "Borescope Capture", icon: Camera },
       { to: "/intake-history", label: "Inspection History", icon: History },
       { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
       { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
@@ -193,7 +194,8 @@ function NavItem({
 }
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const role = localStorage.getItem("role") || "viewer";
+  const { role: authRole, logout } = useAuth();
+  const role = authRole || localStorage.getItem("role") || "viewer";
   const groups = visibleGroups(role);
   return (
     <aside
@@ -247,10 +249,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
             "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100",
             collapsed && "justify-center"
           )}
-          onClick={() => {
-            localStorage.removeItem("token");
-            window.location.href = "/";
-          }}
+          onClick={() => logout()}
           title={collapsed ? "Sign out" : undefined}
         >
           <LogOut className="h-4 w-4 shrink-0" />

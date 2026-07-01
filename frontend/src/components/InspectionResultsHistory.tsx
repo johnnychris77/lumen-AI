@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import SupervisorNotes from "@/components/SupervisorNotes";
 
 type InspectionRecord = {
   id: number;
@@ -16,6 +17,24 @@ type InspectionRecord = {
   supervisor_review_required: boolean;
   has_image: boolean;
   status: string;
+  // SPD risk-weighted verdict persisted with the inspection
+  risk_level: string | null;
+  recommended_action: string | null;
+  overall_cleaning_assessment: string | null;
+};
+
+const RISK_LEVEL_STYLE: Record<string, string> = {
+  low: "bg-emerald-100 text-emerald-800",
+  medium: "bg-amber-100 text-amber-800",
+  high: "bg-orange-100 text-orange-800",
+  critical: "bg-red-100 text-red-800",
+};
+
+const CLEANING_STYLE: Record<string, string> = {
+  Clean: "text-emerald-700",
+  "Residual contamination suspected": "text-amber-700",
+  "Cleaning failure": "text-red-700 font-semibold",
+  "Supervisor review required": "text-orange-700",
 };
 
 function scoreColor(score: number | null): string {
@@ -35,10 +54,26 @@ function riskLabel(score: number | null): string {
 }
 
 export default function InspectionResultsHistory() {
-  const { headers } = useAuth();
+  const { headers, role } = useAuth();
   const [items, setItems] = useState<InspectionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const canReview = role === "admin" || role === "spd_manager";
+
+  async function openPdf(id: number) {
+    try {
+      const res = await fetch(`${API_BASE}/api/inspections/${id}/clinical-report.pdf`, {
+        headers: { Authorization: headers()["Authorization"] },
+      });
+      if (!res.ok) return;
+      const url = URL.createObjectURL(await res.blob());
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch {
+      /* ignore — best-effort */
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,14 +140,17 @@ export default function InspectionResultsHistory() {
                 <th className="px-5 py-2 font-medium">Facility</th>
                 <th className="px-5 py-2 font-medium">Score</th>
                 <th className="px-5 py-2 font-medium">Risk</th>
+                <th className="px-5 py-2 font-medium">Cleaning</th>
                 <th className="px-5 py-2 font-medium">Finding</th>
                 <th className="px-5 py-2 font-medium">Baseline</th>
                 <th className="px-5 py-2 font-medium">Status</th>
+                <th className="px-5 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((r) => (
-                <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                <Fragment key={r.id}>
+                <tr className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="px-5 py-2.5 text-slate-500">{r.id}</td>
                   <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                     {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
@@ -129,7 +167,21 @@ export default function InspectionResultsHistory() {
                     )}
                   </td>
                   <td className="px-5 py-2.5 text-slate-700">
-                    {r.supervisor_review_required ? "—" : riskLabel(r.inspection_score)}
+                    {r.risk_level ? (
+                      <span
+                        title={r.recommended_action ?? undefined}
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold capitalize ${RISK_LEVEL_STYLE[r.risk_level] ?? "bg-slate-100 text-slate-600"}`}
+                      >
+                        {r.risk_level}
+                      </span>
+                    ) : r.supervisor_review_required ? (
+                      "—"
+                    ) : (
+                      riskLabel(r.inspection_score)
+                    )}
+                  </td>
+                  <td className={`px-5 py-2.5 text-xs ${r.overall_cleaning_assessment ? (CLEANING_STYLE[r.overall_cleaning_assessment] ?? "text-slate-600") : "text-slate-400"}`}>
+                    {r.overall_cleaning_assessment ?? "—"}
                   </td>
                   <td className="px-5 py-2.5 capitalize text-slate-600">
                     {r.detected_issue === "unknown" || r.detected_issue === ""
@@ -159,7 +211,26 @@ export default function InspectionResultsHistory() {
                       </span>
                     )}
                   </td>
+                  <td className="px-5 py-2.5 whitespace-nowrap">
+                    <button onClick={() => openPdf(r.id)} className="text-xs text-blue-600 underline">PDF</button>
+                    {canReview && (
+                      <button
+                        onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                        className="ml-3 text-xs text-blue-600 underline"
+                      >
+                        {expanded === r.id ? "Close" : "Review"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
+                {expanded === r.id && canReview && (
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={11} className="px-5 py-3">
+                      <SupervisorNotes inspectionId={r.id} onSubmitted={() => setExpanded(null)} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
