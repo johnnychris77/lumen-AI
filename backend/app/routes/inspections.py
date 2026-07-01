@@ -82,6 +82,8 @@ class InspectionCreate(BaseModel):
     keydot_id: Optional[str] = Field(None, max_length=255)
     # How identifiers were obtained: "pyzbar" (decoded) or "declared" (typed).
     identifier_source: Optional[str] = Field(None, max_length=20)
+    # Zones the technician captured/inspected (anatomy-aware coverage engine).
+    inspected_zones: Optional[List[str]] = Field(None)
     # Technician-declared finding categories (optional — AI determines findings)
     finding_categories: Optional[List[str]] = Field(None)
 
@@ -367,6 +369,7 @@ async def create_inspection(
             instrument_udi=body.instrument_udi,
             keydot_id=body.keydot_id,
             decoder_backend=body.identifier_source or "declared",
+            inspected_zones=body.inspected_zones,
         )
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.

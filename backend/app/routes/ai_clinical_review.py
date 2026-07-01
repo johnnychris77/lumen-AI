@@ -40,6 +40,7 @@ class SupervisorReviewIn(BaseModel):
     zone_correct: bool | None = None
     corrected_zone: str = Field("", max_length=60)
     corrected_severity: str = Field("", max_length=30)
+    corrected_recommendation: str = Field("", max_length=50)
     final_disposition: str = Field("", max_length=50)
 
 
@@ -92,6 +93,7 @@ def submit_supervisor_review(
         zone_correct=body.zone_correct,
         corrected_zone=body.corrected_zone.strip(),
         corrected_severity=body.corrected_severity.strip(),
+        corrected_recommendation=body.corrected_recommendation.strip(),
         final_disposition=body.final_disposition.strip(),
     )
     db.add(review)

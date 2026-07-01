@@ -1,7 +1,8 @@
-import { ChangeEvent, FormEvent, useCallback, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import ClinicalDecisionPanel from "@/components/ClinicalDecisionPanel";
+import InstrumentIntelligencePanel, { InstrumentIntel } from "@/components/InstrumentIntelligencePanel";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
@@ -47,6 +48,7 @@ type PredictedFinding = {
   zone_risk?: string;
   zone_reason?: string;
   recommended_manual_check?: string;
+  recommended_action?: string;
 };
 
 type SeverityByKpi = Record<
@@ -104,6 +106,11 @@ type Analysis = {
   production_validated?: boolean;
   // Phase 13 — Explainable Clinical Decision Support payload.
   clinical_decision?: Parameters<typeof ClinicalDecisionPanel>[0]["cd"];
+  // Phase 15 — anatomy-aware intelligence (coverage, risk map, guidance).
+  instrument_anatomy?: InstrumentIntel["instrument_anatomy"];
+  inspection_coverage?: InstrumentIntel["inspection_coverage"];
+  missing_image_guidance?: InstrumentIntel["missing_image_guidance"];
+  risk_map?: InstrumentIntel["risk_map"];
 };
 
 type AIPrediction = {
@@ -200,6 +207,23 @@ export default function NewInspectionPage() {
   const navigate = useNavigate();
   // Operators / SPD managers / admins can run inspections; viewers are read-only.
   const canRunInspection = role === "operator" || role === "spd_manager" || role === "admin";
+
+  // Phase 15 — load the instrument's anatomy zones so the tech can tag which
+  // zones were inspected (feeds the coverage engine).
+  useEffect(() => {
+    const type = form.instrument_type.trim();
+    if (!type) { setAnatomyZones([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/instrument-anatomy/${encodeURIComponent(type)}`, { headers: headers() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setAnatomyZones(Array.isArray(data.zone_names) ? data.zone_names : []);
+      } catch { /* non-fatal */ }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [form.instrument_type, headers]);
   const VIEWER_READONLY_MESSAGE =
     "Viewer access is read-only. Ask an admin to assign Operator or SPD Manager access to run inspections.";
   const ROLE_LABELS: Record<string, string> = {
@@ -208,6 +232,8 @@ export default function NewInspectionPage() {
   };
   const [form, setForm] = useState<FormFields>(initialForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [anatomyZones, setAnatomyZones] = useState<string[]>([]);
+  const [inspectedZones, setInspectedZones] = useState<string[]>([]);
   const [inspectionImages, setInspectionImages] = useState<File[]>([]);
   const [borescopeImages, setBorescopeImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -412,6 +438,7 @@ export default function NewInspectionPage() {
         instrument_udi: udiFinal,
         keydot_id: form.keydot_id || undefined,
         identifier_source: identifierSource,
+        inspected_zones: inspectedZones.length ? inspectedZones : undefined,
         file_name: allImages[0]?.name || "inspection_image",
         has_image: true,
         image_sha256: imageSha256,
@@ -502,6 +529,7 @@ export default function NewInspectionPage() {
     setForm({ ...initialForm, inspection_date: nowDatetimeLocal() });
     setInspectionImages([]);
     setBorescopeImages([]);
+    setInspectedZones([]);
     setFieldErrors({});
     setBanner(null);
     setPrediction(null);
@@ -815,6 +843,33 @@ export default function NewInspectionPage() {
               />
             </div>
             <p className="text-xs text-gray-500">Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
+
+            {/* Phase 15 — zones inspected (feeds the coverage engine) */}
+            {anatomyZones.length > 0 && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Zones inspected <span className="text-slate-400 font-normal">(tag which zones your images cover)</span>
+                </label>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {anatomyZones.map((z) => (
+                    <label key={z} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer capitalize">
+                      <input
+                        type="checkbox"
+                        checked={inspectedZones.includes(z)}
+                        disabled={!canRunInspection}
+                        onChange={(e) =>
+                          setInspectedZones((prev) =>
+                            e.target.checked ? [...prev, z] : prev.filter((x) => x !== z),
+                          )
+                        }
+                      />
+                      {z}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Drives the Inspection Coverage score and missing-image guidance.</p>
+              </div>
+            )}
           </FormSection>
 
           {/* Section 5 — Manual Observations (always optional) */}
@@ -977,6 +1032,11 @@ function AIPredictionPanel({
         {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
         {prediction.analysis?.clinical_decision && (
           <ClinicalDecisionPanel cd={prediction.analysis.clinical_decision} inspectionId={prediction.id} />
+        )}
+
+        {/* Phase 15 — Instrument Intelligence: coverage, risk map, guidance */}
+        {prediction.analysis && (
+          <InstrumentIntelligencePanel intel={prediction.analysis as InstrumentIntel} />
         )}
 
         {/* Detailed KPI breakdown (retained below the clinical summary) */}
@@ -1205,6 +1265,9 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
                     {finding.zone_reason && <p className="mt-0.5 text-slate-500">{finding.zone_reason}</p>}
                     {finding.recommended_manual_check && (
                       <p className="mt-0.5 text-slate-600"><span className="text-slate-400">Manual check:</span> {finding.recommended_manual_check}</p>
+                    )}
+                    {finding.recommended_action && finding.recommended_action !== "Clear" && (
+                      <p className="mt-0.5 text-slate-700"><span className="text-slate-400">Action:</span> <span className="font-medium">{finding.recommended_action}</span></p>
                     )}
                   </div>
                 )}
