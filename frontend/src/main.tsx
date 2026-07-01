@@ -9,13 +9,22 @@ import { Spinner } from "@/components/ui/spinner";
 
 // ─── Global error recovery ───────────────────────────────────────────────────
 // Chunk-load failures (e.g. after a deploy re-hashes asset filenames) cause a
-// white page because the browser cached the old chunk URL which is now a 404.
-// Reload once per session to pick up the new asset manifest.
+// white page because the browser cached an OLD index.html that references chunk
+// URLs which are now 404s. A plain reload() can just re-serve that same cached
+// HTML, so we reload with a cache-busting query to force a fresh document +
+// asset manifest. Guarded to run once per session so it can never loop.
+function recoverFromStaleAssets() {
+  if (sessionStorage.getItem("chunk_reload")) return;
+  sessionStorage.setItem("chunk_reload", "1");
+  const url = new URL(window.location.href);
+  url.searchParams.set("_cb", Date.now().toString());
+  window.location.replace(url.toString());
+}
+
 window.addEventListener("error", (e) => {
   const src = (e.target as HTMLScriptElement | null)?.src ?? "";
-  if (src.includes("/assets/") && !sessionStorage.getItem("chunk_reload")) {
-    sessionStorage.setItem("chunk_reload", "1");
-    window.location.reload();
+  if (src.includes("/assets/")) {
+    recoverFromStaleAssets();
   }
 }, true); // capture phase so it fires before React's own handlers
 
@@ -24,13 +33,23 @@ window.addEventListener("error", (e) => {
 window.addEventListener("unhandledrejection", (e) => {
   const msg = String(e.reason?.message ?? e.reason ?? "");
   if (
-    (msg.includes("Failed to fetch dynamically imported module") ||
-      msg.includes("Importing a module script failed")) &&
-    !sessionStorage.getItem("chunk_reload")
+    msg.includes("Failed to fetch dynamically imported module") ||
+    msg.includes("Importing a module script failed")
   ) {
-    sessionStorage.setItem("chunk_reload", "1");
-    window.location.reload();
+    recoverFromStaleAssets();
   }
+});
+
+// Once the app has actually mounted (root has content), clear the guard so a
+// genuine future deploy can self-heal again in this same tab/session. Only clear
+// on a real mount so a persistently-blank page can never enter a reload loop.
+window.addEventListener("load", () => {
+  window.setTimeout(() => {
+    const root = document.getElementById("root");
+    if (root && root.childElementCount > 0) {
+      sessionStorage.removeItem("chunk_reload");
+    }
+  }, 4000);
 });
 
 // All pages are lazy so any single page crash is caught by PageErrorBoundary
