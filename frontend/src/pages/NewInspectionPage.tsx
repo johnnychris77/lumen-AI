@@ -1068,13 +1068,6 @@ function PredictionField({ label, value }: { label: string; value: string }) {
 
 // ─── sub-component: full AI analysis output ──────────────────────────────────
 
-const RISK_LEVEL_STYLE: Record<string, string> = {
-  low: "bg-emerald-100 text-emerald-800",
-  medium: "bg-amber-200 text-amber-900",
-  high: "bg-orange-500 text-white",
-  critical: "bg-red-600 text-white",
-};
-
 // KPI cards the analysis panel always surfaces (contamination + condition).
 const KPI_DISPLAY: { key: string; label: string }[] = [
   { key: "blood", label: "Blood" },
@@ -1125,12 +1118,6 @@ const SPD_IMPACT_STYLE: Record<string, string> = {
   Review: "bg-orange-100 text-orange-800",
   Reprocess: "bg-red-100 text-red-800",
 };
-const CLEANING_STYLE: Record<string, string> = {
-  Clean: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  "Residual contamination suspected": "border-amber-300 bg-amber-50 text-amber-900",
-  "Cleaning failure": "border-red-300 bg-red-50 text-red-900",
-  "Supervisor review required": "border-orange-300 bg-orange-50 text-orange-900",
-};
 const ID_STATUS_STYLE: Record<string, string> = {
   verified: "bg-emerald-100 text-emerald-800",
   mismatch: "bg-red-100 text-red-800",
@@ -1145,19 +1132,17 @@ const ID_STATUS_LABEL: Record<string, string> = {
 };
 
 function AnalysisDetails({ analysis }: { analysis: Analysis }) {
-  const score = analysis.inspection_score ?? 0;
-  const risk = analysis.risk_level ?? "unknown";
-  const matchPct = analysis.baseline_match_score != null
-    ? `${Math.round(analysis.baseline_match_score * 100)}%`
-    : "—";
-
   const comparisonLabel = analysis.baseline_comparison_label
     ?? (analysis.baseline_source
       ? `${analysis.baseline_source.replace(/_/g, " ")} baseline`
       : "—");
   const isFallback = analysis.baseline_role === "fallback";
-  const passFail = analysis.pass_fail ?? (analysis.critical_flags && analysis.critical_flags.length > 0 ? "FAIL" : "PASS");
 
+  // NOTE: the score, risk, cleaning, reasoning, recommendation, evidence, and
+  // executive-summary sections now live in ClinicalDecisionPanel (the primary
+  // view). This block is the collapsible "Full KPI detail" — raw per-KPI
+  // findings + identification only, to avoid duplicating (and diverging from)
+  // the clinical decision above.
   return (
     <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
       {/* Which baseline was used for the comparison */}
@@ -1172,37 +1157,6 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
           </span>
         )}
       </div>
-
-      {/* Score + risk + baseline headline */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="flex flex-col">
-          <span className="text-xs text-slate-500 font-medium">Inspection Score</span>
-          <span className="mt-1 text-2xl font-bold text-slate-900">{score}<span className="text-sm text-slate-400"> / 100</span></span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-xs text-slate-500 font-medium">Risk Level</span>
-          <span className={`mt-1 inline-flex w-fit items-center rounded-full px-2.5 py-1 text-sm font-bold capitalize ${RISK_LEVEL_STYLE[risk] ?? "bg-slate-200 text-slate-700"}`}>
-            {risk}
-          </span>
-        </div>
-        <PredictionField label="Baseline Source" value={analysis.baseline_source?.replace(/_/g, " ") ?? "—"} />
-        <PredictionField label="Baseline Match" value={matchPct} />
-      </div>
-
-      {/* Findings summary */}
-      {analysis.findings_summary && analysis.findings_summary.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Findings Summary</p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-sm text-slate-700">
-            {analysis.findings_summary.map((s, i) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span className={s.startsWith("No ") ? "text-emerald-500" : "text-amber-500"}>•</span>
-                <span>{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* KPI finding cards: name · probability · severity · status */}
       <div>
@@ -1243,29 +1197,6 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         </p>
       </div>
 
-      {/* Overall Cleaning Assessment (replaces standalone bioburden KPI) */}
-      {analysis.overall_cleaning_assessment && (
-        <div className={`rounded-lg border px-4 py-3 ${CLEANING_STYLE[analysis.overall_cleaning_assessment] ?? "border-slate-200 bg-slate-50 text-slate-800"}`}>
-          <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-0.5">Overall Cleaning Assessment</p>
-          <p className="text-sm font-semibold">{analysis.overall_cleaning_assessment}</p>
-          <p className="mt-0.5 text-xs opacity-70">
-            Derived from blood, bone, tissue, organic residue and debris — not a standalone bioburden score.
-          </p>
-        </div>
-      )}
-
-      {/* Top risk drivers */}
-      {analysis.top_risk_drivers && analysis.top_risk_drivers.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Top Risk Drivers</p>
-          <div className="flex flex-wrap gap-1.5">
-            {analysis.top_risk_drivers.map((d, i) => (
-              <span key={i} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">{d}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Identification — real decode-vs-baseline verification */}
       <div>
         <div className="mb-2 flex items-center gap-2">
@@ -1302,110 +1233,6 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         </div>
       </div>
 
-      {/* Primary risk driver */}
-      {analysis.primary_risk_driver && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Risk driver:</span>
-          <span className="capitalize font-medium text-slate-800">{analysis.primary_risk_driver}</span>
-        </div>
-      )}
-
-      {/* Why the score changed */}
-      {analysis.score_adjustments && analysis.score_adjustments.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Why this score</p>
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>Baseline match starting point</span>
-              <span className="font-medium">{analysis.baseline_match_score != null ? Math.round(analysis.baseline_match_score * 100) : "—"} pts</span>
-            </div>
-            {analysis.score_adjustments.map((a) => (
-              <div key={a.kpi} className="flex items-center justify-between text-sm">
-                <span className="capitalize text-slate-600">
-                  {a.label} <span className="text-xs text-slate-400">({a.severity}, {a.risk_tier.replace(/_/g, "–")} risk)</span>
-                </span>
-                <span className="font-medium text-red-600">{a.points} pts</span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between border-t border-slate-200 pt-1 text-sm font-semibold text-slate-800">
-              <span>Final inspection score</span>
-              <span>{score} / 100</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Recommended action with PASS/FAIL + reasons */}
-      <div className={`rounded-lg border px-4 py-3 ${passFail === "PASS" ? "border-emerald-300 bg-emerald-50" : "border-red-300 bg-red-50"}`}>
-        <div className="flex items-center gap-2 mb-1">
-          <span className={`rounded px-2 py-0.5 text-xs font-bold ${passFail === "PASS" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
-            {passFail}
-          </span>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended Action</p>
-        </div>
-        {analysis.reason && analysis.reason.length > 0 && (
-          <ul className="mb-2 ml-1 space-y-0.5 text-sm text-slate-700">
-            {analysis.reason.map((r, i) => (
-              <li key={i} className="flex items-start gap-1.5"><span className="text-slate-400">–</span><span>{r}</span></li>
-            ))}
-          </ul>
-        )}
-        {analysis.recommended_action && (
-          <p className="text-sm font-semibold text-slate-900">{analysis.recommended_action}</p>
-        )}
-        <p className="text-sm text-slate-700">{analysis.recommendation}</p>
-      </div>
-
-      {/* Why the score changed — plain-language explanation */}
-      {analysis.scoring_explanation && analysis.scoring_explanation.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Reason Score Changed</p>
-          <ul className="space-y-0.5 text-sm text-slate-700">
-            {analysis.scoring_explanation.map((line, i) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span className={line.startsWith("No ") ? "text-emerald-500" : "text-amber-500"}>•</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Explainability */}
-      {analysis.explainability && (
-        <details className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-            Why LumenAI scored this inspection this way
-          </summary>
-          <div className="mt-2 space-y-1.5 text-sm text-slate-600">
-            <p><span className="text-slate-500">Baseline source:</span> <span className="capitalize">{analysis.explainability.baseline_source ?? "—"}</span></p>
-            <p><span className="text-slate-500">Baseline match:</span> {analysis.explainability.baseline_match_score != null ? `${Math.round(analysis.explainability.baseline_match_score * 100)}%` : "—"}</p>
-            <div>
-              <span className="text-slate-500">Highest findings:</span>
-              <ul className="ml-3 mt-0.5 list-disc">
-                {analysis.explainability.highest_findings.map((f) => (
-                  <li key={f.type} className="capitalize">{f.label} — {Math.round(f.probability * 100)}% ({f.severity})</li>
-                ))}
-              </ul>
-            </div>
-            <p><span className="text-slate-500">Risk drivers:</span> {analysis.explainability.risk_drivers.join(", ")}</p>
-            <p><span className="text-slate-500">Confidence level:</span> {analysis.explainability.confidence_level}</p>
-            <p className="text-slate-500 italic">{analysis.explainability.rationale}</p>
-          </div>
-        </details>
-      )}
-
-      {/* Image evidence placeholder — never fake bounding boxes */}
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-        <p className="font-medium text-slate-600">Image evidence map not yet available.</p>
-        <p className="text-xs">A future release will highlight detected regions on the uploaded image.</p>
-      </div>
-
-      <p className="text-xs text-slate-400 italic">
-        {analysis.model_label ?? "Baseline Comparison Scoring Model (pilot)"} — pilot scoring, not validated for
-        production diagnostic accuracy. Per-KPI probabilities are heuristic (baseline comparison), not pixel-level
-        computer-vision detections. Qualified human review is required.
-      </p>
     </div>
   );
 }
