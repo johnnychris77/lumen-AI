@@ -48,6 +48,7 @@ type ClinicalDecision = {
   ai_mentor?: {
     what_was_detected: string[]; why_it_matters: string; how_confident: string;
     standard_practice: string; what_should_happen_next: string[];
+    where_was_it_detected?: string; why_this_zone_is_high_risk?: string; verify_manually?: string;
   };
 };
 
@@ -214,7 +215,16 @@ export default function ClinicalDecisionPanel({
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-2">AI Mentor</p>
           <div className="space-y-1.5 text-sm text-slate-700">
             <p><span className="font-semibold text-slate-900">What was detected:</span> {cd.ai_mentor.what_was_detected.join(", ")}</p>
+            {cd.ai_mentor.where_was_it_detected && (
+              <p><span className="font-semibold text-slate-900">Where:</span> {cd.ai_mentor.where_was_it_detected}</p>
+            )}
+            {cd.ai_mentor.why_this_zone_is_high_risk && (
+              <p><span className="font-semibold text-slate-900">Why this zone is high-risk:</span> {cd.ai_mentor.why_this_zone_is_high_risk}</p>
+            )}
             <p><span className="font-semibold text-slate-900">Why it matters:</span> {cd.ai_mentor.why_it_matters}</p>
+            {cd.ai_mentor.verify_manually && (
+              <p><span className="font-semibold text-slate-900">Verify manually:</span> {cd.ai_mentor.verify_manually}</p>
+            )}
             <p><span className="font-semibold text-slate-900">How confident:</span> {cd.ai_mentor.how_confident}</p>
             <p><span className="font-semibold text-slate-900">Standard practice:</span> {cd.ai_mentor.standard_practice}</p>
             <p><span className="font-semibold text-slate-900">What should happen next:</span> {cd.ai_mentor.what_should_happen_next.join("; ")}</p>

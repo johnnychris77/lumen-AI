@@ -252,6 +252,25 @@ def spd_risk_impact(tier: str) -> str:
     return _SPD_IMPACT_LABEL.get(tier, "Review")
 
 
+def _finding_action(kpi: str, spd_tier: str) -> str:
+    """Per-finding recommended action from its SPD tier.
+
+    Structural criticals → Remove from service; contamination criticals →
+    Reprocess; high → Supervisor review; low → Monitor; none → Clear.
+    """
+    if spd_tier == "critical":
+        return "Remove from service" if kpi in _STRUCTURAL_KPIS_ACTION else "Reprocess"
+    if spd_tier == "high":
+        return "Supervisor review"
+    if spd_tier == "low":
+        return "Monitor"
+    return "Clear"
+
+
+# Structural KPIs whose critical breach means the item leaves service.
+_STRUCTURAL_KPIS_ACTION = {"crack", "missing_component", "insulation_damage"}
+
+
 # Per-KPI risk weight — how much a positive finding deducts from the score.
 # Contamination (blood/bioburden/tissue/organic), cracks, and missing components
 # deduct far more aggressively than cosmetic discoloration / wear.
@@ -471,22 +490,42 @@ def recommended_action(findings_by_kpi: dict[str, dict], baseline_match_score: f
         f = findings_by_kpi.get(kpi)
         return f if f and f["severity_index"] >= 1 else None
 
-    # REPROCESS / REMOVE FROM SERVICE
-    reprocess = []
-    for kpi in ("blood", "tissue", "other_organic_residue", "crack",
-                "missing_component", "insulation_damage"):
-        f = present(kpi)
-        if f and (kpi != "blood" or f["severity_index"] >= 2):
-            reprocess.append(KPI_LABELS[kpi])
-    for kpi in ("corrosion",):
-        f = present(kpi)
-        if f and f["severity_index"] >= 3:  # severe corrosion
-            reprocess.append("severe corrosion")
-    if reprocess:
+    def contamination_actionable(kpi: str) -> dict | None:
+        """Moderate+ anywhere, OR trace+ in a high-retention zone (zone-aware)."""
+        f = findings_by_kpi.get(kpi)
+        if not f:
+            return None
+        idx = f["severity_index"]
+        if idx >= 2 or (idx >= 1 and is_high_retention(f.get("instrument_zone", ""))):
+            return f
+        return None
+
+    # REMOVE FROM SERVICE — structural defects (moderate+), severe corrosion.
+    remove = []
+    for kpi in ("crack", "missing_component", "insulation_damage"):
+        f = findings_by_kpi.get(kpi)
+        if f and f["severity_index"] >= 2:
+            remove.append(KPI_LABELS[kpi])
+    corr = findings_by_kpi.get("corrosion")
+    if corr and corr["severity_index"] >= 3:
+        remove.append("severe corrosion")
+    if remove:
         return (
-            "Reprocess / remove from service — "
-            + ", ".join(sorted(set(reprocess)))
+            "Remove from service — " + ", ".join(sorted(set(remove)))
             + ". Supervisor review required before any further use."
+        )
+
+    # REPROCESS — residual contamination (zone-aware).
+    reprocess = [
+        KPI_LABELS[kpi]
+        for kpi in ("blood", "tissue", "other_organic_residue", "debris", "bone")
+        if contamination_actionable(kpi)
+    ]
+    if reprocess:
+        drivers = ", ".join(sorted(set(reprocess)))
+        return (
+            f"Reprocess — {drivers}. Return the instrument for complete cleaning "
+            "and re-inspect before release."
         )
 
     # SUPERVISOR REVIEW
@@ -927,6 +966,7 @@ def analyze_inspection(
     instrument_udi: Optional[str] = None,
     keydot_id: Optional[str] = None,
     decoder_backend: str = "declared",
+    inspected_zones: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -1017,6 +1057,9 @@ def analyze_inspection(
         # Instrument-zone taxonomy: where this finding is likely to hide, its
         # retention risk, and the recommended manual check for that zone.
         finding.update(zone_fields(instrument_type, kpi))
+        # Per-finding recommended action (Reprocess / Remove / Supervisor review /
+        # Monitor / Clear) from its SPD tier + structural vs contamination.
+        finding["recommended_action"] = _finding_action(kpi, spd_tier)
         predicted_findings.append(finding)
 
     # ── Identification detection / match (real decode-vs-baseline) ──────────
@@ -1228,6 +1271,21 @@ def analyze_inspection(
         }
         for f in predicted_findings
     }
+    # Phase 15 — anatomy-aware coverage, missing-image guidance, risk map.
+    from app.services.instrument_anatomy import get_anatomy
+    from app.services.inspection_coverage import (
+        build_risk_map, compute_coverage, missing_image_guidance,
+    )
+    anatomy = get_anatomy(instrument_type)
+    coverage = compute_coverage(instrument_type, inspected_zones)
+    guidance = missing_image_guidance(instrument_type, inspected_zones)
+    # Map detected findings onto their assigned zone for the risk map.
+    findings_by_zone: dict[str, list[str]] = {}
+    for f in predicted_findings:
+        if f["severity_index"] >= 2:
+            findings_by_zone.setdefault(f["instrument_zone"], []).append(f["label"])
+    risk_map = build_risk_map(instrument_type, findings_by_zone, inspected_zones)
+
     cleaning_assessment = overall_cleaning_assessment(findings_by_kpi)
     action = recommended_action(findings_by_kpi, baseline_match_score)
     explanation = scoring_explanation(findings_by_kpi, baseline_match_score, source)
@@ -1276,6 +1334,11 @@ def analyze_inspection(
         "scoring_explanation": explanation,
         "spd_critical_drivers": spd_critical,
         "spd_high_drivers": spd_high,
+        # Phase 15 — anatomy-aware intelligence.
+        "instrument_anatomy": anatomy,
+        "inspection_coverage": coverage,
+        "missing_image_guidance": guidance,
+        "risk_map": risk_map,
         "reason": reason,
         "critical_flags": critical_flags,
         "score_adjustments": score_adjustments,

@@ -217,8 +217,22 @@ def _sev(result: dict, kpi: str) -> int:
 
 
 def _present_findings(result: dict) -> list[str]:
-    """KPIs at a clinically actionable (moderate+, idx>=2) level."""
-    return [f["type"] for f in result.get("predicted_findings", []) if f["severity_index"] >= 2]
+    """Clinically actionable findings: moderate+ (idx>=2) anywhere, OR trace+
+    contamination (idx>=1) in a HIGH-retention zone — so that anything which
+    escalates the disposition is also surfaced in the explanation."""
+    from app.services.instrument_zones import is_high_retention
+    out = []
+    for f in result.get("predicted_findings", []):
+        idx = f["severity_index"]
+        if idx >= 2:
+            out.append(f["type"])
+        elif (idx >= 1 and f["type"] in _CONTAMINATION_TYPES
+              and is_high_retention(f.get("instrument_zone", ""))):
+            out.append(f["type"])
+    return out
+
+
+_CONTAMINATION_TYPES = {"blood", "tissue", "other_organic_residue", "debris", "bone"}
 
 
 def _band(level: str) -> str:
@@ -347,9 +361,26 @@ def ai_mentor(result: dict, overall: str) -> dict:
     )
     conf = result.get("confidence_level")
     conf_pct = round((result.get("confidence") or 0) * 100)
+
+    # Zone-specific reasoning (Phase 15 §8): where + why the zone is high-risk.
+    findings_by_kpi = {f["type"]: f for f in result.get("predicted_findings", [])}
+    where_detected = ""
+    why_zone_high_risk = ""
+    verify_manually = ""
+    if primary:
+        pf = findings_by_kpi.get(primary, {})
+        zone = pf.get("instrument_zone")
+        if zone and zone not in ("unspecified region", "surface discoloration area"):
+            where_detected = f"In the {zone}."
+            why_zone_high_risk = pf.get("zone_reason", "")
+            verify_manually = pf.get("recommended_manual_check", "")
+
     return {
         "what_was_detected": what,
+        "where_was_it_detected": where_detected or "No specific high-risk zone implicated.",
         "why_it_matters": why,
+        "why_this_zone_is_high_risk": why_zone_high_risk,
+        "verify_manually": verify_manually,
         "how_confident": f"{conf or 'n/a'} ({conf_pct}%)" if result.get("confidence") is not None else "n/a",
         "standard_practice": STANDARDS_GUIDANCE.get(overall, ""),
         "what_should_happen_next": NEXT_ACTIONS.get(overall, []),

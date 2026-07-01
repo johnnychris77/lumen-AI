@@ -52,4 +52,5 @@ class SupervisorReview(Base):
     zone_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     corrected_zone: Mapped[str] = mapped_column(String(60), default="", nullable=False)
     corrected_severity: Mapped[str] = mapped_column(String(30), default="", nullable=False)
+    corrected_recommendation: Mapped[str] = mapped_column(String(50), default="", nullable=False)
     final_disposition: Mapped[str] = mapped_column(String(50), default="", nullable=False)
