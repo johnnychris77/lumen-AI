@@ -33,6 +33,29 @@ type ClinicalDecision = {
   executive_summary: string[];
   audit: Record<string, unknown>;
   roadmap: string[];
+  // Phase 14 — Clinical Mentor
+  clinical_interpretation?: string[];
+  why_this_matters?: { finding: string; why_it_matters: string }[];
+  next_actions?: string[];
+  standards_guidance?: string;
+  learning_mode?: {
+    finding: string; detected: boolean; definition: string; typical_causes: string;
+    clinical_significance: string; spd_response: string; supervisor_tips: string;
+    example_images_note: string;
+  }[];
+  contamination_risk?: string;
+  integrity_risk?: string;
+  ai_mentor?: {
+    what_was_detected: string[]; why_it_matters: string; how_confident: string;
+    standard_practice: string; what_should_happen_next: string[];
+  };
+};
+
+const RISK_BADGE: Record<string, string> = {
+  Low: "bg-emerald-100 text-emerald-800",
+  Medium: "bg-amber-100 text-amber-800",
+  High: "bg-orange-100 text-orange-800",
+  Critical: "bg-red-100 text-red-800",
 };
 
 const RESULT_STYLE: Record<string, string> = {
@@ -110,6 +133,7 @@ export default function ClinicalDecisionPanel({
 }) {
   const { headers, role } = useAuth();
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [learning, setLearning] = useState(false);
   const result = cd.overall_result;
   const canReview = role === "admin" || role === "spd_manager";
 
@@ -184,6 +208,105 @@ export default function ClinicalDecisionPanel({
         </div>
       </Card>
 
+      {/* 14.14 AI Mentor — signature synthesis */}
+      {cd.ai_mentor && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-2">AI Mentor</p>
+          <div className="space-y-1.5 text-sm text-slate-700">
+            <p><span className="font-semibold text-slate-900">What was detected:</span> {cd.ai_mentor.what_was_detected.join(", ")}</p>
+            <p><span className="font-semibold text-slate-900">Why it matters:</span> {cd.ai_mentor.why_it_matters}</p>
+            <p><span className="font-semibold text-slate-900">How confident:</span> {cd.ai_mentor.how_confident}</p>
+            <p><span className="font-semibold text-slate-900">Standard practice:</span> {cd.ai_mentor.standard_practice}</p>
+            <p><span className="font-semibold text-slate-900">What should happen next:</span> {cd.ai_mentor.what_should_happen_next.join("; ")}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 14.1 Clinical Interpretation */}
+      {cd.clinical_interpretation && cd.clinical_interpretation.length > 0 && (
+        <Card title="Clinical Interpretation">
+          <ul className="space-y-0.5 text-sm text-slate-700">
+            {cd.clinical_interpretation.map((l, i) => <li key={i}>• {l}</li>)}
+          </ul>
+        </Card>
+      )}
+
+      {/* 14.9 Risk Separation */}
+      {(cd.contamination_risk || cd.integrity_risk) && (
+        <Card title="Risk Assessment (separated)">
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <div className="text-xs text-slate-500">Contamination Risk</div>
+              <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${RISK_BADGE[cd.contamination_risk ?? ""] ?? "bg-slate-100"}`}>{cd.contamination_risk ?? "—"}</span>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Instrument Integrity Risk</div>
+              <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${RISK_BADGE[cd.integrity_risk ?? ""] ?? "bg-slate-100"}`}>{cd.integrity_risk ?? "—"}</span>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Overall</div>
+              <span className="mt-1 inline-flex rounded-full bg-slate-800 px-2.5 py-1 text-sm font-bold text-white">{result}</span>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Contamination and structural integrity are scored independently — a clean instrument can still be removed for structural damage.
+          </p>
+        </Card>
+      )}
+
+      {/* 14.2 Why This Matters */}
+      {cd.why_this_matters && cd.why_this_matters.length > 0 && (
+        <Card title="Why This Matters">
+          <div className="space-y-2">
+            {cd.why_this_matters.map((w, i) => (
+              <div key={i}>
+                <p className="text-sm font-semibold capitalize text-slate-800">{w.finding}</p>
+                <p className="text-sm text-slate-600">{w.why_it_matters}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* 14.4 Standards & Guidance */}
+      {cd.standards_guidance && (
+        <Card title="Standards & Guidance">
+          <p className="text-sm text-slate-700">{cd.standards_guidance}</p>
+          <p className="mt-1 text-xs text-slate-400">Summary of accepted sterile-processing practice — not a quotation of copyrighted standards.</p>
+        </Card>
+      )}
+
+      {/* 14.5 Learning Mode */}
+      {cd.learning_mode && cd.learning_mode.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Learning Mode</p>
+            <button onClick={() => setLearning((v) => !v)} className="text-xs text-blue-600 underline">
+              {learning ? "Hide" : "Show educational detail"}
+            </button>
+          </div>
+          {learning && (
+            <div className="space-y-2">
+              {cd.learning_mode.map((l, i) => (
+                <details key={i} className="rounded border border-slate-200 px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium capitalize text-slate-800">
+                    {l.finding} {l.detected && <span className="ml-1 text-xs text-amber-600">(detected)</span>}
+                  </summary>
+                  <div className="mt-1.5 space-y-1 text-sm text-slate-600">
+                    <p><span className="text-slate-500">Definition:</span> {l.definition}</p>
+                    <p><span className="text-slate-500">Typical causes:</span> {l.typical_causes}</p>
+                    <p><span className="text-slate-500">Clinical significance:</span> {l.clinical_significance}</p>
+                    <p><span className="text-slate-500">SPD response:</span> {l.spd_response}</p>
+                    <p><span className="text-slate-500">Supervisor tips:</span> {l.supervisor_tips}</p>
+                    <p className="text-xs text-slate-400">{l.example_images_note}</p>
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 13.9 Executive Summary */}
       {cd.executive_summary.length > 0 && (
         <Card title="Executive Summary">
@@ -241,6 +364,13 @@ export default function ClinicalDecisionPanel({
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Recommendation</p>
         <p className="text-sm font-semibold text-slate-900">{cd.recommendation.result}</p>
         <p className="text-sm text-slate-700">{cd.recommendation.action_text ?? cd.recommendation.action}</p>
+        {cd.next_actions && cd.next_actions.length > 0 && (
+          <ul className="mt-2 space-y-0.5 text-sm text-slate-700">
+            {cd.next_actions.map((a, i) => (
+              <li key={i} className="flex items-start gap-1.5"><span className="text-slate-400">→</span><span>{a}</span></li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Supervisor Review Notes — admin/spd_manager only */}

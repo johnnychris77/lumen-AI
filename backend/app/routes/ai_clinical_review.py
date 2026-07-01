@@ -163,6 +163,8 @@ def ai_performance_summary(
     disagree = sum(1 for r in reviews if r.agreement == "disagree")
 
     return {
+        "model_version": "baseline-comparison-pilot-1",
+        "dataset_version": "v0-pilot",
         "total_ai_predictions": total_predictions,
         "supervisor_reviews": n,
         "supervisor_agreement_rate": round(agree / n, 4) if n else None,

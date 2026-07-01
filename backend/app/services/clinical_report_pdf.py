@@ -133,15 +133,36 @@ def build_clinical_report_pdf(row: Any, analysis: dict) -> bytes:
         story.append(Paragraph(f"Instrument Integrity — {integrity.get('overall_status', '—')}", ss["H"]))
         story.append(_findings_table(integrity["items"], integrity=True))
 
+    # Risk separation (contamination vs integrity)
+    story.append(Paragraph("Risk Assessment", ss["H"]))
+    story.append(_kv_table([
+        ("Contamination Risk", str(cd.get("contamination_risk") or "—")),
+        ("Instrument Integrity Risk", str(cd.get("integrity_risk") or "—")),
+        ("Overall Result", result),
+    ]))
+
+    # Clinical interpretation (finding-specific)
+    if cd.get("clinical_interpretation"):
+        story.append(Paragraph("Clinical Interpretation", ss["H"]))
+        for line in cd["clinical_interpretation"]:
+            story.append(Paragraph(f"• {line}", ss["Normal"]))
+
     # Reasoning
     story.append(Paragraph("Clinical Reasoning", ss["H"]))
     for line in cd.get("clinical_reasoning", []):
         story.append(Paragraph(f"• {line}", ss["Normal"]))
 
-    # Recommendation
+    # Recommendation + next actions
     rec = cd.get("recommendation", {})
     story.append(Paragraph("Recommendation", ss["H"]))
-    story.append(Paragraph(f"<b>{rec.get('result', result)}</b> — {rec.get('action', '')}", ss["Normal"]))
+    story.append(Paragraph(f"<b>{rec.get('result', result)}</b> — {rec.get('action_text', rec.get('action', ''))}", ss["Normal"]))
+    for act in cd.get("next_actions", []):
+        story.append(Paragraph(f"• {act}", ss["Normal"]))
+
+    # Standards & guidance (paraphrased)
+    if cd.get("standards_guidance"):
+        story.append(Paragraph("Standards & Guidance", ss["H"]))
+        story.append(Paragraph(cd["standards_guidance"], ss["Normal"]))
 
     # Evidence
     ev = cd.get("evidence", {})

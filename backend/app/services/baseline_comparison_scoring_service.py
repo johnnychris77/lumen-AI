@@ -804,6 +804,8 @@ def executive_summary(result: dict, overall_result: str) -> list[str]:
 def build_clinical_decision(result: dict) -> dict:
     """Assemble the full Explainable-AI Clinical Decision Support payload
     (Phases 13.1–13.11) from an already-computed analysis result."""
+    from app.services.clinical_mentor import build_mentor  # lazy: avoid cycle
+
     findings = {x["type"]: x for x in result.get("predicted_findings", [])}
     overall = _overall_result(result)
 
@@ -896,6 +898,9 @@ def build_clinical_decision(result: dict) -> dict:
         },
         # 13.11
         "roadmap": AI_ROADMAP,
+        # Phase 14 — Clinical Mentor: interpretation, why-this-matters, expanded
+        # actions, standards guidance, learning mode, risk separation, mentor.
+        **build_mentor(result, overall),
     }
 
 

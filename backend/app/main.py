@@ -547,6 +547,9 @@ app.include_router(capture_router, prefix=settings.API_PREFIX)
 from app.routes.ai_clinical_review import router as ai_clinical_review_router
 app.include_router(ai_clinical_review_router, prefix=settings.API_PREFIX)
 
+from app.routes.instrument_intelligence import router as instrument_intelligence_router
+app.include_router(instrument_intelligence_router, prefix=settings.API_PREFIX)
+
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
 app.include_router(stream_router, prefix=settings.API_PREFIX)
