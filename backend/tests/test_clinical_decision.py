@@ -88,6 +88,31 @@ class TestClinicalDecisionShape:
         assert cd["overall_result"] == "REMOVE FROM SERVICE"
         assert cd["integrity"]["overall_status"] == "Remove From Service"
 
+    def test_low_probability_crack_noise_does_not_remove(self):
+        # Regression: a faint (idx==1, ~11%) structural signal must NOT force the
+        # most severe disposition on an otherwise clean, high-score instrument.
+        from app.services.baseline_comparison_scoring_service import (
+            _overall_result, _integrity_status, spd_risk_tier,
+        )
+        faint = {
+            "analysis_status": "completed",
+            "baseline_match_score": 0.92,
+            "predicted_findings": [{"type": "crack", "severity_index": 1}],
+            "identification": {},
+        }
+        assert _overall_result(faint) in ("PASS", "MONITOR")
+        findings = {"crack": {"severity_index": 1}}
+        assert _integrity_status(findings) == "Monitor"
+        # A genuine (moderate+) crack still escalates.
+        assert _overall_result({
+            "analysis_status": "completed", "baseline_match_score": 0.92,
+            "predicted_findings": [{"type": "crack", "severity_index": 2}],
+            "identification": {},
+        }) == "REMOVE FROM SERVICE"
+        # Per-KPI: faint crack is elevated (review), not reprocess/remove.
+        assert spd_risk_tier("crack", 0.11) == "high"
+        assert spd_risk_tier("crack", 0.45) == "critical"
+
     def test_blood_forces_reprocess_or_remove(self):
         cd = _analyze("scissors", declared=["blood"])["clinical_decision"]
         assert cd["overall_result"] in ("REPROCESS", "REMOVE FROM SERVICE")

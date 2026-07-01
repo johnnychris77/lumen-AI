@@ -8,6 +8,8 @@ import { useAuth, API_BASE } from "@/lib/auth";
  * Silently hides for non-supervisor roles (endpoint is admin/spd_manager only).
  */
 type Summary = {
+  model_version?: string;
+  dataset_version?: string;
   total_ai_predictions: number;
   supervisor_reviews: number;
   supervisor_agreement_rate: number | null;
@@ -59,7 +61,9 @@ export default function AiModelPerformanceCard() {
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-slate-800">AI Model Performance</h3>
-        <span className="text-xs text-slate-400">supervisor-verified</span>
+        <span className="text-xs text-slate-400">
+          {data?.model_version ? `${data.model_version} · ${data.dataset_version}` : "supervisor-verified"}
+        </span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {cells.map((c) => (
