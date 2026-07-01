@@ -207,9 +207,21 @@ export default function NewInspectionPage() {
   const navigate = useNavigate();
   // Operators / SPD managers / admins can run inspections; viewers are read-only.
   const canRunInspection = role === "operator" || role === "spd_manager" || role === "admin";
+  const VIEWER_READONLY_MESSAGE =
+    "Viewer access is read-only. Ask an admin to assign Operator or SPD Manager access to run inspections.";
+  const ROLE_LABELS: Record<string, string> = {
+    admin: "Admin", spd_manager: "SPD Manager", supervisor: "Supervisor",
+    operator: "Operator", viewer: "Viewer", vendor_user: "Vendor",
+  };
+  const [form, setForm] = useState<FormFields>(initialForm);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [anatomyZones, setAnatomyZones] = useState<string[]>([]);
+  const [inspectedZones, setInspectedZones] = useState<string[]>([]);
+  const [inspectionImages, setInspectionImages] = useState<File[]>([]);
 
   // Phase 15 — load the instrument's anatomy zones so the tech can tag which
-  // zones were inspected (feeds the coverage engine).
+  // zones were inspected (feeds the coverage engine). Declared AFTER the state
+  // it depends on (avoids a temporal-dead-zone crash on the `form` read).
   useEffect(() => {
     const type = form.instrument_type.trim();
     if (!type) { setAnatomyZones([]); return; }
@@ -224,17 +236,6 @@ export default function NewInspectionPage() {
     }, 400);
     return () => { cancelled = true; clearTimeout(t); };
   }, [form.instrument_type, headers]);
-  const VIEWER_READONLY_MESSAGE =
-    "Viewer access is read-only. Ask an admin to assign Operator or SPD Manager access to run inspections.";
-  const ROLE_LABELS: Record<string, string> = {
-    admin: "Admin", spd_manager: "SPD Manager", supervisor: "Supervisor",
-    operator: "Operator", viewer: "Viewer", vendor_user: "Vendor",
-  };
-  const [form, setForm] = useState<FormFields>(initialForm);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [anatomyZones, setAnatomyZones] = useState<string[]>([]);
-  const [inspectedZones, setInspectedZones] = useState<string[]>([]);
-  const [inspectionImages, setInspectionImages] = useState<File[]>([]);
   const [borescopeImages, setBorescopeImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
