@@ -180,3 +180,36 @@ class TestSupervisorReviewAPI:
     def test_performance_summary_operator_blocked(self):
         r = client.get("/api/model-performance/ai-summary", headers=AUTH_OPERATOR)
         assert r.status_code == 403
+
+    def test_supervisor_can_correct_zone(self):
+        iid = self._create("scissors")
+        r = client.post(
+            f"/api/inspections/{iid}/supervisor-review",
+            json={
+                "agreement": "partially_agree",
+                "rationale": "Blood was actually in the hinge, not the tip.",
+                "finding_correct": True,
+                "zone_correct": False,
+                "corrected_zone": "hinge",
+                "corrected_severity": "visible",
+                "final_disposition": "reprocess",
+            },
+            headers=AUTH_MGR,
+        )
+        assert r.status_code == 201, r.text
+        # The corrected zone is persisted as labeled training data.
+        from app.db.session import SessionLocal
+        from app.models.supervisor_review import SupervisorReview
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(SupervisorReview)
+                .filter(SupervisorReview.inspection_id == iid)
+                .order_by(SupervisorReview.id.desc())
+                .first()
+            )
+            assert row.corrected_zone == "hinge"
+            assert row.zone_correct is False
+            assert row.final_disposition == "reprocess"
+        finally:
+            db.close()

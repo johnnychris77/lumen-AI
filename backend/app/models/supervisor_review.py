@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -46,3 +46,10 @@ class SupervisorReview(Base):
     # Snapshot of what the AI said, for training-data provenance.
     ai_recommendation: Mapped[str] = mapped_column(String(50), default="", nullable=False)
     ai_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Zone-aware feedback (instrument high-risk zone detection) — labeled data.
+    finding_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    zone_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    corrected_zone: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    corrected_severity: Mapped[str] = mapped_column(String(30), default="", nullable=False)
+    final_disposition: Mapped[str] = mapped_column(String(50), default="", nullable=False)

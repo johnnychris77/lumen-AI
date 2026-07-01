@@ -23,6 +23,8 @@ export default function SupervisorNotes({
   const [agreement, setAgreement] = useState("agree");
   const [rationale, setRationale] = useState("");
   const [override, setOverride] = useState("");
+  const [zoneCorrect, setZoneCorrect] = useState<boolean | null>(null);
+  const [correctedZone, setCorrectedZone] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const commentRequired = agreement !== "agree" || !!override.trim();
@@ -39,7 +41,13 @@ export default function SupervisorNotes({
       const res = await fetch(`${API_BASE}/api/inspections/${inspectionId}/supervisor-review`, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ agreement, rationale: rationale.trim(), override_action: override.trim() }),
+        body: JSON.stringify({
+          agreement,
+          rationale: rationale.trim(),
+          override_action: override.trim(),
+          zone_correct: zoneCorrect,
+          corrected_zone: correctedZone.trim(),
+        }),
       });
       if (res.status === 403) { setMsg({ ok: false, text: "Supervisor access (admin/SPD manager) required." }); return; }
       if (!res.ok) {
@@ -87,6 +95,20 @@ export default function SupervisorNotes({
         placeholder="Override action (optional, e.g. reprocess / remove)"
         className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
+      {/* Zone-aware feedback → labeled training data */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-500">AI zone correct?</span>
+        <button onClick={() => setZoneCorrect(true)} className={`rounded-full px-2 py-0.5 border ${zoneCorrect === true ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-600"}`}>Yes</button>
+        <button onClick={() => setZoneCorrect(false)} className={`rounded-full px-2 py-0.5 border ${zoneCorrect === false ? "bg-red-600 text-white border-red-600" : "border-slate-300 text-slate-600"}`}>No</button>
+        {zoneCorrect === false && (
+          <input
+            value={correctedZone}
+            onChange={(e) => setCorrectedZone(e.target.value)}
+            placeholder="Corrected zone (e.g. hinge, box lock)"
+            className="flex-1 min-w-[10rem] rounded-lg border border-slate-300 px-2 py-1"
+          />
+        )}
+      </div>
       <div className="mt-2 flex items-center gap-3">
         <button onClick={submit} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
           {busy ? "Saving…" : "Submit review"}

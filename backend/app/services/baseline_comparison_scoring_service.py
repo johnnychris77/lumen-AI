@@ -26,6 +26,8 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.services.instrument_zones import is_high_retention, zone_fields
+
 # Baseline resolution order — most authoritative first.
 BASELINE_PRIORITY = ["manufacturer", "vendor", "hospital"]
 
@@ -589,6 +591,15 @@ def _overall_result(result: dict) -> str:
     # Residual contamination → return for cleaning/reprocessing (moderate+).
     if any(idx(k) >= 2 for k in ("blood", "tissue", "other_organic_residue", "debris", "bone")):
         return "REPROCESS"
+    # Zone-aware escalation: contamination in a HIGH-retention zone (serrations,
+    # box locks, lumens, drill-bit flutes, o-ring areas, hinges …) is treated
+    # more aggressively than the same probability on a flat surface — even a
+    # trace signal there warrants reprocessing.
+    for f in result.get("predicted_findings", []):
+        if (f["type"] in ("blood", "tissue", "other_organic_residue", "debris", "bone")
+                and f["severity_index"] >= 1
+                and is_high_retention(f.get("instrument_zone", ""))):
+            return "REPROCESS"
     # Condition change / baseline concern → supervisor review.
     moderate_condition = idx("corrosion") == 2 or idx("rust") == 2
     mismatch = result.get("identification", {}).get("identification_status") == "mismatch"
@@ -987,7 +998,7 @@ def analyze_inspection(
         present = probability >= 0.5
         kpi_summary[kpi] = present
         spd_tier = spd_risk_tier(kpi, probability)
-        predicted_findings.append({
+        finding = {
             "type": kpi,
             "label": KPI_LABELS.get(kpi, kpi),
             "probability": probability,
@@ -1002,7 +1013,11 @@ def analyze_inspection(
             # SPD operational weighting surfaced to the panel.
             "spd_risk": spd_tier,
             "spd_risk_impact": spd_risk_impact(spd_tier),
-        })
+        }
+        # Instrument-zone taxonomy: where this finding is likely to hide, its
+        # retention risk, and the recommended manual check for that zone.
+        finding.update(zone_fields(instrument_type, kpi))
+        predicted_findings.append(finding)
 
     # ── Identification detection / match (real decode-vs-baseline) ──────────
     # Values may be decoded from the image (pyzbar) or technician-declared; the
