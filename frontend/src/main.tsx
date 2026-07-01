@@ -59,6 +59,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const VendorIntake = lazy(() => import("./pages/VendorIntake"));
 const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
+const CapturePage = lazy(() => import("./pages/CapturePage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
@@ -296,6 +297,7 @@ function App() {
                       <Route path="/vendor-intake" element={<Page name="VendorIntake"><VendorIntake /></Page>} />
                       <Route path="/operations" element={<Page name="Operations"><OperationsDashboard /></Page>} />
                       <Route path="/inspection/new" element={<Page name="NewInspection"><NewInspectionPage /></Page>} />
+                      <Route path="/inspection/capture" element={<Page name="Capture"><CapturePage /></Page>} />
                       <Route path="/findings" element={<Page name="Findings"><FindingsQueuePage /></Page>} />
                       <Route path="/capa" element={<Page name="CAPA"><CapaQueuePage /></Page>} />
                       <Route path="/analytics" element={<Page name="Analytics"><AnalyticsDashboardPage /></Page>} />

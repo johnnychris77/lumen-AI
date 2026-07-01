@@ -61,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Inspection Intelligence",
     items: [
       { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
+      { to: "/inspection/capture", label: "Borescope Capture", icon: Camera },
       { to: "/intake-history", label: "Inspection History", icon: History },
       { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
       { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
