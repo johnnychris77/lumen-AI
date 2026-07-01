@@ -8,12 +8,15 @@ export default function LoginPage() {
   const location = useLocation();
   const from = (location.state as { from?: string })?.from || "/";
 
-  if (token) return <Navigate to={from} replace />;
-
+  // NOTE: all hooks must run before any conditional return, or React throws
+  // "rendered fewer hooks than expected" (a white-page crash) when an already
+  // authenticated user lands on /login and the early return fires.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  if (token) return <Navigate to={from} replace />;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
