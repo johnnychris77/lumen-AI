@@ -471,22 +471,42 @@ def recommended_action(findings_by_kpi: dict[str, dict], baseline_match_score: f
         f = findings_by_kpi.get(kpi)
         return f if f and f["severity_index"] >= 1 else None
 
-    # REPROCESS / REMOVE FROM SERVICE
-    reprocess = []
-    for kpi in ("blood", "tissue", "other_organic_residue", "crack",
-                "missing_component", "insulation_damage"):
-        f = present(kpi)
-        if f and (kpi != "blood" or f["severity_index"] >= 2):
-            reprocess.append(KPI_LABELS[kpi])
-    for kpi in ("corrosion",):
-        f = present(kpi)
-        if f and f["severity_index"] >= 3:  # severe corrosion
-            reprocess.append("severe corrosion")
-    if reprocess:
+    def contamination_actionable(kpi: str) -> dict | None:
+        """Moderate+ anywhere, OR trace+ in a high-retention zone (zone-aware)."""
+        f = findings_by_kpi.get(kpi)
+        if not f:
+            return None
+        idx = f["severity_index"]
+        if idx >= 2 or (idx >= 1 and is_high_retention(f.get("instrument_zone", ""))):
+            return f
+        return None
+
+    # REMOVE FROM SERVICE — structural defects (moderate+), severe corrosion.
+    remove = []
+    for kpi in ("crack", "missing_component", "insulation_damage"):
+        f = findings_by_kpi.get(kpi)
+        if f and f["severity_index"] >= 2:
+            remove.append(KPI_LABELS[kpi])
+    corr = findings_by_kpi.get("corrosion")
+    if corr and corr["severity_index"] >= 3:
+        remove.append("severe corrosion")
+    if remove:
         return (
-            "Reprocess / remove from service — "
-            + ", ".join(sorted(set(reprocess)))
+            "Remove from service — " + ", ".join(sorted(set(remove)))
             + ". Supervisor review required before any further use."
+        )
+
+    # REPROCESS — residual contamination (zone-aware).
+    reprocess = [
+        KPI_LABELS[kpi]
+        for kpi in ("blood", "tissue", "other_organic_residue", "debris", "bone")
+        if contamination_actionable(kpi)
+    ]
+    if reprocess:
+        drivers = ", ".join(sorted(set(reprocess)))
+        return (
+            f"Reprocess — {drivers}. Return the instrument for complete cleaning "
+            "and re-inspect before release."
         )
 
     # SUPERVISOR REVIEW

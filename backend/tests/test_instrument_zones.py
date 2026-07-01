@@ -112,6 +112,35 @@ class TestZoneEscalation:
         assert _overall_result(r) in ("PASS", "MONITOR")
 
 
+class TestZoneEscalationExplained:
+    """Regression: a zone-escalated disposition must be explained by the
+    reasoning (no 'REPROCESS' while the mentor says 'no actionable findings')."""
+
+    def test_zone_escalated_finding_is_surfaced(self):
+        from app.services.clinical_mentor import _present_findings, ai_mentor
+        r = {
+            "analysis_status": "completed", "confidence": 0.85,
+            "confidence_level": "High", "baseline_match_score": 0.93,
+            "predicted_findings": [
+                {"type": "other_organic_residue", "severity_index": 1, "instrument_zone": "hinge"},
+            ],
+            "identification": {},
+        }
+        assert "other_organic_residue" in _present_findings(r)
+        m = ai_mentor(r, "REPROCESS")
+        assert m["what_was_detected"] != ["No actionable findings detected."]
+
+    def test_no_phantom_crack_in_recommendation(self):
+        from app.services.baseline_comparison_scoring_service import recommended_action
+        findings = {
+            "crack": {"severity_index": 1, "instrument_zone": "cutting edge"},
+            "other_organic_residue": {"severity_index": 1, "instrument_zone": "hinge"},
+        }
+        txt = recommended_action(findings, 0.93).lower()
+        assert "crack" not in txt  # an 11% cosmetic-wear crack is not a driver
+        assert "organic residue" in txt  # the zone-escalated contamination is
+
+
 class TestZoneReasoning:
     def test_interpretation_includes_zone_language(self):
         out = _analyze("serrated forceps", declared=["blood"])

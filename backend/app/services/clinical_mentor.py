@@ -217,8 +217,22 @@ def _sev(result: dict, kpi: str) -> int:
 
 
 def _present_findings(result: dict) -> list[str]:
-    """KPIs at a clinically actionable (moderate+, idx>=2) level."""
-    return [f["type"] for f in result.get("predicted_findings", []) if f["severity_index"] >= 2]
+    """Clinically actionable findings: moderate+ (idx>=2) anywhere, OR trace+
+    contamination (idx>=1) in a HIGH-retention zone — so that anything which
+    escalates the disposition is also surfaced in the explanation."""
+    from app.services.instrument_zones import is_high_retention
+    out = []
+    for f in result.get("predicted_findings", []):
+        idx = f["severity_index"]
+        if idx >= 2:
+            out.append(f["type"])
+        elif (idx >= 1 and f["type"] in _CONTAMINATION_TYPES
+              and is_high_retention(f.get("instrument_zone", ""))):
+            out.append(f["type"])
+    return out
+
+
+_CONTAMINATION_TYPES = {"blood", "tissue", "other_organic_residue", "debris", "bone"}
 
 
 def _band(level: str) -> str:
