@@ -122,7 +122,9 @@ async def lifespan(_app: FastAPI):
     try:
         from app.db.column_migrator import ensure_columns
         from app.models.inspection import Inspection
+        from app.models.supervisor_review import SupervisorReview
         ensure_columns(engine, Inspection)
+        ensure_columns(engine, SupervisorReview)
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)

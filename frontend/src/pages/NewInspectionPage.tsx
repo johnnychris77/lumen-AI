@@ -43,6 +43,10 @@ type PredictedFinding = {
   status?: string;
   spd_risk?: string;
   spd_risk_impact?: string;
+  instrument_zone?: string;
+  zone_risk?: string;
+  zone_reason?: string;
+  recommended_manual_check?: string;
 };
 
 type SeverityByKpi = Record<
@@ -1188,6 +1192,22 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
                 <div className="mt-0.5 text-xs text-slate-400">
                   SPD Risk Impact: <span className="font-medium text-slate-600">{impact}</span>
                 </div>
+                {finding?.instrument_zone && finding.instrument_zone !== "unspecified region" && (
+                  <div className="mt-1 border-t border-slate-100 pt-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Zone: <span className="font-medium capitalize text-slate-700">{finding.instrument_zone}</span></span>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                        finding.zone_risk === "high" ? "bg-red-100 text-red-700"
+                          : finding.zone_risk === "medium" ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-500"
+                      }`}>Zone Risk: {finding.zone_risk}</span>
+                    </div>
+                    {finding.zone_reason && <p className="mt-0.5 text-slate-500">{finding.zone_reason}</p>}
+                    {finding.recommended_manual_check && (
+                      <p className="mt-0.5 text-slate-600"><span className="text-slate-400">Manual check:</span> {finding.recommended_manual_check}</p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

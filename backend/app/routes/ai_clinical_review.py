@@ -35,6 +35,12 @@ class SupervisorReviewIn(BaseModel):
     agreement: str = Field(..., description="agree | partially_agree | disagree")
     rationale: str = Field("", max_length=2000)
     override_action: str = Field("", max_length=50)
+    # Zone-aware feedback → labeled training data.
+    finding_correct: bool | None = None
+    zone_correct: bool | None = None
+    corrected_zone: str = Field("", max_length=60)
+    corrected_severity: str = Field("", max_length=30)
+    final_disposition: str = Field("", max_length=50)
 
 
 @router.post("/inspections/{inspection_id}/supervisor-review", status_code=201)
@@ -82,6 +88,11 @@ def submit_supervisor_review(
         override_action=body.override_action.strip(),
         ai_recommendation=inspection.recommended_action or "",
         ai_score=(100 - inspection.risk_score) if inspection.score_status == "scored" else None,
+        finding_correct=body.finding_correct,
+        zone_correct=body.zone_correct,
+        corrected_zone=body.corrected_zone.strip(),
+        corrected_severity=body.corrected_severity.strip(),
+        final_disposition=body.final_disposition.strip(),
     )
     db.add(review)
 

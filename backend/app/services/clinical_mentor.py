@@ -260,9 +260,19 @@ def detailed_interpretation(result: dict, overall: str) -> list[str]:
         ]
     present = _present_findings(result)
     match = result.get("baseline_match_score")
+    findings_by_kpi = {f["type"]: f for f in result.get("predicted_findings", [])}
     lines: list[str] = []
     if match is not None:
         lines.append(f"The instrument matched its approved baseline at {round(match * 100)}%.")
+
+    def _zone_phrase(kpi: str) -> str:
+        f = findings_by_kpi.get(kpi, {})
+        zone = f.get("instrument_zone")
+        if not zone or zone in ("unspecified region", "surface discoloration area"):
+            return ""
+        from app.services.instrument_zones import is_high_retention
+        tag = ", a high-retention zone" if is_high_retention(zone) else ""
+        return f" in the {zone} region{tag}"
 
     structural = [k for k in present if k in _STRUCTURAL_KPIS or (k == "corrosion" and _sev(result, k) >= 3)]
     contamination = [k for k in present if k in CLEANING_KPIS]
@@ -270,7 +280,7 @@ def detailed_interpretation(result: dict, overall: str) -> list[str]:
     if structural:
         primary = structural[0]
         edu = FINDING_EDUCATION.get(primary, {})
-        lines.append(f"A structural finding consistent with {KPI_LABELS.get(primary, primary)} was detected.")
+        lines.append(f"A structural finding consistent with {KPI_LABELS.get(primary, primary)} was detected{_zone_phrase(primary)}.")
         if not contamination:
             lines.append("Although contamination was not detected, the structural integrity of the instrument may be compromised.")
         if edu.get("clinical_significance"):
@@ -279,7 +289,7 @@ def detailed_interpretation(result: dict, overall: str) -> list[str]:
     elif contamination:
         primary = contamination[0]
         edu = FINDING_EDUCATION.get(primary, {})
-        lines.append(f"A contamination indicator ({KPI_LABELS.get(primary, primary)}) was detected.")
+        lines.append(f"{KPI_LABELS.get(primary, primary).capitalize()} indicators were detected{_zone_phrase(primary)}.")
         if edu.get("clinical_significance"):
             lines.append(edu["clinical_significance"])
         lines.append("The instrument should be returned for cleaning and re-inspected before release.")
