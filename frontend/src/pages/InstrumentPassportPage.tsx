@@ -13,7 +13,9 @@ import {
   History,
   Image,
   Layers,
+  LineChart,
   Microscope,
+  Minus,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -61,6 +63,21 @@ type Baseline = {
   image_url?: string;
 };
 
+// Phase 14.8 — deterministic predictive intelligence from the backend
+// /api/instruments/{identifier}/timeline endpoint.
+type Prediction = {
+  risk_trend: "improving" | "stable" | "worsening" | "insufficient_data";
+  latest_risk_score: number | null;
+  estimated_remaining_life: string | null;
+  replacement_planning: string;
+  note: string;
+};
+type TimelineResponse = {
+  identifier: string;
+  inspection_count: number;
+  prediction: Prediction;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const FINDING_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -87,6 +104,13 @@ function riskLabel(score: number) {
   if (score >= 40) return "Medium";
   return "Low";
 }
+
+const TREND_META: Record<Prediction["risk_trend"], { label: string; icon: React.ElementType; color: string }> = {
+  worsening:         { label: "Worsening",         icon: TrendingUp,   color: "text-red-600 bg-red-50 border-red-200" },
+  stable:            { label: "Stable",            icon: Minus,        color: "text-slate-600 bg-slate-50 border-slate-200" },
+  improving:         { label: "Improving",         icon: TrendingDown, color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  insufficient_data: { label: "Insufficient data", icon: Minus,        color: "text-slate-400 bg-slate-50 border-slate-200" },
+};
 
 function formatDate(s?: string) {
   if (!s) return "—";
@@ -159,6 +183,7 @@ export default function InstrumentPassportPage() {
   const [instrument, setInstrument] = useState<Instrument | null>(null);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [baselines, setBaselines] = useState<Baseline[]>([]);
+  const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -210,6 +235,23 @@ export default function InstrumentPassportPage() {
             ? all.filter((b) => b.instrument_category === found!.instrument_type)
             : all.slice(0, 4)
         );
+      }
+
+      // Phase 14.8 — deterministic predictive intelligence. The endpoint keys off
+      // the instrument's barcode/UDI; fall back to the raw URL param.
+      const trendKey = found?.barcode || found?.udi || identifier;
+      setPrediction(null);
+      try {
+        const predRes = await fetch(
+          `${API_BASE}/api/instruments/${encodeURIComponent(trendKey)}/timeline`,
+          { headers: hdrs }
+        );
+        if (predRes.ok) {
+          const data: TimelineResponse = await predRes.json();
+          setPrediction(data.prediction ?? null);
+        }
+      } catch {
+        /* non-fatal — prediction card simply hides */
       }
     } catch {
       setError("Failed to load passport data.");
@@ -350,6 +392,49 @@ export default function InstrumentPassportPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {prediction && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <SectionTitle icon={LineChart} title="Predictive Intelligence" />
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Risk trend</span>
+                    {(() => {
+                      const meta = TREND_META[prediction.risk_trend];
+                      const Icon = meta.icon;
+                      return (
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${meta.color}`}>
+                          <Icon className="h-3 w-3" />
+                          {meta.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  {prediction.latest_risk_score != null && (
+                    <Row label="Latest risk score" value={`${prediction.latest_risk_score} / 100`} />
+                  )}
+
+                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                    <p className="text-xs font-medium text-slate-600 mb-0.5">Estimated remaining life</p>
+                    <p className="text-xs text-slate-500">
+                      {prediction.estimated_remaining_life ?? "No clear worsening trend — no projection offered."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                    <p className="text-xs font-medium text-slate-600 mb-0.5">Replacement planning</p>
+                    <p className="text-xs text-slate-500">{prediction.replacement_planning}</p>
+                  </div>
+
+                  <p className="text-xs text-slate-400 border-t border-slate-100 pt-2 italic">
+                    {prediction.note}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Right — Images, Findings, Timeline, Baselines */}
