@@ -227,7 +227,9 @@ def spd_risk_tier(kpi: str, p: float) -> str:
     if kpi in ("rust", "corrosion"):
         return "critical" if idx >= 3 else "high" if idx == 2 else "low"
     if kpi in _SPD_ALWAYS_CRITICAL:
-        return "critical"
+        # Critical only at a genuine (moderate+) detection; a faint idx==1 signal
+        # is elevated (review) but must not read as reprocess/remove.
+        return "critical" if idx >= 2 else "high"
     if kpi in _SPD_ALWAYS_HIGH:
         return "high"
     # discoloration + anything cosmetic
@@ -579,12 +581,13 @@ def _overall_result(result: dict) -> str:
     def idx(kpi: str) -> int:
         return f.get(kpi, {}).get("severity_index", 0)
 
-    # Structural integrity concern → remove from service.
-    if any(idx(k) >= 1 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3:
+    # Structural integrity concern → remove from service. Requires a genuine
+    # (moderate+, idx>=2) detection so faint placeholder noise at ~11% does not
+    # force the most severe disposition on an otherwise clean, high-score item.
+    if any(idx(k) >= 2 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3:
         return "REMOVE FROM SERVICE"
-    # Residual contamination → return for cleaning/reprocessing.
-    if (idx("blood") >= 2 or idx("tissue") >= 1 or idx("other_organic_residue") >= 1
-            or idx("debris") >= 1 or idx("bone") >= 1):
+    # Residual contamination → return for cleaning/reprocessing (moderate+).
+    if any(idx(k) >= 2 for k in ("blood", "tissue", "other_organic_residue", "debris", "bone")):
         return "REPROCESS"
     # Condition change / baseline concern → supervisor review.
     moderate_condition = idx("corrosion") == 2 or idx("rust") == 2
@@ -674,7 +677,7 @@ def baseline_difference(result: dict) -> dict:
             differences.append(f"{fx['severity'].capitalize()} {KPI_LABELS[kpi]} observed.")
     for kpi in _STRUCTURAL_KPIS:
         fx = findings.get(kpi)
-        if fx and fx["severity_index"] >= 1:
+        if fx and fx["severity_index"] >= 2:
             condition = True
             differences.append(f"Possible {KPI_LABELS[kpi]} observed.")
 
@@ -705,11 +708,12 @@ def _integrity_status(findings_by_kpi: dict) -> str:
     def idx(kpi: str) -> int:
         return findings_by_kpi.get(kpi, {}).get("severity_index", 0)
 
-    if any(idx(k) >= 1 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3 or idx("rust") >= 3:
+    if any(idx(k) >= 2 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3 or idx("rust") >= 3:
         return "Remove From Service"
     if idx("corrosion") >= 2 or idx("rust") >= 2 or idx("pitting") >= 2:
         return "Repair Required"
-    if any(idx(k) == 1 for k in ("rust", "corrosion", "pitting", "discoloration")):
+    if any(idx(k) == 1 for k in ("rust", "corrosion", "pitting", "discoloration")) \
+            or any(idx(k) == 1 for k in _STRUCTURAL_KPIS):
         return "Monitor"
     return "Acceptable"
 
@@ -719,7 +723,9 @@ def _finding_view(f: dict) -> dict:
     return {
         "type": f["type"],
         "label": f["label"],
-        "detected": f["severity_index"] >= 1,
+        # "Detected" means a clinically actionable (moderate+) signal, not faint
+        # low-probability noise from the deterministic placeholder.
+        "detected": f["severity_index"] >= 2,
         "probability": f["probability"],
         "probability_pct": round(f["probability"] * 100),
         "confidence": f["confidence"],
@@ -748,7 +754,7 @@ def clinical_reasoning(result: dict) -> list[str]:
         else:
             lines.append(f"{fx['severity'].capitalize()} {KPI_LABELS[kpi]} detected.")
 
-    structural = [KPI_LABELS[k] for k in _STRUCTURAL_KPIS if f.get(k, {}).get("severity_index", 0) >= 1]
+    structural = [KPI_LABELS[k] for k in _STRUCTURAL_KPIS if f.get(k, {}).get("severity_index", 0) >= 2]
     condition = [
         f"{f[k]['severity']}" for k in ("rust", "corrosion", "pitting")
         if f.get(k, {}).get("severity_index", 0) >= 2
