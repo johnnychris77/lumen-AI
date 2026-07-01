@@ -106,6 +106,18 @@ class TestIngest:
         assert body["analysis"]["analysis_status"] == "completed"
         assert body["analysis"]["risk_level"] in ("low", "medium", "high", "critical")
 
+    def test_ingest_records_captured_by(self):
+        _baseline("scissors")
+        key = _register_device()["device_key"]
+        r = client.post(
+            "/api/capture/ingest",
+            files={"image": ("frame.png", _png(), "image/png")},
+            data={"instrument_type": "scissors", "captured_by": "badge-4471"},
+            headers={"X-Device-Key": key},
+        )
+        assert r.status_code == 201, r.text
+        assert r.json()["captured_by"] == "badge-4471"
+
     def test_revoked_device_cannot_ingest(self):
         reg = _register_device()
         key, did = reg["device_key"], reg["id"]

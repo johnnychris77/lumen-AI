@@ -60,6 +60,7 @@ const VendorIntake = lazy(() => import("./pages/VendorIntake"));
 const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const NewInspectionPage = lazy(() => import("./pages/NewInspectionPage"));
 const CapturePage = lazy(() => import("./pages/CapturePage"));
+const StationPage = lazy(() => import("./pages/StationPage"));
 const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
@@ -282,6 +283,16 @@ function App() {
                 element={
                   <Page name="Login">
                     <LoginPage />
+                  </Page>
+                }
+              />
+
+              {/* Shared borescope station — KIOSK, device-key auth, no AppShell/login */}
+              <Route
+                path="/station"
+                element={
+                  <Page name="Station">
+                    <StationPage />
                   </Page>
                 }
               />

@@ -175,6 +175,7 @@ async def ingest_capture(
     instrument_barcode: str = Form(""),
     instrument_udi: str = Form(""),
     facility_name: str = Form(""),
+    captured_by: str = Form(""),
     consent: bool = Form(False),
     x_device_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
@@ -244,10 +245,18 @@ async def ingest_capture(
     db.commit()
     db.refresh(row)
 
+    # Attribute to the scanning tech when the station provides a badge/PIN,
+    # otherwise to the device itself.
+    actor = captured_by.strip() or f"device:{device.id}"
     log_audit_event(
         db, tenant_id=tenant_id, tenant_name=tenant_id,
-        actor_email=f"device:{device.id}", actor_role=device.role,
+        actor_email=actor, actor_role=device.role,
         action_type="capture_ingested", resource_type="inspection",
         resource_id=str(row.id),
     )
-    return {"inspection_id": row.id, "device_id": device.id, "analysis": analysis}
+    return {
+        "inspection_id": row.id,
+        "device_id": device.id,
+        "captured_by": captured_by.strip(),
+        "analysis": analysis,
+    }

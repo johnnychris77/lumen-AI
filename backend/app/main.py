@@ -236,6 +236,7 @@ app.add_middleware(
         "X-Tenant-Id",
         "X-Tenant-Name",
         "X-Requested-With",
+        "X-Device-Key",
     ],
 )
 
