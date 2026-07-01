@@ -54,7 +54,7 @@ class TestClinicalDecisionShape:
     def test_overall_result_is_one_of_four(self):
         cd = _analyze("scissors")["clinical_decision"]
         assert cd["overall_result"] in (
-            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REMOVE FROM SERVICE"
+            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE"
         )
 
     def test_summary_fields(self):
@@ -88,9 +88,9 @@ class TestClinicalDecisionShape:
         assert cd["overall_result"] == "REMOVE FROM SERVICE"
         assert cd["integrity"]["overall_status"] == "Remove From Service"
 
-    def test_blood_forces_supervisor_or_remove(self):
+    def test_blood_forces_reprocess_or_remove(self):
         cd = _analyze("scissors", declared=["blood"])["clinical_decision"]
-        assert cd["overall_result"] in ("SUPERVISOR REVIEW", "REMOVE FROM SERVICE")
+        assert cd["overall_result"] in ("REPROCESS", "REMOVE FROM SERVICE")
 
     def test_reasoning_is_grounded(self):
         cd = _analyze("needle_holder")["clinical_decision"]

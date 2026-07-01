@@ -24,7 +24,10 @@ type ClinicalDecision = {
   cleaning: { items: Finding[]; overall_status: string | null };
   integrity: { items: Finding[]; overall_status: string | null };
   clinical_reasoning: string[];
-  recommendation: { result: string; action?: string };
+  ai_clinical_review: { outcome: string; reasoning: string[]; interpretation: string };
+  evidence_strength: { level: string; stars: number; reason: string };
+  baseline_difference: { baseline_match_pct: number | null; differences: string[]; category: string; localization_note: string };
+  recommendation: { result: string; action?: string; action_text?: string };
   evidence: { baseline_comparison_label?: string; baseline_source?: string | null; baseline_match_pct: number | null; highest_risk_drivers: string[]; confidence?: string | null; image_evidence_note: string };
   executive_summary: string[];
   audit: Record<string, unknown>;
@@ -35,6 +38,7 @@ const RESULT_STYLE: Record<string, string> = {
   PASS: "bg-emerald-600",
   MONITOR: "bg-amber-500",
   "SUPERVISOR REVIEW": "bg-orange-600",
+  REPROCESS: "bg-red-500",
   "REMOVE FROM SERVICE": "bg-red-600",
 };
 const IMPACT_STYLE: Record<string, string> = {
@@ -88,6 +92,100 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
+function Stars({ n }: { n: number }) {
+  return (
+    <span className="text-amber-500 text-lg tracking-tight" aria-label={`${n} of 5`}>
+      {"★".repeat(n)}<span className="text-slate-300">{"☆".repeat(Math.max(0, 5 - n))}</span>
+    </span>
+  );
+}
+
+const AGREEMENT_OPTIONS = [
+  { value: "agree", label: "Agree with AI" },
+  { value: "partially_agree", label: "Partially agree" },
+  { value: "disagree", label: "Disagree with AI" },
+];
+
+function SupervisorNotes({ inspectionId }: { inspectionId?: number }) {
+  const { headers } = useAuth();
+  const [agreement, setAgreement] = useState("agree");
+  const [rationale, setRationale] = useState("");
+  const [override, setOverride] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const commentRequired = agreement !== "agree" || !!override.trim();
+
+  async function submit() {
+    if (!inspectionId) return;
+    if (commentRequired && !rationale.trim()) {
+      setMsg({ ok: false, text: "A comment is required for partial agreement, disagreement, or override." });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/inspections/${inspectionId}/supervisor-review`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ agreement, rationale: rationale.trim(), override_action: override.trim() }),
+      });
+      if (res.status === 403) { setMsg({ ok: false, text: "Supervisor access (admin/SPD manager) required." }); return; }
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        setMsg({ ok: false, text: b?.detail || `Submit failed (${res.status}).` });
+        return;
+      }
+      setMsg({ ok: true, text: "Supervisor review recorded." });
+      setRationale("");
+      setOverride("");
+    } catch {
+      setMsg({ ok: false, text: "Unable to reach the server." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Supervisor Review Notes">
+      <div className="flex flex-wrap gap-2 mb-2">
+        {AGREEMENT_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => setAgreement(o.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border ${
+              agreement === o.value ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 text-slate-600"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={rationale}
+        onChange={(e) => setRationale(e.target.value)}
+        placeholder={commentRequired ? "Rationale (required)" : "Rationale (optional)"}
+        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        rows={2}
+      />
+      <input
+        value={override}
+        onChange={(e) => setOverride(e.target.value)}
+        placeholder="Override action (optional, e.g. reprocess / remove)"
+        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+      />
+      <div className="mt-2 flex items-center gap-3">
+        <button onClick={submit} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+          {busy ? "Saving…" : "Submit review"}
+        </button>
+        {msg && <span className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-700"}`}>{msg.text}</span>}
+      </div>
+      <p className="mt-2 text-xs text-slate-400">
+        Feedback is stored as labeled training data. Operators/viewers cannot submit.
+      </p>
+    </Card>
+  );
+}
+
 export default function ClinicalDecisionPanel({
   cd,
   inspectionId,
@@ -95,9 +193,10 @@ export default function ClinicalDecisionPanel({
   cd: ClinicalDecision;
   inspectionId?: number;
 }) {
-  const { headers } = useAuth();
+  const { headers, role } = useAuth();
   const [pdfBusy, setPdfBusy] = useState(false);
   const result = cd.overall_result;
+  const canReview = role === "admin" || role === "spd_manager";
 
   async function downloadPdf() {
     if (!inspectionId) return;
@@ -133,6 +232,42 @@ export default function ClinicalDecisionPanel({
           <div><div className="text-xs text-slate-500">Baseline</div><div className="font-medium text-slate-800 capitalize">{cd.summary.baseline_source ?? "—"}</div></div>
         </div>
       </div>
+
+      {/* AI Clinical Review — outcome + interpretation + evidence strength */}
+      <Card title="AI Clinical Review">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm">
+            <span className="text-slate-500">Inspection outcome: </span>
+            <span className="font-semibold text-slate-900">{cd.ai_clinical_review.outcome}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Evidence Strength</span>
+            <Stars n={cd.evidence_strength.stars} />
+            <span className="text-sm font-medium text-slate-700">{cd.evidence_strength.level}</span>
+          </div>
+        </div>
+        <p className="mt-2 text-sm text-slate-700">{cd.ai_clinical_review.interpretation}</p>
+        <p className="mt-1 text-xs text-slate-400">{cd.evidence_strength.reason}</p>
+      </Card>
+
+      {/* Baseline Difference */}
+      <Card title="Baseline Difference">
+        <p className="text-sm text-slate-700 mb-1">
+          Baseline match <span className="font-semibold">{cd.baseline_difference.baseline_match_pct ?? "—"}%</span>
+          {" · "}differences are <span className="font-medium capitalize">{cd.baseline_difference.category}</span>-related
+        </p>
+        <ul className="space-y-0.5 text-sm text-slate-700">
+          {cd.baseline_difference.differences.map((d, i) => (
+            <li key={i} className="flex items-start gap-1.5">
+              <span className={d.toLowerCase().startsWith("no ") ? "text-emerald-500" : "text-amber-500"}>•</span>
+              <span>{d}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 rounded border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          {cd.baseline_difference.localization_note}
+        </div>
+      </Card>
 
       {/* 13.9 Executive Summary */}
       {cd.executive_summary.length > 0 && (
@@ -190,8 +325,11 @@ export default function ClinicalDecisionPanel({
       <div className={`rounded-lg border px-4 py-3 ${result === "PASS" ? "border-emerald-300 bg-emerald-50" : "border-orange-300 bg-orange-50"}`}>
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Recommendation</p>
         <p className="text-sm font-semibold text-slate-900">{cd.recommendation.result}</p>
-        {cd.recommendation.action && <p className="text-sm text-slate-700">{cd.recommendation.action}</p>}
+        <p className="text-sm text-slate-700">{cd.recommendation.action_text ?? cd.recommendation.action}</p>
       </div>
+
+      {/* Supervisor Review Notes — admin/spd_manager only */}
+      {canReview && <SupervisorNotes inspectionId={inspectionId} />}
 
       {/* 13.7 Evidence */}
       <Card title="Evidence Used">

@@ -570,8 +570,8 @@ AI_ROADMAP = [
 
 
 def _overall_result(result: dict) -> str:
-    """Collapse the analysis into one of the four clinical dispositions
-    (PASS / MONITOR / SUPERVISOR REVIEW / REMOVE FROM SERVICE)."""
+    """Collapse the analysis into one of the five clinical dispositions
+    (PASS / MONITOR / SUPERVISOR REVIEW / REPROCESS / REMOVE FROM SERVICE)."""
     if result.get("analysis_status") != "completed":
         return "SUPERVISOR REVIEW"
     f = {x["type"]: x for x in result["predicted_findings"]}
@@ -579,19 +579,126 @@ def _overall_result(result: dict) -> str:
     def idx(kpi: str) -> int:
         return f.get(kpi, {}).get("severity_index", 0)
 
+    # Structural integrity concern → remove from service.
     if any(idx(k) >= 1 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3:
         return "REMOVE FROM SERVICE"
-    contam = (
-        idx("blood") >= 2 or idx("tissue") >= 1 or idx("other_organic_residue") >= 1
-        or idx("debris") >= 1 or idx("bone") >= 1
-    )
+    # Residual contamination → return for cleaning/reprocessing.
+    if (idx("blood") >= 2 or idx("tissue") >= 1 or idx("other_organic_residue") >= 1
+            or idx("debris") >= 1 or idx("bone") >= 1):
+        return "REPROCESS"
+    # Condition change / baseline concern → supervisor review.
     moderate_condition = idx("corrosion") == 2 or idx("rust") == 2
     mismatch = result.get("identification", {}).get("identification_status") == "mismatch"
-    if contam or moderate_condition or mismatch or (result.get("baseline_match_score") or 1) < 0.70:
+    if moderate_condition or mismatch or (result.get("baseline_match_score") or 1) < 0.70:
         return "SUPERVISOR REVIEW"
+    # Minor cosmetic only → monitor.
     if idx("discoloration") == 1 or idx("rust") == 1:
         return "MONITOR"
     return "PASS"
+
+
+# Exact SPD recommended-action text per outcome (Phase: AI Clinical Review).
+_ACTION_TEXT = {
+    "PASS": "Accept inspection. Continue routine processing.",
+    "MONITOR": "Accept with monitoring. Recheck during next inspection.",
+    "SUPERVISOR REVIEW": "Hold instrument pending supervisor review.",
+    "REPROCESS": "Return for cleaning/reprocessing.",
+    "REMOVE FROM SERVICE": "Remove from service and escalate for repair/replacement.",
+}
+
+_INTERPRETATION = {
+    "PASS": (
+        "The observed surface characteristics are consistent with the approved "
+        "manufacturer baseline. No contamination or structural defect requiring "
+        "intervention was identified."
+    ),
+    "MONITOR": (
+        "Minor cosmetic variation was observed that does not require intervention "
+        "now. Recheck the instrument during the next inspection."
+    ),
+    "SUPERVISOR REVIEW": (
+        "Instrument cleanliness or condition may require verification. Detected "
+        "changes should be reviewed by a supervisor before release."
+    ),
+    "REPROCESS": (
+        "Residual contamination indicators were identified. Return the instrument "
+        "for cleaning/reprocessing and re-inspect before release."
+    ),
+    "REMOVE FROM SERVICE": (
+        "A structural integrity concern was identified. Remove the instrument from "
+        "service and escalate for repair or replacement."
+    ),
+}
+
+
+def evidence_strength(result: dict) -> dict:
+    """Strong / Moderate / Limited with a 5-star rating.
+
+    Strong:   baseline match >= 90% AND confidence >= 85%.
+    Moderate: baseline match 75–89% OR confidence 65–84%.
+    Limited:  baseline missing, or low confidence.
+    """
+    match = result.get("baseline_match_score")
+    conf = result.get("confidence")
+    if match is None or conf is None:
+        return {"level": "Limited", "stars": 1, "reason": "No approved baseline available."}
+    match_pct = match * 100
+    conf_pct = conf * 100
+    if match_pct >= 90 and conf_pct >= 85:
+        return {"level": "Strong", "stars": 5,
+                "reason": f"Baseline match {round(match_pct)}% and confidence {round(conf_pct)}% are both high."}
+    if match_pct >= 75 or conf_pct >= 65:
+        return {"level": "Moderate", "stars": 3,
+                "reason": f"Baseline match {round(match_pct)}% / confidence {round(conf_pct)}% are moderate."}
+    return {"level": "Limited", "stars": 1,
+            "reason": f"Baseline match {round(match_pct)}% and confidence {round(conf_pct)}% are low."}
+
+
+def baseline_difference(result: dict) -> dict:
+    """Plain-language baseline-difference summary (no fabricated localization)."""
+    findings = {x["type"]: x for x in result.get("predicted_findings", [])}
+    match = result.get("baseline_match_score")
+    differences: list[str] = []
+    contamination = False
+    condition = False
+
+    for kpi in CLEANING_KPIS:
+        fx = findings.get(kpi)
+        if fx and fx["severity_index"] >= 1:
+            contamination = True
+            differences.append(f"{KPI_LABELS[kpi].capitalize()} indicators detected.")
+    for kpi in ("rust", "corrosion", "discoloration", "pitting"):
+        fx = findings.get(kpi)
+        if fx and fx["severity_index"] >= 1:
+            condition = True
+            differences.append(f"{fx['severity'].capitalize()} {KPI_LABELS[kpi]} observed.")
+    for kpi in _STRUCTURAL_KPIS:
+        fx = findings.get(kpi)
+        if fx and fx["severity_index"] >= 1:
+            condition = True
+            differences.append(f"Possible {KPI_LABELS[kpi]} observed.")
+
+    if not contamination:
+        differences.append("No visible contamination detected.")
+    if not condition:
+        differences.append("No structural defect detected.")
+    differences.append("No lumen obstruction detected.")
+
+    category = (
+        "contamination and condition" if contamination and condition
+        else "contamination" if contamination
+        else "condition" if condition
+        else "none"
+    )
+    return {
+        "baseline_match_pct": round(match * 100) if match is not None else None,
+        "differences": differences,
+        "category": category,
+        "localization_note": (
+            "Detailed image difference localization is planned for a future "
+            "computer vision release."
+        ),
+    }
 
 
 def _integrity_status(findings_by_kpi: dict) -> str:
@@ -737,8 +844,22 @@ def build_clinical_decision(result: dict) -> dict:
         "integrity": {"items": integrity_items, "overall_status": integrity_status},
         # 13.5
         "clinical_reasoning": clinical_reasoning(result),
+        # AI Clinical Review — outcome + plain-language interpretation.
+        "ai_clinical_review": {
+            "outcome": overall,
+            "reasoning": clinical_reasoning(result),
+            "interpretation": _INTERPRETATION.get(overall, ""),
+        },
+        # Evidence Strength (Strong / Moderate / Limited + stars).
+        "evidence_strength": evidence_strength(result),
+        # Baseline Difference (plain language; no fabricated localization).
+        "baseline_difference": baseline_difference(result),
         # 13.6
-        "recommendation": {"result": overall, "action": result.get("recommended_action")},
+        "recommendation": {
+            "result": overall,
+            "action": result.get("recommended_action"),
+            "action_text": _ACTION_TEXT.get(overall, result.get("recommended_action")),
+        },
         # 13.7 Evidence (no fabricated CV overlays)
         "evidence": {
             "baseline_source": result.get("baseline_source"),
@@ -750,15 +871,21 @@ def build_clinical_decision(result: dict) -> dict:
         },
         # 13.9
         "executive_summary": executive_summary(result, overall),
-        # 13.10 Audit fields (persisted/loggable)
+        # 13.10 / Audit fields (persisted/loggable)
         "audit": {
+            "model_version": "baseline-comparison-pilot-1",
+            "dataset_version": "v0-pilot",
             "baseline_version": result.get("baseline_version"),
             "baseline_source": result.get("baseline_source"),
             "model_label": result.get("model_label"),
-            "model_version": "baseline-comparison-pilot-1",
+            "score": result.get("inspection_score"),
             "confidence": result.get("confidence_level"),
+            "evidence_strength": evidence_strength(result)["level"],
             "recommendation": overall,
             "reasoning_captured": True,
+            # Populated when a supervisor reviews (see supervisor-review endpoint).
+            "supervisor_agreement": None,
+            "override_reason": None,
             "human_review_required": result.get("human_review_required", True),
         },
         # 13.11

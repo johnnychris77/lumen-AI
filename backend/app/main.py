@@ -113,6 +113,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.p25_infrastructure")    # register P25 infrastructure tables
     importlib.import_module("app.models.retained_image")        # register opt-in training-image store + labels
     importlib.import_module("app.models.capture_device")        # register borescope capture-device registry
+    importlib.import_module("app.models.supervisor_review")     # register supervisor AI-agreement feedback store
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -542,6 +543,9 @@ app.include_router(ml_images_router, prefix=settings.API_PREFIX)
 
 from app.routes.capture import router as capture_router
 app.include_router(capture_router, prefix=settings.API_PREFIX)
+
+from app.routes.ai_clinical_review import router as ai_clinical_review_router
+app.include_router(ai_clinical_review_router, prefix=settings.API_PREFIX)
 
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
