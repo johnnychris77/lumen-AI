@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import SupervisorNotes from "@/components/SupervisorNotes";
 
 type InspectionRecord = {
   id: number;
@@ -53,10 +54,26 @@ function riskLabel(score: number | null): string {
 }
 
 export default function InspectionResultsHistory() {
-  const { headers } = useAuth();
+  const { headers, role } = useAuth();
   const [items, setItems] = useState<InspectionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const canReview = role === "admin" || role === "spd_manager";
+
+  async function openPdf(id: number) {
+    try {
+      const res = await fetch(`${API_BASE}/api/inspections/${id}/clinical-report.pdf`, {
+        headers: { Authorization: headers()["Authorization"] },
+      });
+      if (!res.ok) return;
+      const url = URL.createObjectURL(await res.blob());
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch {
+      /* ignore — best-effort */
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,11 +144,13 @@ export default function InspectionResultsHistory() {
                 <th className="px-5 py-2 font-medium">Finding</th>
                 <th className="px-5 py-2 font-medium">Baseline</th>
                 <th className="px-5 py-2 font-medium">Status</th>
+                <th className="px-5 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((r) => (
-                <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                <Fragment key={r.id}>
+                <tr className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="px-5 py-2.5 text-slate-500">{r.id}</td>
                   <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                     {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
@@ -192,7 +211,26 @@ export default function InspectionResultsHistory() {
                       </span>
                     )}
                   </td>
+                  <td className="px-5 py-2.5 whitespace-nowrap">
+                    <button onClick={() => openPdf(r.id)} className="text-xs text-blue-600 underline">PDF</button>
+                    {canReview && (
+                      <button
+                        onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                        className="ml-3 text-xs text-blue-600 underline"
+                      >
+                        {expanded === r.id ? "Close" : "Review"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
+                {expanded === r.id && canReview && (
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={11} className="px-5 py-3">
+                      <SupervisorNotes inspectionId={r.id} onSubmitted={() => setExpanded(null)} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

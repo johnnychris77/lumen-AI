@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import AiModelPerformanceCard from "@/components/AiModelPerformanceCard";
 
 type Summary = {
   total_inspections?: number;
@@ -360,6 +361,9 @@ export default function Dashboard() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* AI model-performance monitoring (supervisor-verified; admin/SPD only) */}
+      <AiModelPerformanceCard />
 
       {/* ── Operational KPIs ── */}
       <section>
