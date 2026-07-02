@@ -25,6 +25,8 @@ export default function SupervisorNotes({
   const [override, setOverride] = useState("");
   const [zoneCorrect, setZoneCorrect] = useState<boolean | null>(null);
   const [correctedZone, setCorrectedZone] = useState("");
+  const [familyCorrect, setFamilyCorrect] = useState<boolean | null>(null);
+  const [correctedFamily, setCorrectedFamily] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const commentRequired = agreement !== "agree" || !!override.trim();
@@ -47,6 +49,8 @@ export default function SupervisorNotes({
           override_action: override.trim(),
           zone_correct: zoneCorrect,
           corrected_zone: correctedZone.trim(),
+          instrument_family_correct: familyCorrect,
+          corrected_instrument_family: correctedFamily.trim(),
         }),
       });
       if (res.status === 403) { setMsg({ ok: false, text: "Supervisor access (admin/SPD manager) required." }); return; }
@@ -95,6 +99,20 @@ export default function SupervisorNotes({
         placeholder="Override action (optional, e.g. reprocess / remove)"
         className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
+      {/* Anatomy-family feedback → labeled training data */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-500">AI instrument family correct?</span>
+        <button onClick={() => setFamilyCorrect(true)} className={`rounded-full px-2 py-0.5 border ${familyCorrect === true ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-600"}`}>Yes</button>
+        <button onClick={() => setFamilyCorrect(false)} className={`rounded-full px-2 py-0.5 border ${familyCorrect === false ? "bg-red-600 text-white border-red-600" : "border-slate-300 text-slate-600"}`}>No</button>
+        {familyCorrect === false && (
+          <input
+            value={correctedFamily}
+            onChange={(e) => setCorrectedFamily(e.target.value)}
+            placeholder="Corrected family (e.g. flexible endoscope, drill bit)"
+            className="flex-1 min-w-[10rem] rounded-lg border border-slate-300 px-2 py-1"
+          />
+        )}
+      </div>
       {/* Zone-aware feedback → labeled training data */}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-slate-500">AI zone correct?</span>
