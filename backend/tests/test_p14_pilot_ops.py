@@ -51,7 +51,8 @@ class TestInspectionCreate:
         assert res.status_code == 422
 
     def test_invalid_instrument_type_rejected(self):
-        payload = {**VALID_INSPECTION, "instrument_type": "magic_wand"}
+        # Well-formed custom slugs are now allowed; free-form garbage is not.
+        payload = {**VALID_INSPECTION, "instrument_type": "Magic Wand!"}
         res = client.post("/api/inspections", json=payload, headers=VIEWER_HEADERS)
         assert res.status_code == 422
 

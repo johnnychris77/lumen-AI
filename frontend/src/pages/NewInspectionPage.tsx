@@ -129,6 +129,10 @@ type AIPrediction = {
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const INSTRUMENT_TYPES = [
+  { value: "rigid_scope", label: "Rigid Scope / Endoscope" },
+  { value: "flexible_endoscope", label: "Flexible Endoscope" },
+  { value: "drill_bit", label: "Drill Bit / Reamer / Burr" },
+  { value: "kerrison_rongeur", label: "Kerrison / Rongeur" },
   { value: "laparoscopic_grasper", label: "Laparoscopic Grasper" },
   { value: "scissors", label: "Scissors" },
   { value: "forceps", label: "Forceps" },
@@ -139,8 +143,14 @@ const INSTRUMENT_TYPES = [
   { value: "suction_irrigation", label: "Suction / Irrigation" },
   { value: "clip_applier", label: "Clip Applier" },
   { value: "stapler", label: "Stapler" },
-  { value: "other", label: "Other" },
+  { value: "other", label: "Other (type a new instrument type)" },
 ];
+
+// Normalize a free-text instrument type to the app's slug convention so a
+// custom inspection lines up with a custom manufacturer baseline of the same type.
+function slugifyType(text: string): string {
+  return text.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
 
 const FINDING_CATEGORIES: { value: FindingCategory; label: string; tooltip: string }[] = [
   { value: "blood", label: "Blood", tooltip: "Visible blood residue in lumen or on instrument surface" },
@@ -215,6 +225,8 @@ export default function NewInspectionPage() {
   };
   const [form, setForm] = useState<FormFields>(initialForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // "Other" lets the tech type an instrument type not in the built-in list.
+  const [customTypeMode, setCustomTypeMode] = useState(false);
   const [anatomyZones, setAnatomyZones] = useState<string[]>([]);
   const [inspectedZones, setInspectedZones] = useState<string[]>([]);
   const [inspectionImages, setInspectionImages] = useState<File[]>([]);
@@ -744,8 +756,20 @@ export default function NewInspectionPage() {
               <div>
                 <RequiredLabel label="Instrument Type" />
                 <select
-                  id="instrument_type" value={form.instrument_type}
-                  onChange={(e) => { setStr("instrument_type")(e); checkBaseline(e.target.value); }}
+                  id="instrument_type"
+                  value={customTypeMode ? "other" : form.instrument_type}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "other") {
+                      setCustomTypeMode(true);
+                      setForm((f) => ({ ...f, instrument_type: "" }));
+                      setNoBaselineWarning(false);
+                    } else {
+                      setCustomTypeMode(false);
+                      setForm((f) => ({ ...f, instrument_type: v }));
+                      checkBaseline(v);
+                    }
+                  }}
                   onBlur={onBlurRequired("instrument_type", "Instrument Type")}
                   className={inputCls}
                 >
@@ -754,6 +778,27 @@ export default function NewInspectionPage() {
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
+                {customTypeMode && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      placeholder="Type the instrument type, e.g. Cystoscope"
+                      value={form.instrument_type}
+                      onChange={(e) => {
+                        const slug = slugifyType(e.target.value);
+                        setForm((f) => ({ ...f, instrument_type: slug }));
+                        if (slug) checkBaseline(slug);
+                      }}
+                      className={inputCls}
+                    />
+                    {form.instrument_type && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Saved as <code className="rounded bg-gray-100 px-1">{form.instrument_type}</code>.
+                        Create a manufacturer baseline of this same type so inspections score against it.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <FieldError message={fieldErrors.instrument_type} />
                 {noBaselineWarning && (
                   <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">

@@ -61,12 +61,37 @@ class TestManufacturerBaselineCreation:
         }, headers=AUTH_VIEWER)
         assert resp.status_code == 403
 
-    def test_invalid_instrument_type_rejected(self):
+    def test_malformed_instrument_type_rejected(self):
+        # Free-form garbage (spaces/caps/symbols) is still rejected for data quality.
+        for bad in ["Not A Real Type!", "UPPER", "has space"]:
+            resp = client.post("/api/baselines/manufacturer", json={
+                "instrument_type": bad,
+                "manufacturer_name": "Acme",
+            }, headers=AUTH_ADMIN)
+            assert resp.status_code == 422, f"{bad!r} should be rejected"
+
+    def test_custom_slug_instrument_type_accepted(self):
+        # SPD sites carry instruments beyond the built-in list — a well-formed
+        # custom slug is accepted so techs can add new instrument types.
+        itype = "custom_ent_scope"
+        _clear(itype)
         resp = client.post("/api/baselines/manufacturer", json={
-            "instrument_type": "not_a_real_type",
+            "instrument_type": itype,
             "manufacturer_name": "Acme",
+            "image_sha256": SHA,
         }, headers=AUTH_ADMIN)
-        assert resp.status_code == 422
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["instrument_type"] == itype
+
+    def test_new_anatomy_families_accepted(self):
+        for itype in ("rigid_scope", "flexible_endoscope"):
+            _clear(itype)
+            resp = client.post("/api/baselines/manufacturer", json={
+                "instrument_type": itype,
+                "manufacturer_name": "Acme",
+                "image_sha256": SHA,
+            }, headers=AUTH_ADMIN)
+            assert resp.status_code == 201, resp.text
 
 
 class TestBaselineImageUploadAuth:
