@@ -146,6 +146,19 @@ class TestZoneAwareScoring:
             assert "instrument_zone" in f
             assert "zone_risk" in f
 
+    def test_zone_assignment_is_labeled_pilot_with_confidence(self):
+        # Section 4 contract: probable zone + confidence + reason + manual check,
+        # honestly labeled as pilot (non-CV) assignment.
+        zf = zone_fields("orthopedic drill", "bone")
+        assert zf["assignment_method"] == "pilot_zone_assignment"
+        assert 0.0 < zf["zone_confidence"] <= 0.7  # capped — not CV certainty
+        assert zf["zone_reason"] and zf["recommended_manual_check"]
+
+    def test_named_zone_more_confident_than_generic_fallback(self):
+        named = zone_fields("orthopedic drill", "bone")          # → drill-bit flute
+        generic = zone_fields("mystery gadget", "blood")          # → unspecified region
+        assert named["zone_confidence"] > generic["zone_confidence"]
+
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
 
