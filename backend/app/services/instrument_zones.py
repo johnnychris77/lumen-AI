@@ -162,8 +162,32 @@ def zone_for_finding(instrument_type: str, finding_type: str) -> str:
     return contam_zone if finding_type in _CONTAMINATION else cond_zone
 
 
-def zone_fields(instrument_type: str, finding_type: str) -> dict[str, str]:
-    """instrument_zone / zone_risk / zone_reason / recommended_manual_check."""
+def _zone_confidence(instrument_type: str, zone: str) -> float:
+    """Honest confidence for a *pilot* (non-CV) zone assignment.
+
+    This is NOT vision-derived certainty — it reflects how specifically the
+    instrument type resolved to a zone. A recognized instrument mapped to a
+    named high-retention zone is more trustworthy than the generic fallback.
+    Deliberately capped well below 1.0 because no pixel-level localization
+    occurred.
+    """
+    if zone in (_DEFAULT_CONTAM_ZONE, _DEFAULT_CONDITION_ZONE):
+        return 0.35  # generic fallback — instrument did not map to a named zone
+    name = (instrument_type or "").lower()
+    matched = any(
+        any(k in name for k in keywords) for keywords, _c, _cond in _INSTRUMENT_ZONE_RULES
+    )
+    return 0.7 if matched else 0.5
+
+
+def zone_fields(instrument_type: str, finding_type: str) -> dict:
+    """Pilot zone-assignment output for a finding: probable instrument_zone,
+    zone_confidence, zone_reason, recommended_manual_check + the zone's risk.
+
+    ``assignment_method`` is fixed to ``pilot_zone_assignment`` — this is
+    deterministic pilot logic from the instrument type/tagged views, NOT computer
+    vision segmentation.
+    """
     zone = zone_for_finding(instrument_type, finding_type)
     info = ZONE_INFO.get(zone, ZONE_INFO["unspecified region"])
     return {
@@ -171,6 +195,8 @@ def zone_fields(instrument_type: str, finding_type: str) -> dict[str, str]:
         "zone_risk": info["risk"],
         "zone_reason": info["reason"],
         "recommended_manual_check": info["manual_check"],
+        "zone_confidence": _zone_confidence(instrument_type, zone),
+        "assignment_method": "pilot_zone_assignment",
     }
 
 

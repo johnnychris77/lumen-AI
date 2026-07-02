@@ -19,9 +19,12 @@ Inputs (pilot):
 
 Output per finding:
 - `instrument_zone`
-- `zone_risk`
+- `zone_confidence` — honest pilot confidence (capped ≤ 0.7; **not** CV certainty):
+  0.7 when the instrument mapped to a named zone, 0.5 when recognized but
+  unmatched, 0.35 for the generic fallback zone
 - `zone_reason`
 - `recommended_manual_check`
+- `assignment_method` — fixed to `pilot_zone_assignment`
 
 ## This is NOT computer vision
 
