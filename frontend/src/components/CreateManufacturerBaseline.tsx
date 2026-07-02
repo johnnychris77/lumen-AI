@@ -4,6 +4,10 @@ import { useAuth, API_BASE } from "@/lib/auth";
 // Must match the inspection instrument types so a baseline lines up with the
 // instrument an inspection is run against.
 const INSTRUMENT_TYPES = [
+  { value: "rigid_scope", label: "Rigid Scope / Endoscope" },
+  { value: "flexible_endoscope", label: "Flexible Endoscope" },
+  { value: "drill_bit", label: "Drill Bit / Reamer / Burr" },
+  { value: "kerrison_rongeur", label: "Kerrison / Rongeur" },
   { value: "laparoscopic_grasper", label: "Laparoscopic Grasper" },
   { value: "scissors", label: "Scissors" },
   { value: "forceps", label: "Forceps" },
@@ -14,14 +18,26 @@ const INSTRUMENT_TYPES = [
   { value: "suction_irrigation", label: "Suction / Irrigation" },
   { value: "clip_applier", label: "Clip Applier" },
   { value: "stapler", label: "Stapler" },
-  { value: "other", label: "Other" },
+  { value: "other", label: "Other (type a new instrument type)" },
 ];
+
+// Normalize a free-text instrument type to the slug convention the rest of the
+// app uses (lowercase, underscores) so a custom baseline lines up with the
+// instrument type an inspection is run against.
+function slugifyType(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/tiff"];
 
 export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: () => void }) {
   const { headers, role, logout } = useAuth();
   const [instrumentType, setInstrumentType] = useState("");
+  const [customType, setCustomType] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
   const [image, setImage] = useState<File | null>(null);
@@ -35,6 +51,12 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
     setBanner(null);
     if (!instrumentType || !manufacturer.trim() || !image) {
       setBanner({ type: "error", message: "Instrument type, manufacturer, and a baseline image are required." });
+      return;
+    }
+    // Resolve the effective instrument type: a custom entry when "Other" is chosen.
+    const effectiveType = instrumentType === "other" ? slugifyType(customType) : instrumentType;
+    if (instrumentType === "other" && !effectiveType) {
+      setBanner({ type: "error", message: "Enter the instrument type name for “Other”." });
       return;
     }
 
@@ -67,7 +89,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
         method: "POST",
         headers: hdrs,
         body: JSON.stringify({
-          instrument_type: instrumentType,
+          instrument_type: effectiveType,
           manufacturer_name: manufacturer.trim(),
           model_name: model.trim(),
           image_sha256: sha,
@@ -95,6 +117,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
         message: `Approved manufacturer baseline #${data.id} created for ${data.instrument_type.replace(/_/g, " ")}. Inspections of this instrument type will now be scored against it.`,
       });
       setInstrumentType("");
+      setCustomType("");
       setManufacturer("");
       setModel("");
       setImage(null);
@@ -140,6 +163,23 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
+            {instrumentType === "other" && (
+              <div className="mt-2">
+                <input
+                  value={customType}
+                  onChange={(e) => setCustomType(e.target.value)}
+                  disabled={!canCreate}
+                  placeholder="Type the instrument type, e.g. Cystoscope"
+                  className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+                {customType.trim() && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Will be saved as <code className="rounded bg-slate-100 px-1">{slugifyType(customType)}</code>.
+                    Use this same type when running inspections so they score against this baseline.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Manufacturer *</label>
