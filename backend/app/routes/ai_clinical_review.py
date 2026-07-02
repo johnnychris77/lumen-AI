@@ -19,6 +19,7 @@ from app.db import models
 from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.supervisor_review import SupervisorReview
+from app.services.ml.ground_truth import classify_ground_truth, derive_flags_from_review
 
 router = APIRouter(tags=["ai-clinical-review"])
 
@@ -45,6 +46,14 @@ class SupervisorReviewIn(BaseModel):
     corrected_severity: str = Field("", max_length=30)
     corrected_recommendation: str = Field("", max_length=50)
     final_disposition: str = Field("", max_length=50)
+    # Phase 18 — pilot validation ground-truth signals (all optional; ground
+    # truth is derived from these + existing fields).
+    ai_finding_present: bool | None = None
+    supervisor_finding_present: bool | None = None
+    finding_type: str = Field("", max_length=40)
+    ai_zone: str = Field("", max_length=60)
+    instrument_family: str = Field("", max_length=60)
+    ai_confidence: float | None = Field(None, ge=0.0, le=1.0)
 
 
 @router.post("/inspections/{inspection_id}/supervisor-review", status_code=201)
@@ -100,7 +109,27 @@ def submit_supervisor_review(
         corrected_severity=body.corrected_severity.strip(),
         corrected_recommendation=body.corrected_recommendation.strip(),
         final_disposition=body.final_disposition.strip(),
+        # Phase 18 — pilot validation ground truth.
+        ai_finding_present=body.ai_finding_present,
+        supervisor_finding_present=body.supervisor_finding_present,
+        finding_type=body.finding_type.strip(),
+        ai_zone=body.ai_zone.strip(),
+        instrument_family=body.instrument_family.strip(),
+        ai_confidence=body.ai_confidence,
     )
+    # Derive + store the ground-truth label from the AI vs supervisor signals.
+    ai_flag, sup_flag = derive_flags_from_review(
+        ai_finding_present=body.ai_finding_present,
+        supervisor_finding_present=body.supervisor_finding_present,
+        finding_correct=body.finding_correct,
+        agreement=agreement,
+        ai_recommendation=review.ai_recommendation,
+        corrected_recommendation=body.corrected_recommendation,
+        final_disposition=body.final_disposition,
+    )
+    review.ai_finding_present = ai_flag
+    review.supervisor_finding_present = sup_flag
+    review.ground_truth = classify_ground_truth(ai_flag, sup_flag, agreement)
     db.add(review)
 
     # Reflect the override on the inspection when the supervisor applies one.
@@ -123,6 +152,7 @@ def submit_supervisor_review(
         "agreement": agreement,
         "override_action": review.override_action,
         "reviewer": review.reviewer_name,
+        "ground_truth": review.ground_truth,
     }
 
 

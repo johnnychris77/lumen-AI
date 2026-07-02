@@ -104,6 +104,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
+      { to: "/pilot-validation", label: "Pilot Validation", icon: Activity, roles: ["admin", "spd_manager"] },
     ],
   },
   {
