@@ -213,3 +213,84 @@ class TestSupervisorReviewAPI:
             assert row.final_disposition == "reprocess"
         finally:
             db.close()
+
+
+class TestSupervisorReviewCreatesGroundTruth:
+    """Phase 18: one supervisor-review submission also creates the linked
+    pilot validation ground-truth case — no duplicate data entry."""
+
+    def _create(self, itype):
+        _baseline(itype)
+        r = client.post("/api/inspections", json={
+            "instrument_type": itype, "site_name": "Mercy",
+            "has_image": True, "image_sha256": SHA, "file_name": "x.jpg",
+        }, headers=AUTH_OPERATOR)
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    def test_review_response_includes_pilot_validation_case(self):
+        iid = self._create("scissors")
+        r = client.post(f"/api/inspections/{iid}/supervisor-review",
+                        json={"agreement": "agree", "finding_correct": True},
+                        headers=AUTH_MGR)
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["pilot_validation_case_id"]
+        assert body["ground_truth_label"] in ("tp", "tn", "fp", "fn", "inconclusive")
+
+    def test_case_is_linked_to_the_inspection_and_review(self):
+        iid = self._create("forceps")
+        r = client.post(f"/api/inspections/{iid}/supervisor-review",
+                        json={"agreement": "agree", "finding_correct": True},
+                        headers=AUTH_MGR)
+        case_id = r.json()["pilot_validation_case_id"]
+
+        from app.db.session import SessionLocal
+        from app.models.pilot_validation import PilotValidationCase
+        db = SessionLocal()
+        try:
+            case = db.query(PilotValidationCase).filter(PilotValidationCase.id == case_id).first()
+            assert case is not None
+            assert case.inspection_id == iid
+            assert case.supervisor_review_id is not None
+            assert case.instrument_family == "forceps"
+        finally:
+            db.close()
+
+    def test_zone_correction_normalizes_into_dashboard_taxonomy(self):
+        iid = self._create("scissors")
+        r = client.post(
+            f"/api/inspections/{iid}/supervisor-review",
+            json={
+                "agreement": "partially_agree",
+                "rationale": "Residue was actually in the hinge.",
+                "finding_correct": True,
+                "zone_correct": False,
+                "corrected_zone": "hinge",
+                "final_disposition": "reprocess",
+            },
+            headers=AUTH_MGR,
+        )
+        case_id = r.json()["pilot_validation_case_id"]
+
+        from app.db.session import SessionLocal
+        from app.models.pilot_validation import PilotValidationCase
+        db = SessionLocal()
+        try:
+            case = db.query(PilotValidationCase).filter(PilotValidationCase.id == case_id).first()
+            # instrument_zones.py's singular "hinge" normalizes to the Phase 18
+            # dashboard's plural zone taxonomy value "hinges".
+            assert case.anatomy_zone == "hinges"
+            assert case.disposition == "reprocess"
+        finally:
+            db.close()
+
+    def test_case_appears_in_pilot_validation_cases_endpoint(self):
+        iid = self._create("scissors")
+        r = client.post(f"/api/inspections/{iid}/supervisor-review",
+                        json={"agreement": "agree", "finding_correct": True},
+                        headers=AUTH_MGR)
+        case_id = r.json()["pilot_validation_case_id"]
+
+        listing = client.get("/api/pilot-validation/cases", headers=AUTH_MGR).json()
+        assert any(c["id"] == case_id for c in listing["cases"])

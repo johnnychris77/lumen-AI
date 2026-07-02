@@ -19,6 +19,7 @@ from app.db import models
 from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.supervisor_review import SupervisorReview
+from app.services.pilot_validation_service import build_case_from_supervisor_review
 
 router = APIRouter(tags=["ai-clinical-review"])
 
@@ -102,6 +103,12 @@ def submit_supervisor_review(
         final_disposition=body.final_disposition.strip(),
     )
     db.add(review)
+    db.flush()  # populate review.id so the linked pilot validation case can reference it
+
+    # Every supervisor review is also a pilot validation ground-truth case —
+    # one form, one submission, no duplicate data entry for the reviewer.
+    case = build_case_from_supervisor_review(inspection, review)
+    db.add(case)
 
     # Reflect the override on the inspection when the supervisor applies one.
     if body.override_action.strip():
@@ -110,6 +117,7 @@ def submit_supervisor_review(
         inspection.override_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(review)
+    db.refresh(case)
 
     log_audit_event(
         db, tenant_id=tenant_id, tenant_name=tenant_id,
@@ -117,12 +125,22 @@ def submit_supervisor_review(
         action_type="supervisor_ai_review", resource_type="inspection",
         resource_id=str(inspection_id),
     )
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id,
+        actor_email=_actor(current_user), actor_role=getattr(current_user, "role", "spd_manager"),
+        action_type="pilot_validation_case_reviewed", resource_type="pilot_validation_case",
+        resource_id=str(case.id),
+        details={"ground_truth_label": case.ground_truth_label, "is_critical_finding": case.is_critical_finding},
+        compliance_flag=True,
+    )
     return {
         "id": review.id,
         "inspection_id": inspection_id,
         "agreement": agreement,
         "override_action": review.override_action,
         "reviewer": review.reviewer_name,
+        "pilot_validation_case_id": case.id,
+        "ground_truth_label": case.ground_truth_label,
     }
 
 

@@ -7,10 +7,24 @@ then reviews that prediction and records the actual finding, producing a
 ground-truth label used for all downstream clinical performance, zone
 performance, and safety-queue metrics.
 
-Ground truth is captured via `POST /api/pilot-validation/cases`
-(`app/routes/pilot_validation.py`), gated to `admin` and `spd_manager`
-roles, and stored in `pilot_validation_cases`
-(`app/models/pilot_validation.py`).
+Ground truth is stored in `pilot_validation_cases`
+(`app/models/pilot_validation.py`) and reaches that table one of two ways:
+
+1. **Primary path — the existing supervisor-review form.** A supervisor
+   submits `POST /inspections/{id}/supervisor-review`
+   (`app/routes/ai_clinical_review.py`), the same form already used to
+   record AI agreement. That single submission now also builds and
+   persists a linked `PilotValidationCase`
+   (`build_case_from_supervisor_review` in `pilot_validation_service.py`) —
+   the reviewer never fills out a second form. The response includes
+   `pilot_validation_case_id` and `ground_truth_label`.
+2. **Secondary path — direct case submission.** `POST
+   /api/pilot-validation/cases` (`app/routes/pilot_validation.py`), gated
+   to `admin` and `spd_manager`, for backfilling historical cohort data or
+   cases that don't originate from a live inspection review.
+
+Both paths run through the same server-side label derivation, so the two
+are equivalent as far as every downstream metric is concerned.
 
 ## What Is Captured Per Inspection
 
@@ -54,21 +68,29 @@ residue, crack, missing component) are additionally flagged
    recommended disposition are recorded automatically at inference time.
 2. **Supervisor reviews the case.** The supervisor examines the instrument
    (and image) directly, independent of the AI's stated confidence, and
-   determines whether the finding is genuinely present.
+   determines whether the finding is genuinely present
+   (`finding_correct` on the supervisor-review form).
 3. **Supervisor records zone correction, if needed.** If the AI's zone
    assignment doesn't match where the finding actually is, the supervisor
-   records the corrected zone in `supervisor_zone_correction`.
+   sets `zone_correct: false` and supplies `corrected_zone`. The zone name
+   is normalized onto the Phase 18 dashboard taxonomy
+   (`normalize_zone` in `pilot_validation_service.py`) — e.g. the
+   instrument-zone vocabulary's singular "hinge" becomes "hinges".
 4. **Supervisor sets the final disposition** and a rationale — required
    whenever the disposition disagrees with the AI's recommendation
    (`override_rate` is computed from this).
-5. **Case is submitted** via `POST /api/pilot-validation/cases`. The
-   ground-truth label and `is_critical_finding` flag are computed and
-   stored immediately; the case becomes part of every subsequent metrics
-   computation.
-6. **Audit event logged.** Every ground-truth submission creates a
-   `pilot_validation_case_reviewed` audit log entry (`compliance_flag=true`),
-   satisfying the "every intelligence-sharing action creates an audit
-   event" requirement for this data.
+5. **One submission creates both records.** `POST
+   /inspections/{id}/supervisor-review` persists the `SupervisorReview` and
+   the derived `PilotValidationCase` in the same transaction. The
+   ground-truth label and `is_critical_finding` flag are computed
+   immediately from the inspection's AI output and the supervisor's
+   `finding_correct` answer; the case becomes part of every subsequent
+   metrics computation right away.
+6. **Audit events logged.** Every submission creates both a
+   `supervisor_ai_review` audit event and a `pilot_validation_case_reviewed`
+   audit event (`compliance_flag=true`), satisfying the "every
+   intelligence-sharing action creates an audit event" requirement for
+   this data.
 
 ## Data Quality Expectations
 

@@ -117,6 +117,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.instrument_knowledge")  # register instrument knowledge library
     importlib.import_module("app.models.model_registry")        # register P17 model registry table
     importlib.import_module("app.models.shadow_prediction")     # register P17 shadow-prediction table
+    importlib.import_module("app.models.pilot_validation")      # register P18 pilot validation ground-truth table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).

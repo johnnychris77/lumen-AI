@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.pilot_validation import PilotValidationCase
+from app.services.instrument_zones import zone_for_finding
 
 CRITICAL_FINDING_TYPES: list[str] = [
     "blood", "tissue", "organic_residue", "crack", "missing_component",
@@ -51,6 +52,112 @@ def derive_ground_truth_label(ai_prediction: bool | None, supervisor_finding: bo
     if not ai_prediction and supervisor_finding:
         return "fn"
     return "tn"
+
+
+# instrument_zones.py uses a singular/synonym vocabulary (e.g. "drill-bit flute",
+# "o-ring area"); the Phase 18 dashboard uses the plural taxonomy above. This maps
+# one onto the other so a supervisor review's AI-implied or corrected zone lands
+# in the right dashboard bucket instead of silently becoming "unspecified".
+_ZONE_ALIASES: dict[str, str] = {
+    "serrations": "serrations",
+    "grooves": "grooves",
+    "drill-bit flute": "drill-bit flutes",
+    "threaded region": "threaded regions",
+    "o-ring area": "o-ring areas",
+    "rigid scope port": "rigid scope ports",
+    "lumen opening": "lumens",
+    "inner channel": "lumens",
+    "box lock": "box locks",
+    "hinge": "hinges",
+    "ratchet": "ratchets",
+    "insulation edge": "insulation edges",
+}
+
+
+def normalize_zone(raw_zone: str) -> str:
+    """Map a free-text or instrument_zones.py zone name onto the Phase 18 taxonomy.
+
+    Returns "" when there's no reasonable match — that's intentional: an
+    unmapped zone should surface in the safety queue's missing-required-zone
+    bucket rather than be guessed at.
+    """
+    zone = (raw_zone or "").strip().lower()
+    if zone in ZONE_TAXONOMY:
+        return zone
+    return _ZONE_ALIASES.get(zone, "")
+
+
+def finding_type_from_detected_issue(detected_issue: str) -> str:
+    issue = (detected_issue or "").strip().lower()
+    if issue in ("", "unknown", "none"):
+        return "none"
+    return issue
+
+
+def severity_from_risk_score(risk_score: int | None, has_finding: bool) -> str:
+    if not has_finding:
+        return "none"
+    score = risk_score or 0
+    if score >= 85:
+        return "critical"
+    if score >= 70:
+        return "high"
+    if score >= 40:
+        return "medium"
+    return "low"
+
+
+def build_case_from_supervisor_review(inspection, review) -> PilotValidationCase:
+    """Derive a PilotValidationCase from a SupervisorReview + its Inspection.
+
+    This is the primary path into the ground-truth table: a supervisor fills
+    out one form (the existing supervisor-review endpoint) and both the
+    agreement record and the pilot validation case are created together, so
+    reviewers never have to re-enter the same finding twice.
+    """
+    detected_issue = inspection.detected_issue or ""
+    ai_prediction = detected_issue.strip().lower() not in ("", "unknown", "none")
+    finding_type = finding_type_from_detected_issue(detected_issue) if ai_prediction else "none"
+
+    if review.zone_correct is False and review.corrected_zone:
+        anatomy_zone = normalize_zone(review.corrected_zone)
+    else:
+        anatomy_zone = normalize_zone(zone_for_finding(inspection.instrument_type, finding_type))
+
+    if review.finding_correct is None:
+        supervisor_finding = None
+    elif review.finding_correct:
+        supervisor_finding = ai_prediction
+    else:
+        supervisor_finding = not ai_prediction
+
+    is_critical = finding_type in CRITICAL_FINDING_TYPES
+    label = derive_ground_truth_label(ai_prediction, supervisor_finding)
+
+    return PilotValidationCase(
+        tenant_id=review.tenant_id,
+        inspection_id=inspection.id,
+        supervisor_review_id=review.id,
+        instrument_family=inspection.instrument_type or "",
+        manufacturer=inspection.vendor_name or "",
+        anatomy_zone=anatomy_zone,
+        baseline_source=inspection.baseline_source or "none",
+        has_baseline=bool(inspection.baseline_source),
+        finding_type=finding_type,
+        severity=review.corrected_severity or severity_from_risk_score(inspection.risk_score, ai_prediction),
+        disposition=review.final_disposition or "",
+        ai_prediction=ai_prediction,
+        ai_confidence=inspection.confidence or 0.0,
+        ai_recommended_disposition=inspection.recommended_action or "",
+        supervisor_finding=supervisor_finding,
+        supervisor_zone_correction=review.corrected_zone or "",
+        reviewer_name=review.reviewer_name,
+        reviewer_rationale=review.rationale,
+        ground_truth_label=label,
+        is_critical_finding=is_critical,
+        dataset_version="pilot-v1",
+        model_version=inspection.model_version or "",
+    )
 
 
 def create_case(db: Session, tenant_id: str, payload) -> PilotValidationCase:
