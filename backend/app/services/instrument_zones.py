@@ -26,6 +26,7 @@ HIGH_RETENTION_ZONES: set[str] = {
     "serrations", "grooves", "teeth", "cutting edge",
     "drill-bit flute", "threaded region", "cutting channel", "burr surface",
     "lumen opening", "inner channel", "o-ring area", "rigid scope port",
+    "biopsy channel", "suction channel", "air/water nozzle",
     "hinge", "box lock", "joint", "ratchet",
     "insulation edge",
 }
@@ -72,6 +73,21 @@ ZONE_INFO: dict[str, dict[str, str]] = {
         "reason": "Inner channels can hold residue that outer cleaning cannot reach.",
         "manual_check": "Flush and brush the channel; re-inspect the lumen.",
     },
+    "biopsy channel": {
+        "risk": "high",
+        "reason": "Flexible endoscope channels require focused inspection because retained soil may remain inside internal pathways.",
+        "manual_check": "Flush and brush the biopsy channel end-to-end; borescope the channel if available.",
+    },
+    "suction channel": {
+        "risk": "high",
+        "reason": "Suction channels of flexible endoscopes retain soil deep in the internal pathway, out of reach of surface cleaning.",
+        "manual_check": "Flush and brush the suction channel; verify flow and re-inspect.",
+    },
+    "air/water nozzle": {
+        "risk": "high",
+        "reason": "Air/water nozzles are narrow ports that trap residue and biofilm.",
+        "manual_check": "Flush the air/water channel and clean the nozzle; confirm patency.",
+    },
     "o-ring area": {
         "risk": "high",
         "reason": "Residue near the o-ring/port area is a common retention point requiring focused inspection.",
@@ -113,6 +129,10 @@ ZONE_INFO: dict[str, dict[str, str]] = {
 # (keyword substrings, contamination_zone, condition_zone). First match wins.
 _INSTRUMENT_ZONE_RULES: list[tuple[tuple[str, ...], str, str]] = [
     (("drill", "reamer", "burr", "bit"), "drill-bit flute", "threaded region"),
+    # Flexible endoscopes route contamination to their internal channels — checked
+    # before the generic rigid-scope rule so they are not mis-zoned to the o-ring.
+    (("flexible", "colonoscope", "gastroscope", "bronchoscope", "duodenoscope",
+      "enteroscope", "sigmoidoscope", "choledochoscope"), "biopsy channel", "lens edge"),
     (("scope", "endoscope", "arthroscope", "cystoscope", "laparoscop", "ureteroscope"), "o-ring area", "lens edge"),
     (("cannula", "cannulated", "suction", "trocar", "lumen"), "inner channel", "outer sheath"),
     (("forcep", "clamp", "hemostat", "kocher", "needle_holder", "needle holder", "grasper"), "serrations", "box lock"),

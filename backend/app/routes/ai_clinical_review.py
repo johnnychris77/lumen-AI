@@ -38,6 +38,9 @@ class SupervisorReviewIn(BaseModel):
     # Zone-aware feedback → labeled training data.
     finding_correct: bool | None = None
     zone_correct: bool | None = None
+    # Anatomy-family feedback → labeled training data for instrument classification.
+    instrument_family_correct: bool | None = None
+    corrected_instrument_family: str = Field("", max_length=60)
     corrected_zone: str = Field("", max_length=60)
     corrected_severity: str = Field("", max_length=30)
     corrected_recommendation: str = Field("", max_length=50)
@@ -91,6 +94,8 @@ def submit_supervisor_review(
         ai_score=(100 - inspection.risk_score) if inspection.score_status == "scored" else None,
         finding_correct=body.finding_correct,
         zone_correct=body.zone_correct,
+        instrument_family_correct=body.instrument_family_correct,
+        corrected_instrument_family=body.corrected_instrument_family.strip(),
         corrected_zone=body.corrected_zone.strip(),
         corrected_severity=body.corrected_severity.strip(),
         corrected_recommendation=body.corrected_recommendation.strip(),

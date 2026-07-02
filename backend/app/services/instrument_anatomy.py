@@ -39,6 +39,35 @@ def _zone(name: str, category: str, risk: str, retention: str,
 # instrument_type onto a family. Extend by adding entries — no manufacturer is
 # hardcoded.
 INSTRUMENT_ANATOMY: dict[str, dict] = {
+    # Flexible endoscopes are declared BEFORE rigid scopes so their specific
+    # keywords resolve first (a rigid scope's generic "scope"/"endoscope" match
+    # would otherwise swallow them).
+    "flexible_endoscope": {
+        "category": "flexible endoscope",
+        "match": [
+            "flexible", "flex scope", "colonoscope", "gastroscope", "bronchoscope",
+            "duodenoscope", "enteroscope", "sigmoidoscope", "choledochoscope",
+            "flexible ureteroscope", "flexible cystoscope",
+        ],
+        "zones": [
+            _zone("distal end", "lumen_scope", "critical", "high"),
+            _zone("bending section", "lumen_scope", "high", "high"),
+            _zone("insertion tube", "handle_external", "medium", "medium"),
+            _zone("suction channel", "lumen_scope", "critical", "high"),
+            _zone("biopsy channel", "lumen_scope", "critical", "high"),
+            _zone("air/water nozzle", "lumen_scope", "high", "high"),
+            _zone("light guide lens", "lumen_scope", "medium", "medium"),
+            _zone("control body", "handle_external", "low", "low"),
+        ],
+        "required_images": ["distal end", "biopsy channel", "suction channel", "bending section", "control body"],
+        "recommended_image_angles": ["distal end-on", "channel opening", "bending section", "control body"],
+        "min_images": 4,
+        "manual_steps": [
+            "Flush and brush the biopsy and suction channels; leak-test the endoscope.",
+            "Borescope the internal channels if available — retained soil hides inside pathways.",
+            "Inspect the distal end, air/water nozzle, and bending section closely.",
+        ],
+    },
     "rigid_scope": {
         "category": "rigid endoscope",
         "match": ["rigid scope", "scope", "endoscope", "arthroscope", "cystoscope", "laparoscope camera", "hysteroscope", "ureteroscope"],
@@ -159,6 +188,25 @@ INSTRUMENT_ANATOMY: dict[str, dict] = {
             "Brush the distal jaws and handle seam.",
         ],
     },
+    "general_forceps": {
+        "category": "grasping / clamping",
+        "match": ["forcep", "hemostat", "clamp", "kocher", "mosquito", "kelly", "allis", "babcock", "tissue forcep"],
+        "zones": [
+            _zone("jaws", "cutting_working_surface", "high", "high"),
+            _zone("serrations", "cutting_working_surface", "high", "high"),
+            _zone("box lock", "mechanical", "high", "high"),
+            _zone("hinge", "mechanical", "high", "high"),
+            _zone("ratchet", "mechanical", "high", "high"),
+            _zone("handle", "handle_external", "low", "low"),
+        ],
+        "required_images": ["jaws", "serrations", "box lock", "hinge"],
+        "recommended_image_angles": ["jaw close-up", "box lock", "hinge/ratchet"],
+        "min_images": 2,
+        "manual_steps": [
+            "Open the box lock and brush the pivot; actuate the hinge and ratchet.",
+            "Brush the jaw serrations and re-inspect under magnification.",
+        ],
+    },
     "default": {
         "category": "general instrument",
         "match": [],
@@ -208,4 +256,63 @@ def get_anatomy(instrument_type: str) -> dict:
         "recommended_image_angles": defn["recommended_image_angles"],
         "min_images": defn["min_images"],
         "manual_steps": defn["manual_steps"],
+    }
+
+
+def _zone_description(z: dict) -> str:
+    """Human-readable, honest one-liner per zone (from the zone's risk profile)."""
+    from app.services.instrument_zones import ZONE_INFO
+
+    info = ZONE_INFO.get(z["zone_name"].lower())
+    if info and info.get("reason"):
+        return info["reason"]
+    retention = z["retention_risk"]
+    if retention == "high":
+        return f"{z['zone_name'].capitalize()} is a high-retention zone where residual soil can persist after cleaning."
+    return f"{z['zone_name'].capitalize()} ({z['zone_category'].replace('_', ' ')}); {z['zone_risk_level']} inherent risk."
+
+
+def anatomy_profile(
+    instrument_type: str,
+    manufacturer: str | None = None,
+    model: str | None = None,
+    instrument_name: str | None = None,
+) -> dict:
+    """Architecture step 2 — the Anatomy Profile Service.
+
+    Given an instrument's type (and optionally name/manufacturer/model), return
+    the full anatomy profile the AI pipeline reasons over: family, anatomy zones,
+    required zones, high-risk zones, per-zone descriptions, contamination/condition
+    risks, recommended image views, and manual-check steps.
+
+    When the instrument cannot be classified the family resolves to ``unknown``
+    and a generic high-risk SPD profile is returned with a supervisor-review
+    warning — nothing is fabricated as a specific match.
+    """
+    # Consider every available identity hint when resolving the family.
+    hint = " ".join(x for x in (instrument_type, instrument_name, model, manufacturer) if x)
+    family = resolve_family(hint or (instrument_type or ""))
+    profile_found = family != "default"
+    defn = INSTRUMENT_ANATOMY[family]
+    zones = defn["zones"]
+    base = get_anatomy(hint or (instrument_type or ""))
+
+    return {
+        **base,
+        # `family` is a real family key when matched, else the honest "unknown".
+        "instrument_family": family if profile_found else "unknown",
+        "profile_found": profile_found,
+        "manufacturer": manufacturer or "",
+        "model": model or "",
+        "anatomy_zones": base["zone_names"],
+        "required_zones": defn["required_images"],
+        "recommended_image_views": defn["required_images"],
+        "zone_descriptions": {z["zone_name"]: _zone_description(z) for z in zones},
+        "contamination_risks": {z["zone_name"]: z["contamination_risks"] for z in zones},
+        "condition_risks": {z["zone_name"]: z["condition_risks"] for z in zones},
+        "manual_check_steps": defn["manual_steps"],
+        "warning": (
+            None if profile_found else
+            "Instrument anatomy profile not found. Supervisor review recommended."
+        ),
     }

@@ -21,7 +21,7 @@ from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.instrument_knowledge import InstrumentKnowledge
 from app.models.supervisor_review import SupervisorReview
-from app.services.instrument_anatomy import get_anatomy
+from app.services.instrument_anatomy import anatomy_profile
 
 router = APIRouter(tags=["instrument-intelligence"])
 
@@ -29,10 +29,15 @@ router = APIRouter(tags=["instrument-intelligence"])
 @router.get("/instrument-anatomy/{instrument_type}")
 def instrument_anatomy(
     instrument_type: str,
+    manufacturer: str | None = None,
+    model: str | None = None,
+    instrument_name: str | None = None,
     current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
 ):
-    """Resolved anatomy definition (zones, high-risk zones, required images…)."""
-    return get_anatomy(instrument_type)
+    """Anatomy Profile Service — resolved profile (family, zones, high-risk zones,
+    required image views, per-zone descriptions/risks, manual-check steps). Falls
+    back to a generic SPD profile with a supervisor-review warning when unknown."""
+    return anatomy_profile(instrument_type, manufacturer, model, instrument_name)
 
 
 class KnowledgeIn(BaseModel):
