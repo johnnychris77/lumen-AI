@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/capa", label: "CAPA", icon: ShieldCheck },
       { to: "/audit-evidence", label: "Audit Evidence", icon: FileText },
       { to: "/enterprise", label: "Enterprise Quality", icon: Building2 },
+      { to: "/pilot-validation", label: "Pilot Validation", icon: ClipboardCheck },
     ],
   },
   {

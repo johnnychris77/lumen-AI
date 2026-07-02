@@ -89,6 +89,8 @@ def _force_import_models():
         "app.models.digital_quality_twin",
         "app.models.global_intelligence",
         "app.models.consent_record",
+        "app.models.supervisor_review",
+        "app.models.pilot_validation",
     ]:
         try:
             importlib.import_module(model_path)
