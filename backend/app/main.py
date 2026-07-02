@@ -561,6 +561,9 @@ app.include_router(instrument_intelligence_admin_router, prefix=settings.API_PRE
 from app.routes.model_pipeline import router as model_pipeline_router
 app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)
 
+from app.routes.pilot_validation import router as pilot_validation_router
+app.include_router(pilot_validation_router, prefix=settings.API_PREFIX)
+
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
 app.include_router(stream_router, prefix=settings.API_PREFIX)

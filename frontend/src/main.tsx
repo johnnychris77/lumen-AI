@@ -81,6 +81,7 @@ const DemoImageLibraryPage = lazy(() => import("./pages/DemoImageLibraryPage"));
 const BaselineImageUploadPage = lazy(() => import("./pages/BaselineImageUploadPage"));
 const InspectionImageUploadPage = lazy(() => import("./pages/InspectionImageUploadPage"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
+const PilotValidationPage = lazy(() => import("./pages/PilotValidationPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
 const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
@@ -313,6 +314,7 @@ function App() {
                       <Route path="/capa" element={<Page name="CAPA"><CapaQueuePage /></Page>} />
                       <Route path="/analytics" element={<Page name="Analytics"><AnalyticsDashboardPage /></Page>} />
                       <Route path="/manufacturer-baselines" element={<Page name="ManufacturerBaselines"><ManufacturerBaselinesPage /></Page>} />
+                      <Route path="/pilot-validation" element={<Page name="PilotValidation"><PilotValidationPage /></Page>} />
                       <Route path="/baseline-review" element={<Page name="BaselineReview"><BaselineReviewPage /></Page>} />
                       <Route path="/vendor-baseline-portal" element={<Page name="VendorBaselines"><VendorBaselinePortalPage /></Page>} />
                       <Route path="/intake-history" element={<Page name="IntakeHistory"><IntakeHistoryPage /></Page>} />

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -58,3 +58,17 @@ class SupervisorReview(Base):
     corrected_severity: Mapped[str] = mapped_column(String(30), default="", nullable=False)
     corrected_recommendation: Mapped[str] = mapped_column(String(50), default="", nullable=False)
     final_disposition: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+
+    # Phase 18 — pilot validation / ground-truth labels for clinical performance.
+    # Whether the AI flagged a finding and whether the supervisor confirmed one;
+    # ground_truth is the derived true_positive/true_negative/false_positive/
+    # false_negative/inconclusive label computed at submit time.
+    ai_finding_present: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    supervisor_finding_present: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ground_truth: Mapped[str] = mapped_column(String(20), default="", nullable=False, index=True)
+    # The finding/zone/family under review + the AI confidence, so performance can
+    # be sliced by finding, zone, and instrument family (Phase 18 §4/§5).
+    finding_type: Mapped[str] = mapped_column(String(40), default="", nullable=False, index=True)
+    ai_zone: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    instrument_family: Mapped[str] = mapped_column(String(60), default="", nullable=False, index=True)
+    ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
