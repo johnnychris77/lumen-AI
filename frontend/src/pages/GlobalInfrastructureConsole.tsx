@@ -8,6 +8,16 @@ const headers = () => ({
   Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
 });
 
+// Coerce a fetch response body to an array. When a request fails (e.g. 401/500),
+// the body is an error object, not a list — return [] rather than letting an
+// object reach a `.map(...)` and crash the page to the error boundary.
+function toArray(d: unknown, key?: string): Record<string, unknown>[] {
+  if (key && d && typeof d === "object" && Array.isArray((d as Record<string, unknown>)[key])) {
+    return (d as Record<string, Record<string, unknown>[]>)[key];
+  }
+  return Array.isArray(d) ? (d as Record<string, unknown>[]) : [];
+}
+
 function DisclaimerBanner() {
   return (
     <div className="rounded border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800 mb-4">
@@ -179,7 +189,7 @@ function InstrumentsTab() {
   useEffect(() => {
     fetch(`${API}/api/infrastructure/instruments`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setInstruments(d.instruments ?? d ?? []))
+      .then((d) => setInstruments(toArray(d, "instruments")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -366,7 +376,7 @@ function RegistryTab() {
   useEffect(() => {
     fetch(`${API}/api/infrastructure/quality-registry`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setEntries(d.entries ?? d ?? []))
+      .then((d) => setEntries(toArray(d, "entries")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -434,7 +444,7 @@ function ForecastsTab() {
   useEffect(() => {
     fetch(`${API}/api/infrastructure/forecasts`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setForecasts(d.forecasts ?? d ?? []))
+      .then((d) => setForecasts(toArray(d, "forecasts")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -533,7 +543,7 @@ function PassportTab({ deepLinkInstrument = "" }: { deepLinkInstrument?: string 
     fetch(`${API}/api/infrastructure/instruments`, { headers: headers() })
       .then((r) => r.json())
       .then((d) => {
-        const list: Record<string, unknown>[] = d.instruments ?? d ?? [];
+        const list: Record<string, unknown>[] = toArray(d, "instruments");
         setInstruments(list);
         // Auto-select instrument from deep-link query param on first load
         if (deepLinkInstrument && !deepLinked.current) {
@@ -555,7 +565,7 @@ function PassportTab({ deepLinkInstrument = "" }: { deepLinkInstrument?: string 
     setLoadingEvents(true);
     fetch(`${API}/api/infrastructure/instruments/${id}/passport`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setEvents(d.events ?? d ?? []))
+      .then((d) => setEvents(toArray(d, "events")))
       .finally(() => setLoadingEvents(false));
   };
 
@@ -755,21 +765,21 @@ function SPDRegistryTab() {
       .then(setStats);
     fetch(`${API}/api/network/registry/search?q=`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setResults(d.results ?? d ?? []));
+      .then((d) => setResults(toArray(d, "results")));
   }, []);
 
   const search = () => {
     setLoading(true);
     fetch(`${API}/api/network/registry/search?q=${encodeURIComponent(query)}`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setResults(d.results ?? d ?? []))
+      .then((d) => setResults(toArray(d, "results")))
       .finally(() => setLoading(false));
   };
 
   const loadDefectHistory = (udi: string) => {
     fetch(`${API}/api/network/registry/${encodeURIComponent(udi)}/defect-history`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setDefectHistory({ udi, history: d.history ?? d ?? [] }));
+      .then((d) => setDefectHistory({ udi, history: toArray(d, "history") }));
   };
 
   return (
@@ -885,7 +895,7 @@ function CredentialsTab() {
     setLoading(true);
     fetch(`${API}/api/infrastructure/api-credentials`, { headers: headers() })
       .then((r) => r.json())
-      .then((d) => setCreds(d.credentials ?? d ?? []))
+      .then((d) => setCreds(toArray(d, "credentials")))
       .finally(() => setLoading(false));
   };
 
