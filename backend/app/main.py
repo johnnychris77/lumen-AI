@@ -115,6 +115,8 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.capture_device")        # register borescope capture-device registry
     importlib.import_module("app.models.supervisor_review")     # register supervisor AI-agreement feedback store
     importlib.import_module("app.models.instrument_knowledge")  # register instrument knowledge library
+    importlib.import_module("app.models.model_registry")        # register P17 model registry table
+    importlib.import_module("app.models.shadow_prediction")     # register P17 shadow-prediction table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -555,6 +557,9 @@ app.include_router(instrument_intelligence_router, prefix=settings.API_PREFIX)
 
 from app.routes.instrument_intelligence_admin import router as instrument_intelligence_admin_router
 app.include_router(instrument_intelligence_admin_router, prefix=settings.API_PREFIX)
+
+from app.routes.model_pipeline import router as model_pipeline_router
+app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)
 
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
