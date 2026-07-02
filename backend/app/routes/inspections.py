@@ -1,5 +1,6 @@
 import hashlib
 import io
+import re
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
@@ -37,10 +38,30 @@ def require_inspection_runner(current_user=Depends(get_current_user)):
     return current_user
 
 _ALLOWED_INSTRUMENT_TYPES = {
+    # Anatomy-aware families (match the instrument anatomy library).
+    "rigid_scope", "flexible_endoscope", "drill_bit", "kerrison_rongeur",
     "laparoscopic_grasper", "retractor", "scissors", "needle_holder",
     "forceps", "trocar", "electrosurgical", "suction_irrigation",
     "clip_applier", "stapler", "other",
 }
+
+# Custom instrument types (SPD sites carry instruments beyond the built-in list)
+# are accepted when they are well-formed slugs — lowercase alphanumerics and
+# underscores. This keeps data quality (no free-form garbage / injection) while
+# allowing new additions the built-in list does not yet cover.
+_INSTRUMENT_TYPE_SLUG = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
+
+
+def _validate_instrument_type(v: str) -> str:
+    if v in _ALLOWED_INSTRUMENT_TYPES:
+        return v
+    if len(v) <= 50 and _INSTRUMENT_TYPE_SLUG.match(v):
+        return v
+    raise ValueError(
+        f"instrument_type '{v}' must be a known type "
+        f"({sorted(_ALLOWED_INSTRUMENT_TYPES)}) or a lowercase slug "
+        f"(letters, numbers, underscores; ≤50 chars)."
+    )
 _ALLOWED_MATERIAL_TYPES = {"stainless_steel", "titanium", "polymer", "tungsten_carbide", "other"}
 _ALLOWED_DETECTED_ISSUES = {
     "blood", "bone", "tissue", "debris", "corrosion",
@@ -90,9 +111,7 @@ class InspectionCreate(BaseModel):
     @field_validator("instrument_type")
     @classmethod
     def validate_instrument_type(cls, v: str) -> str:
-        if v not in _ALLOWED_INSTRUMENT_TYPES:
-            raise ValueError(f"instrument_type '{v}' not in approved list: {sorted(_ALLOWED_INSTRUMENT_TYPES)}")
-        return v
+        return _validate_instrument_type(v)
 
     @field_validator("material_type")
     @classmethod
@@ -140,9 +159,7 @@ class ManufacturerBaselineCreate(BaseModel):
     @field_validator("instrument_type")
     @classmethod
     def _validate_type(cls, v: str) -> str:
-        if v not in _ALLOWED_INSTRUMENT_TYPES:
-            raise ValueError(f"instrument_type '{v}' not in approved list: {sorted(_ALLOWED_INSTRUMENT_TYPES)}")
-        return v
+        return _validate_instrument_type(v)
 
     @field_validator("baseline_source")
     @classmethod
