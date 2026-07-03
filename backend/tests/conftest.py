@@ -92,6 +92,7 @@ def _force_import_models():
         "app.models.supervisor_review",
         "app.models.clinical_decision_ledger",
         "app.models.cios_event",
+        "app.models.inspection_image_tag",
     ]:
         try:
             importlib.import_module(model_path)

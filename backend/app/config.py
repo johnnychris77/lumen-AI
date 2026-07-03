@@ -52,6 +52,12 @@ class Settings:
     enable_enterprise_audit: bool
     enable_enterprise_rbac: bool
 
+    # v1.2 — Guided Capture coverage gate. When True, an inspection with
+    # incomplete/insufficient coverage cannot reach a final AI decision
+    # without a recorded supervisor override (see app/services/guided_capture.py).
+    # Default False: non-blocking, matching the v1.1 "advisory, not a gate" default.
+    require_full_coverage_before_final_decision: bool
+
     allowed_origins: list[str]
 
     @property
@@ -107,6 +113,7 @@ def get_settings() -> Settings:
         reports_root=os.getenv("REPORTS_ROOT", "reports"),
         enable_enterprise_audit=_bool_env("ENABLE_ENTERPRISE_AUDIT", True),
         enable_enterprise_rbac=_bool_env("ENABLE_ENTERPRISE_RBAC", True),
+        require_full_coverage_before_final_decision=_bool_env("REQUIRE_FULL_COVERAGE_BEFORE_FINAL_DECISION", False),
         allowed_origins=allowed_origins,
     )
 
