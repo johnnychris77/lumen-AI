@@ -44,6 +44,11 @@ class SupervisorReviewIn(BaseModel):
     instrument_family_correct: bool | None = None
     corrected_instrument_family: str = Field("", max_length=60)
     corrected_zone: str = Field("", max_length=60)
+    # v1.1 — image-view and missing-zone feedback (Inspection Coverage Engine).
+    image_view_correct: bool | None = None
+    corrected_image_view: str = Field("", max_length=60)
+    missing_zone_correct: bool | None = None
+    corrected_missing_zone: str = Field("", max_length=60)
     corrected_severity: str = Field("", max_length=30)
     corrected_recommendation: str = Field("", max_length=50)
     final_disposition: str = Field("", max_length=50)
@@ -99,6 +104,10 @@ def submit_supervisor_review(
         instrument_family_correct=body.instrument_family_correct,
         corrected_instrument_family=body.corrected_instrument_family.strip(),
         corrected_zone=body.corrected_zone.strip(),
+        image_view_correct=body.image_view_correct,
+        corrected_image_view=body.corrected_image_view.strip(),
+        missing_zone_correct=body.missing_zone_correct,
+        corrected_missing_zone=body.corrected_missing_zone.strip(),
         corrected_severity=body.corrected_severity.strip(),
         corrected_recommendation=body.corrected_recommendation.strip(),
         final_disposition=body.final_disposition.strip(),

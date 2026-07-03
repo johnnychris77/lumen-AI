@@ -116,6 +116,10 @@ const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
 const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const InstrumentLibraryPage = lazy(() => import("./pages/InstrumentLibraryPage"));
+const AnatomyLibraryPage = lazy(() => import("./pages/AnatomyLibraryPage"));
+const InspectionZonesPage = lazy(() => import("./pages/InspectionZonesPage"));
+const CoverageDashboardPage = lazy(() => import("./pages/CoverageDashboardPage"));
 
 // ─── Loading spinner shown during lazy chunk loads ────────────────────────────
 
@@ -367,6 +371,10 @@ function App() {
                       <Route path="/training-center" element={<Page name="TrainingCenter"><TrainingCenterPage /></Page>} />
                       <Route path="/roi-center" element={<Page name="ROICenter"><ROICenterPage /></Page>} />
                       <Route path="/subscription-readiness" element={<Page name="SubscriptionReadiness"><SubscriptionReadinessPage /></Page>} />
+                      <Route path="/instrument-library" element={<Page name="InstrumentLibrary"><InstrumentLibraryPage /></Page>} />
+                      <Route path="/anatomy-library" element={<Page name="AnatomyLibrary"><AnatomyLibraryPage /></Page>} />
+                      <Route path="/inspection-zones" element={<Page name="InspectionZones"><InspectionZonesPage /></Page>} />
+                      <Route path="/coverage-dashboard" element={<Page name="CoverageDashboard"><CoverageDashboardPage /></Page>} />
                       <Route path="/legacy" element={<Page name="Legacy"><DashboardApp /></Page>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

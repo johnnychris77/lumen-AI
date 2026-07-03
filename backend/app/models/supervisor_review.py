@@ -55,6 +55,11 @@ class SupervisorReview(Base):
     instrument_family_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     corrected_instrument_family: Mapped[str] = mapped_column(String(60), default="", nullable=False)
     corrected_zone: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    # v1.1 — image-view and missing-zone feedback (Inspection Coverage Engine).
+    image_view_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    corrected_image_view: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    missing_zone_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    corrected_missing_zone: Mapped[str] = mapped_column(String(60), default="", nullable=False)
     corrected_severity: Mapped[str] = mapped_column(String(30), default="", nullable=False)
     corrected_recommendation: Mapped[str] = mapped_column(String(50), default="", nullable=False)
     final_disposition: Mapped[str] = mapped_column(String(50), default="", nullable=False)

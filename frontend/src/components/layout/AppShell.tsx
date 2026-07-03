@@ -85,6 +85,10 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/infrastructure", label: "Instrument Registry", icon: Database },
       { to: "/instrument-passport", label: "Instrument Passport", icon: CreditCard },
+      { to: "/instrument-library", label: "Instrument Library", icon: BookOpen },
+      { to: "/anatomy-library", label: "Anatomy Library", icon: Network },
+      { to: "/inspection-zones", label: "Inspection Zones", icon: FileSearch },
+      { to: "/coverage-dashboard", label: "Coverage Dashboard", icon: BarChart3 },
       { to: "/vendor-intake", label: "Barcode / QR / KeyDot", icon: ScanLine },
       { to: "/demo-image-library", label: "Image Library", icon: Images },
       { to: "/baseline-image-upload", label: "Upload Baseline Image", icon: Upload },

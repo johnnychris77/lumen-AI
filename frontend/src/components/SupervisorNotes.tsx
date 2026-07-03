@@ -27,6 +27,10 @@ export default function SupervisorNotes({
   const [correctedZone, setCorrectedZone] = useState("");
   const [familyCorrect, setFamilyCorrect] = useState<boolean | null>(null);
   const [correctedFamily, setCorrectedFamily] = useState("");
+  const [imageViewCorrect, setImageViewCorrect] = useState<boolean | null>(null);
+  const [correctedImageView, setCorrectedImageView] = useState("");
+  const [missingZoneCorrect, setMissingZoneCorrect] = useState<boolean | null>(null);
+  const [correctedMissingZone, setCorrectedMissingZone] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const commentRequired = agreement !== "agree" || !!override.trim();
@@ -51,6 +55,10 @@ export default function SupervisorNotes({
           corrected_zone: correctedZone.trim(),
           instrument_family_correct: familyCorrect,
           corrected_instrument_family: correctedFamily.trim(),
+          image_view_correct: imageViewCorrect,
+          corrected_image_view: correctedImageView.trim(),
+          missing_zone_correct: missingZoneCorrect,
+          corrected_missing_zone: correctedMissingZone.trim(),
         }),
       });
       if (res.status === 403) { setMsg({ ok: false, text: "Supervisor access (admin/SPD manager) required." }); return; }
@@ -123,6 +131,34 @@ export default function SupervisorNotes({
             value={correctedZone}
             onChange={(e) => setCorrectedZone(e.target.value)}
             placeholder="Corrected zone (e.g. hinge, box lock)"
+            className="flex-1 min-w-[10rem] rounded-lg border border-slate-300 px-2 py-1"
+          />
+        )}
+      </div>
+      {/* Image-view feedback → labeled training data */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-500">AI image view correct?</span>
+        <button onClick={() => setImageViewCorrect(true)} className={`rounded-full px-2 py-0.5 border ${imageViewCorrect === true ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-600"}`}>Yes</button>
+        <button onClick={() => setImageViewCorrect(false)} className={`rounded-full px-2 py-0.5 border ${imageViewCorrect === false ? "bg-red-600 text-white border-red-600" : "border-slate-300 text-slate-600"}`}>No</button>
+        {imageViewCorrect === false && (
+          <input
+            value={correctedImageView}
+            onChange={(e) => setCorrectedImageView(e.target.value)}
+            placeholder="Corrected image view (e.g. o-ring area, distal tip)"
+            className="flex-1 min-w-[10rem] rounded-lg border border-slate-300 px-2 py-1"
+          />
+        )}
+      </div>
+      {/* Missing-zone feedback → labeled training data (Coverage Engine) */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-500">AI missing-zone determination correct?</span>
+        <button onClick={() => setMissingZoneCorrect(true)} className={`rounded-full px-2 py-0.5 border ${missingZoneCorrect === true ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-600"}`}>Yes</button>
+        <button onClick={() => setMissingZoneCorrect(false)} className={`rounded-full px-2 py-0.5 border ${missingZoneCorrect === false ? "bg-red-600 text-white border-red-600" : "border-slate-300 text-slate-600"}`}>No</button>
+        {missingZoneCorrect === false && (
+          <input
+            value={correctedMissingZone}
+            onChange={(e) => setCorrectedMissingZone(e.target.value)}
+            placeholder="Zone that was actually captured/missing (e.g. hinge)"
             className="flex-1 min-w-[10rem] rounded-lg border border-slate-300 px-2 py-1"
           />
         )}
