@@ -51,7 +51,7 @@ FINDING_EDUCATION: dict[str, dict] = {
         ),
         "definition": "Non-specific biological soil not otherwise classified.",
         "typical_causes": "Biofilm, dried bioburden, or detergent residue.",
-        "clinical_significance": "Any retained organic soil reduces sterilization assurance.",
+        "clinical_significance": "Any retained organic soil compromises pre-sterilization cleaning assurance.",
         "spd_response": "Return for complete cleaning; consider biofilm-directed protocols.",
         "supervisor_tips": "Biofilm may require extended contact time or ultrasonic cleaning.",
     },
