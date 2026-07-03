@@ -633,6 +633,9 @@ app.include_router(knowledge_router)
 from app.routes.pilot_deployment import router as pilot_deployment_router
 app.include_router(pilot_deployment_router)
 
+from app.routes.analytics import router as analytics_router
+app.include_router(analytics_router, prefix=settings.API_PREFIX)
+
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
 app.include_router(capa_predictive_risk_router)
