@@ -40,6 +40,7 @@ import {
   Camera,
   Network,
   Workflow,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +102,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
       { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
       { to: "/agent-trace", label: "Agent Trace", icon: Workflow },
+      { to: "/cios-dashboard", label: "Clinical Intelligence OS", icon: Cpu },
     ],
   },
   {

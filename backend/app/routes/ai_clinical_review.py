@@ -17,6 +17,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
+from app.cios.decision_ledger import record_decision
 from app.enterprise_auth import get_request_tenant_id
 from app.models.supervisor_review import SupervisorReview
 from app.services.pilot_validation_service import build_case_from_supervisor_review
@@ -133,6 +134,18 @@ def submit_supervisor_review(
         details={"ground_truth_label": case.ground_truth_label, "is_critical_finding": case.is_critical_finding},
         compliance_flag=True,
     )
+
+    # Phase 23 §5 — every supervisor decision is also recorded in the
+    # permanent Clinical Decision Ledger, alongside the AI's own recorded
+    # recommendation (see app/cios/orchestrator.py).
+    record_decision(
+        db, tenant_id, inspection_id,
+        decision_type="supervisor_override" if review.override_action else "supervisor_approval",
+        made_by=review.reviewer_name,
+        rationale=review.rationale,
+        evidence={"agreement": agreement, "corrected_zone": review.corrected_zone, "final_disposition": review.final_disposition},
+    )
+
     return {
         "id": review.id,
         "inspection_id": inspection_id,

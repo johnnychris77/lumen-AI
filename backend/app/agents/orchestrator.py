@@ -15,6 +15,7 @@ Enterprise only ever sees prior context objects.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -47,6 +48,9 @@ def _trace_entry(agent, input_summary: dict, output_ctx) -> dict:
     return {
         "agent": agent.NAME,
         "version": agent.VERSION,
+        # Real wall-clock time this agent's step completed during this live
+        # pipeline run — not a fabricated/reconstructed historical time.
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "input_summary": input_summary,
         "output_summary": output_ctx.model_dump(),
     }
