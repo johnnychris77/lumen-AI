@@ -45,11 +45,19 @@ import { Badge } from "@/components/ui/badge";
 type NavLeaf = { to: string; label: string; icon: React.ElementType; roles?: string[] };
 type NavGroup = { label: string; roles?: string[]; items: NavLeaf[] };
 
-// `roles` restricts group visibility. Omitted = visible to all roles.
-// Backend enforces access — this is UX decluttering only.
+// ─── Role model ──────────────────────────────────────────────────────────────
+// Elevated roles see administrative/enterprise groups. Everyone authenticated
+// sees the operational core (inspection, baselines, instruments, quality).
+// This is UX decluttering ONLY — the backend independently enforces access, so
+// hiding a link is never the security boundary.
+const ELEVATED_ROLES = ["admin", "spd_manager", "site_admin", "tenant_admin"];
+const EXECUTIVE_ROLES = [...ELEVATED_ROLES, "executive"];
+
+// `roles` restricts visibility. Omitted = visible to every authenticated user.
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "Executive",
+    roles: EXECUTIVE_ROLES,
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/executive-command-center", label: "Command Center", icon: BarChart3 },
@@ -60,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Inspection Intelligence",
     items: [
+      { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
       { to: "/inspection/capture", label: "Borescope Capture", icon: Camera },
       { to: "/intake-history", label: "Inspection History", icon: History },
@@ -73,8 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/manufacturer-baselines", label: "Manufacturer Baselines", icon: Package },
       { to: "/vendor-baseline-portal", label: "Vendor Baselines", icon: Store },
       { to: "/baseline-library", label: "Baseline Library", icon: BookOpen },
-      { to: "/baseline-review", label: "Baseline Reviews", icon: CheckCircle2 },
-      { to: "/intake-history", label: "Intake History", icon: History },
+      { to: "/baseline-review", label: "Baseline Reviews", icon: CheckCircle2, roles: ELEVATED_ROLES },
     ],
   },
   {
@@ -93,14 +101,15 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/findings", label: "Findings", icon: FileSearch },
       { to: "/capa", label: "CAPA", icon: ShieldCheck },
-      { to: "/audit-evidence", label: "Audit Evidence", icon: FileText },
-      { to: "/enterprise", label: "Enterprise Quality", icon: Building2 },
+      { to: "/audit-evidence", label: "Audit Evidence", icon: FileText, roles: [...ELEVATED_ROLES, "auditor"] },
+      { to: "/enterprise", label: "Enterprise Quality", icon: Building2, roles: ELEVATED_ROLES },
     ],
   },
   {
     label: "Analytics",
+    roles: [...EXECUTIVE_ROLES, "operator"],
     items: [
-      { to: "/pilot-analytics", label: "Executive Dashboard", icon: TrendingUp },
+      { to: "/pilot-analytics", label: "Executive Dashboard", icon: TrendingUp, roles: EXECUTIVE_ROLES },
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
@@ -109,7 +118,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Enterprise",
-    roles: ["admin", "spd_manager"],
+    roles: ELEVATED_ROLES,
     items: [
       { to: "/network-dashboard", label: "Network Dashboard", icon: Building2 },
       { to: "/image-quality", label: "Image Quality", icon: Camera },
@@ -117,7 +126,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Go-Live",
-    roles: ["admin", "spd_manager"],
+    roles: ELEVATED_ROLES,
     items: [
       { to: "/go-live-center", label: "Go-Live Center", icon: Rocket },
       { to: "/implementation-tracker", label: "Implementation Tracker", icon: ClipboardCheck },
@@ -130,7 +139,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Customer Success",
-    roles: ["admin", "spd_manager"],
+    roles: ELEVATED_ROLES,
     items: [
       { to: "/customer-onboarding", label: "Onboarding Center", icon: Building2 },
       { to: "/customer-success", label: "Customer Health", icon: TrendingUp },
@@ -142,7 +151,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Administration",
-    roles: ["admin", "spd_manager"],
+    roles: ELEVATED_ROLES,
     items: [
       { to: "/user-management", label: "User Roles", icon: UserCheck },
       { to: "/users", label: "Users", icon: Users },
@@ -155,10 +164,20 @@ const NAV_GROUPS: NavGroup[] = [
 function visibleGroups(role: string): NavGroup[] {
   return NAV_GROUPS
     .filter((g) => !g.roles || g.roles.includes(role))
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((it) => !it.roles || it.roles.includes(role)),
-    }))
+    .map((g) => {
+      // Filter by role, then drop duplicate destinations (a few pages, e.g.
+      // Dashboard and Findings, intentionally appear in more than one group's
+      // source list; within a single rendered group show each `to` once).
+      const seen = new Set<string>();
+      const items = g.items
+        .filter((it) => !it.roles || it.roles.includes(role))
+        .filter((it) => {
+          if (seen.has(it.to)) return false;
+          seen.add(it.to);
+          return true;
+        });
+      return { ...g, items };
+    })
     .filter((g) => g.items.length > 0);
 }
 
