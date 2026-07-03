@@ -65,7 +65,7 @@ export default function InstrumentLibraryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/instrument-families`, { headers: headers() })
+    fetch(`${API_BASE}/api/knowledge-graph/instrument-families`, { headers: headers() })
       .then((r) => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); })
       .then((d) => setFamilies(d.families ?? []))
       .catch((e) => setError(String(e)))

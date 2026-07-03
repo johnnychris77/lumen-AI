@@ -70,7 +70,12 @@ def classify_readiness(insp) -> dict:
     detected_issue = (insp.detected_issue or "").strip().lower()
     repair_candidate = False
 
-    if insp.score_status != "scored":
+    if insp.score_status == "supervisor_review_required":
+        # Baseline-gated: an image was submitted but no approved manufacturer
+        # baseline exists, so scoring is locked pending supervisor review —
+        # this is not merely "still analyzing".
+        state = REQUIRES_SUPERVISOR_REVIEW
+    elif insp.score_status not in ("scored", "scored_after_override"):
         state = PENDING_ANALYSIS
     elif action_text.startswith("remove from service"):
         repair_candidate = detected_issue in _REPAIRABLE_ISSUES
@@ -95,7 +100,11 @@ def classify_readiness(insp) -> dict:
     else:
         state = REQUIRES_SUPERVISOR_REVIEW
 
-    readiness_score = (100 - insp.risk_score) if insp.score_status == "scored" and insp.risk_score is not None else None
+    readiness_score = (
+        (100 - insp.risk_score)
+        if insp.score_status in ("scored", "scored_after_override") and insp.risk_score is not None
+        else None
+    )
 
     return {
         "readiness_state": state,
