@@ -39,7 +39,11 @@ def test_preflight_allows_image_upload():
     assert r.headers.get("access-control-allow-origin") == FRONTEND
 
 
-def test_arbitrary_onrender_subdomain_allowed():
+def test_arbitrary_onrender_subdomain_rejected():
+    """Regression guard for the CORS hardening fix: any *.onrender.com origin
+    used to be allowed, meaning an attacker-hosted Render site could make
+    credentialed cross-origin requests. The allow-list is now pinned to this
+    project's exact frontend origin (see app/main.py's `_CORS_ORIGIN_REGEX`)."""
     origin = "https://some-other-frontend.onrender.com"
     r = client.options(
         "/api/inspections",
@@ -49,5 +53,4 @@ def test_arbitrary_onrender_subdomain_allowed():
             "Access-Control-Request-Headers": "content-type",
         },
     )
-    assert r.status_code in (200, 204)
-    assert r.headers.get("access-control-allow-origin") == origin
+    assert r.headers.get("access-control-allow-origin") != origin
