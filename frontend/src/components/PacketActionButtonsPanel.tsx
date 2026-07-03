@@ -403,7 +403,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadHistoryCsv() {
     try {
-      const response = await fetch(historyCsvUrl, {
+      const response = await apiFetch(historyCsvUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -433,7 +433,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiCsv() {
     try {
-      const response = await fetch(historyPowerBiCsvUrl, {
+      const response = await apiFetch(historyPowerBiCsvUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -464,7 +464,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiDictionaryPdf() {
     try {
-      const response = await fetch(powerBiDictionaryPdfUrl, {
+      const response = await apiFetch(powerBiDictionaryPdfUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -493,7 +493,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiDashboardSpecPdf() {
     try {
-      const response = await fetch(powerBiDashboardSpecPdfUrl, {
+      const response = await apiFetch(powerBiDashboardSpecPdfUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -522,7 +522,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiToolkitZip() {
     try {
-      const response = await fetch(powerBiToolkitZipUrl, {
+      const response = await apiFetch(powerBiToolkitZipUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -553,7 +553,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiToolkitReadmePdf() {
     try {
-      const response = await fetch(powerBiToolkitReadmePdfUrl, {
+      const response = await apiFetch(powerBiToolkitReadmePdfUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -582,7 +582,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiExecutiveSummaryPdf() {
     try {
-      const response = await fetch(powerBiExecutiveSummaryPdfUrl, {
+      const response = await apiFetch(powerBiExecutiveSummaryPdfUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -611,7 +611,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiReleaseNotesPdf() {
     try {
-      const response = await fetch(powerBiReleaseNotesPdfUrl, {
+      const response = await apiFetch(powerBiReleaseNotesPdfUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -640,7 +640,7 @@ export default function PacketActionButtonsPanel() {
 
   async function downloadPowerBiCompletionCertificatePdf() {
     try {
-      const response = await fetch(powerBiCompletionCertificatePdfUrl, {
+      const response = await apiFetch(powerBiCompletionCertificatePdfUrl, { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",

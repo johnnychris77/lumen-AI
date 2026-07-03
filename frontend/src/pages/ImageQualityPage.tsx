@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Camera, CheckCircle2, AlertTriangle, XCircle, Info } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 type QualityFlag = "blur" | "dark" | "overexposed" | "partial" | "no_channel" | "ok";
 
@@ -80,7 +81,7 @@ export default function ImageQualityPage() {
       const token = localStorage.getItem("token") ?? "";
       const h = { Authorization: `Bearer ${token}` };
       try {
-        const res = await fetch("/api/inspections?limit=50", { headers: h });
+        const res = await apiFetch("/api/inspections?limit=50", { raw: true, headers: h });
         const data = res.ok ? await res.json() : [];
         const inspections: Record<string, unknown>[] = Array.isArray(data) ? data : (data.inspections ?? []);
         const mapped: ImageQualityRecord[] = inspections.map((insp, i) => {

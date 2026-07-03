@@ -3,8 +3,8 @@
  * Real-time twin of the full SPD workflow with what-if simulation.
  */
 import React, { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function authHeaders() {
   const token = localStorage.getItem("token") ?? "dev-token";
@@ -165,7 +165,7 @@ export function DigitalTwinDashboard() {
   async function fetchTwinState() {
     setLoading(true);
     try {
-      const r = await fetch(`${BASE}/api/digital-twin/state`, { headers: authHeaders() });
+      const r = await apiFetch(`/api/digital-twin/state`, { raw: true, headers: authHeaders() });
       if (r.ok) setTwinState(await r.json());
       else setError("Failed to load twin state");
     } catch {
@@ -176,17 +176,17 @@ export function DigitalTwinDashboard() {
   }
 
   async function fetchFlows() {
-    const r = await fetch(`${BASE}/api/digital-twin/flow?limit=20`, { headers: authHeaders() });
+    const r = await apiFetch(`/api/digital-twin/flow?limit=20`, { raw: true, headers: authHeaders() });
     if (r.ok) setFlows(await r.json());
   }
 
   async function fetchAlerts() {
-    const r = await fetch(`${BASE}/api/digital-twin/alerts`, { headers: authHeaders() });
+    const r = await apiFetch(`/api/digital-twin/alerts`, { raw: true, headers: authHeaders() });
     if (r.ok) setAlerts(await r.json());
   }
 
   async function fetchScenarios() {
-    const r = await fetch(`${BASE}/api/digital-twin/whatif`, { headers: authHeaders() });
+    const r = await apiFetch(`/api/digital-twin/whatif`, { raw: true, headers: authHeaders() });
     if (r.ok) setScenarios(await r.json());
   }
 
@@ -209,7 +209,7 @@ export function DigitalTwinDashboard() {
       if (addStation) payload.add_station = addStation;
       if (removeStation) payload.remove_station = removeStation;
 
-      const r = await fetch(`${BASE}/api/digital-twin/whatif`, {
+      const r = await apiFetch(`/api/digital-twin/whatif`, { raw: true,
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify(payload),
@@ -225,7 +225,7 @@ export function DigitalTwinDashboard() {
   }
 
   async function acknowledgeAlert(alertId: number) {
-    await fetch(`${BASE}/api/digital-twin/alerts/${alertId}/acknowledge`, {
+    await apiFetch(`/api/digital-twin/alerts/${alertId}/acknowledge`, { raw: true,
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({ acknowledged_by: "dashboard-user" }),

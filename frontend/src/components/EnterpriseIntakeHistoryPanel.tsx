@@ -1330,7 +1330,7 @@ async function downloadGovernancePacketPdf(findingId: number) {
 function downloadEvidenceAttachment(evidenceId: number, fileName: string) {
   const url = `${API_BASE}/api/enterprise/evidence/${evidenceId}/download`;
 
-  fetch(url, {
+  apiFetch(url, { raw: true,
     headers: {
       Authorization: `Bearer ${AUTH_TOKEN}`,
       "X-LumenAI-Role": "viewer",

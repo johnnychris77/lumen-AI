@@ -153,7 +153,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterPdfUrl(Number(limit) || 25), {
+      const response = await apiFetch(buildAuditCommandCenterPdfUrl(Number(limit) || 25), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -183,7 +183,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterCsvUrl(Number(limit) || 100), {
+      const response = await apiFetch(buildAuditCommandCenterCsvUrl(Number(limit) || 100), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -213,7 +213,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterPowerBiCsvUrl(Number(limit) || 1000), {
+      const response = await apiFetch(buildAuditCommandCenterPowerBiCsvUrl(Number(limit) || 1000), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -243,7 +243,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterDataDictionaryPdfUrl(), {
+      const response = await apiFetch(buildAuditCommandCenterDataDictionaryPdfUrl(), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -273,7 +273,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterToolkitZipUrl(Number(limit) || 1000), {
+      const response = await apiFetch(buildAuditCommandCenterToolkitZipUrl(Number(limit) || 1000), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",

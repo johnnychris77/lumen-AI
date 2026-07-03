@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
 const token = () => localStorage.getItem("token") || "";
@@ -39,7 +40,7 @@ function SignalsTab() {
     const url = region
       ? `${API}/api/global-intelligence/signals?region=${encodeURIComponent(region)}`
       : `${API}/api/global-intelligence/signals`;
-    const r = await fetch(url, { headers: AUTH() });
+    const r = await apiFetch(url, { raw: true, headers: AUTH() });
     if (r.ok) {
       const d = await r.json();
       setSignals(d.signals ?? []);
@@ -97,7 +98,7 @@ function RiskRegistryTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/global-intelligence/risk-registry`, { headers: AUTH() })
+    apiFetch(`/api/global-intelligence/risk-registry`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then((d) => setEntries(d.entries ?? []))
       .finally(() => setLoading(false));
@@ -147,7 +148,7 @@ function RecallWarningsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/global-intelligence/recall-warnings`, { headers: AUTH() })
+    apiFetch(`/api/global-intelligence/recall-warnings`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then((d) => setWarnings(d.warnings ?? []))
       .finally(() => setLoading(false));
@@ -208,7 +209,7 @@ function DashboardTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/global-intelligence/dashboard`, { headers: AUTH() })
+    apiFetch(`/api/global-intelligence/dashboard`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then((d) => setData(d))
       .finally(() => setLoading(false));
@@ -254,7 +255,7 @@ function RegulatoryEvidenceTab() {
     const url = authority
       ? `${API}/api/global-intelligence/regulatory-evidence?authority=${encodeURIComponent(authority)}`
       : `${API}/api/global-intelligence/regulatory-evidence`;
-    const r = await fetch(url, { headers: AUTH() });
+    const r = await apiFetch(url, { raw: true, headers: AUTH() });
     if (r.ok) {
       const d = await r.json();
       setPackages(d.packages ?? []);
@@ -374,7 +375,7 @@ function SignalReviewTab() {
 
   const load = () => {
     setLoading(true);
-    fetch(`${API}/api/global-intelligence/signals?status=pending_review`, { headers: AUTH() })
+    apiFetch(`/api/global-intelligence/signals?status=pending_review`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then((d) => setSignals(d.signals ?? d ?? []))
       .finally(() => setLoading(false));
@@ -386,7 +387,7 @@ function SignalReviewTab() {
     setSubmitting(signalId);
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/global-intelligence/signals/${signalId}/review`, {
+      const r = await apiFetch(`/api/global-intelligence/signals/${signalId}/review`, { raw: true,
         method: "POST",
         headers: AUTH(),
         body: JSON.stringify({ decision, rationale }),
@@ -480,7 +481,7 @@ function EnrollmentTab() {
 
   const loadStatus = () => {
     setLoading(true);
-    fetch(`${API}/api/global-intelligence/participant-status`, { headers: AUTH() })
+    apiFetch(`/api/global-intelligence/participant-status`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then(setStatus)
       .finally(() => setLoading(false));
@@ -492,7 +493,7 @@ function EnrollmentTab() {
     setSubmitting(true);
     setEnrollMsg(null);
     try {
-      const r = await fetch(`${API}/api/global-intelligence/enroll`, {
+      const r = await apiFetch(`/api/global-intelligence/enroll`, { raw: true,
         method: "POST",
         headers: AUTH(),
         body: JSON.stringify({ organization_name: orgName }),
@@ -510,7 +511,7 @@ function EnrollmentTab() {
     setDpaSubmitting(true);
     setDpaMsg(null);
     try {
-      const r = await fetch(`${API}/api/global-intelligence/sign-dpa`, {
+      const r = await apiFetch(`/api/global-intelligence/sign-dpa`, { raw: true,
         method: "POST",
         headers: AUTH(),
         body: JSON.stringify({ attestation: "I confirm this organization has authority to sign this DPA" }),

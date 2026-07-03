@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Building2, TrendingUp, Activity, AlertTriangle, Package, Users } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface FacilitySnapshot {
   id: string;
@@ -53,7 +54,7 @@ export default function NetworkDashboardPage() {
     async function load() {
       try {
         const token = localStorage.getItem("token") ?? "";
-        const res = await fetch("/api/enterprise/network-snapshot", {
+        const res = await apiFetch("/api/enterprise/network-snapshot", { raw: true,
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error("No network API");

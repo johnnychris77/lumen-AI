@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, AlertTriangle, Clock, XCircle, Rocket, ChevronRight } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 type ReadinessStatus = "ready" | "caution" | "not-ready" | "loading";
 
@@ -71,8 +72,8 @@ export default function GoLiveCenterPage() {
       const h = { Authorization: `Bearer ${token}` };
       try {
         const [kpiRes, pwrRes] = await Promise.allSettled([
-          fetch("/api/analytics/kpi-summary", { headers: h }),
-          fetch("/api/analytics/powerbi", { headers: h }),
+          apiFetch("/api/analytics/kpi-summary", { raw: true, headers: h }),
+          apiFetch("/api/analytics/powerbi", { raw: true, headers: h }),
         ]);
         const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
         const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};

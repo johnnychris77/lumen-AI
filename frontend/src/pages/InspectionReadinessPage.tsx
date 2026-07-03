@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ScanLine, CheckCircle2, AlertTriangle } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface InspectionStats {
   total: number;
@@ -54,8 +55,8 @@ export default function InspectionReadinessPage() {
       const h = { Authorization: `Bearer ${token}` };
       try {
         const [kpiRes, inspRes] = await Promise.allSettled([
-          fetch("/api/analytics/kpi-summary", { headers: h }),
-          fetch("/api/inspections?limit=200", { headers: h }),
+          apiFetch("/api/analytics/kpi-summary", { raw: true, headers: h }),
+          apiFetch("/api/inspections?limit=200", { raw: true, headers: h }),
         ]);
         const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
         const inspData = inspRes.status === "fulfilled" && inspRes.value.ok ? await inspRes.value.json() : [];

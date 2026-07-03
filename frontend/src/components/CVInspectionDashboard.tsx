@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -117,9 +118,9 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
     try {
       const base = API_BASE || import.meta.env.VITE_API_BASE_URL || "";
       const [kpiRes, metricsRes, historyRes] = await Promise.all([
-        fetch(`${base}/api/enterprise/cv/kpi-summary?tenant_id=${tenantId}`, { headers }),
-        fetch(`${base}/api/enterprise/cv/provider/metrics?tenant_id=${tenantId}`, { headers }),
-        fetch(`${base}/api/enterprise/cv/history?tenant_id=${tenantId}&limit=10`, { headers }),
+        apiFetch(`/api/enterprise/cv/kpi-summary?tenant_id=${tenantId}`, { raw: true, headers }),
+        apiFetch(`/api/enterprise/cv/provider/metrics?tenant_id=${tenantId}`, { raw: true, headers }),
+        apiFetch(`/api/enterprise/cv/history?tenant_id=${tenantId}&limit=10`, { raw: true, headers }),
       ]);
       if (kpiRes.ok) setKpi(await kpiRes.json());
       if (metricsRes.ok) setMetrics(await metricsRes.json());

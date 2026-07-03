@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -27,7 +28,7 @@ export function UpgradeModal({ isOpen, onClose, currentTier, requiredTier, featu
     setLoading(true);
     setError("");
     try {
-      const r = await fetch(`${API}/api/billing/checkout`, {
+      const r = await apiFetch(`/api/billing/checkout`, { raw: true,
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

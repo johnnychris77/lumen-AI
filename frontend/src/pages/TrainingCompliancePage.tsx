@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, AlertTriangle, Clock, GraduationCap } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface TrackStat {
   id: string;
@@ -41,7 +42,7 @@ export default function TrainingCompliancePage() {
       // In production this would pull from a training_completions table.
       try {
         const token = localStorage.getItem("token") ?? "";
-        const res = await fetch("/api/analytics/kpi-summary", {
+        const res = await apiFetch("/api/analytics/kpi-summary", { raw: true,
           headers: { Authorization: `Bearer ${token}` },
         });
         const kpi = res.ok ? await res.json() : {};

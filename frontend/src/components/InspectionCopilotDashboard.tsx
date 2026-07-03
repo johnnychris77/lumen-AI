@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("token") ?? "";
@@ -335,7 +335,7 @@ function ActiveSessionsTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${BASE}/api/copilot/sessions`, { headers: authHeaders() });
+      const r = await apiFetch(`/api/copilot/sessions`, { raw: true, headers: authHeaders() });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setSessions(data.sessions ?? []);
@@ -387,7 +387,7 @@ function EscalationsTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${BASE}/api/copilot/escalations`, { headers: authHeaders() });
+      const r = await apiFetch(`/api/copilot/escalations`, { raw: true, headers: authHeaders() });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setEscalations(data.escalations ?? []);
@@ -403,7 +403,7 @@ function EscalationsTab() {
   const resolve = async (id: number) => {
     setResolving(id);
     try {
-      const r = await fetch(`${BASE}/api/copilot/escalations/${id}/resolve`, {
+      const r = await apiFetch(`/api/copilot/escalations/${id}/resolve`, { raw: true,
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ resolved_by: "dashboard-user", notes: "Resolved via dashboard" }),
@@ -503,7 +503,7 @@ function DashboardTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${BASE}/api/copilot/dashboard`, { headers: authHeaders() });
+      const r = await apiFetch(`/api/copilot/dashboard`, { raw: true, headers: authHeaders() });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setData(await r.json());
     } catch (e: unknown) {

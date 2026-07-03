@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
 const h = () => ({
@@ -77,7 +78,7 @@ function RiskGraphTab() {
   const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
-    fetch(`${API}/api/intelligence/risk-graph`, { headers: h() })
+    apiFetch(`/api/intelligence/risk-graph`, { raw: true, headers: h() })
       .then((r) => r.json())
       .then((d) => setData({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
       .finally(() => setLoading(false));
@@ -179,7 +180,7 @@ function SignalsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/intelligence/signals`, { headers: h() })
+    apiFetch(`/api/intelligence/signals`, { raw: true, headers: h() })
       .then((r) => r.json())
       .then((d) => setSignals(d.signals ?? d ?? []))
       .finally(() => setLoading(false));
@@ -217,7 +218,7 @@ function EmergingRisksTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/intelligence/emerging-risks`, { headers: h() })
+    apiFetch(`/api/intelligence/emerging-risks`, { raw: true, headers: h() })
       .then((r) => r.json())
       .then((d) => setRisks(d.risks ?? d ?? []))
       .finally(() => setLoading(false));
@@ -259,7 +260,7 @@ function InvestigationsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/intelligence/investigations`, { headers: h() })
+    apiFetch(`/api/intelligence/investigations`, { raw: true, headers: h() })
       .then((r) => r.json())
       .then((d) => setInvestigations(d.investigations ?? d ?? []))
       .finally(() => setLoading(false));
@@ -306,7 +307,7 @@ function RecommendationsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/intelligence/recommendations`, { headers: h() })
+    apiFetch(`/api/intelligence/recommendations`, { raw: true, headers: h() })
       .then((r) => r.json())
       .then((d) => setRecs(d.recommendations ?? d ?? []))
       .finally(() => setLoading(false));

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, Users, Activity, AlertTriangle, Package, ShieldCheck } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface AdoptionData {
   activeUsers: number;
@@ -53,8 +54,8 @@ export default function ExecutiveAdoptionPage() {
       const h = { Authorization: `Bearer ${token}` };
       try {
         const [kpiRes, pwrRes] = await Promise.allSettled([
-          fetch("/api/analytics/kpi-summary", { headers: h }),
-          fetch("/api/analytics/powerbi", { headers: h }),
+          apiFetch("/api/analytics/kpi-summary", { raw: true, headers: h }),
+          apiFetch("/api/analytics/powerbi", { raw: true, headers: h }),
         ]);
         const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
         const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};

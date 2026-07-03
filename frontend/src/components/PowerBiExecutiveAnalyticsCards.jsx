@@ -45,7 +45,7 @@ export default function PowerBiExecutiveAnalyticsCards() {
         const [healthResponse, summaryResponse, dictionaryResponse] = await Promise.all([
           apiFetch(`/api/v1-2/power-bi/executive-analytics/health`, { raw: true }),
           apiFetch(`/api/v1-2/power-bi/executive-analytics/summary`, { raw: true }),
-          fetch(dictionaryUrl),
+          apiFetch(dictionaryUrl, { raw: true }),
         ]);
 
         if (!healthResponse.ok) {
