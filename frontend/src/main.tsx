@@ -66,6 +66,7 @@ const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
 const PilotAnalyticsDashboard = lazy(() => import("./pages/PilotAnalyticsDashboard"));
 const PilotValidationDashboard = lazy(() => import("./pages/PilotValidationDashboard"));
+const PreSterilizationCommandCenter = lazy(() => import("./pages/PreSterilizationCommandCenter"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
 const GrowthConsole = lazy(() => import("./pages/GrowthConsole"));
@@ -319,6 +320,7 @@ function App() {
                       <Route path="/intake-history" element={<Page name="IntakeHistory"><IntakeHistoryPage /></Page>} />
                       <Route path="/pilot-analytics" element={<Page name="PilotAnalytics"><PilotAnalyticsDashboard /></Page>} />
                       <Route path="/pilot-validation" element={<Page name="PilotValidation"><PilotValidationDashboard /></Page>} />
+                      <Route path="/pre-sterilization-command-center" element={<Page name="PreSterilizationCommandCenter"><PreSterilizationCommandCenter /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
                       <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />
                       <Route path="/growth" element={<Page name="Growth"><GrowthConsole /></Page>} />

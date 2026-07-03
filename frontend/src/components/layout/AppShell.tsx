@@ -96,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/audit-evidence", label: "Audit Evidence", icon: FileText },
       { to: "/enterprise", label: "Enterprise Quality", icon: Building2 },
       { to: "/pilot-validation", label: "Pilot Validation", icon: ClipboardCheck },
+      { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
     ],
   },
   {

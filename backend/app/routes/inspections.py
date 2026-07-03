@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import re
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
@@ -439,6 +440,7 @@ async def create_inspection(
         risk_level=risk_level_val,
         recommended_action=recommended_action_val,
         overall_cleaning_assessment=cleaning_assessment_val,
+        inspected_zones_json=json.dumps(body.inspected_zones),
     )
     db.add(row)
     db.commit()
