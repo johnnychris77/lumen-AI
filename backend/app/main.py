@@ -941,6 +941,9 @@ app.include_router(p24_router)
 from app.routes.p25_infrastructure import router as p25_router
 app.include_router(p25_router)
 
+from app.routes.pre_sterilization_command_center import router as pre_sterilization_command_center_router
+app.include_router(pre_sterilization_command_center_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

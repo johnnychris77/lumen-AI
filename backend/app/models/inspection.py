@@ -77,3 +77,8 @@ class Inspection(Base):
     risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     recommended_action: Mapped[str | None] = mapped_column(String(500), nullable=True)
     overall_cleaning_assessment: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    # Zones the technician tagged as inspected (anatomy-aware coverage engine).
+    # JSON-encoded: "null" means not tagged (coverage not_assessed), "[...]" is
+    # an explicit (possibly empty) list — see app/services/inspection_coverage.py.
+    inspected_zones_json: Mapped[str] = mapped_column(String(2000), default="null", nullable=False)
