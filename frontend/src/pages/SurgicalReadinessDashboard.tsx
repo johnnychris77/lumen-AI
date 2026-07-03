@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,9 +122,9 @@ export default function SurgicalReadinessDashboard() {
       const hdrs = headers();
 
       const [kpiRes, baselineRes, instrRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/analytics/kpi-summary`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/baseline-library?limit=200&status=approved`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/infrastructure/instruments?limit=200`, { headers: hdrs }),
+        apiFetch(`/api/analytics/kpi-summary`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/baseline-library?limit=200&status=approved`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/infrastructure/instruments?limit=200`, { raw: true, headers: hdrs }),
       ]);
 
       let totalInspections = 0;

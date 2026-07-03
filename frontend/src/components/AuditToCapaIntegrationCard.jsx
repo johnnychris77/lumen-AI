@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch } from "@/lib/api";
 
 export default function AuditToCapaIntegrationCard() {
   const [data, setData] = useState(null);
@@ -11,9 +9,8 @@ export default function AuditToCapaIntegrationCard() {
     async function loadSummary() {
       try {
         setErrorMessage("");
-        const response = await fetch(
-          `${API_BASE}/api/enterprise/audit-to-capa/summary`
-        );
+        const response = await apiFetch(`/api/enterprise/audit-to-capa/summary`
+        , { raw: true });
 
         if (!response.ok) {
           throw new Error(`Audit-to-CAPA summary returned ${response.status}`);

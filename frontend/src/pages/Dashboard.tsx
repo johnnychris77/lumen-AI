@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
 import AiModelPerformanceCard from "@/components/AiModelPerformanceCard";
+import { apiFetch } from "@/lib/api";
 
 type Summary = {
   total_inspections?: number;
@@ -252,10 +253,10 @@ export default function Dashboard() {
     setError("");
     try {
       const [summaryRes, historyRes, kpiRes, capaRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/history/summary`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/history?limit=10`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/enterprise/findings/kpi-summary`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/capa`, { headers: hdrs }),
+        apiFetch(`/api/history/summary`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/history?limit=10`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/enterprise/findings/kpi-summary`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/capa`, { raw: true, headers: hdrs }),
       ]);
 
       if (summaryRes.status === "fulfilled" && summaryRes.value.ok)
@@ -304,7 +305,7 @@ export default function Dashboard() {
     Promise.all(
       MODULES.map(async (m) => {
         try {
-          const r = await fetch(`${API_BASE}${m.endpoint}`, { headers: hdrs });
+          const r = await apiFetch(`${m.endpoint}`, { raw: true, headers: hdrs });
           return {
             ...m,
             status: r.ok ? "online" : [401, 403, 422].includes(r.status) ? "protected" : "offline",

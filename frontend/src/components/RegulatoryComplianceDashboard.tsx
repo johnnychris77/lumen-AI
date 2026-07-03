@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const HEADERS = {
   Authorization: `Bearer ${localStorage.getItem("token") || "dev-token"}`,
   "X-LumenAI-Role": "operator",
@@ -188,9 +188,8 @@ export function RegulatoryComplianceDashboard() {
     setLoading(true);
     setError("");
     try {
-      const r = await fetch(
-        `${API_BASE}/api/regulatory/readiness?tenant_id=${TENANT_ID}`,
-        { headers: HEADERS }
+      const r = await apiFetch(`/api/regulatory/readiness?tenant_id=${TENANT_ID}`,
+        { raw: true, headers: HEADERS }
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
@@ -206,9 +205,8 @@ export function RegulatoryComplianceDashboard() {
     setLoading(true);
     try {
       const sev = findingsSeverity !== "all" ? `&severity=${findingsSeverity}` : "";
-      const r = await fetch(
-        `${API_BASE}/api/regulatory/readiness/findings?tenant_id=${TENANT_ID}${sev}`,
-        { headers: HEADERS }
+      const r = await apiFetch(`/api/regulatory/readiness/findings?tenant_id=${TENANT_ID}${sev}`,
+        { raw: true, headers: HEADERS }
       );
       const j = await r.json();
       setFindings(j.findings || []);
@@ -222,9 +220,8 @@ export function RegulatoryComplianceDashboard() {
   const fetchPackages = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(
-        `${API_BASE}/api/regulatory/audit-packages?tenant_id=${TENANT_ID}`,
-        { headers: HEADERS }
+      const r = await apiFetch(`/api/regulatory/audit-packages?tenant_id=${TENANT_ID}`,
+        { raw: true, headers: HEADERS }
       );
       const j = await r.json();
       setPackages(j.packages || []);
@@ -238,9 +235,8 @@ export function RegulatoryComplianceDashboard() {
   const fetchFDA = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(
-        `${API_BASE}/api/regulatory/fda-submissions?tenant_id=${TENANT_ID}`,
-        { headers: HEADERS }
+      const r = await apiFetch(`/api/regulatory/fda-submissions?tenant_id=${TENANT_ID}`,
+        { raw: true, headers: HEADERS }
       );
       const j = await r.json();
       setFDA(j.submissions || []);
@@ -265,7 +261,7 @@ export function RegulatoryComplianceDashboard() {
   const handleGeneratePackage = async () => {
     setGenerating(true);
     try {
-      const r = await fetch(`${API_BASE}/api/regulatory/audit-package`, {
+      const r = await apiFetch(`/api/regulatory/audit-package`, { raw: true,
         method: "POST",
         headers: HEADERS,
         body: JSON.stringify({
@@ -287,7 +283,7 @@ export function RegulatoryComplianceDashboard() {
   const handleDownloadPdf = async (type: string, period: string) => {
     setPdfLoading(true);
     try {
-      const r = await fetch(`${API_BASE}/api/regulatory/audit-package/pdf`, {
+      const r = await apiFetch(`/api/regulatory/audit-package/pdf`, { raw: true,
         method: "POST",
         headers: HEADERS,
         body: JSON.stringify({

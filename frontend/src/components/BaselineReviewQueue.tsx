@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://lumen-ai-53u4.onrender.com";
+import { apiFetch } from "@/lib/api";
 
 type BaselineReviewItem = {
   finding_id: number | null;
@@ -37,7 +34,7 @@ type BaselineReviewQueueResponse = {
 async function fetchBaselineReviewQueue(limit = 50): Promise<BaselineReviewQueueResponse> {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 200));
 
-  const response = await fetch(`${API_BASE}/api/enterprise/baseline-review-queue?limit=${safeLimit}`, {
+  const response = await apiFetch(`/api/enterprise/baseline-review-queue?limit=${safeLimit}`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",

@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -193,9 +194,9 @@ export default function InstrumentPassportPage() {
     try {
       const hdrs = headers();
       const [instrRes, inspRes, baselineRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/infrastructure/instruments?limit=200`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/inspections?limit=50`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/baseline-library?limit=50`, { headers: hdrs }),
+        apiFetch(`/api/infrastructure/instruments?limit=200`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/inspections?limit=50`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/baseline-library?limit=50`, { raw: true, headers: hdrs }),
       ]);
 
       let found: Instrument | null = null;
@@ -242,9 +243,8 @@ export default function InstrumentPassportPage() {
       const trendKey = found?.barcode || found?.udi || identifier;
       setPrediction(null);
       try {
-        const predRes = await fetch(
-          `${API_BASE}/api/instruments/${encodeURIComponent(trendKey)}/timeline`,
-          { headers: hdrs }
+        const predRes = await apiFetch(`/api/instruments/${encodeURIComponent(trendKey)}/timeline`,
+          { raw: true, headers: hdrs }
         );
         if (predRes.ok) {
           const data: TimelineResponse = await predRes.json();

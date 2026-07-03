@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 export default function VendorGovernancePanel() {
   const [summary, setSummary] = useState(null);
@@ -15,9 +13,9 @@ export default function VendorGovernancePanel() {
       setErrorMessage("");
 
       const [summaryResponse, eventsResponse, linkageResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/enterprise/vendor-governance/summary`),
-        fetch(`${API_BASE}/api/enterprise/vendor-governance/events?limit=10`),
-        fetch(`${API_BASE}/api/enterprise/vendor-governance/capa-linkage-summary`),
+        apiFetch(`/api/enterprise/vendor-governance/summary`, { raw: true }),
+        apiFetch(`/api/enterprise/vendor-governance/events?limit=10`, { raw: true }),
+        apiFetch(`/api/enterprise/vendor-governance/capa-linkage-summary`, { raw: true }),
       ]);
 
       if (!summaryResponse.ok) {
@@ -59,9 +57,8 @@ export default function VendorGovernancePanel() {
     try {
       setErrorMessage("");
 
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/vendor-governance/events/${eventId}/create-capa`,
-        {
+      const response = await apiFetch(`/api/enterprise/vendor-governance/events/${eventId}/create-capa`,
+        { raw: true,
           method: "POST",
         }
       );
@@ -83,9 +80,8 @@ export default function VendorGovernancePanel() {
       setCreating(true);
       setErrorMessage("");
 
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/vendor-governance/events`,
-        {
+      const response = await apiFetch(`/api/enterprise/vendor-governance/events`,
+        { raw: true,
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 /**
  * Direct borescope capture — live UVC/webcam preview → capture frame → analyze.
@@ -115,9 +116,8 @@ export default function CapturePage() {
       // 1. Upload the captured frame (also decodes identifiers).
       const fd = new FormData();
       fd.append("images", captured, "capture.jpg");
-      const up = await fetch(
-        `${API_BASE}/api/inspections/upload-images?instrument_type=${encodeURIComponent(instrumentType)}`,
-        { method: "POST", headers: { Authorization: hdrs["Authorization"] }, body: fd },
+      const up = await apiFetch(`/api/inspections/upload-images?instrument_type=${encodeURIComponent(instrumentType)}`,
+        { raw: true, method: "POST", headers: { Authorization: hdrs["Authorization"] }, body: fd },
       );
       if (up.status === 401) { navigate("/login", { replace: true }); return; }
       if (!up.ok) {
@@ -132,7 +132,7 @@ export default function CapturePage() {
       const decodedUdi = img.qr_udi_value || "";
 
       // 2. Create the inspection (AI scores it against the baseline).
-      const res = await fetch(`${API_BASE}/api/inspections`, {
+      const res = await apiFetch(`/api/inspections`, { raw: true,
         method: "POST",
         headers: hdrs,
         body: JSON.stringify({

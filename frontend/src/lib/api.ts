@@ -103,11 +103,23 @@ function buildUrl(path: string): string {
 /**
  * The one wrapper. Attaches base URL, auth, credentials, and JSON handling;
  * throws ApiError on non-2xx; returns parsed JSON by default.
+ *
+ * Overloads: with `raw: true` the caller gets the raw `Response` (so existing
+ * `response.ok` / `response.json()` code keeps working); otherwise the parsed
+ * JSON body typed as `T`.
  */
+export async function apiFetch(
+  path: string,
+  options: ApiFetchOptions & { raw: true }
+): Promise<Response>;
+export async function apiFetch<T = unknown>(
+  path: string,
+  options?: ApiFetchOptions & { raw?: false }
+): Promise<T>;
 export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {}
-): Promise<T> {
+): Promise<T | Response> {
   const { body, auth = true, raw = false, headers, ...rest } = options;
 
   const finalHeaders = new Headers(headers as HeadersInit | undefined);
@@ -154,7 +166,7 @@ export async function apiFetch<T = unknown>(
     }
   }
 
-  if (raw) return res as unknown as T;
+  if (raw) return res;
 
   if (!res.ok) {
     let parsed: unknown = null;
@@ -188,16 +200,17 @@ export async function apiFetch<T = unknown>(
   }
 }
 
-// Convenience verb helpers.
+// Convenience verb helpers. These always parse JSON (type T). For a raw
+// Response, call apiFetch(path, { raw: true }) directly.
 export const api = {
-  get: <T = unknown>(path: string, opts?: ApiFetchOptions) =>
+  get: <T = unknown>(path: string, opts?: Omit<ApiFetchOptions, "raw" | "method">) =>
     apiFetch<T>(path, { ...opts, method: "GET" }),
-  post: <T = unknown>(path: string, body?: unknown, opts?: ApiFetchOptions) =>
+  post: <T = unknown>(path: string, body?: unknown, opts?: Omit<ApiFetchOptions, "raw" | "method" | "body">) =>
     apiFetch<T>(path, { ...opts, method: "POST", body }),
-  put: <T = unknown>(path: string, body?: unknown, opts?: ApiFetchOptions) =>
+  put: <T = unknown>(path: string, body?: unknown, opts?: Omit<ApiFetchOptions, "raw" | "method" | "body">) =>
     apiFetch<T>(path, { ...opts, method: "PUT", body }),
-  patch: <T = unknown>(path: string, body?: unknown, opts?: ApiFetchOptions) =>
+  patch: <T = unknown>(path: string, body?: unknown, opts?: Omit<ApiFetchOptions, "raw" | "method" | "body">) =>
     apiFetch<T>(path, { ...opts, method: "PATCH", body }),
-  delete: <T = unknown>(path: string, opts?: ApiFetchOptions) =>
+  delete: <T = unknown>(path: string, opts?: Omit<ApiFetchOptions, "raw" | "method">) =>
     apiFetch<T>(path, { ...opts, method: "DELETE" }),
 };

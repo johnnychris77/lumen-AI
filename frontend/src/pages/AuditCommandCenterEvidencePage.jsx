@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 const evidenceLinks = [
   {
@@ -42,9 +40,8 @@ export default function AuditCommandCenterEvidencePage() {
         setLoading(true);
         setErrorMessage("");
 
-        const response = await fetch(
-          `${API_BASE}/api/enterprise/audit-command-center/health`
-        );
+        const response = await apiFetch(`/api/enterprise/audit-command-center/health`
+        , { raw: true });
 
         if (!response.ok) {
           throw new Error(`Health endpoint returned ${response.status}`);

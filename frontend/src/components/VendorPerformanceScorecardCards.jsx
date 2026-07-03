@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  "https://lumen-ai-53u4.onrender.com";
+import { apiFetch } from "@/lib/api";
 
 function titleCase(value) {
   if (!value) return "Unknown";
@@ -43,8 +39,8 @@ export default function VendorPerformanceScorecardCards() {
         setErrorMessage("");
 
         const [healthResponse, scorecardResponse] = await Promise.all([
-          fetch(`${API_BASE}/api/enterprise/vendor-governance/performance-scorecard/health`),
-          fetch(`${API_BASE}/api/enterprise/vendor-governance/performance-scorecard/`),
+          apiFetch(`/api/enterprise/vendor-governance/performance-scorecard/health`, { raw: true }),
+          apiFetch(`/api/enterprise/vendor-governance/performance-scorecard/`, { raw: true }),
         ]);
 
         if (!healthResponse.ok) {

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BaselineImageUpload } from "@/components/ui/baseline-image-upload";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,9 +167,8 @@ export default function BaselineImageUploadPage() {
     setSubmitting(true);
     try {
       const hdrs = headers();
-      const res = await fetch(
-        `${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines`,
-        {
+      const res = await apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines`,
+        { raw: true,
           method: "POST",
           headers: { ...hdrs, "Content-Type": "application/json" },
           body: JSON.stringify({

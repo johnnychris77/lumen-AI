@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
 
 export type AlertSeverity = "critical" | "warning" | "info";
 
@@ -156,12 +157,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
 
   const fetchAlerts = useCallback(async () => {
-    const token = localStorage.getItem("token") ?? "";
-    const h = { Authorization: `Bearer ${token}` };
     try {
       const [kpiRes, pwrRes] = await Promise.allSettled([
-        fetch("/api/analytics/kpi-summary", { headers: h }),
-        fetch("/api/analytics/powerbi", { headers: h }),
+        apiFetch("/api/analytics/kpi-summary", { raw: true }),
+        apiFetch("/api/analytics/powerbi", { raw: true }),
       ]);
       const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
       const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};

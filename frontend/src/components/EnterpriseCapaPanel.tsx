@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { apiFetch } from "@/lib/api";
 
 type CapaItem = {
   capa_id: number;
@@ -14,14 +15,11 @@ type CapaItem = {
   created_at?: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 
 async function updateCapaStatus(capaId: number, status: string, note: string) {
-  const response = await fetch(`${API_BASE}/api/enterprise/capas/${capaId}/status`, {
+  const response = await apiFetch(`/api/enterprise/capas/${capaId}/status`, { raw: true,
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -60,7 +58,7 @@ export default function EnterpriseCapaPanel() {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE}/api/enterprise/capas?limit=10`, {
+      const response = await apiFetch(`/api/enterprise/capas?limit=10`, { raw: true,
         headers: {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "viewer",

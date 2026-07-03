@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
 import SupervisorNotes from "@/components/SupervisorNotes";
+import { apiFetch } from "@/lib/api";
 
 type InspectionRecord = {
   id: number;
@@ -63,7 +64,7 @@ export default function InspectionResultsHistory() {
 
   async function openPdf(id: number) {
     try {
-      const res = await fetch(`${API_BASE}/api/inspections/${id}/clinical-report.pdf`, {
+      const res = await apiFetch(`/api/inspections/${id}/clinical-report.pdf`, { raw: true,
         headers: { Authorization: headers()["Authorization"] },
       });
       if (!res.ok) return;
@@ -79,7 +80,7 @@ export default function InspectionResultsHistory() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/history?limit=50`, { headers: headers() });
+      const res = await apiFetch(`/api/history?limit=50`, { raw: true, headers: headers() });
       if (!res.ok) {
         setError(`Failed to load inspection results (${res.status}).`);
         setItems([]);

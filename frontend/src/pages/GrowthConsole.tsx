@@ -3,8 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid,
 } from "recharts";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+import { apiFetch } from "@/lib/api";
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("token");
@@ -12,7 +11,7 @@ function authHeaders(): HeadersInit {
 }
 
 async function fetchJSON(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  const res = await apiFetch(`${path}`, { raw: true, headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }

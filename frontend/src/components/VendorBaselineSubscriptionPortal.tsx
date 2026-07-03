@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://lumen-ai-53u4.onrender.com";
-
+import { apiFetch, API_BASE } from "@/lib/api";
 
 type ComplianceEvidenceBundleResponse = {
   status: string;
@@ -192,7 +188,7 @@ const AUTH_HEADERS = {
 };
 
 async function fetchVendorBaselines(): Promise<VendorBaselineListResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines?limit=50`, {
+  const response = await apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines?limit=50`, { raw: true,
     headers: AUTH_HEADERS,
   });
 
@@ -206,7 +202,7 @@ async function fetchVendorBaselines(): Promise<VendorBaselineListResponse> {
 }
 
 async function createVendorBaseline(payload: Record<string, string>) {
-  const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines`, {
+  const response = await apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines`, { raw: true,
     method: "POST",
     headers: {
       ...AUTH_HEADERS,
@@ -225,7 +221,7 @@ async function createVendorBaseline(payload: Record<string, string>) {
 }
 
 async function approveVendorBaseline(baselineId: number, approvalNotes: string) {
-  const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/approve`, {
+  const response = await apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/approve`, { raw: true,
     method: "POST",
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
@@ -248,7 +244,7 @@ async function approveVendorBaseline(baselineId: number, approvalNotes: string) 
 }
 
 async function fetchVendorBaselineAudit(baselineId: number): Promise<VendorBaselineAuditResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/audit`, {
+  const response = await apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines/${baselineId}/audit`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "hospital_admin",
@@ -266,7 +262,7 @@ async function fetchVendorBaselineAudit(baselineId: number): Promise<VendorBasel
 }
 
 async function fetchGovernanceExportHistory(findingId: string): Promise<GovernanceExportHistoryResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/governance-export-history`, {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/governance-export-history`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "hospital_admin",
@@ -287,9 +283,8 @@ async function verifyGovernancePacketHash(
   findingId: string,
   packetHash: string
 ): Promise<PacketHashVerificationResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet/verify-hash?packet_hash=${encodeURIComponent(packetHash)}`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/governance-packet/verify-hash?packet_hash=${encodeURIComponent(packetHash)}`,
+    { raw: true,
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
         "X-LumenAI-Role": "hospital_admin",
@@ -308,7 +303,7 @@ async function verifyGovernancePacketHash(
 }
 
 async function matchVendorBaseline(identifierValue: string): Promise<VendorBaselineMatchResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/match`, {
+  const response = await apiFetch(`/api/enterprise/vendor-baseline-subscription/match`, { raw: true,
     method: "POST",
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
@@ -519,9 +514,8 @@ export default function VendorBaselineSubscriptionPortal() {
       setEvidenceBundleError("");
       setEvidenceSummary(null);
 
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/audit/evidence-bundle?limit=200`,
-        {
+      const response = await apiFetch(`/api/enterprise/audit/evidence-bundle?limit=200`,
+        { raw: true,
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
             "X-LumenAI-Role": "enterprise_admin",
@@ -548,9 +542,8 @@ export default function VendorBaselineSubscriptionPortal() {
       setEvidenceSummaryLoading(true);
       setEvidenceBundleError("");
 
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(bundleHash)}`,
-        {
+      const response = await apiFetch(`/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(bundleHash)}`,
+        { raw: true,
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
             "X-LumenAI-Role": "enterprise_admin",
@@ -590,9 +583,8 @@ export default function VendorBaselineSubscriptionPortal() {
         throw new Error("Enter a bundle hash to verify.");
       }
 
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(cleanHash)}`,
-        {
+      const response = await apiFetch(`/api/enterprise/audit/evidence-bundle/verification-summary?bundle_hash=${encodeURIComponent(cleanHash)}`,
+        { raw: true,
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
             "X-LumenAI-Role": "enterprise_admin",

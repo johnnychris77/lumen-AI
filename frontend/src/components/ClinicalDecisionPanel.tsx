@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
 import SupervisorNotes from "@/components/SupervisorNotes";
+import { apiFetch } from "@/lib/api";
 
 /**
  * Phase 13 — Explainable AI Clinical Decision Support panel.
@@ -142,7 +143,7 @@ export default function ClinicalDecisionPanel({
     if (!inspectionId) return;
     setPdfBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/api/inspections/${inspectionId}/clinical-report.pdf`, {
+      const res = await apiFetch(`/api/inspections/${inspectionId}/clinical-report.pdf`, { raw: true,
         headers: { Authorization: headers()["Authorization"] },
       });
       if (!res.ok) return;

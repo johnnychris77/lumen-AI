@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 function titleCase(value) {
   if (!value) return "Unknown";
@@ -52,8 +48,8 @@ export default function CapaTrendIntelligenceCards() {
         setErrorMessage("");
 
         const [healthResponse, summaryResponse] = await Promise.all([
-          fetch(`${API_BASE}/api/v1-2/capa/trend-intelligence/health`),
-          fetch(`${API_BASE}/api/v1-2/capa/trend-intelligence/summary`),
+          apiFetch(`/api/v1-2/capa/trend-intelligence/health`, { raw: true }),
+          apiFetch(`/api/v1-2/capa/trend-intelligence/summary`, { raw: true }),
         ]);
 
         if (!healthResponse.ok) {

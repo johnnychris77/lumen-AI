@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 const FRONTEND_BASE = "https://lumen-ai-1.onrender.com";
 
@@ -22,10 +20,10 @@ export default function ExecutiveGovernanceDashboard() {
         vendorResponse,
         vendorLinkageResponse,
       ] = await Promise.all([
-        fetch(`${API_BASE}/api/enterprise/audit-command-center/health`),
-        fetch(`${API_BASE}/api/capa/governance-scorecard?days_until_due=7`),
-        fetch(`${API_BASE}/api/enterprise/vendor-governance/summary`),
-        fetch(`${API_BASE}/api/enterprise/vendor-governance/capa-linkage-summary`),
+        apiFetch(`/api/enterprise/audit-command-center/health`, { raw: true }),
+        apiFetch(`/api/capa/governance-scorecard?days_until_due=7`, { raw: true }),
+        apiFetch(`/api/enterprise/vendor-governance/summary`, { raw: true }),
+        apiFetch(`/api/enterprise/vendor-governance/capa-linkage-summary`, { raw: true }),
       ]);
 
       if (!auditResponse.ok) {

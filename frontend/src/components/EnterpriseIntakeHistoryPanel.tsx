@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { CSSProperties } from "react";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 type BaselineComparisonResult = {
   status: string;
@@ -53,9 +54,6 @@ type IntakeHistoryItem = {
   created_at?: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 export default function EnterpriseIntakeHistoryPanel() {
@@ -69,9 +67,8 @@ export default function EnterpriseIntakeHistoryPanel() {
     setError("");
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/intake/history?limit=10`,
-        {
+      const response = await apiFetch(`/api/enterprise/intake/history?limit=10`,
+        { raw: true,
           headers: {
             Authorization: `Bearer ${AUTH_TOKEN}`,
             "X-LumenAI-Role": "viewer",
@@ -1057,9 +1054,8 @@ const packetFooterStyle: CSSProperties = {
 
 
 async function openEnterpriseCapa(findingId: number) {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/capa`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/capa`,
+    { raw: true,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1093,9 +1089,8 @@ async function openEnterpriseCapa(findingId: number) {
 
 
 async function runBaselineComparison(findingId: number) {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/baseline-comparison`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/baseline-comparison`,
+    { raw: true,
       method: "POST",
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
@@ -1128,9 +1123,8 @@ async function uploadEnterpriseEvidence(
   formData.append("evidence_type", evidenceType);
   formData.append("notes", notes);
 
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/evidence`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/evidence`,
+    { raw: true,
       method: "POST",
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
@@ -1153,9 +1147,8 @@ async function uploadEnterpriseEvidence(
 }
 
 async function listEnterpriseEvidence(findingId: number) {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/evidence`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/evidence`,
+    { raw: true,
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",
@@ -1181,9 +1174,8 @@ async function submitHumanReview(
   decision: string,
   reviewNotes: string
 ) {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/review`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/review`,
+    { raw: true,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1214,9 +1206,8 @@ async function submitHumanReview(
 
 
 async function exportGovernancePacket(findingId: number) {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/governance-packet`,
+    { raw: true,
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",
@@ -1300,9 +1291,8 @@ const exportErrorStyle: CSSProperties = {
 
 
 async function downloadGovernancePacketPdf(findingId: number) {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/governance-packet.pdf`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/governance-packet.pdf`,
+    { raw: true,
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",

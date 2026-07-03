@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+import { apiFetch } from "@/lib/api";
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("token");
@@ -8,13 +7,13 @@ function authHeaders(): HeadersInit {
 }
 
 async function fetchJSON(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  const res = await apiFetch(`${path}`, { raw: true, headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
 
 async function postJSON(path: string, body: object) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await apiFetch(`${path}`, { raw: true,
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),

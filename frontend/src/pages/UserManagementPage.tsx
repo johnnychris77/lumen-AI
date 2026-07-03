@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { UserCheck, ChevronRight } from "lucide-react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 type RoleRow = { username: string; role: string; assigned_by: string; updated_at: string | null };
 
@@ -30,7 +31,7 @@ export default function UserManagementPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users`, { headers: headers() });
+      const res = await apiFetch(`/api/admin/users`, { raw: true, headers: headers() });
       if (res.status === 403) { setError("Admin access required to manage users."); setUsers([]); return; }
       if (!res.ok) { setError(`Failed to load users (${res.status}).`); return; }
       const data = await res.json();
@@ -51,7 +52,7 @@ export default function UserManagementPage() {
     if (!newUser.trim()) { setBanner({ type: "error", message: "Enter the user's email/username." }); return; }
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/role`, {
+      const res = await apiFetch(`/api/admin/users/role`, { raw: true,
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ username: newUser.trim(), role: newRole }),

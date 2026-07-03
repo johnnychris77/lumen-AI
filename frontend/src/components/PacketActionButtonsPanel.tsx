@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_BASE ||
-  "http://127.0.0.1:18012";
-
-
-
-
-
+import { apiFetch, API_BASE } from "@/lib/api";
 
 type PowerBiProductionLockCriterion = {
   criterion: string;
@@ -38,7 +29,7 @@ type PowerBiProductionLock = {
 };
 
 async function fetchPowerBiProductionLock(): Promise<PowerBiProductionLock> {
-  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.production-lock`, {
+  const response = await apiFetch(`/api/enterprise/export-readiness-history.powerbi-toolkit.production-lock`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -79,7 +70,7 @@ type PowerBiFinalValidation = {
 };
 
 async function fetchPowerBiFinalValidation(): Promise<PowerBiFinalValidation> {
-  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.final-validation`, {
+  const response = await apiFetch(`/api/enterprise/export-readiness-history.powerbi-toolkit.final-validation`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -120,7 +111,7 @@ type PowerBiToolkitHealth = {
 };
 
 async function fetchPowerBiToolkitHealth(): Promise<PowerBiToolkitHealth> {
-  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.health`, {
+  const response = await apiFetch(`/api/enterprise/export-readiness-history.powerbi-toolkit.health`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -161,7 +152,7 @@ type PowerBiToolkitMetadata = {
 };
 
 async function fetchPowerBiToolkitMetadata(): Promise<PowerBiToolkitMetadata> {
-  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history.powerbi-toolkit.metadata`, {
+  const response = await apiFetch(`/api/enterprise/export-readiness-history.powerbi-toolkit.metadata`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -228,7 +219,7 @@ async function fetchExportReadinessHistory(
     params.set("finding_id", findingIdFilter.trim());
   }
 
-  const response = await fetch(`${API_BASE}/api/enterprise/export-readiness-history?${params.toString()}`, {
+  const response = await apiFetch(`/api/enterprise/export-readiness-history?${params.toString()}`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -246,7 +237,7 @@ async function fetchExportReadinessHistory(
 }
 
 async function fetchExportReadiness(findingId: string): Promise<ExportReadinessStatus> {
-  const response = await fetch(`${API_BASE}/api/enterprise/intake/${findingId}/export-readiness-status`, {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/export-readiness-status`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",

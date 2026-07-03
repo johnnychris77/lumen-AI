@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 type AuditEvent = {
   audit_id: number | null;
@@ -93,7 +90,7 @@ type AuditCommandCenterHealth = {
 };
 
 async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth> {
-  const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center.health`, {
+  const response = await apiFetch(`/api/enterprise/audit-command-center.health`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -111,7 +108,7 @@ async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth
 }
 
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
+  const response = await apiFetch(`/api/enterprise/audit-command-center?limit=${limit}`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",

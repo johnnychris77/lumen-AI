@@ -4,8 +4,7 @@
  * Market Directors, SPD Directors, Quality Leaders, and C-suite.
  */
 import { useEffect, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+import { apiFetch } from "@/lib/api";
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("token") || "";
@@ -171,7 +170,7 @@ export function EnterpriseBenchmarkDashboard() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_BASE}/api/enterprise/benchmarks/executive-dashboard`, {
+    apiFetch(`/api/enterprise/benchmarks/executive-dashboard`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))

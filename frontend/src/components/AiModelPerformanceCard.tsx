@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 /**
  * AI model-performance monitoring card for the Executive Dashboard.
@@ -33,7 +34,7 @@ export default function AiModelPerformanceCard() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/model-performance/ai-summary`, { headers: headers() });
+      const res = await apiFetch(`/api/model-performance/ai-summary`, { raw: true, headers: headers() });
       if (res.status === 403) { setHidden(true); return; }
       if (!res.ok) return;
       setData(await res.json());
