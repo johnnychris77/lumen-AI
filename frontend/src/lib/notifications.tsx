@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useAuth, API_BASE } from "@/lib/auth";
 
 export type AlertSeverity = "critical" | "warning" | "info";
 
@@ -153,15 +154,20 @@ function generateAlerts(kpi: Record<string, number>, pwr: Record<string, number>
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { token } = useAuth();
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
 
+  // NotificationProvider wraps the whole app, including the unauthenticated
+  // /login and /station routes — skip the fetch entirely when signed out
+  // instead of firing an Authorization: Bearer (empty) request that always
+  // 401s.
   const fetchAlerts = useCallback(async () => {
-    const token = localStorage.getItem("token") ?? "";
+    if (!token) return;
     const h = { Authorization: `Bearer ${token}` };
     try {
       const [kpiRes, pwrRes] = await Promise.allSettled([
-        fetch("/api/analytics/kpi-summary", { headers: h }),
-        fetch("/api/analytics/powerbi", { headers: h }),
+        fetch(`${API_BASE}/api/analytics/kpi-summary`, { headers: h }),
+        fetch(`${API_BASE}/api/analytics/powerbi`, { headers: h }),
       ]);
       const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
       const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};
@@ -185,7 +191,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         { id: "demo-info", severity: "info", title: "47 inspections completed", detail: "3 more inspections needed to reach the 50-inspection go-live threshold.", route: "/go-live-center", routeLabel: "View Go-Live Center", ts: now - 1000 * 60 * 60 * 6, read: false },
       ]);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchAlerts();

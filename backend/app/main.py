@@ -574,6 +574,9 @@ app.include_router(stream_router, prefix=settings.API_PREFIX)
 
 app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 
+from app.routes.analytics import router as analytics_router
+app.include_router(analytics_router, prefix=settings.API_PREFIX)
+
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
 app.include_router(capa_predictive_risk_router)
