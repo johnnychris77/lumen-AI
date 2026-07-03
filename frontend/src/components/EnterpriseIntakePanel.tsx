@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 type IntakeResponse = {
   status: string;
@@ -15,9 +16,6 @@ type IntakeResponse = {
   workflow_status: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 export default function EnterpriseIntakePanel() {
@@ -31,7 +29,7 @@ export default function EnterpriseIntakePanel() {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/enterprise/intake`, {
+      const response = await apiFetch(`/api/enterprise/intake`, { raw: true,
         method: "POST",
         headers: {
           "Content-Type": "application/json",

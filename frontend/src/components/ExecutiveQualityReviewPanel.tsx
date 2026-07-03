@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import { apiFetch, API_BASE } from "@/lib/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || "http://127.0.0.1:18012";
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 const EXECUTIVE_PDF_URL = `${API_BASE}/api/enterprise/executive-quality-review-dashboard.pdf`;
 
@@ -44,7 +44,7 @@ type ExecutiveQualityDashboard = {
 };
 
 async function fetchExecutiveDashboard(): Promise<ExecutiveQualityDashboard> {
-  const response = await fetch(`${API_BASE}/api/enterprise/executive-quality-review-dashboard`, {
+  const response = await apiFetch(`/api/enterprise/executive-quality-review-dashboard`, { raw: true,
     headers: {
       Authorization: `Bearer ${AUTH_TOKEN}`,
       "X-LumenAI-Role": "viewer",

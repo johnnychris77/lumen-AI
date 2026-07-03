@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { apiFetch } from "@/lib/api";
 
 type IntakeHistoryItem = {
   finding_id: number;
@@ -52,9 +53,6 @@ type AuditTrailItem = {
   created_at: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 export default function EnterpriseGovernanceCommandCenter() {
@@ -67,7 +65,7 @@ export default function EnterpriseGovernanceCommandCenter() {
   const [error, setError] = useState("");
 
   async function fetchJson(path: string, role = "viewer") {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await apiFetch(`${path}`, { raw: true,
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": role,

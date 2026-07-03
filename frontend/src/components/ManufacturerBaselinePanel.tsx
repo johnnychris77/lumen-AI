@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { apiFetch } from "@/lib/api";
 
 type RecentInstrumentOption = {
   finding_id: number;
@@ -44,9 +45,6 @@ type BaselineItem = {
   created_at?: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
 const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
 
 
@@ -55,7 +53,7 @@ async function reviewManufacturerBaseline(
   decision: "approve" | "reject" | "request_more_evidence",
   reviewNotes: string
 ): Promise<BaselineApprovalResult> {
-  const response = await fetch(`${API_BASE}/api/enterprise/baselines/${baselineId}/review`, {
+  const response = await apiFetch(`/api/enterprise/baselines/${baselineId}/review`, { raw: true,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -109,7 +107,7 @@ export default function ManufacturerBaselinePanel() {
 
   async function loadRecentInstruments() {
     try {
-      const response = await fetch(`${API_BASE}/api/enterprise/intake/history?limit=25`, {
+      const response = await apiFetch(`/api/enterprise/intake/history?limit=25`, { raw: true,
         headers: {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "viewer",
@@ -161,7 +159,7 @@ export default function ManufacturerBaselinePanel() {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE}/api/enterprise/vendor-baselines?limit=25`, {
+      const response = await apiFetch(`/api/enterprise/vendor-baselines?limit=25`, { raw: true,
         headers: {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "viewer",
@@ -218,9 +216,8 @@ export default function ManufacturerBaselinePanel() {
     formData.append("baseline_status", "pending_review");
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/instruments/${numericInstrumentId}/baseline`,
-        {
+      const response = await apiFetch(`/api/enterprise/instruments/${numericInstrumentId}/baseline`,
+        { raw: true,
           method: "POST",
           headers: {
             Authorization: `Bearer ${AUTH_TOKEN}`,

@@ -4,8 +4,7 @@
  * shared defect signals, active recalls, and CAPA effectiveness.
  */
 import { useEffect, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+import { apiFetch } from "@/lib/api";
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("token") || "";
@@ -191,9 +190,8 @@ export default function VendorIntelligenceDashboard({ tenantId = "default-tenant
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/intelligence/dashboard?tenant_id=${encodeURIComponent(tenantId)}`,
-          { headers: authHeaders() }
+        const res = await apiFetch(`/api/intelligence/dashboard?tenant_id=${encodeURIComponent(tenantId)}`,
+          { raw: true, headers: authHeaders() }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();

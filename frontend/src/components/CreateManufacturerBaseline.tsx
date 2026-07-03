@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // Must match the inspection instrument types so a baseline lines up with the
 // instrument an inspection is run against.
@@ -67,7 +68,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
       // 1. Upload the baseline image (records SHA-256)
       const fd = new FormData();
       fd.append("images", image);
-      const imgRes = await fetch(`${API_BASE}/api/baselines/upload-images`, {
+      const imgRes = await apiFetch(`/api/baselines/upload-images`, { raw: true,
         method: "POST",
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
@@ -85,7 +86,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
       const sha = imgData?.images?.[0]?.sha256;
 
       // 2. Create the approved manufacturer baseline keyed to the instrument type
-      const res = await fetch(`${API_BASE}/api/baselines/manufacturer`, {
+      const res = await apiFetch(`/api/baselines/manufacturer`, { raw: true,
         method: "POST",
         headers: hdrs,
         body: JSON.stringify({

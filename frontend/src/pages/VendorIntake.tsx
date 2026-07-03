@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 const schema = z.object({
   facility_name: z.string().min(2, "Facility name is required"),
@@ -100,7 +101,7 @@ export default function VendorIntake() {
     setApiError("");
     setResult(null);
     const hdrs = headers();
-    const res = await fetch(`${API_BASE}/api/enterprise/intake`, {
+    const res = await apiFetch(`/api/enterprise/intake`, { raw: true,
       method: "POST",
       headers: { ...hdrs, "X-Tenant-Id": "bonsecours", "X-Tenant-Name": "Bon Secours", "X-LumenAI-Role": "operator" },
       body: JSON.stringify(values),

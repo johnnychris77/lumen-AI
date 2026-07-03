@@ -8,9 +8,7 @@ import { InspectionCopilotDashboard } from "@/components/InspectionCopilotDashbo
 import { DigitalTwinDashboard } from "@/components/DigitalTwinDashboard";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useTierUpgrade } from "@/hooks/useTierUpgrade";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
@@ -165,10 +163,10 @@ const [summary, setSummary] = useState<Summary | null>(null);
 
       try {
         const [healthRes, summaryRes, historyRes, baselineRes] = await Promise.allSettled([
-          fetch(`${API_BASE}/api/health`),
-          fetch(`${API_BASE}/api/history/summary`, { headers }),
-          fetch(`${API_BASE}/api/history?limit=8`, { headers }),
-          fetch(`${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines`, { headers }),
+          apiFetch(`/api/health`, { raw: true }),
+          apiFetch(`/api/history/summary`, { raw: true, headers }),
+          apiFetch(`/api/history?limit=8`, { raw: true, headers }),
+          apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines`, { raw: true, headers }),
         ]);
 
         if (cancelled) return;
@@ -236,7 +234,7 @@ const [summary, setSummary] = useState<Summary | null>(null);
       const results = await Promise.all(
         initialModuleStatuses.map(async (item) => {
           try {
-            const response = await fetch(`${API_BASE}${item.endpoint}`, {
+            const response = await apiFetch(`${item.endpoint}`, { raw: true,
               headers,
             });
 

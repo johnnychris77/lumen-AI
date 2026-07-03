@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  "https://lumen-ai-53u4.onrender.com";
+import { apiFetch } from "@/lib/api";
 
 function statusLabel(status) {
   if (!status) return "Unknown";
@@ -33,8 +29,8 @@ export default function GovernanceIntelligenceCards() {
         setErrorMessage("");
 
         const [healthResponse, summaryResponse] = await Promise.all([
-          fetch(`${API_BASE}/api/enterprise/governance-intelligence/health`),
-          fetch(`${API_BASE}/api/enterprise/governance-intelligence/summary`),
+          apiFetch(`/api/enterprise/governance-intelligence/health`, { raw: true }),
+          apiFetch(`/api/enterprise/governance-intelligence/summary`, { raw: true }),
         ]);
 
         if (!healthResponse.ok) {

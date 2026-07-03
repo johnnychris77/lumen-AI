@@ -267,6 +267,44 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// ─── Role guard — client-side declutter for admin-only pages ─────────────────
+// The backend independently authorizes every request, so this is not the
+// security boundary — it just prevents non-admins from landing on a page that
+// would only 403 its API calls, and shows a clear message instead of a
+// broken-looking screen.
+const ELEVATED_ROLES = ["admin", "spd_manager", "site_admin", "tenant_admin"];
+
+function RequireRole({
+  allowed,
+  children,
+}: {
+  allowed: string[];
+  children: React.ReactNode;
+}) {
+  const { role } = useAuth();
+  if (!allowed.includes(role)) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto mt-16 max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center"
+      >
+        <h1 className="text-lg font-semibold text-slate-900">Not authorized</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Your role ({role || "unknown"}) doesn&apos;t have access to this page.
+          Contact an administrator if you believe this is a mistake.
+        </p>
+        <a
+          href="/"
+          className="mt-4 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Back to dashboard
+        </a>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
@@ -337,10 +375,10 @@ function App() {
                       <Route path="/global-registry" element={<Page name="GlobalRegistry"><GlobalRegistryPage /></Page>} />
                       <Route path="/surgical-readiness" element={<Page name="SurgicalReadiness"><SurgicalReadinessDashboard /></Page>} />
                       <Route path="/audit-evidence" element={<Page name="AuditEvidence"><AuditEvidencePage /></Page>} />
-                      <Route path="/users" element={<Page name="Users"><UsersPage /></Page>} />
-                      <Route path="/roles" element={<Page name="Roles"><RolesPage /></Page>} />
-                      <Route path="/user-management" element={<Page name="UserManagement"><UserManagementPage /></Page>} />
-                      <Route path="/settings" element={<Page name="Settings"><SettingsPage /></Page>} />
+                      <Route path="/users" element={<Page name="Users"><RequireRole allowed={ELEVATED_ROLES}><UsersPage /></RequireRole></Page>} />
+                      <Route path="/roles" element={<Page name="Roles"><RequireRole allowed={ELEVATED_ROLES}><RolesPage /></RequireRole></Page>} />
+                      <Route path="/user-management" element={<Page name="UserManagement"><RequireRole allowed={ELEVATED_ROLES}><UserManagementPage /></RequireRole></Page>} />
+                      <Route path="/settings" element={<Page name="Settings"><RequireRole allowed={ELEVATED_ROLES}><SettingsPage /></RequireRole></Page>} />
                       <Route path="/demo-image-library" element={<Page name="DemoImageLibrary"><DemoImageLibraryPage /></Page>} />
                       <Route path="/baseline-image-upload" element={<Page name="BaselineImageUpload"><BaselineImageUploadPage /></Page>} />
                       <Route path="/inspection-image-upload" element={<Page name="InspectionImageUpload"><InspectionImageUploadPage /></Page>} />
@@ -378,7 +416,13 @@ function App() {
 // show an inline-styled fallback instead of a white page. Inline styles are
 // used deliberately so this renders even if the CSS bundle fails to load.
 function showBootError(err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err);
+  const raw = err instanceof Error ? err.message : String(err);
+  // Escape before interpolating into innerHTML. The message is developer-facing
+  // and normally benign, but an error string can contain attacker-influenced
+  // input (e.g. a reflected URL or server payload), so never inject it raw.
+  const msg = raw.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+  );
   const el = document.getElementById("root");
   if (!el) return;
   el.innerHTML = `

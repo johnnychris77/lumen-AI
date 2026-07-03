@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -255,7 +256,7 @@ export default function InspectionImageUploadPage() {
       const hdrs = headers();
 
       // Step 1: create inspection record
-      const inspectionRes = await fetch(`${API_BASE}/api/inspections`, {
+      const inspectionRes = await apiFetch(`/api/inspections`, { raw: true,
         method: "POST",
         headers: { ...hdrs, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -288,7 +289,7 @@ export default function InspectionImageUploadPage() {
       // Step 2: upload images
       const fd = new FormData();
       allImages.forEach((f) => fd.append("images", f));
-      const uploadRes = await fetch(`${API_BASE}/api/inspections/upload-images`, {
+      const uploadRes = await apiFetch(`/api/inspections/upload-images`, { raw: true,
         method: "POST",
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,

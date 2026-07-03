@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,10 +67,10 @@ export default function DeploymentReadinessPage() {
 
       // Run all checks concurrently
       const [healthRes, kpiRes, instrRes, baselineRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/health`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/analytics/kpi-summary`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/infrastructure/instruments?limit=1`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/baseline-library?limit=1&status=approved`, { headers: hdrs }),
+        apiFetch(`/api/health`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/analytics/kpi-summary`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/infrastructure/instruments?limit=1`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/baseline-library?limit=1&status=approved`, { raw: true, headers: hdrs }),
       ]);
 
       const apiOnline = healthRes.status === "fulfilled" && healthRes.value.ok;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { apiFetch } from "@/lib/api";
 
 type CapaSummary = {
   total_capas: number;
@@ -14,9 +15,6 @@ type CapaSummary = {
   risk_message: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 export default function EnterpriseCapaSummaryPanel() {
@@ -29,7 +27,7 @@ export default function EnterpriseCapaSummaryPanel() {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE}/api/enterprise/capas/summary`, {
+      const response = await apiFetch(`/api/enterprise/capas/summary`, { raw: true,
         headers: {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "viewer",

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,8 +96,8 @@ export default function ROICenterPage() {
     try {
       const hdrs = headers();
       const [kpiRes, capaRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/analytics/kpi-summary`, { headers: hdrs }),
-        fetch(`${API_BASE}/api/capa?limit=200`, { headers: hdrs }),
+        apiFetch(`/api/analytics/kpi-summary`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/capa?limit=200`, { raw: true, headers: hdrs }),
       ]);
 
       let inspections = 0;

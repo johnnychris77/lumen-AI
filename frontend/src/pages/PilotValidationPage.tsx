@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 /**
  * Phase 18 — Pilot Validation & Clinical Performance dashboard.
@@ -61,9 +62,9 @@ export default function PilotValidationPage() {
     try {
       const h = headers();
       const [d, g, q] = await Promise.all([
-        fetch(`${API_BASE}/api/pilot-validation/dashboard`, { headers: h }),
-        fetch(`${API_BASE}/api/pilot-validation/go-no-go`, { headers: h }),
-        fetch(`${API_BASE}/api/pilot-validation/safety-queue`, { headers: h }),
+        apiFetch(`/api/pilot-validation/dashboard`, { raw: true, headers: h }),
+        apiFetch(`/api/pilot-validation/go-no-go`, { raw: true, headers: h }),
+        apiFetch(`/api/pilot-validation/safety-queue`, { raw: true, headers: h }),
       ]);
       if (d.ok) setDash(await d.json());
       if (g.ok) setGng(await g.json());

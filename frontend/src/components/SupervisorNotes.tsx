@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 /**
  * Supervisor Review Notes — human-in-the-loop AI agreement capture.
@@ -40,7 +41,7 @@ export default function SupervisorNotes({
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/inspections/${inspectionId}/supervisor-review`, {
+      const res = await apiFetch(`/api/inspections/${inspectionId}/supervisor-review`, { raw: true,
         method: "POST",
         headers: headers(),
         body: JSON.stringify({

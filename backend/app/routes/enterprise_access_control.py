@@ -77,7 +77,19 @@ def check_policy(
     request: Request,
     resource_type: str,
     action: str,
-    x_lumenai_role: str | None = Header(default="viewer", alias="X-LumenAI-Role"),
+    as_role: str | None = None,
+    x_lumenai_role: str | None = Header(default=None, alias="X-LumenAI-Role"),
 ):
-    get_current_user(request)
-    return evaluate_access(x_lumenai_role or "viewer", resource_type, action)
+    """Policy preview. Defaults to the AUTHENTICATED user's role.
+
+    `as_role` (or the legacy X-LumenAI-Role header) is a what-if simulation
+    input only — the response is a decision object and gates nothing, so
+    simulating other roles is safe for an authenticated caller.
+    """
+    current = get_current_user(request)
+    simulated = (as_role or x_lumenai_role or "").strip()
+    effective_role = simulated or current.get("role", "viewer")
+    result = evaluate_access(effective_role, resource_type, action)
+    result["simulated"] = bool(simulated)
+    result["authenticated_role"] = current.get("role", "viewer")
+    return result

@@ -155,15 +155,43 @@ async def lifespan(_app: FastAPI):
 _IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod"}
 
 # --- Production safety guard: crash on default SECRET_KEY ---
-_ENV = os.getenv("ENVIRONMENT", "development")
+# NOTE: production is signalled by EITHER APP_ENV (used by render.yaml) or
+# ENVIRONMENT (used by docker-compose). Checking only ENVIRONMENT let the
+# Render deploy (APP_ENV=production, ENVIRONMENT unset) skip this guard.
+_ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
+_ANY_PRODUCTION = _IS_PRODUCTION or _ENV in {"production", "prod"}
 _SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
 _DEFAULT_SECRET = "dev-secret-change-in-production"
 
-if _ENV == "production" and _SECRET_KEY == _DEFAULT_SECRET:
+if _ANY_PRODUCTION and _SECRET_KEY == _DEFAULT_SECRET:
     sys.exit(
         "FATAL: SECRET_KEY is set to the default value in production environment. "
         "Set a strong SECRET_KEY before starting."
     )
+
+# --- Production safety guard: AUTH_MODE must be an explicit decision ---
+# enterprise_auth defaults AUTH_MODE to "dev" when unset, which accepts the
+# static DEV_AUTH_TOKEN bearer and reads actor/tenant from client headers.
+# In production that default is never acceptable silently:
+#   * AUTH_MODE must be set explicitly (no fallback), and
+#   * AUTH_MODE=dev additionally requires ALLOW_DEV_AUTH_IN_PROD=true as a
+#     deliberate, auditable acknowledgment (e.g. a controlled pilot demo).
+if _ANY_PRODUCTION:
+    _AUTH_MODE_RAW = os.getenv("AUTH_MODE", "").strip().lower()
+    if not _AUTH_MODE_RAW:
+        sys.exit(
+            "FATAL: AUTH_MODE is not set in a production environment. "
+            "Set AUTH_MODE=oidc (recommended) or AUTH_MODE=dev with "
+            "ALLOW_DEV_AUTH_IN_PROD=true for a controlled pilot."
+        )
+    if _AUTH_MODE_RAW == "dev" and os.getenv(
+        "ALLOW_DEV_AUTH_IN_PROD", ""
+    ).strip().lower() != "true":
+        sys.exit(
+            "FATAL: AUTH_MODE=dev in production requires "
+            "ALLOW_DEV_AUTH_IN_PROD=true as an explicit acknowledgment. "
+            "Prefer AUTH_MODE=oidc with OIDC_ISSUER_URL and OIDC_AUDIENCE."
+        )
 
 app = FastAPI(title="LumenAI API", lifespan=lifespan)
 
@@ -178,12 +206,13 @@ if limiter is not None:
     except Exception:
         pass
 
-# Allow the Render-hosted frontend regardless of the exact ALLOWED_ORIGINS value
-# (it is set manually per-deploy and historically omitted the frontend host,
-# which blocked cross-origin POSTs from the SPA — "Failed to fetch"). The regex
-# permits any *.onrender.com origin; explicit origins still come from settings.
+# CORS origin policy. The previous default (any *.onrender.com origin) meant
+# ANY Render-hosted site — including an attacker's — could make credentialed
+# cross-origin requests. The default is now pinned to this project's exact
+# frontend host (anchored). Override per-deploy via CORS_ORIGIN_REGEX if the
+# frontend moves; explicit origins still come from settings.CORS_ORIGINS.
 _CORS_ORIGIN_REGEX = os.getenv(
-    "CORS_ORIGIN_REGEX", r"https://([a-z0-9-]+\.)*onrender\.com"
+    "CORS_ORIGIN_REGEX", r"^https://lumen-ai-1\.onrender\.com$"
 )
 
 

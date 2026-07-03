@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 type AuditEvent = {
   audit_id: number | null;
@@ -93,7 +90,7 @@ type AuditCommandCenterHealth = {
 };
 
 async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth> {
-  const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center.health`, {
+  const response = await apiFetch(`/api/enterprise/audit-command-center.health`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -111,7 +108,7 @@ async function fetchAuditCommandCenterHealth(): Promise<AuditCommandCenterHealth
 }
 
 async function fetchAuditCommandCenter(limit = 25): Promise<AuditCommandCenterResponse> {
-  const response = await fetch(`${API_BASE}/api/enterprise/audit-command-center?limit=${limit}`, {
+  const response = await apiFetch(`/api/enterprise/audit-command-center?limit=${limit}`, { raw: true,
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
       "X-LumenAI-Role": "viewer",
@@ -156,7 +153,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterPdfUrl(Number(limit) || 25), {
+      const response = await apiFetch(buildAuditCommandCenterPdfUrl(Number(limit) || 25), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -186,7 +183,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterCsvUrl(Number(limit) || 100), {
+      const response = await apiFetch(buildAuditCommandCenterCsvUrl(Number(limit) || 100), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -216,7 +213,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterPowerBiCsvUrl(Number(limit) || 1000), {
+      const response = await apiFetch(buildAuditCommandCenterPowerBiCsvUrl(Number(limit) || 1000), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -246,7 +243,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterDataDictionaryPdfUrl(), {
+      const response = await apiFetch(buildAuditCommandCenterDataDictionaryPdfUrl(), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",
@@ -276,7 +273,7 @@ export default function EnterpriseAuditCommandCenter() {
     setError("");
 
     try {
-      const response = await fetch(buildAuditCommandCenterToolkitZipUrl(Number(limit) || 1000), {
+      const response = await apiFetch(buildAuditCommandCenterToolkitZipUrl(Number(limit) || 1000), { raw: true,
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || ""}`,
           "X-LumenAI-Role": "viewer",

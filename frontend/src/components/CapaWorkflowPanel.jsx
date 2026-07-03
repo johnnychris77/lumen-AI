@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 export default function CapaWorkflowPanel() {
   const [health, setHealth] = useState(null);
@@ -22,8 +20,8 @@ export default function CapaWorkflowPanel() {
       setErrorMessage("");
 
       const [healthResponse, listResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/capa/health`),
-        fetch(`${API_BASE}/api/capa?limit=10`),
+        apiFetch(`/api/capa/health`, { raw: true }),
+        apiFetch(`/api/capa?limit=10`, { raw: true }),
       ]);
 
       if (!healthResponse.ok) {
@@ -57,7 +55,7 @@ export default function CapaWorkflowPanel() {
       setCreating(true);
       setErrorMessage("");
 
-      const response = await fetch(`${API_BASE}/api/capa/from-audit-signal`, {
+      const response = await apiFetch(`/api/capa/from-audit-signal`, { raw: true,
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { apiFetch } from "@/lib/api";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -120,7 +121,7 @@ function OrchestrationTab({ tenant }: { tenant: string }) {
   const [msg, setMsg] = useState("");
 
   const load = () => {
-    fetch(`${BASE}/api/operations/workflows?tenant_id=${tenant}`, { headers: authHeaders() })
+    apiFetch(`/api/operations/workflows?tenant_id=${tenant}`, { raw: true, headers: authHeaders() })
       .then((r) => r.json())
       .then(setWorkflows);
   };
@@ -130,7 +131,7 @@ function OrchestrationTab({ tenant }: { tenant: string }) {
   const create = () => {
     if (!wfName.trim()) return;
     setLoading(true);
-    fetch(`${BASE}/api/operations/workflows?tenant_id=${tenant}`, {
+    apiFetch(`/api/operations/workflows?tenant_id=${tenant}`, { raw: true,
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -219,9 +220,8 @@ function WorkQueuesTab({ tenant }: { tenant: string }) {
   const [queueFilter, setQueueFilter] = useState("technician");
 
   const load = () => {
-    fetch(
-      `${BASE}/api/operations/work-queue?tenant_id=${tenant}&queue_type=${queueFilter}`,
-      { headers: authHeaders() }
+    apiFetch(`/api/operations/work-queue?tenant_id=${tenant}&queue_type=${queueFilter}`,
+      { raw: true, headers: authHeaders() }
     )
       .then((r) => r.json())
       .then(setItems);
@@ -231,9 +231,8 @@ function WorkQueuesTab({ tenant }: { tenant: string }) {
 
   const claim = (id: number) => {
     const email = localStorage.getItem("user") || "user@hospital.org";
-    fetch(
-      `${BASE}/api/operations/work-queue/${id}/claim?tenant_id=${tenant}&claimed_by=${encodeURIComponent(email)}`,
-      { method: "POST", headers: authHeaders() }
+    apiFetch(`/api/operations/work-queue/${id}/claim?tenant_id=${tenant}&claimed_by=${encodeURIComponent(email)}`,
+      { raw: true, method: "POST", headers: authHeaders() }
     ).then(() => load());
   };
 
@@ -308,13 +307,13 @@ function CommandCenterTab({ tenant }: { tenant: string }) {
   const [snapshots, setSnapshots] = useState<RiskSnapshot[]>([]);
 
   useEffect(() => {
-    fetch(`${BASE}/api/operations/command-center/dashboard?tenant_id=${tenant}`, {
+    apiFetch(`/api/operations/command-center/dashboard?tenant_id=${tenant}`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => r.json())
       .then(setDashboard);
 
-    fetch(`${BASE}/api/operations/command-center/snapshots?tenant_id=${tenant}`, {
+    apiFetch(`/api/operations/command-center/snapshots?tenant_id=${tenant}`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => r.json())
@@ -409,15 +408,14 @@ function ExecutionsTab({ tenant }: { tenant: string }) {
   const [executions, setExecutions] = useState<Execution[]>([]);
 
   useEffect(() => {
-    fetch(`${BASE}/api/operations/executions?tenant_id=${tenant}`, { headers: authHeaders() })
+    apiFetch(`/api/operations/executions?tenant_id=${tenant}`, { raw: true, headers: authHeaders() })
       .then((r) => r.json())
       .then(setExecutions);
   }, [tenant]);
 
   const approve = (id: number) => {
-    fetch(
-      `${BASE}/api/operations/executions/${id}/approve?tenant_id=${tenant}`,
-      {
+    apiFetch(`/api/operations/executions/${id}/approve?tenant_id=${tenant}`,
+      { raw: true,
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({
@@ -426,7 +424,7 @@ function ExecutionsTab({ tenant }: { tenant: string }) {
         }),
       }
     ).then(() =>
-      fetch(`${BASE}/api/operations/executions?tenant_id=${tenant}`, { headers: authHeaders() })
+      apiFetch(`/api/operations/executions?tenant_id=${tenant}`, { raw: true, headers: authHeaders() })
         .then((r) => r.json())
         .then(setExecutions)
     );
@@ -488,7 +486,7 @@ function CopilotTab({ tenant }: { tenant: string }) {
   const [loading, setLoading] = useState(false);
 
   const loadRecs = () => {
-    fetch(`${BASE}/api/operations/copilot/recommendations?tenant_id=${tenant}`, {
+    apiFetch(`/api/operations/copilot/recommendations?tenant_id=${tenant}`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => r.json())
@@ -501,7 +499,7 @@ function CopilotTab({ tenant }: { tenant: string }) {
     if (!queryText.trim()) return;
     setLoading(true);
     setResult(null);
-    fetch(`${BASE}/api/operations/copilot/query?tenant_id=${tenant}`, {
+    apiFetch(`/api/operations/copilot/query?tenant_id=${tenant}`, { raw: true,
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -516,9 +514,8 @@ function CopilotTab({ tenant }: { tenant: string }) {
   };
 
   const review = (id: number, status: string) => {
-    fetch(
-      `${BASE}/api/operations/copilot/recommendations/${id}/review?tenant_id=${tenant}`,
-      {
+    apiFetch(`/api/operations/copilot/recommendations/${id}/review?tenant_id=${tenant}`,
+      { raw: true,
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({

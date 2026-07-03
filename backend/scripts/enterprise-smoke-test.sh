@@ -3,8 +3,10 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:18011}"
 TOKEN="${TOKEN:-dev-token}"
+VIEWER_TOKEN="${VIEWER_TOKEN:-dev-viewer-token}"
 
 AUTH_HEADER="Authorization: Bearer ${TOKEN}"
+VIEWER_AUTH_HEADER="Authorization: Bearer ${VIEWER_TOKEN}"
 
 log() {
   echo
@@ -62,16 +64,14 @@ echo "Route table contains enterprise routes"
 
 log "RBAC viewer read should pass"
 curl -sSsS "${BASE_URL}/api/portfolio-tenants" \
-  -H "$AUTH_HEADER" \
-  -H "X-LumenAI-Role: viewer" >/dev/null
+  -H "$VIEWER_AUTH_HEADER" >/dev/null
 echo "Viewer read passed"
 
 log "RBAC viewer write should be denied"
 DENY_STATUS="$(
   curl -sS -o /tmp/lumenai_rbac_deny.json -w "%{http_code}" \
     -X POST "${BASE_URL}/api/portfolio-tenants" \
-    -H "$AUTH_HEADER" \
-    -H "X-LumenAI-Role: viewer" \
+    -H "$VIEWER_AUTH_HEADER" \
     -H "Content-Type: application/json" \
     -d '{"tenant_name":"RBAC Smoke Deny Tenant"}'
 )"

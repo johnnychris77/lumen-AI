@@ -4,6 +4,7 @@ import { Button } from "./button";
 import { Spinner } from "./spinner";
 import { useAuth, API_BASE } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
 interface BaselineImageUploadProps {
   value: string;
@@ -40,9 +41,8 @@ export function BaselineImageUpload({ value, onChange, className }: BaselineImag
       form.append("file", file);
       const hdrs = headers();
       // multipart — don't set Content-Type (browser sets it with boundary)
-      const res = await fetch(
-        `${API_BASE}/api/enterprise/vendor-baseline-subscription/baselines/upload-image`,
-        {
+      const res = await apiFetch(`/api/enterprise/vendor-baseline-subscription/baselines/upload-image`,
+        { raw: true,
           method: "POST",
           headers: {
             Authorization: hdrs["Authorization"],

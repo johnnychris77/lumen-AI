@@ -85,6 +85,32 @@ EXPORT_READINESS_HISTORY: list[dict] = []
 
 
 def _audit_actor_from_request(request: Request) -> tuple[str, str]:
+    """Resolve the audit actor/role from the validated bearer token first.
+
+    Client headers are advisory labels only — they are used solely as a
+    fallback when no verifiable identity is present (e.g. dev tooling), so a
+    caller can never relabel audit records as another user or role.
+    """
+    authorization = request.headers.get("authorization", "") or request.headers.get(
+        "Authorization", ""
+    )
+    if authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        try:
+            from app.deps import _decode_jwt
+
+            payload = _decode_jwt(token)
+            if payload and payload.get("sub"):
+                username = str(payload["sub"])
+                try:
+                    from app.routers.auth_simple import _user_role
+
+                    return username, _user_role(username)
+                except Exception:
+                    return username, "viewer"
+        except Exception:
+            pass
+
     actor = request.headers.get("x-lumenai-actor", "unknown")
     role = request.headers.get("x-lumenai-role", "viewer")
     return actor, role

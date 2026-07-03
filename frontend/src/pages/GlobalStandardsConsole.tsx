@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
 const AUTH = () => ({
@@ -61,7 +62,7 @@ function DashboardTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/standards/dashboard`, { headers: AUTH() })
+    apiFetch(`/api/standards/dashboard`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then(setData)
       .finally(() => setLoading(false));
@@ -130,7 +131,7 @@ function StandardsTab() {
     const url = type
       ? `${API}/api/standards/quality-standards?standard_type=${encodeURIComponent(type)}`
       : `${API}/api/standards/quality-standards`;
-    const r = await fetch(url, { headers: AUTH() });
+    const r = await apiFetch(url, { raw: true, headers: AUTH() });
     if (r.ok) setStandards((await r.json()).standards ?? []);
     setLoading(false);
   }, [type]);
@@ -186,7 +187,7 @@ function BenchmarksTab() {
     const url = reportType
       ? `${API}/api/standards/benchmarks?report_type=${encodeURIComponent(reportType)}`
       : `${API}/api/standards/benchmarks`;
-    const r = await fetch(url, { headers: AUTH() });
+    const r = await apiFetch(url, { raw: true, headers: AUTH() });
     if (r.ok) setReports((await r.json()).reports ?? []);
     setLoading(false);
   }, [reportType]);
@@ -271,7 +272,7 @@ function RegionsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/standards/regional-deployments`, { headers: AUTH() })
+    apiFetch(`/api/standards/regional-deployments`, { raw: true, headers: AUTH() })
       .then((r) => r.json())
       .then((d) => setDeployments(d.deployments ?? []))
       .finally(() => setLoading(false));
@@ -325,8 +326,8 @@ function ConsortiumTab() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/api/standards/consortium`, { headers: AUTH() }).then((r) => r.json()),
-      fetch(`${API}/api/standards/publications`, { headers: AUTH() }).then((r) => r.json()),
+      apiFetch(`/api/standards/consortium`, { raw: true, headers: AUTH() }).then((r) => r.json()),
+      apiFetch(`/api/standards/publications`, { raw: true, headers: AUTH() }).then((r) => r.json()),
     ]).then(([c, p]) => {
       setMembers(c.members ?? []);
       setPubs(p.publications ?? []);

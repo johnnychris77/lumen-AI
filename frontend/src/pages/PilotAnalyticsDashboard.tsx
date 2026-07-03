@@ -11,8 +11,7 @@ import {
   CartesianGrid,
   Cell,
 } from "recharts";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+import { apiFetch } from "@/lib/api";
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("token");
@@ -20,13 +19,13 @@ function authHeaders(): HeadersInit {
 }
 
 async function fetchJSON(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  const res = await apiFetch(`${path}`, { raw: true, headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
 
 async function postJSON(path: string, body?: object) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await apiFetch(`${path}`, { raw: true,
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
@@ -225,7 +224,7 @@ function ScorecardPanel() {
   async function downloadPDF() {
     setDownloading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/pilot-analytics/export/scorecard.pdf`, { headers: authHeaders() });
+      const res = await apiFetch(`/api/pilot-analytics/export/scorecard.pdf`, { raw: true, headers: authHeaders() });
       if (!res.ok) throw new Error(`${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -648,7 +647,7 @@ function ExportPanel() {
   async function download(path: string, filename: string) {
     setDownloading(true);
     try {
-      const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+      const res = await apiFetch(`${path}`, { raw: true, headers: authHeaders() });
       if (!res.ok) throw new Error(`${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

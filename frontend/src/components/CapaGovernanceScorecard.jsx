@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+import { apiFetch } from "@/lib/api";
 
 export default function CapaGovernanceScorecard() {
   const [data, setData] = useState(null);
@@ -11,9 +9,8 @@ export default function CapaGovernanceScorecard() {
     try {
       setErrorMessage("");
 
-      const response = await fetch(
-        `${API_BASE}/api/capa/governance-scorecard?days_until_due=7`
-      );
+      const response = await apiFetch(`/api/capa/governance-scorecard?days_until_due=7`
+      , { raw: true });
 
       if (!response.ok) {
         throw new Error(`CAPA governance scorecard returned ${response.status}`);

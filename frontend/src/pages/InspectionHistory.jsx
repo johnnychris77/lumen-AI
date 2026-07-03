@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+import { apiFetch, API_BASE } from "@/lib/api";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -82,7 +80,7 @@ export default function InspectionHistory() {
       setError("");
 
       try {
-        const res = await fetch(`${API_BASE}/api/history?limit=100`, {
+        const res = await apiFetch(`/api/history?limit=100`, { raw: true,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 

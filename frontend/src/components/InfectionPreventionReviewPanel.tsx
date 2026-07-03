@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { apiFetch, API_BASE } from "@/lib/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || "http://127.0.0.1:18012";
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
 type InfectionPreventionPacket = {
@@ -28,9 +28,8 @@ type InfectionPreventionPacket = {
 };
 
 async function fetchIpPacket(findingId: string): Promise<InfectionPreventionPacket> {
-  const response = await fetch(
-    `${API_BASE}/api/enterprise/intake/${findingId}/infection-prevention-review-packet`,
-    {
+  const response = await apiFetch(`/api/enterprise/intake/${findingId}/infection-prevention-review-packet`,
+    { raw: true,
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",

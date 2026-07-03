@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, Clock, XCircle, Package } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface BaselineStats {
   total: number;
@@ -28,8 +29,8 @@ export default function BaselineReadinessPage() {
       const h = { Authorization: `Bearer ${token}` };
       try {
         const [kpiRes, blRes] = await Promise.allSettled([
-          fetch("/api/analytics/kpi-summary", { headers: h }),
-          fetch("/api/baselines?limit=200", { headers: h }),
+          apiFetch("/api/analytics/kpi-summary", { raw: true, headers: h }),
+          apiFetch("/api/baselines?limit=200", { raw: true, headers: h }),
         ]);
         const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
         const blData = blRes.status === "fulfilled" && blRes.value.ok ? await blRes.value.json() : [];

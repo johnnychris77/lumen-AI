@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
-const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function getHeaders() {
   const token = localStorage.getItem("token") || "";
@@ -168,10 +168,10 @@ export function PredictiveAnalyticsDashboard() {
     setError(null);
     const params = `tenant_id=${TENANT_ID}`;
     Promise.all([
-      fetch(`${API}/api/predictions/dashboard?${params}`, { headers: getHeaders() }).then(r => r.json()),
-      fetch(`${API}/api/predictions/repairs?${params}`, { headers: getHeaders() }).then(r => r.json()),
-      fetch(`${API}/api/predictions/recall-risk?${params}`, { headers: getHeaders() }).then(r => r.json()),
-      fetch(`${API}/api/predictions/tray-risk?${params}&tray_id=default-tray`, { headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/dashboard?${params}`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/repairs?${params}`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/recall-risk?${params}`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/tray-risk?${params}&tray_id=default-tray`, { raw: true, headers: getHeaders() }).then(r => r.json()),
     ]).then(([d, r, rc, t]) => {
       if (d.dashboard) setDashboard(d.dashboard);
       if (r.forecasts) setRepairs(r.forecasts);

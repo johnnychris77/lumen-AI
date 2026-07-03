@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 // ─── quick actions ────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ export function PilotDashboardCards() {
 
     KPI_CONFIGS.forEach(async (cfg, i) => {
       try {
-        const res = await fetch(`${API_BASE}${cfg.endpoint}`, { headers: hdrs });
+        const res = await apiFetch(`${cfg.endpoint}`, { raw: true, headers: hdrs });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const count = extractCount(data, cfg.countKey);

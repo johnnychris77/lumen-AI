@@ -6,6 +6,7 @@ import InstrumentIntelligencePanel, { InstrumentIntel } from "@/components/Instr
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
+import { apiFetch } from "@/lib/api";
 
 // ─── types ─────────────────────────────────────────────────────────────────── v2
 
@@ -240,7 +241,7 @@ export default function NewInspectionPage() {
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/instrument-anatomy/${encodeURIComponent(type)}`, { headers: headers() });
+        const res = await apiFetch(`/api/instrument-anatomy/${encodeURIComponent(type)}`, { raw: true, headers: headers() });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setAnatomyZones(Array.isArray(data.zone_names) ? data.zone_names : []);
@@ -300,9 +301,8 @@ export default function NewInspectionPage() {
     if (!instrumentType) { setNoBaselineWarning(false); return; }
     try {
       const hdrs = headers();
-      const r = await fetch(
-        `${API_BASE}/api/baseline-library?instrument_category=${encodeURIComponent(instrumentType)}&status=approved&limit=1`,
-        { headers: hdrs }
+      const r = await apiFetch(`/api/baseline-library?instrument_category=${encodeURIComponent(instrumentType)}&status=approved&limit=1`,
+        { raw: true, headers: hdrs }
       );
       if (r.ok) {
         const d = await r.json();
@@ -401,7 +401,7 @@ export default function NewInspectionPage() {
       let imageSha256: string | undefined;
       const fd = new FormData();
       allImages.forEach((f) => fd.append("images", f));
-      const imgRes = await fetch(`${API_BASE}/api/inspections/upload-images`, {
+      const imgRes = await apiFetch(`/api/inspections/upload-images`, { raw: true,
         method: "POST",
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
@@ -470,7 +470,7 @@ export default function NewInspectionPage() {
         }),
       };
 
-      const res = await fetch(`${API_BASE}/api/inspections`, {
+      const res = await apiFetch(`/api/inspections`, { raw: true,
         method: "POST",
         headers: hdrs,
         body: JSON.stringify(payload),
@@ -651,7 +651,7 @@ export default function NewInspectionPage() {
             setOverriding(true);
             try {
               const hdrs = headers();
-              const r = await fetch(`${API_BASE}/api/inspections/${prediction.id}/baseline-override`, {
+              const r = await apiFetch(`/api/inspections/${prediction.id}/baseline-override`, { raw: true,
                 method: "POST",
                 headers: hdrs,
                 body: JSON.stringify({ baseline_source: overrideSource, override_reason: overrideReason }),
