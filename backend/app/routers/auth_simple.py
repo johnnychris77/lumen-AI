@@ -36,7 +36,10 @@ if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY environment variable must be set in production.")
     SECRET_KEY = "dev-only-secret-not-for-production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+# Default shortened from 480 (8h) to 60: there is no refresh/revocation flow,
+# so a leaked token stays valid for its full lifetime. Override per-deploy via
+# ACCESS_TOKEN_EXPIRE_MINUTES if a longer session is explicitly needed.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)

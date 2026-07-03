@@ -46,14 +46,56 @@ def ensure_enterprise_access_tables(db: Session) -> None:
 
 
 def infer_actor_and_role(headers: dict[str, str]) -> tuple[str, str]:
-    authorization = headers.get("authorization", "")
-    explicit_role = headers.get("x-lumenai-role", "").strip().lower()
-    explicit_actor = headers.get("x-lumenai-actor", "").strip()
+    """Resolve (actor, role) for the access-control middleware.
 
-    if "dev-token" in authorization:
-        return explicit_actor or "dev-user", explicit_role or "admin"
+    SECURITY: this feeds a BLOCKING policy gate, so the role must come from a
+    verifiable source. Previously any request carrying the literal string
+    "dev-token" (or an arbitrary X-LumenAI-Role header) was granted the role it
+    asked for — including admin. Role is now resolved, in order, from:
 
-    return explicit_actor or "unknown", explicit_role or "viewer"
+      1. the ENABLE_DEV_AUTH dev-token map (non-production only),
+      2. the DEMO_MODE demo token (viewer, demo tenant), then
+      3. a JWT issued by /auth/login, with the role read server-side.
+
+    The X-LumenAI-* headers are never trusted as identity or role; an
+    unauthenticated request resolves to ("unknown", "viewer") and is gated
+    accordingly.
+    """
+    import os
+
+    authorization = headers.get("authorization", "") or headers.get(
+        "Authorization", ""
+    )
+    if not authorization.startswith("Bearer "):
+        return "unknown", "viewer"
+
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        return "unknown", "viewer"
+
+    try:
+        from app.deps import _DEV_AUTH_ACTIVE, _DEV_ROLE_MAP, _decode_jwt
+    except Exception:
+        return "unknown", "viewer"
+
+    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
+        role = _DEV_ROLE_MAP[token]
+        return f"{role}@local.dev", role
+
+    if os.getenv("DEMO_MODE", "0").strip() == "1" and token == "demo-token":
+        return "demo@lumenai.com", "viewer"
+
+    payload = _decode_jwt(token)
+    if payload and payload.get("sub"):
+        username = str(payload["sub"])
+        try:
+            from app.routers.auth_simple import _user_role
+
+            return username, (_user_role(username) or "viewer")
+        except Exception:
+            return username, "viewer"
+
+    return "unknown", "viewer"
 
 
 def infer_resource_type(path: str) -> str:
