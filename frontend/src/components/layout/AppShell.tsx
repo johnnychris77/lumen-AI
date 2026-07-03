@@ -38,6 +38,7 @@ import {
   GraduationCap,
   DollarSign,
   Camera,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +98,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/enterprise", label: "Enterprise Quality", icon: Building2 },
       { to: "/pilot-validation", label: "Pilot Validation", icon: ClipboardCheck },
       { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
+      { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
     ],
   },
   {

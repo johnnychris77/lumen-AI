@@ -916,6 +916,9 @@ app.include_router(pilot_validation_router)
 from app.routes.pre_sterilization_command_center import router as pre_sterilization_command_center_router
 app.include_router(pre_sterilization_command_center_router)
 
+from app.routes.knowledge_graph import router as knowledge_graph_router
+app.include_router(knowledge_graph_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
