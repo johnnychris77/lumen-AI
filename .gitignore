@@ -56,8 +56,9 @@ generated_governance_packets/
 backend/.env
 .pytest_cache/
 
-# Local runtime evidence/test artifacts
-evidence/
+# Local runtime evidence/test artifacts (root-level only — docs/evidence/
+# is the tracked Clinical Evidence Repository and must not be ignored)
+/evidence/
 tmp/
 baselines/
 .venv-pdf/
