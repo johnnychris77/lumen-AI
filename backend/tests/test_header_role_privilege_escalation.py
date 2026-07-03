@@ -11,8 +11,6 @@ Before this fix:
 These tests lock in that role now comes only from a verifiable source
 (dev-token map / validated JWT), never from the X-LumenAI-Role header.
 """
-import os
-
 import pytest
 
 
