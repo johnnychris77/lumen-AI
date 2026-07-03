@@ -74,29 +74,28 @@ supervisor knowledge, and SPD rules.
 `app/services/clinical_mentor.py` (`ai_mentor`).
 
 ### Layer 7 — Clinical Decision Engine
-Recommend a disposition:
+Recommend a disposition. **The adopted vocabulary is the five-value outcome
+already implemented in `app/services/baseline_comparison_scoring_service.py`
+(`_ACTION_TEXT`) — this is the frozen v1 vocabulary for this layer, not a
+placeholder:**
 
-- READY FOR PACKAGING
-- READY FOR STERILIZATION
-- REQUIRES RECLEANING
+- PASS
+- MONITOR
 - SUPERVISOR REVIEW
-- REPAIR
+- REPROCESS
 - REMOVE FROM SERVICE
 
-**Current implementation status:** the v1 scoring engine
-(`app/services/baseline_comparison_scoring_service.py`, `_ACTION_TEXT`)
-outputs a five-value outcome — `PASS`, `MONITOR`, `SUPERVISOR REVIEW`,
-`REPROCESS`, `REMOVE FROM SERVICE` — which is the working v1 realization of
-this layer, predating this document. It maps onto the target vocabulary
-above as: `PASS`/`MONITOR` → *READY FOR PACKAGING* (with `MONITOR` flagging
-a recheck note), `REPROCESS` → *REQUIRES RECLEANING*, `SUPERVISOR REVIEW`
-→ *SUPERVISOR REVIEW*, `REMOVE FROM SERVICE` → *REMOVE FROM SERVICE*.
-*REPAIR* and an explicit *READY FOR STERILIZATION* terminal state (distinct
-from packaging) are not yet separated out in code. Per Phase 19.5 §10,
-existing code is not being renamed to avoid breaking the ~2,300-test
-regression suite that asserts on the current strings; new decision-engine
-work should adopt the six-value vocabulary directly rather than extending
-the five-value one.
+An earlier draft of this document proposed a six-value alternative (READY
+FOR PACKAGING / READY FOR STERILIZATION / REQUIRES RECLEANING / REPAIR /
+SUPERVISOR REVIEW / REMOVE FROM SERVICE). That vocabulary was rejected in
+favor of keeping the original five values, which the entire regression
+suite (~2,300 tests) already asserts against and which have been in
+production use since earlier phases. Future decision-engine work should
+extend or refine these five values rather than introduce a second,
+parallel vocabulary — e.g. if a REPAIR-vs-REMOVE-FROM-SERVICE distinction
+is ever needed, it should be added as a sixth value or a sub-field on the
+existing outcome, decided deliberately and reflected here, not layered on
+silently.
 
 ### Layer 8 — Human Validation
 Supervisor review and override — the point at which a human either
