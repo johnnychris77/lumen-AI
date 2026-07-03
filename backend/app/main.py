@@ -120,6 +120,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.pilot_validation")      # register P18 pilot validation ground-truth table
     importlib.import_module("app.models.clinical_decision_ledger")  # register P23 CIOS decision ledger table
     importlib.import_module("app.models.cios_event")            # register P23 CIOS event bus table
+    importlib.import_module("app.models.inspection_image_tag")  # register v1.2 image-view tag table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -560,6 +561,9 @@ app.include_router(instrument_intelligence_router, prefix=settings.API_PREFIX)
 
 from app.routes.instrument_intelligence_admin import router as instrument_intelligence_admin_router
 app.include_router(instrument_intelligence_admin_router, prefix=settings.API_PREFIX)
+
+from app.routes.guided_capture import router as guided_capture_router
+app.include_router(guided_capture_router, prefix=settings.API_PREFIX)
 
 from app.routes.model_pipeline import router as model_pipeline_router
 app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)

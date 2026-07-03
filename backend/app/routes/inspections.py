@@ -83,6 +83,15 @@ _ALLOWED_BASELINE_SOURCES = {
 }
 
 
+class ImageViewTagIn(BaseModel):
+    """v1.2 — per-uploaded-image metadata (see app/models/inspection_image_tag.py)."""
+    instrument_family: str = Field("", max_length=100)
+    anatomy_zone: str = Field("", max_length=100)
+    image_view: str = Field("", max_length=100)
+    capture_quality: str = Field("acceptable", max_length=20)
+    notes: str = Field("", max_length=2000)
+
+
 class InspectionCreate(BaseModel):
     instrument_type: str = Field(..., description="Must be an approved instrument type")
     material_type: Optional[str] = Field(None, description="Must be an approved material type; optional when image present")
@@ -108,6 +117,10 @@ class InspectionCreate(BaseModel):
     inspected_zones: Optional[List[str]] = Field(None)
     # Technician-declared finding categories (optional — AI determines findings)
     finding_categories: Optional[List[str]] = Field(None)
+    # v1.2 — Guided Capture: per-image view tags and the save-as-draft escape
+    # hatch for incomplete coverage (see app/services/guided_capture.py).
+    image_view_tags: Optional[List[ImageViewTagIn]] = Field(None)
+    save_as_draft: bool = Field(False)
 
     @field_validator("instrument_type")
     @classmethod
@@ -278,6 +291,14 @@ def inspection_response(row: models.Inspection) -> dict:
         "risk_level": row.risk_level,
         "recommended_action": row.recommended_action,
         "overall_cleaning_assessment": row.overall_cleaning_assessment,
+        # v1.2 — Guided Capture coverage gate
+        "coverage_status": row.coverage_status,
+        "coverage_score": row.coverage_score,
+        "coverage_gate_status": row.coverage_gate_status,
+        "is_draft": row.is_draft,
+        "coverage_override_reason": row.coverage_override_reason,
+        "coverage_override_by": row.coverage_override_by,
+        "coverage_override_at": row.coverage_override_at.isoformat() if row.coverage_override_at else None,
     }
 
 
@@ -375,6 +396,8 @@ async def create_inspection(
     recommended_action_val: Optional[str] = None
     cleaning_assessment_val: Optional[str] = None
 
+    image_view_tags_dicts = [t.model_dump() for t in (body.image_view_tags or [])]
+
     if body.has_image:
         analysis = analyze_inspection(
             db,
@@ -388,6 +411,7 @@ async def create_inspection(
             keydot_id=body.keydot_id,
             decoder_backend=body.identifier_source or "declared",
             inspected_zones=body.inspected_zones,
+            image_view_tags=image_view_tags_dicts,
         )
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
@@ -410,6 +434,20 @@ async def create_inspection(
         baseline_status = "not_applicable"
         risk_score_val = calculate_risk(detected_issue, conf_val)
         score_status = "scored"
+
+    # v1.2 — Guided Capture coverage gate. Computed regardless of has_image so
+    # a no-image manual entry still gets an honest "not_assessed" snapshot.
+    from app.config import get_settings
+    from app.services.guided_capture import coverage_readiness
+
+    readiness = coverage_readiness(
+        body.instrument_type,
+        body.inspected_zones,
+        require_full_coverage=get_settings().require_full_coverage_before_final_decision,
+        override_applied=False,
+    )
+    coverage_gate_status = readiness["gate_status"]
+    is_draft_val = body.save_as_draft or coverage_gate_status == "blocked_pending_override"
 
     row = models.Inspection(
         file_name=body.file_name or "manual-entry",
@@ -441,10 +479,29 @@ async def create_inspection(
         recommended_action=recommended_action_val,
         overall_cleaning_assessment=cleaning_assessment_val,
         inspected_zones_json=json.dumps(body.inspected_zones),
+        coverage_status=readiness["coverage_status"],
+        coverage_score=readiness["coverage_score"],
+        coverage_gate_status=coverage_gate_status,
+        is_draft=is_draft_val,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    if image_view_tags_dicts:
+        from app.models.inspection_image_tag import InspectionImageTag
+
+        for tag in image_view_tags_dicts:
+            db.add(InspectionImageTag(
+                tenant_id=tenant_id,
+                inspection_id=row.id,
+                instrument_family=tag.get("instrument_family", ""),
+                anatomy_zone=tag.get("anatomy_zone", ""),
+                image_view=tag.get("image_view", ""),
+                capture_quality=tag.get("capture_quality", "acceptable"),
+                notes=tag.get("notes", ""),
+            ))
+        db.commit()
 
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
     log_audit_event(
@@ -462,6 +519,7 @@ async def create_inspection(
     if analysis is not None:
         # Attach the full explainable AI analysis output (placeholder scoring).
         response["analysis"] = analysis
+    response["coverage_readiness"] = readiness
     return response
 
 
