@@ -39,6 +39,7 @@ import {
   DollarSign,
   Camera,
   Network,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +107,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/enterprise", label: "Enterprise Quality", icon: Building2, roles: ELEVATED_ROLES },
       { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
       { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+      { to: "/agent-trace", label: "Agent Trace", icon: Workflow },
     ],
   },
   {
