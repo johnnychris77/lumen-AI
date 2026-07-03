@@ -9,7 +9,9 @@ CV-detected (that is a future release). The engine is deterministic and honest.
 """
 from __future__ import annotations
 
-from app.services.instrument_anatomy import get_anatomy
+import json
+
+from app.services.instrument_anatomy import get_anatomy, resolve_family
 
 
 def _norm(z: str) -> str:
@@ -116,3 +118,82 @@ def build_risk_map(instrument_type: str, findings_by_zone: dict[str, list[str]] 
             ),
         })
     return rows
+
+
+def coverage_dashboard_summary(db, tenant_id: str, recent_limit: int = 20) -> dict:
+    """Enterprise Coverage Dashboard — real aggregate coverage stats computed
+    from stored inspections (`inspected_zones_json`), never fabricated.
+
+    Inspections where zones were never tagged are excluded from the average
+    and status breakdown (they were "not assessed", not zero coverage) but are
+    counted separately so the dashboard is honest about assessment gaps.
+    """
+    from app.db import models
+
+    rows = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.tenant_id == tenant_id, models.Inspection.has_image.is_(True))
+        .order_by(models.Inspection.created_at.desc(), models.Inspection.id.desc())
+        .all()
+    )
+
+    assessed: list[dict] = []
+    missing_tally: dict[str, int] = {}
+    status_breakdown = {"complete": 0, "acceptable": 0, "incomplete": 0, "insufficient": 0}
+    coverage_by_family: dict[str, list[int]] = {}
+    recent: list[dict] = []
+
+    for row in rows:
+        try:
+            zones = json.loads(row.inspected_zones_json or "null")
+        except (TypeError, ValueError):
+            zones = None
+
+        cov = compute_coverage(row.instrument_type, zones)
+        if len(recent) < recent_limit:
+            recent.append({
+                "inspection_id": row.id,
+                "instrument_type": row.instrument_type,
+                "coverage_score": cov["overall_coverage"],
+                "coverage_status": cov["quality"],
+                "missing": cov["missing"],
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            })
+
+        if not cov["assessed"]:
+            continue
+
+        assessed.append(cov)
+        status_breakdown[cov["quality"]] = status_breakdown.get(cov["quality"], 0) + 1
+        for z in cov["missing"]:
+            missing_tally[z] = missing_tally.get(z, 0) + 1
+        family = resolve_family(row.instrument_type)
+        coverage_by_family.setdefault(family, []).append(cov["overall_coverage"])
+
+    average_coverage = (
+        round(sum(c["overall_coverage"] for c in assessed) / len(assessed))
+        if assessed else None
+    )
+    average_coverage_by_family = {
+        family: round(sum(scores) / len(scores))
+        for family, scores in coverage_by_family.items()
+    }
+    most_commonly_missing_zones = [
+        {"zone": zone, "missed_count": count}
+        for zone, count in sorted(missing_tally.items(), key=lambda kv: kv[1], reverse=True)
+    ][:10]
+
+    return {
+        "total_inspections_with_image": len(rows),
+        "assessed_count": len(assessed),
+        "not_assessed_count": len(rows) - len(assessed),
+        "average_coverage": average_coverage,
+        "coverage_status_breakdown": status_breakdown,
+        "average_coverage_by_family": average_coverage_by_family,
+        "most_commonly_missing_zones": most_commonly_missing_zones,
+        "recent_inspections": recent,
+        "note": (
+            "Computed from real inspected_zones_json data. Inspections where zones "
+            "were never tagged are excluded from averages (not assessed, not zero)."
+        ),
+    }

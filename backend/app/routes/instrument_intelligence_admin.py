@@ -21,9 +21,20 @@ from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.instrument_knowledge import InstrumentKnowledge
 from app.models.supervisor_review import SupervisorReview
-from app.services.instrument_anatomy import anatomy_profile
+from app.services.instrument_anatomy import anatomy_profile, list_anatomy_families
+from app.services.inspection_coverage import coverage_dashboard_summary
 
 router = APIRouter(tags=["instrument-intelligence"])
+
+
+@router.get("/instrument-anatomy")
+def list_instrument_anatomy(
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Anatomy Library — every declared instrument-family anatomy definition
+    (family, zones, required image views, high-risk zones). Backs the
+    Anatomy Library page's browse view."""
+    return {"families": list_anatomy_families()}
 
 
 @router.get("/instrument-anatomy/{instrument_type}")
@@ -38,6 +49,36 @@ def instrument_anatomy(
     required image views, per-zone descriptions/risks, manual-check steps). Falls
     back to a generic SPD profile with a supervisor-review warning when unknown."""
     return anatomy_profile(instrument_type, manufacturer, model, instrument_name)
+
+
+@router.get("/instrument-zones")
+def instrument_zone_taxonomy(
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Inspection Zones Library — the full zone taxonomy, high-retention zones,
+    and per-zone risk/reason/manual-check reference. Backs the Inspection Zones
+    library page."""
+    from app.services.instrument_zones import HIGH_RETENTION_ZONES, ZONE_INFO, ZONE_TAXONOMY
+
+    return {
+        "zone_taxonomy": ZONE_TAXONOMY,
+        "high_retention_zones": sorted(HIGH_RETENTION_ZONES),
+        "zone_info": ZONE_INFO,
+    }
+
+
+@router.get("/coverage-dashboard/summary")
+def coverage_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Inspection Coverage Dashboard — real aggregate coverage stats (average
+    coverage, status breakdown, most commonly missing zones, per-family
+    averages) computed from stored inspections. Nothing fabricated: inspections
+    that never had zones tagged are excluded from averages, not counted as 0%."""
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return coverage_dashboard_summary(db, tenant_id)
 
 
 class KnowledgeIn(BaseModel):

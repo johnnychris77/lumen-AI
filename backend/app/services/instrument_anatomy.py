@@ -226,6 +226,26 @@ INSTRUMENT_ANATOMY: dict[str, dict] = {
 }
 
 
+def list_anatomy_families() -> list[dict]:
+    """Summary of every declared anatomy family, for the Anatomy Library page.
+    Excludes the ``default`` fallback (that is the generic profile, not a family)."""
+    return [
+        {
+            "family": family,
+            "category": defn["category"],
+            "zone_names": [z["zone_name"] for z in defn["zones"]],
+            "required_images": defn["required_images"],
+            "min_images": defn["min_images"],
+            "high_risk_zones": [
+                z["zone_name"] for z in defn["zones"]
+                if z["zone_risk_level"] in ("high", "critical") or z["retention_risk"] == "high"
+            ],
+        }
+        for family, defn in INSTRUMENT_ANATOMY.items()
+        if family != "default"
+    ]
+
+
 def resolve_family(instrument_type: str) -> str:
     """Resolve free-text instrument_type onto an anatomy family key."""
     name = (instrument_type or "").lower()
