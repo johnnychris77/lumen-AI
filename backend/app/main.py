@@ -117,6 +117,8 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.instrument_knowledge")  # register instrument knowledge library
     importlib.import_module("app.models.model_registry")        # register P17 model registry table
     importlib.import_module("app.models.shadow_prediction")     # register P17 shadow-prediction table
+    importlib.import_module("app.models.clinical_decision_ledger")  # register P23 CIOS decision ledger table
+    importlib.import_module("app.models.cios_event")            # register P23 CIOS event bus table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -949,6 +951,9 @@ app.include_router(knowledge_graph_router)
 
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
+
+from app.routes.cios import router as cios_router
+app.include_router(cios_router)
 
 from fastapi.openapi.utils import get_openapi
 
