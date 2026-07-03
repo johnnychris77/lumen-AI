@@ -27,7 +27,7 @@ class DamageDetectionAgent:
         severity = "critical" if risk_score >= 85 else ("high" if risk_score >= 70 else ("medium" if risk_score >= 40 else "low"))
         repairable = issue in _REPAIRABLE_ISSUES
         repair_recommendation = (
-            "Route to repair evaluation." if repairable and severity in ("medium", "high")
+            "Route to repair evaluation." if repairable and severity in ("medium", "high", "critical")
             else "Remove from service pending replacement." if not repairable and severity in ("high", "critical")
             else "Monitor and re-inspect at next cycle."
         )

@@ -34,8 +34,8 @@ general-forceps anatomy family also has its own dedicated zone taxonomy, see
 
 ## API
 
-- `GET /api/instrument-families` — all family profiles.
-- `GET /api/instrument-families/{family_key}` — one family profile (404 with
+- `GET /api/knowledge-graph/instrument-families` — all family profiles.
+- `GET /api/knowledge-graph/instrument-families/{family_key}` — one family profile (404 with
   the list of known keys if unrecognized).
 
 ## Frontend

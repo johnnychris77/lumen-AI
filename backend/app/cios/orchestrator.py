@@ -25,6 +25,7 @@ from app.cios.context import ClinicalContext
 from app.cios.decision_ledger import record_decision
 from app.cios.governance import governance_snapshot
 from app.cios.state_machine import derive_state
+from app.models.clinical_decision_ledger import ClinicalDecisionLedgerEntry
 from app.models.supervisor_review import SupervisorReview
 
 # Phase 22 pipeline order, relabeled to the Section 3 Pipeline Monitor's
@@ -157,16 +158,35 @@ def run_cios_pipeline(db: Session, inspection, tenant_id: str) -> dict:
     monitor = _pipeline_monitor(result)
     state = derive_state(inspection, review)
     timeline = _timeline(inspection, result, review)
-    events = _emit_events(db, tenant_id, inspection, result)
 
-    ledger_entry = record_decision(
-        db, tenant_id, inspection.id,
-        decision_type="ai_recommendation",
-        made_by="ai",
-        rationale=result["recommendation_context"]["explanation"],
-        evidence={"reasoning_chain": result["clinical_reasoning_context"]["reasoning_chain"]},
-        confidence=inspection.confidence,
+    # This is called from GET/read endpoints (dashboard refresh, certificate
+    # download) as well as the initial run — event emission and the decision
+    # ledger are permanent audit stores with no dedup, so only emit/record the
+    # AI's recommendation once per inspection. Subsequent calls return the
+    # already-recorded events/ledger entry rather than appending duplicates.
+    existing_decision = (
+        db.query(ClinicalDecisionLedgerEntry)
+        .filter(
+            ClinicalDecisionLedgerEntry.tenant_id == tenant_id,
+            ClinicalDecisionLedgerEntry.inspection_id == inspection.id,
+            ClinicalDecisionLedgerEntry.decision_type == "ai_recommendation",
+        )
+        .order_by(ClinicalDecisionLedgerEntry.id.asc())
+        .first()
     )
+    if existing_decision is None:
+        events = _emit_events(db, tenant_id, inspection, result)
+        ledger_entry = record_decision(
+            db, tenant_id, inspection.id,
+            decision_type="ai_recommendation",
+            made_by="ai",
+            rationale=result["recommendation_context"]["explanation"],
+            evidence={"reasoning_chain": result["clinical_reasoning_context"]["reasoning_chain"]},
+            confidence=inspection.confidence,
+        )
+    else:
+        events = event_bus.list_events(db, tenant_id, inspection.id, limit=500)
+        ledger_entry = existing_decision
 
     return {
         "inspection_id": inspection.id,
