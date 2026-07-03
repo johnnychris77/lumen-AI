@@ -49,6 +49,7 @@ class SupervisorReview(Base):
 
     # Zone-aware feedback (instrument high-risk zone detection) — labeled data.
     finding_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    corrected_finding_type: Mapped[str] = mapped_column(String(60), default="", nullable=False)
     zone_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # Anatomy-family feedback (architecture step 9) — labeled data for the future
     # instrument-classification model.

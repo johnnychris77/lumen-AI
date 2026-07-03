@@ -98,7 +98,7 @@ def run_pipeline(db: Session, inspection, tenant_id: str) -> dict:
     recommendation_ctx = _AGENTS["recommendation"].run(inspection, reasoning_ctx)
     trace.append(_trace_entry(_AGENTS["recommendation"], {"risk_level": reasoning_ctx.risk_level}, recommendation_ctx))
 
-    supervisor_ctx = _AGENTS["supervisor"].run(db, inspection.id)
+    supervisor_ctx = _AGENTS["supervisor"].run(db, inspection.id, tenant_id)
     trace.append(_trace_entry(_AGENTS["supervisor"], {"readiness_state": recommendation_ctx.readiness_state}, supervisor_ctx))
 
     learning_ctx = _AGENTS["learning"].run(db, tenant_id)

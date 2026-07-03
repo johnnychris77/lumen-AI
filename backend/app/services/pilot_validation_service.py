@@ -117,21 +117,43 @@ def build_case_from_supervisor_review(inspection, review) -> PilotValidationCase
     """
     detected_issue = inspection.detected_issue or ""
     ai_prediction = detected_issue.strip().lower() not in ("", "unknown", "none")
-    finding_type = finding_type_from_detected_issue(detected_issue) if ai_prediction else "none"
+
+    if review.finding_correct is None:
+        # The primary one-form supervisor-review UI may not always set an
+        # explicit finding_correct — fall back to the overall agreement so the
+        # case isn't unconditionally inconclusive. "partially_agree" is
+        # genuinely ambiguous about the specific finding, so it stays None.
+        if review.agreement == "agree":
+            supervisor_finding = ai_prediction
+        elif review.agreement == "disagree":
+            supervisor_finding = not ai_prediction
+        else:
+            supervisor_finding = None
+    elif review.finding_correct:
+        supervisor_finding = ai_prediction
+    else:
+        supervisor_finding = not ai_prediction
+
+    # Finding type: prefer an explicit supervisor correction. When the AI
+    # reported nothing but the supervisor confirms a real finding was missed
+    # (a false negative) without naming its type, don't silently collapse it
+    # to "none" — that would zero out is_critical_finding and hide a
+    # confirmed miss from the critical-FN safety metrics.
+    if review.corrected_finding_type:
+        finding_type = review.corrected_finding_type.strip().lower()
+    elif ai_prediction:
+        finding_type = finding_type_from_detected_issue(detected_issue)
+    elif supervisor_finding is True:
+        finding_type = "unspecified_critical_finding"
+    else:
+        finding_type = "none"
 
     if review.zone_correct is False and review.corrected_zone:
         anatomy_zone = normalize_zone(review.corrected_zone)
     else:
         anatomy_zone = normalize_zone(zone_for_finding(inspection.instrument_type, finding_type))
 
-    if review.finding_correct is None:
-        supervisor_finding = None
-    elif review.finding_correct:
-        supervisor_finding = ai_prediction
-    else:
-        supervisor_finding = not ai_prediction
-
-    is_critical = finding_type in CRITICAL_FINDING_TYPES
+    is_critical = finding_type in CRITICAL_FINDING_TYPES or finding_type == "unspecified_critical_finding"
     label = derive_ground_truth_label(ai_prediction, supervisor_finding)
 
     return PilotValidationCase(
@@ -147,7 +169,10 @@ def build_case_from_supervisor_review(inspection, review) -> PilotValidationCase
         severity=review.corrected_severity or severity_from_risk_score(inspection.risk_score, ai_prediction),
         disposition=review.final_disposition or "",
         ai_prediction=ai_prediction,
-        ai_confidence=inspection.confidence or 0.0,
+        # Inspection.confidence is stored 0-100; pilot cases (and the direct
+        # /pilot-validation/cases submissions) use the 0-1 scale throughout —
+        # calibration buckets and the high/low-confidence thresholds above.
+        ai_confidence=min(1.0, max(0.0, (inspection.confidence or 0.0) / 100.0)),
         ai_recommended_disposition=inspection.recommended_action or "",
         supervisor_finding=supervisor_finding,
         supervisor_zone_correction=review.corrected_zone or "",

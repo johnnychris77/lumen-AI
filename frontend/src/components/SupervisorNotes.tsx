@@ -23,6 +23,8 @@ export default function SupervisorNotes({
   const [agreement, setAgreement] = useState("agree");
   const [rationale, setRationale] = useState("");
   const [override, setOverride] = useState("");
+  const [findingCorrect, setFindingCorrect] = useState<boolean | null>(null);
+  const [correctedFindingType, setCorrectedFindingType] = useState("");
   const [zoneCorrect, setZoneCorrect] = useState<boolean | null>(null);
   const [correctedZone, setCorrectedZone] = useState("");
   const [familyCorrect, setFamilyCorrect] = useState<boolean | null>(null);
@@ -51,6 +53,8 @@ export default function SupervisorNotes({
           agreement,
           rationale: rationale.trim(),
           override_action: override.trim(),
+          finding_correct: findingCorrect,
+          corrected_finding_type: correctedFindingType.trim(),
           zone_correct: zoneCorrect,
           corrected_zone: correctedZone.trim(),
           instrument_family_correct: familyCorrect,
@@ -107,6 +111,22 @@ export default function SupervisorNotes({
         placeholder="Override action (optional, e.g. reprocess / remove)"
         className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
+      {/* Finding feedback → ground-truth label for the pilot validation case
+          created alongside this review (Phase 18). Without this, the label
+          is inferred from `agreement` only, which is a weaker signal. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-500">Was the AI's finding correct?</span>
+        <button onClick={() => setFindingCorrect(true)} className={`rounded-full px-2 py-0.5 border ${findingCorrect === true ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-600"}`}>Yes</button>
+        <button onClick={() => setFindingCorrect(false)} className={`rounded-full px-2 py-0.5 border ${findingCorrect === false ? "bg-red-600 text-white border-red-600" : "border-slate-300 text-slate-600"}`}>No</button>
+        {findingCorrect === false && (
+          <input
+            value={correctedFindingType}
+            onChange={(e) => setCorrectedFindingType(e.target.value)}
+            placeholder="What was actually found (e.g. blood, crack, tissue)"
+            className="flex-1 min-w-[10rem] rounded-lg border border-slate-300 px-2 py-1"
+          />
+        )}
+      </div>
       {/* Anatomy-family feedback → labeled training data */}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-slate-500">AI instrument family correct?</span>

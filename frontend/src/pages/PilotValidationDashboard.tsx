@@ -107,18 +107,16 @@ export default function PilotValidationDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetchJSON("/api/pilot-validation/dashboard"),
-      fetchJSON("/api/pilot-validation/safety-queue"),
-      fetchJSON("/api/pilot-validation/go-no-go"),
-    ])
-      .then(([d, s, g]) => {
-        setDashboard(d);
-        setSafety(s);
-        setGoNoGo(g);
-      })
+    // /dashboard is readable by viewer/operator/spd_manager/admin, but
+    // /safety-queue and /go-no-go are admin/spd_manager only. Fetch them
+    // independently so a viewer still sees the readable dashboard summary
+    // instead of the whole page failing on someone else's 403.
+    fetchJSON("/api/pilot-validation/dashboard")
+      .then(setDashboard)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
+    fetchJSON("/api/pilot-validation/safety-queue").then(setSafety).catch(() => setSafety(null));
+    fetchJSON("/api/pilot-validation/go-no-go").then(setGoNoGo).catch(() => setGoNoGo(null));
   }, []);
 
   if (loading) return <div className="p-6 text-gray-500">Loading pilot validation data…</div>;

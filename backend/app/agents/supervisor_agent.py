@@ -22,16 +22,21 @@ class SupervisorAgent:
     CAPABILITIES = ["report_supervisor_review_status", "report_training_label_status"]
     DEPENDS_ON = ["RecommendationAgent"]
 
-    def run(self, db: Session, inspection_id: int) -> SupervisorContext:
+    def run(self, db: Session, inspection_id: int, tenant_id: str) -> SupervisorContext:
+        # Labels are tenant-scoped, but /api/pilot-validation/cases accepts an
+        # arbitrary inspection_id in its payload — without the tenant filter
+        # here, a case recorded (or mistakenly imported) by another tenant
+        # against the same inspection_id could leak that tenant's
+        # ground-truth label into this inspection's context.
         review = (
             db.query(SupervisorReview)
-            .filter(SupervisorReview.inspection_id == inspection_id)
+            .filter(SupervisorReview.inspection_id == inspection_id, SupervisorReview.tenant_id == tenant_id)
             .order_by(SupervisorReview.id.desc())
             .first()
         )
         case = (
             db.query(PilotValidationCase)
-            .filter(PilotValidationCase.inspection_id == inspection_id)
+            .filter(PilotValidationCase.inspection_id == inspection_id, PilotValidationCase.tenant_id == tenant_id)
             .order_by(PilotValidationCase.id.desc())
             .first()
         )

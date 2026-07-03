@@ -6,12 +6,13 @@ report generator, and the go/no-go readiness gate.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
+from app.enterprise_auth import get_request_tenant_id
 from app.models.pilot_validation import PilotValidationCase
 from app.schemas.pilot_validation import PilotValidationCaseCreate
 from app.services.pilot_validation_service import (
@@ -60,12 +61,13 @@ def _serialize(c: PilotValidationCase) -> dict:
 @router.post("/cases", status_code=201)
 def submit_ground_truth_case(
     payload: PilotValidationCaseCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
     """Record a supervisor-reviewed pilot case. The ground-truth label
     (TP/TN/FP/FN/inconclusive) is always derived server-side."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
     case = create_case(db, tenant_id, payload)
 
     log_audit_event(
