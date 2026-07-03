@@ -131,6 +131,41 @@ services:
         source: /*
         destination: /index.html
 
+  # ── Single-origin frontend (RECOMMENDED for cookie auth) ────────────────────
+  # Serves the SPA AND reverse-proxies /api to the backend from ONE host, so the
+  # backend can set a first-party httpOnly session cookie. Runs ALONGSIDE the
+  # static `lumen-ai-1` service above during migration — verify this service,
+  # then point your custom domain here and retire the static one.
+  #
+  # CUTOVER CHECKLIST (see PRODUCTION_HARDENING.md "Single-origin migration"):
+  #   1. Deploy this service; confirm https://<this-host>/healthz and that the
+  #      app loads and can log in (its /api calls are same-origin).
+  #   2. Add CORS origin for this host to the API (or, once this is the only
+  #      frontend, CORS is moot because all calls are same-origin).
+  #   3. Switch the backend login to set an httpOnly Secure SameSite=Lax cookie
+  #      and set VITE_AUTH_TRANSPORT=cookie (already baked into this image).
+  #   4. Point the custom domain at this service; retire `lumen-ai-1`.
+  #   5. Make `lumen-ai-api` private (remove its public URL) so the API is only
+  #      reachable through this proxy.
+  - type: web
+    name: lumen-ai-web
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./frontend/Dockerfile.render
+    dockerContext: ./frontend
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # Internal URL of the API service. On Render, services reach each other by
+      # name over the private network; adjust the port to the API's listen port.
+      - key: API_UPSTREAM
+        fromService:
+          type: web
+          name: lumen-ai-api
+          property: hostport
+        # If `hostport` isn't resolvable in your Render plan, hardcode the
+        # internal URL instead, e.g. value: http://lumen-ai-api:8000
+
 databases:
   - name: lumen-ai-db
     plan: starter

@@ -17,10 +17,7 @@ type AuditTrailItem = {
   created_at: string;
 };
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
-
-const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
+import { api } from "@/lib/api";
 
 export default function EnterpriseAuditTrailPanel() {
   const [items, setItems] = useState<AuditTrailItem[]>([]);
@@ -33,24 +30,17 @@ export default function EnterpriseAuditTrailPanel() {
     setError("");
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/enterprise/audit-trail?limit=10`,
+      const data = await api.get<{ items?: AuditTrailItem[] }>(
+        "/api/enterprise/audit-trail?limit=10",
         {
+          // Tenant scoping headers are specific to this panel; role/actor/token
+          // are attached centrally by apiFetch.
           headers: {
-            Authorization: `Bearer ${AUTH_TOKEN}`,
-            "X-LumenAI-Role": "auditor",
-            "X-LumenAI-Actor": "john-demo",
             "X-Tenant-Id": "bonsecours",
             "X-Tenant-Name": "Bon Secours",
           },
         }
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.detail || `Audit trail request failed (${response.status})`);
-      }
 
       const nextItems = Array.isArray(data.items) ? data.items : [];
       setItems(nextItems);

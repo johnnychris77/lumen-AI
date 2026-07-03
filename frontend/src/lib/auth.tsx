@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { API_BASE, setUnauthorizedHandler } from "@/lib/api";
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
+// API_BASE now has a single definition in lib/api.ts. Re-exported here so the
+// many existing `import { API_BASE } from "@/lib/auth"` call sites keep working.
+export { API_BASE };
 
 interface AuthState {
   token: string;
@@ -40,6 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // stale cached index.html can't blank the page on a fresh deploy.
     setAuthState({ token: "", role: "viewer", actor: "" });
   }, []);
+
+  // Let the central apiFetch client trigger sign-out on any 401 (expired or
+  // invalid session), instead of each of the ~43 call sites handling it.
+  useEffect(() => {
+    setUnauthorizedHandler(() => logout());
+    return () => setUnauthorizedHandler(null);
+  }, [logout]);
 
   const headers = useCallback(
     () => ({

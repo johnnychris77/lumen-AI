@@ -43,6 +43,47 @@ records. Regression coverage:
 - **No refresh/revocation flow.** Access-token lifetime is now 60 min by
   default (was 8 h); add refresh + a revocation list before long-lived sessions.
 
+## Single-origin migration (localStorage token -> httpOnly cookie)
+
+The token-in-localStorage risk cannot be fixed by a naive "use an httpOnly
+cookie" swap, because the SPA (`lumen-ai-1.onrender.com`) and API
+(`lumen-ai-53u4.onrender.com`) are different *sites* to the browser
+(`onrender.com` is on the Public Suffix List). A backend cookie would be
+third-party and get blocked. The fix is to put both on ONE origin, then the
+session cookie is first-party. Pieces now in the repo:
+
+1. **`frontend/src/lib/api.ts` — the `apiFetch` client.** Single source of truth
+   for base URL, auth headers, `credentials`, JSON vs FormData handling, and a
+   central 401 -> sign-out. Components call `api.get/post/...` instead of raw
+   `fetch`. Cookie cutover is one env flag (`VITE_AUTH_TRANSPORT=cookie`), no
+   component edits.
+2. **`frontend/nginx.render.conf` + `Dockerfile.render` + entrypoint.** An nginx
+   image that serves the SPA and reverse-proxies `/api` to the backend, so the
+   browser sees one origin.
+3. **`render.yaml` `lumen-ai-web` service.** Runs that image ALONGSIDE the
+   existing static `lumen-ai-1` during migration.
+
+Cutover order: deploy `lumen-ai-web`; verify `/healthz` and login; switch the
+backend login to set `httpOnly; Secure; SameSite=Lax` and add a CSRF
+custom-header check on state-changing routes; point the custom domain at
+`lumen-ai-web`; retire `lumen-ai-1`; make `lumen-ai-api` private.
+
+### Converting the remaining components to apiFetch
+
+`EnterpriseAuditTrailPanel.tsx` is the reference conversion. The mechanical
+pattern for each remaining file:
+
+- Delete the per-file `const API_BASE = import.meta.env.VITE_API_BASE_URL || …`
+  and any `const AUTH_TOKEN = localStorage.getItem("token") …` (the latter is
+  also a latent bug — captured once at module load, it goes stale after login).
+- Replace `fetch(\`${API_BASE}/api/x\`, { headers: { Authorization: … } })` with
+  `api.get("/api/x")` (or `api.post("/api/x", body)`), and read the parsed JSON
+  directly instead of calling `response.json()`/checking `response.ok` by hand.
+- Keep only *call-specific* headers (e.g. `X-Tenant-Id`) in the options; role,
+  actor, token, and Content-Type are attached centrally.
+- Do NOT set Content-Type for FormData uploads — `apiFetch` already leaves it
+  alone so the multipart boundary is preserved.
+
 ## Local validation
 
 Run:
