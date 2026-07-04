@@ -28,9 +28,11 @@ ASSIGNABLE_ROLES = {"admin", "spd_manager", "supervisor", "operator", "viewer", 
 
 
 def _upsert_role(db: Session, username: str, role: str, assigned_by: str) -> UserRoleAssignment:
+    from sqlalchemy import func
+
     row = (
         db.query(UserRoleAssignment)
-        .filter(UserRoleAssignment.username == username)
+        .filter(func.lower(UserRoleAssignment.username) == username.strip().lower())
         .first()
     )
     now = datetime.now(timezone.utc)
@@ -82,11 +84,12 @@ def bootstrap_admin(
     if body.password:
         from datetime import datetime, timezone
         from passlib.hash import bcrypt
+        from sqlalchemy import func
         from app.models.admin_credential import AdminCredential
 
         cred = (
             db.query(AdminCredential)
-            .filter(AdminCredential.username == body.username)
+            .filter(func.lower(AdminCredential.username) == body.username.strip().lower())
             .first()
         )
         pw_hash = bcrypt.hash(body.password)

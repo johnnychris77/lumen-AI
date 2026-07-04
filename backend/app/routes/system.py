@@ -50,9 +50,14 @@ async def login(request: Request):
 
     from app.routers.auth_simple import _verify_user, _make_token, _user_role
 
+    # Emails/usernames are matched case-insensitively — "Jane@Hospital.org" at
+    # bootstrap time must still work when typed "jane@hospital.org" at login.
+    username_normalized = username.strip().lower()
+
     # 1) Validate against the self-managed admin credential table (founder bootstrap).
     try:
         from passlib.hash import bcrypt
+        from sqlalchemy import func
         from app.db.session import SessionLocal
         from app.models.admin_credential import AdminCredential
 
@@ -60,14 +65,14 @@ async def login(request: Request):
         try:
             cred = (
                 db.query(AdminCredential)
-                .filter(AdminCredential.username == username)
+                .filter(func.lower(AdminCredential.username) == username_normalized)
                 .first()
             )
             if cred and bcrypt.verify(password, cred.password_hash):
                 return {
-                    "access_token": _make_token(username),
+                    "access_token": _make_token(cred.username),
                     "token_type": "bearer",
-                    "role": _user_role(username),
+                    "role": _user_role(cred.username),
                 }
         finally:
             db.close()
