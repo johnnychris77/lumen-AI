@@ -54,8 +54,13 @@ def _make_token(sub: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def _verify_user(u: str, password: str) -> Optional[str]:
+    # Case-insensitive match — an email typed with different capitalization
+    # than it was stored with must still authenticate.
     with engine.begin() as conn:
-        row = conn.execute(text("SELECT username, password_hash FROM users WHERE username=:u"), {"u": u}).fetchone()
+        row = conn.execute(
+            text("SELECT username, password_hash FROM users WHERE LOWER(username)=LOWER(:u)"),
+            {"u": u.strip()},
+        ).fetchone()
         if not row:
             return None
         if not bcrypt.verify(password, row.password_hash):
@@ -71,11 +76,12 @@ def _user_role(username: str) -> str:
     'viewer'. The assignment table is the source of truth for roles granted via
     the User Management UI / bootstrap.
     """
+    normalized = username.strip()
     try:
         with engine.begin() as conn:
             row = conn.execute(
-                text("SELECT role FROM user_role_assignments WHERE username=:u"),
-                {"u": username},
+                text("SELECT role FROM user_role_assignments WHERE LOWER(username)=LOWER(:u)"),
+                {"u": normalized},
             ).fetchone()
             if row and row.role:
                 return row.role
@@ -84,7 +90,7 @@ def _user_role(username: str) -> str:
     try:
         with engine.begin() as conn:
             row = conn.execute(
-                text("SELECT role FROM users WHERE username=:u"), {"u": username}
+                text("SELECT role FROM users WHERE LOWER(username)=LOWER(:u)"), {"u": normalized}
             ).fetchone()
             if row and row.role:
                 return row.role
