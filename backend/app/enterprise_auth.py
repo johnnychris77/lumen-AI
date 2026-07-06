@@ -126,6 +126,33 @@ def _require_dev_auth_context(request: Request) -> AuthContext:
             tenant_name="Demo Tenant",
         )
 
+    # A real per-user JWT issued by /auth/login. Without this, no deployment
+    # that hasn't explicitly configured AUTH_MODE=oidc can ever authenticate a
+    # real logged-in user against enterprise-scoped routes — only the shared
+    # dev/demo token works, which silently locks every real account out.
+    # Role is resolved server-side from the validated `sub` claim, never from
+    # a client-supplied header.
+    if authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        from app.deps import _decode_jwt
+
+        payload = _decode_jwt(token)
+        if payload and payload.get("sub"):
+            username = str(payload["sub"])
+            role = "viewer"
+            try:
+                from app.routers.auth_simple import _user_role
+
+                role = _user_role(username) or "viewer"
+            except Exception:
+                pass
+            return build_dev_auth_context(
+                actor=username,
+                role=role,
+                tenant_id=get_request_tenant_id(request),
+                tenant_name=get_request_tenant_name(request),
+            )
+
     raise HTTPException(status_code=401, detail="Authentication required.")
 
 
