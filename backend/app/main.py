@@ -125,6 +125,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.clinical_decision_ledger")  # register P23 CIOS decision ledger table
     importlib.import_module("app.models.cios_event")            # register P23 CIOS event bus table
     importlib.import_module("app.models.inspection_image_tag")  # register v1.2 image-view tag table
+    importlib.import_module("app.models.disposition_override")   # register v1.6 supervisor disposition workspace
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -615,6 +616,9 @@ app.include_router(spd_mentor_router, prefix=settings.API_PREFIX)
 
 from app.routes.quality_dashboard import router as quality_dashboard_router
 app.include_router(quality_dashboard_router)
+
+from app.routes.clinical_readiness import router as clinical_readiness_router
+app.include_router(clinical_readiness_router)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 

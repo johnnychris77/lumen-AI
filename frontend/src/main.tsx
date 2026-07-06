@@ -82,6 +82,7 @@ const VendorIntelligencePage = lazy(() => import("./pages/VendorIntelligencePage
 const DigitalTwinPage = lazy(() => import("./pages/DigitalTwinPage"));
 const QualityIntelligencePage = lazy(() => import("./pages/QualityIntelligencePage"));
 const QualityDashboardPage = lazy(() => import("./pages/QualityDashboardPage"));
+const ClinicalReadinessPage = lazy(() => import("./pages/ClinicalReadinessPage"));
 const DemoImageLibraryPage = lazy(() => import("./pages/DemoImageLibraryPage"));
 const BaselineImageUploadPage = lazy(() => import("./pages/BaselineImageUploadPage"));
 const InspectionImageUploadPage = lazy(() => import("./pages/InspectionImageUploadPage"));
@@ -385,6 +386,7 @@ function App() {
                       <Route path="/digital-twin" element={<Page name="DigitalTwin"><DigitalTwinPage /></Page>} />
                       <Route path="/quality-intelligence" element={<Page name="QualityIntelligence"><QualityIntelligencePage /></Page>} />
                       <Route path="/quality-dashboard" element={<Page name="QualityDashboard"><QualityDashboardPage /></Page>} />
+                      <Route path="/clinical-readiness" element={<Page name="ClinicalReadiness"><ClinicalReadinessPage /></Page>} />
                       <Route path="/baseline-library" element={<Page name="BaselineLibrary"><BaselineLibraryPage /></Page>} />
                       <Route path="/instrument-passport" element={<Page name="InstrumentPassport"><InstrumentPassportPage /></Page>} />
                       <Route path="/executive-command-center" element={<Page name="CommandCenter"><ExecutiveCommandCenterPage /></Page>} />

@@ -126,6 +126,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
       { to: "/quality-dashboard", label: "Quality Dashboard", icon: BarChart3 },
+      { to: "/clinical-readiness", label: "Clinical Service Readiness", icon: ShieldCheck },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
       { to: "/pilot-validation", label: "Pilot Validation", icon: Activity, roles: ["admin", "spd_manager"] },
     ],

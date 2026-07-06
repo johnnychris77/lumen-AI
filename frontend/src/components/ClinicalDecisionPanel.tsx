@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
 import SupervisorNotes from "@/components/SupervisorNotes";
+import ReadinessDispositionPanel from "@/components/ReadinessDispositionPanel";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -527,6 +528,9 @@ export default function ClinicalDecisionPanel({
           </ul>
         )}
       </div>
+
+      {/* v1.6 — Clinical Service Readiness & Instrument Disposition Intelligence */}
+      <ReadinessDispositionPanel inspectionId={inspectionId} />
 
       {/* Supervisor Review Notes — admin/spd_manager only */}
       {canReview && <SupervisorNotes inspectionId={inspectionId} />}
