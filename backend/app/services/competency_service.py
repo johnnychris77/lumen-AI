@@ -126,3 +126,54 @@ def competency_summary(db: Session, technician: str) -> dict:
         "training_progress_pct": training_progress_pct,
         "has_activity": total_activity > 0,
     }
+
+
+# ── Technician Quality Dashboard (v1.5, Deliverable 5) ───────────────────────
+def technician_quality_dashboard(db: Session, tenant_id: str) -> dict:
+    """Per-technician quality rollup for leadership — inspection count,
+    coverage quality, average AI confidence, supervisor agreement, repeat
+    corrections, and training progress. Visible only to authorized roles;
+    enforced by the route, not this function."""
+    from app.db import models
+    from app.models.supervisor_review import SupervisorReview
+
+    rows = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.tenant_id == tenant_id, models.Inspection.technician.isnot(None))
+        .all()
+    )
+    by_technician: dict[str, list] = {}
+    for r in rows:
+        by_technician.setdefault(r.technician, []).append(r)
+
+    technicians = []
+    for technician, insp_rows in by_technician.items():
+        coverage = [r.coverage_pct for r in insp_rows if r.coverage_pct is not None]
+        confidences = [r.ai_confidence for r in insp_rows if r.has_image and r.ai_confidence is not None]
+
+        insp_ids = [r.id for r in insp_rows]
+        reviews = (
+            db.query(SupervisorReview)
+            .filter(SupervisorReview.inspection_id.in_(insp_ids))
+            .all()
+        ) if insp_ids else []
+        agreement_pct = (
+            round(100 * sum(1 for r in reviews if r.agreement == "agree") / len(reviews), 1)
+            if reviews else None
+        )
+
+        summary = competency_summary(db, technician)
+
+        technicians.append({
+            "technician": technician,
+            "inspection_count": len(insp_rows),
+            "avg_coverage_pct": round(sum(coverage) / len(coverage), 1) if coverage else None,
+            "avg_ai_confidence_pct": round(100 * sum(confidences) / len(confidences), 1) if confidences else None,
+            "supervisor_agreement_pct": agreement_pct,
+            "supervisor_corrections": summary["supervisor_corrections"],
+            "repeated_errors": summary["repeated_errors"],
+            "training_progress_pct": summary["training_progress_pct"],
+        })
+
+    technicians.sort(key=lambda t: t["inspection_count"], reverse=True)
+    return {"technicians": technicians, "human_review_required": True}

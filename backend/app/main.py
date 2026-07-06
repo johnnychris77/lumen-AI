@@ -119,6 +119,9 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.shadow_prediction")     # register P17 shadow-prediction table
     importlib.import_module("app.models.competency_event")       # register v1.4 technician competency events
     importlib.import_module("app.models.mentor_coaching_review") # register v1.4 supervisor coaching reviews
+    importlib.import_module("app.models.inspection_finding")      # register v1.5 per-finding detection log
+    importlib.import_module("app.models.root_cause")              # register v1.5 root-cause assignments
+    importlib.import_module("app.models.continuous_improvement")  # register v1.5 improvement tracker
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -603,6 +606,9 @@ app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 
 from app.routes.spd_mentor import router as spd_mentor_router
 app.include_router(spd_mentor_router, prefix=settings.API_PREFIX)
+
+from app.routes.quality_dashboard import router as quality_dashboard_router
+app.include_router(quality_dashboard_router)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 

@@ -376,6 +376,12 @@ async def create_inspection(
     risk_level_val: Optional[str] = None
     recommended_action_val: Optional[str] = None
     cleaning_assessment_val: Optional[str] = None
+    # v1.5 — Quality Intelligence: disposition + coverage, persisted for later
+    # reporting (pass/reclean/remove-from-service rates, coverage compliance).
+    disposition_val: Optional[str] = None
+    coverage_pct_val: Optional[int] = None
+    coverage_quality_val: Optional[str] = None
+    ai_confidence_val: Optional[float] = None
 
     if body.has_image:
         analysis = analyze_inspection(
@@ -397,6 +403,11 @@ async def create_inspection(
         risk_level_val = analysis.get("risk_level")
         recommended_action_val = analysis.get("recommended_action")
         cleaning_assessment_val = analysis.get("overall_cleaning_assessment")
+        disposition_val = analysis.get("clinical_decision", {}).get("overall_result")
+        coverage = analysis.get("inspection_coverage") or {}
+        coverage_pct_val = coverage.get("overall_coverage")
+        coverage_quality_val = coverage.get("quality")
+        ai_confidence_val = analysis.get("confidence")
         if analysis["analysis_status"] == "completed":
             baseline_status = "approved_baseline_found"
             baseline_source_val = analysis["baseline_source"]
@@ -446,10 +457,33 @@ async def create_inspection(
         recommended_action=recommended_action_val,
         overall_cleaning_assessment=cleaning_assessment_val,
         technician=actor,
+        disposition=disposition_val,
+        coverage_pct=coverage_pct_val,
+        coverage_quality=coverage_quality_val,
+        ai_confidence=ai_confidence_val,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    # v1.5 — Quality Intelligence: log each actionable finding (severity >= 1)
+    # for real trend/anatomy-risk/instrument-family aggregation. Only findings
+    # from a completed analysis are real detections — nothing logged for
+    # no-baseline/manual-entry inspections.
+    if analysis is not None and analysis.get("analysis_status") == "completed":
+        from app.models.inspection_finding import InspectionFinding
+
+        for f in analysis.get("predicted_findings", []):
+            if f.get("severity_index", 0) >= 1:
+                db.add(InspectionFinding(
+                    inspection_id=row.id,
+                    tenant_id=tenant_id,
+                    instrument_type=body.instrument_type,
+                    finding_type=f["type"],
+                    zone=f.get("instrument_zone", ""),
+                    severity_index=f["severity_index"],
+                ))
+        db.commit()
 
     log_audit_event(
         db,

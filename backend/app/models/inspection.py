@@ -83,3 +83,21 @@ class Inspection(Base):
     # attribute findings-reviewed/supervisor-corrections to a real person
     # instead of fabricating attribution. Nullable/blank for older rows.
     technician: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # v1.5 — Quality Intelligence. `disposition` is the one of
+    # PASS/MONITOR/SUPERVISOR REVIEW/REPROCESS/REMOVE FROM SERVICE computed at
+    # analysis time (clinical_decision.overall_result) — persisted so pass
+    # rate/reclean rate/remove-from-service rate can be reported later without
+    # re-deriving analysis. `coverage_pct`/`coverage_quality` are the
+    # Inspection Coverage Engine's result at submission time, persisted for
+    # the same reason (coverage compliance reporting). All nullable/blank for
+    # older rows or inspections with no image.
+    disposition: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    coverage_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    coverage_quality: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # v1.5 — the AI-computed analysis confidence (0-1), distinct from the
+    # pre-existing `confidence` column above (a client-supplied manual-entry
+    # field for the no-image path). Persisted so "AI Confidence Trend" can be
+    # reported without re-deriving analysis.
+    ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
