@@ -3,8 +3,8 @@
 Represents the SPD clinical ontology as queryable nodes/edges built from
 real, existing structured knowledge (instrument anatomy, zone taxonomy,
 per-finding clinical education, cleaning knowledge, family profiles) plus
-real database rows (Inspection, SupervisorReview, PilotValidationCase,
-BaselineLibraryEntry, InstrumentKnowledge) — not a separate graph database.
+real database rows (Inspection, SupervisorReview, BaselineLibraryEntry,
+InstrumentKnowledge) — not a separate graph database.
 Every traversal is deterministic and grounded; nothing here is a trained
 model or a black box.
 
@@ -288,7 +288,7 @@ def explore(db: Session, tenant_id: str, category: str, query: str = "") -> dict
 def enterprise_knowledge_analytics(db: Session, tenant_id: str) -> dict:
     from app.db import models
     from app.models.supervisor_review import SupervisorReview
-    from app.services.pilot_validation_service import compute_zone_performance, list_cases as list_pilot_cases
+    from app.services.ml.pilot_validation import zone_performance as compute_zone_performance
     from app.services.pre_sterilization_command_center_service import REQUIRES_REPAIR, classify_readiness
 
     inspections = db.query(models.Inspection).filter(models.Inspection.tenant_id == tenant_id).all()
@@ -325,10 +325,15 @@ def enterprise_knowledge_analytics(db: Session, tenant_id: str) -> dict:
         if r.override_action:
             override_counts[r.override_action] += 1
 
-    pilot_cases = list_pilot_cases(db, tenant_id, limit=5000)
-    zone_performance = compute_zone_performance(pilot_cases)
-    highest_risk_zone = max(zone_performance, key=lambda z: z["missed_count"], default=None)
-    most_missed_zones = sorted([z for z in zone_performance if z["case_count"] > 0], key=lambda z: z["missed_count"], reverse=True)[:5]
+    # Zone-level miss/override performance, derived directly from real
+    # supervisor reviews (ground_truth is computed at review-submit time) —
+    # not a separate training-case table.
+    zp = compute_zone_performance(reviews)
+    most_missed_zones = [
+        {"zone": z["zone"], "missed_count": z["missed"], "case_count": zp["by_zone"][z["zone"]]["n"]}
+        for z in zp["most_common_missed_zones"][:5]
+    ]
+    highest_risk_zone = most_missed_zones[0]["zone"] if most_missed_zones else None
 
     reviews_by_family_total: dict[str, int] = defaultdict(int)
     for r in reviews:
@@ -362,12 +367,12 @@ def enterprise_knowledge_analytics(db: Session, tenant_id: str) -> dict:
 def learning_confidence(db: Session, tenant_id: str) -> dict:
     """Confidence signals derived from real supervisor reviews and ground
     truth — updated every time a review is submitted, never mutated by a
-    background process, never fabricated."""
-    from app.models.pilot_validation import PilotValidationCase
+    background process, never fabricated. Ground truth is read from
+    SupervisorReview.ground_truth itself (derived at submit time), not a
+    separate training-case table."""
     from app.models.supervisor_review import SupervisorReview
 
     reviews = db.query(SupervisorReview).filter(SupervisorReview.tenant_id == tenant_id).all()
-    cases = db.query(PilotValidationCase).filter(PilotValidationCase.tenant_id == tenant_id).all()
 
     def _rate(n, d):
         return round(n / d, 4) if d else None
@@ -377,8 +382,8 @@ def learning_confidence(db: Session, tenant_id: str) -> dict:
     finding_correct = [r for r in reviews if r.finding_correct is not None]
     zone_correct = [r for r in reviews if r.zone_correct is not None]
 
-    adjudicated = [c for c in cases if c.ground_truth_label in ("tp", "tn", "fp", "fn")]
-    reasoning_correct = sum(1 for c in adjudicated if c.ground_truth_label in ("tp", "tn"))
+    adjudicated = [r for r in reviews if r.ground_truth in ("true_positive", "true_negative", "false_positive", "false_negative")]
+    reasoning_correct = sum(1 for r in adjudicated if r.ground_truth in ("true_positive", "true_negative"))
 
     per_family: dict[str, dict] = {}
     by_family_reviews: dict[str, list] = defaultdict(list)

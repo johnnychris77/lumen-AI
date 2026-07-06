@@ -45,5 +45,5 @@ class EnterpriseIntelligenceAgent:
             facility_readiness_rate=facility_rate,
             most_common_contamination_type=analytics["most_common_contamination_type"],
             highest_risk_anatomy_zone=analytics["highest_risk_anatomy_zone"],
-            note="Aggregated from real Inspection/SupervisorReview/PilotValidationCase rows for this tenant.",
+            note="Aggregated from real Inspection/SupervisorReview rows for this tenant.",
         )

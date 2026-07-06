@@ -1,10 +1,10 @@
 """Pre-Sterilization Command Center — readiness scoring, queues, and the
 executive risk rollup.
 
-Answers, from real Inspection/SupervisorReview/BaselineLibraryEntry/
-PilotValidationCase rows — never fabricated: "are these instruments
-clinically ready to move forward to packaging and sterilization, and if
-not, why not, where, and what should SPD do next?"
+Answers, from real Inspection/SupervisorReview/BaselineLibraryEntry
+rows — never fabricated: "are these instruments clinically ready to move
+forward to packaging and sterilization, and if not, why not, where, and
+what should SPD do next?"
 
 Terminology discipline (see docs/architecture/pre-sterilization-boundary.md):
 this module reports pre-sterilization/packaging *readiness*, never
@@ -52,8 +52,8 @@ _STATE_SEVERITY = {
 _REPAIRABLE_ISSUES = {"crack", "corrosion", "insulation_damage"}
 _CONTAMINATION_ISSUES = {"blood", "bone", "tissue", "debris", "other"}
 # High-risk findings per the Inspection.detected_issue taxonomy (narrower than
-# Phase 18's ground-truth taxonomy, which also tracks organic_residue /
-# missing_component as PilotValidationCase.finding_type values).
+# SupervisorReview's own ground-truth taxonomy, which also tracks
+# organic_residue / missing_component via its finding_type field).
 CRITICAL_ISSUES = {"blood", "tissue", "bone", "crack", "insulation_damage"}
 
 
@@ -417,18 +417,23 @@ def repair_remove_queue(annotated: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 def executive_risk_dashboard(db: Session, tenant_id: str, cases: list, annotated: list[dict]) -> dict:
-    from app.services.pilot_validation_service import compute_zone_performance, list_cases as list_pilot_cases
+    # Zone-level miss performance, derived directly from real supervisor
+    # reviews (ground_truth computed at review-submit time) — not a separate
+    # training-case table.
+    from app.models.supervisor_review import SupervisorReview
+    from app.services.ml.pilot_validation import zone_performance as compute_zone_performance
 
     readiness = clinical_inspection_readiness(annotated)
     repair_remove = repair_remove_queue(annotated)
     facilities = facility_readiness(annotated)
     baseline = baseline_coverage(db, tenant_id, cases)
 
-    pilot_cases = list_pilot_cases(db, tenant_id, limit=5000)
-    zone_performance = compute_zone_performance(pilot_cases)
-    worst_zones = sorted(
-        [z for z in zone_performance if z["case_count"] > 0], key=lambda z: z["missed_count"], reverse=True
-    )[:5]
+    reviews = db.query(SupervisorReview).filter(SupervisorReview.tenant_id == tenant_id).all()
+    zp = compute_zone_performance(reviews)
+    worst_zones = [
+        {"zone": z["zone"], "missed_count": z["missed"], "case_count": zp["by_zone"][z["zone"]]["n"]}
+        for z in zp["most_common_missed_zones"][:5]
+    ]
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),

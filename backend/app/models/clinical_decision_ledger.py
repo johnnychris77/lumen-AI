@@ -4,8 +4,7 @@ A permanent, append-only record of every decision made about an
 inspection: who made it (AI or a named supervisor), why, what evidence
 supported it, how confident it was, and which platform versions were
 active at the time. Entries are never edited or deleted — a correction is
-a new entry, not a rewrite (the same append-only pattern as AuditLog and
-PilotValidationCase).
+a new entry, not a rewrite (the same append-only pattern as AuditLog).
 """
 from __future__ import annotations
 
