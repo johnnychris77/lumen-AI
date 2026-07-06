@@ -5,6 +5,7 @@
 - POST /api/mentor/education/{finding_type}/complete — mark an article completed (competency tracking)
 - GET  /api/mentor/competency/{technician}         — technician competency summary
 - GET  /api/inspections/{inspection_id}/mentor     — re-derive the SPD Mentor payload for a past inspection
+- POST /api/mentor/build                           — rebuild the SPD Mentor payload from an already-displayed result (no re-derivation)
 - GET  /api/mentor/coaching-queue                  — Supervisor Coaching Dashboard: inspections awaiting review
 - POST /api/inspections/{inspection_id}/coaching-review — approve/edit/comment on the AI's coaching
 - GET  /api/mentor/coaching-effectiveness          — aggregate coaching-review stats
@@ -96,6 +97,15 @@ def get_inspection_mentor(
     deterministic from the stored inspection's identity, so re-running it
     reproduces the same findings — this lets a technician revisit an
     inspection with Training Mode on without re-uploading images.
+
+    Caveat (shared with clinical-report.pdf): technician-declared finding
+    categories are not persisted on the Inspection row, so if the original
+    analysis was biased by a declared finding, this re-derivation can differ
+    from what was originally shown. The Training Mode toggle on a
+    just-submitted inspection uses POST /mentor/build instead, which
+    reconstructs the payload from the exact result already on screen — use
+    this endpoint only when that client-side result isn't available (e.g.
+    revisiting history later).
     """
     tenant_id = getattr(current_user, "tenant_id", None)
     query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
@@ -116,6 +126,28 @@ def get_inspection_mentor(
         training_mode=training_mode,
     )
     return analysis["clinical_decision"]["spd_mentor"]
+
+
+class MentorBuildIn(BaseModel):
+    result: dict = Field(..., description="The raw analysis result already shown on screen.")
+    overall: str = Field(..., description="The clinical_decision.overall_result already shown on screen.")
+
+
+@router.post("/mentor/build")
+def build_mentor_from_client_result(
+    body: MentorBuildIn,
+    training_mode: bool = False,
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Rebuild the SPD Mentor payload for the exact result already displayed
+    client-side (from a just-submitted inspection). Purely a re-format of
+    data the caller already has — no DB re-derivation, so toggling Training
+    Mode can never change the findings or disposition being explained,
+    unlike GET /inspections/{id}/mentor's best-effort re-derivation.
+    """
+    from app.services.spd_mentor_engine import build_spd_mentor
+
+    return build_spd_mentor(body.result, body.overall, training_mode=training_mode)
 
 
 # ── Supervisor Coaching Dashboard ─────────────────────────────────────────────

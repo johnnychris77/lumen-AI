@@ -150,9 +150,16 @@ function Stars({ n }: { n: number }) {
 export default function ClinicalDecisionPanel({
   cd,
   inspectionId,
+  rawResult,
 }: {
   cd: ClinicalDecision;
   inspectionId?: number;
+  /** The raw analysis result already shown on screen (from a just-submitted
+   * inspection). When present, Training Mode is toggled by rebuilding the
+   * mentor payload from this exact data (POST /mentor/build) instead of
+   * re-deriving from the database — so toggling it can never change which
+   * findings or disposition are being explained. */
+  rawResult?: Record<string, unknown>;
 }) {
   const { headers, role } = useAuth();
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -163,14 +170,18 @@ export default function ClinicalDecisionPanel({
   const canReview = role === "admin" || role === "spd_manager";
 
   async function toggleTrainingMode() {
-    if (!inspectionId) return;
     const next = !(mentor?.training_mode ?? false);
     setTrainingBusy(true);
     try {
-      const updated = await apiFetch<SpdMentor>(
-        `/api/inspections/${inspectionId}/mentor?training_mode=${next}`
-      );
-      setMentor(updated);
+      const updated = rawResult
+        ? await apiFetch<SpdMentor>(`/api/mentor/build?training_mode=${next}`, {
+            method: "POST",
+            body: { result: rawResult, overall: cd.overall_result },
+          })
+        : inspectionId
+          ? await apiFetch<SpdMentor>(`/api/inspections/${inspectionId}/mentor?training_mode=${next}`)
+          : undefined;
+      if (updated) setMentor(updated);
     } finally {
       setTrainingBusy(false);
     }
@@ -275,7 +286,7 @@ export default function ClinicalDecisionPanel({
         <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">SPD Mentor</p>
-            {inspectionId && (
+            {(rawResult || inspectionId) && (
               <button
                 onClick={toggleTrainingMode}
                 disabled={trainingBusy}

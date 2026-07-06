@@ -1077,7 +1077,11 @@ function AIPredictionPanel({
 
         {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
         {prediction.analysis?.clinical_decision && (
-          <ClinicalDecisionPanel cd={prediction.analysis.clinical_decision} inspectionId={prediction.id} />
+          <ClinicalDecisionPanel
+            cd={prediction.analysis.clinical_decision}
+            inspectionId={prediction.id}
+            rawResult={prediction.analysis}
+          />
         )}
 
         {/* Phase 15 — Instrument Intelligence: coverage, risk map, guidance */}

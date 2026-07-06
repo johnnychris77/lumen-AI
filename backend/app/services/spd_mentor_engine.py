@@ -181,7 +181,7 @@ def _zone_description(zone_name: str) -> str:
     info = ZONE_INFO.get(zone_name.lower())
     if info and info.get("reason"):
         return info["reason"]
-    return f"{zone_name.capitalize()} — inspect closely per the instrument's anatomy profile."
+    return "Inspect closely per the instrument's anatomy profile."
 
 
 # ── AI confidence coaching (Deliverable 7) ───────────────────────────────────
@@ -223,6 +223,17 @@ def confidence_coaching(result: dict) -> dict | None:
 
 
 # ── Clinical decision summary (Deliverable 8, concise form) ──────────────────
+def _findings_sentence(result: dict) -> str:
+    """findings_summary is a list of per-KPI phrases (e.g. "Blood detected",
+    "No bone detected") — collapse to a single sentence naming only what was
+    actually found, not an exhaustive negative checklist."""
+    phrases = result.get("findings_summary") or []
+    positive = [p for p in phrases if not p.startswith("No ")]
+    if not positive:
+        return "No actionable findings detected."
+    return "; ".join(positive) + "."
+
+
 def clinical_decision_summary(result: dict, overall: str) -> dict:
     coverage = result.get("inspection_coverage") or {}
     supervisor_review = "Recommended" if overall in {
@@ -232,7 +243,7 @@ def clinical_decision_summary(result: dict, overall: str) -> dict:
     return {
         "instrument": result.get("instrument_type") or "Unknown instrument",
         "inspection_coverage": coverage.get("overall_coverage"),
-        "findings": result.get("findings_summary") or "No actionable findings detected.",
+        "findings": _findings_sentence(result),
         "risk": result.get("risk_level"),
         "recommendation": result.get("recommended_action"),
         "supervisor_review": supervisor_review,
