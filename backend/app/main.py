@@ -122,6 +122,9 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.inspection_finding")      # register v1.5 per-finding detection log
     importlib.import_module("app.models.root_cause")              # register v1.5 root-cause assignments
     importlib.import_module("app.models.continuous_improvement")  # register v1.5 improvement tracker
+    importlib.import_module("app.models.clinical_decision_ledger")  # register P23 CIOS decision ledger table
+    importlib.import_module("app.models.cios_event")            # register P23 CIOS event bus table
+    importlib.import_module("app.models.inspection_image_tag")  # register v1.2 image-view tag table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -592,6 +595,9 @@ app.include_router(instrument_intelligence_router, prefix=settings.API_PREFIX)
 from app.routes.instrument_intelligence_admin import router as instrument_intelligence_admin_router
 app.include_router(instrument_intelligence_admin_router, prefix=settings.API_PREFIX)
 
+from app.routes.guided_capture import router as guided_capture_router
+app.include_router(guided_capture_router, prefix=settings.API_PREFIX)
+
 from app.routes.model_pipeline import router as model_pipeline_router
 app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)
 
@@ -951,6 +957,18 @@ from app.routes.p24_standards import router as p24_router
 app.include_router(p24_router)
 from app.routes.p25_infrastructure import router as p25_router
 app.include_router(p25_router)
+
+from app.routes.pre_sterilization_command_center import router as pre_sterilization_command_center_router
+app.include_router(pre_sterilization_command_center_router)
+
+from app.routes.knowledge_graph import router as knowledge_graph_router
+app.include_router(knowledge_graph_router)
+
+from app.routes.agents_pipeline import router as agents_pipeline_router
+app.include_router(agents_pipeline_router)
+
+from app.routes.cios import router as cios_router
+app.include_router(cios_router)
 
 from fastapi.openapi.utils import get_openapi
 

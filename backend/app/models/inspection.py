@@ -101,3 +101,26 @@ class Inspection(Base):
     # field for the no-image path). Persisted so "AI Confidence Trend" can be
     # reported without re-deriving analysis.
     ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Zones the technician tagged as inspected (anatomy-aware coverage engine).
+    # JSON-encoded: "null" means not tagged (coverage not_assessed), "[...]" is
+    # an explicit (possibly empty) list — see app/services/inspection_coverage.py.
+    inspected_zones_json: Mapped[str] = mapped_column(String(2000), default="null", nullable=False)
+
+    # v1.2 — Guided Capture & Coverage Gate. coverage_status/coverage_score are
+    # a snapshot of compute_coverage() at creation time (so history/dashboards
+    # don't need to recompute it); coverage_gate_status governs whether the
+    # inspection can proceed to a final AI decision without a supervisor
+    # override, when org policy requires full coverage. NOTE: overlaps in
+    # purpose with v1.5's coverage_pct/coverage_quality above (independently
+    # added by a parallel phase) — a future cleanup should consolidate these;
+    # both are kept for now since each phase's dashboards already read from
+    # its own field.
+    coverage_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    coverage_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ready | draft | blocked_pending_override
+    coverage_gate_status: Mapped[str] = mapped_column(String(30), default="ready", nullable=False)
+    is_draft: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    coverage_override_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    coverage_override_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    coverage_override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

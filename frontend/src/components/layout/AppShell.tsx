@@ -38,6 +38,9 @@ import {
   GraduationCap,
   DollarSign,
   Camera,
+  Network,
+  Workflow,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +93,10 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/infrastructure", label: "Instrument Registry", icon: Database },
       { to: "/instrument-passport", label: "Instrument Passport", icon: CreditCard },
+      { to: "/instrument-library", label: "Instrument Library", icon: BookOpen },
+      { to: "/anatomy-library", label: "Anatomy Library", icon: Network },
+      { to: "/inspection-zones", label: "Inspection Zones", icon: FileSearch },
+      { to: "/coverage-dashboard", label: "Coverage Dashboard", icon: BarChart3 },
       { to: "/vendor-intake", label: "Barcode / QR / KeyDot", icon: ScanLine },
       { to: "/demo-image-library", label: "Image Library", icon: Images },
       { to: "/baseline-image-upload", label: "Upload Baseline Image", icon: Upload },
@@ -105,6 +112,10 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/enterprise", label: "Enterprise Quality", icon: Building2, roles: ELEVATED_ROLES },
       { to: "/education-library", label: "SPD Education Library", icon: BookOpen },
       { to: "/coaching-dashboard", label: "Supervisor Coaching", icon: ClipboardCheck, roles: ELEVATED_ROLES },
+      { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
+      { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+      { to: "/agent-trace", label: "Agent Trace", icon: Workflow },
+      { to: "/cios-dashboard", label: "Clinical Intelligence OS", icon: Cpu },
     ],
   },
   {

@@ -65,6 +65,10 @@ const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
 const PilotAnalyticsDashboard = lazy(() => import("./pages/PilotAnalyticsDashboard"));
+const PreSterilizationCommandCenter = lazy(() => import("./pages/PreSterilizationCommandCenter"));
+const KnowledgeGraphExplorer = lazy(() => import("./pages/KnowledgeGraphExplorer"));
+const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
+const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
 const GrowthConsole = lazy(() => import("./pages/GrowthConsole"));
@@ -115,6 +119,10 @@ const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
 const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const InstrumentLibraryPage = lazy(() => import("./pages/InstrumentLibraryPage"));
+const AnatomyLibraryPage = lazy(() => import("./pages/AnatomyLibraryPage"));
+const InspectionZonesPage = lazy(() => import("./pages/InspectionZonesPage"));
+const CoverageDashboardPage = lazy(() => import("./pages/CoverageDashboardPage"));
 
 // ─── Loading spinner shown during lazy chunk loads ────────────────────────────
 
@@ -360,6 +368,10 @@ function App() {
                       <Route path="/vendor-baseline-portal" element={<Page name="VendorBaselines"><VendorBaselinePortalPage /></Page>} />
                       <Route path="/intake-history" element={<Page name="IntakeHistory"><IntakeHistoryPage /></Page>} />
                       <Route path="/pilot-analytics" element={<Page name="PilotAnalytics"><PilotAnalyticsDashboard /></Page>} />
+                      <Route path="/pre-sterilization-command-center" element={<Page name="PreSterilizationCommandCenter"><PreSterilizationCommandCenter /></Page>} />
+                      <Route path="/knowledge-graph" element={<Page name="KnowledgeGraph"><KnowledgeGraphExplorer /></Page>} />
+                      <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
+                      <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
                       <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />
                       <Route path="/growth" element={<Page name="Growth"><GrowthConsole /></Page>} />
@@ -403,6 +415,10 @@ function App() {
                       <Route path="/training-center" element={<Page name="TrainingCenter"><TrainingCenterPage /></Page>} />
                       <Route path="/roi-center" element={<Page name="ROICenter"><ROICenterPage /></Page>} />
                       <Route path="/subscription-readiness" element={<Page name="SubscriptionReadiness"><SubscriptionReadinessPage /></Page>} />
+                      <Route path="/instrument-library" element={<Page name="InstrumentLibrary"><InstrumentLibraryPage /></Page>} />
+                      <Route path="/anatomy-library" element={<Page name="AnatomyLibrary"><AnatomyLibraryPage /></Page>} />
+                      <Route path="/inspection-zones" element={<Page name="InspectionZones"><InspectionZonesPage /></Page>} />
+                      <Route path="/coverage-dashboard" element={<Page name="CoverageDashboard"><CoverageDashboardPage /></Page>} />
                       <Route path="/legacy" element={<Page name="Legacy"><DashboardApp /></Page>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

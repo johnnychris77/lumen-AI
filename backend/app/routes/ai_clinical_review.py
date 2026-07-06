@@ -17,6 +17,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
+from app.cios.decision_ledger import record_decision
 from app.enterprise_auth import get_request_tenant_id
 from app.models.supervisor_review import SupervisorReview
 from app.services.ml.ground_truth import classify_ground_truth, derive_flags_from_review
@@ -43,6 +44,11 @@ class SupervisorReviewIn(BaseModel):
     instrument_family_correct: bool | None = None
     corrected_instrument_family: str = Field("", max_length=60)
     corrected_zone: str = Field("", max_length=60)
+    # v1.1 — image-view and missing-zone feedback (Inspection Coverage Engine).
+    image_view_correct: bool | None = None
+    corrected_image_view: str = Field("", max_length=60)
+    missing_zone_correct: bool | None = None
+    corrected_missing_zone: str = Field("", max_length=60)
     corrected_severity: str = Field("", max_length=30)
     corrected_recommendation: str = Field("", max_length=50)
     final_disposition: str = Field("", max_length=50)
@@ -106,6 +112,10 @@ def submit_supervisor_review(
         instrument_family_correct=body.instrument_family_correct,
         corrected_instrument_family=body.corrected_instrument_family.strip(),
         corrected_zone=body.corrected_zone.strip(),
+        image_view_correct=body.image_view_correct,
+        corrected_image_view=body.corrected_image_view.strip(),
+        missing_zone_correct=body.missing_zone_correct,
+        corrected_missing_zone=body.corrected_missing_zone.strip(),
         corrected_severity=body.corrected_severity.strip(),
         corrected_recommendation=body.corrected_recommendation.strip(),
         final_disposition=body.final_disposition.strip(),
@@ -160,6 +170,17 @@ def submit_supervisor_review(
         action_type="supervisor_ai_review", resource_type="inspection",
         resource_id=str(inspection_id),
     )
+    # Phase 23 §5 — every supervisor decision is also recorded in the
+    # permanent Clinical Decision Ledger, alongside the AI's own recorded
+    # recommendation (see app/cios/orchestrator.py).
+    record_decision(
+        db, tenant_id, inspection_id,
+        decision_type="supervisor_override" if review.override_action else "supervisor_approval",
+        made_by=review.reviewer_name,
+        rationale=review.rationale,
+        evidence={"agreement": agreement, "corrected_zone": review.corrected_zone, "final_disposition": review.final_disposition},
+    )
+
     return {
         "id": review.id,
         "inspection_id": inspection_id,

@@ -972,6 +972,7 @@ def analyze_inspection(
     decoder_backend: str = "declared",
     inspected_zones: Optional[list[str]] = None,
     training_mode: bool = False,
+    image_view_tags: Optional[list[dict]] = None,
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -1349,6 +1350,9 @@ def analyze_inspection(
         "inspection_coverage": coverage,
         "missing_image_guidance": guidance,
         "risk_map": risk_map,
+        # v1.2 — per-image view tags (family/zone/view/quality/notes), passed
+        # straight through so the AI context reflects exactly what was tagged.
+        "image_view_tags": image_view_tags or [],
         "reason": reason,
         "critical_flags": critical_flags,
         "score_adjustments": score_adjustments,
