@@ -124,3 +124,11 @@ class Inspection(Base):
     coverage_override_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     coverage_override_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     coverage_override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # v1.7 — Workflow Intelligence. Real OR-urgency/loaner signal declared at
+    # intake time, used by the prioritization engine. Nullable/blank for older
+    # rows and for inspections where no procedure context was declared — never
+    # fabricated as "routine" when actually unknown.
+    # emergency | trauma | first_case | routine | None
+    procedure_priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_loaner_instrument: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

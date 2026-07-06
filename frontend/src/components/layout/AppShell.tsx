@@ -41,6 +41,8 @@ import {
   Network,
   Workflow,
   Cpu,
+  ListChecks,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/intake-history", label: "Inspection History", icon: History },
       { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
       { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
+      { to: "/inspection-work-queue", label: "Smart Work Queue", icon: ListChecks },
     ],
   },
   {
@@ -128,6 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/quality-dashboard", label: "Quality Dashboard", icon: BarChart3 },
       { to: "/clinical-readiness", label: "Clinical Service Readiness", icon: ShieldCheck },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
+      { to: "/operations-board", label: "Operations Board", icon: ClipboardList, roles: ["admin", "spd_manager"] },
       { to: "/pilot-validation", label: "Pilot Validation", icon: Activity, roles: ["admin", "spd_manager"] },
     ],
   },

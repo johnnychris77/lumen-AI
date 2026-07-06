@@ -189,6 +189,13 @@ def post_disposition_action(
     except ReasonRequiredError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    from app.services import workflow_state_service
+
+    insp = _get_inspection(db, tenant_id, inspection_id)
+    workflow_state_service.record_disposition_action(
+        db, insp=insp, tenant_id=tenant_id, action=body.action, actor=_actor(current_user), reason=body.reason,
+    )
+
     db.commit()
     db.refresh(row)
     return {

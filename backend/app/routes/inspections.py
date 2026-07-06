@@ -124,6 +124,18 @@ class InspectionCreate(BaseModel):
     # hatch for incomplete coverage (see app/services/guided_capture.py).
     image_view_tags: Optional[List[ImageViewTagIn]] = Field(None)
     save_as_draft: bool = Field(False)
+    # v1.7 — Workflow Intelligence: real OR-urgency/loaner signal for the
+    # prioritization engine. Optional and unvalidated-to-empty (None) rather
+    # than defaulted to "routine" when not actually declared.
+    procedure_priority: Optional[str] = Field(None, max_length=20)
+    is_loaner_instrument: Optional[bool] = Field(None)
+
+    @field_validator("procedure_priority")
+    @classmethod
+    def validate_procedure_priority(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in {"emergency", "trauma", "first_case", "routine"}:
+            raise ValueError("procedure_priority must be one of emergency, trauma, first_case, routine")
+        return v
 
     @field_validator("instrument_type")
     @classmethod
@@ -302,6 +314,9 @@ def inspection_response(row: models.Inspection) -> dict:
         "coverage_override_reason": row.coverage_override_reason,
         "coverage_override_by": row.coverage_override_by,
         "coverage_override_at": row.coverage_override_at.isoformat() if row.coverage_override_at else None,
+        # v1.7 — Workflow Intelligence
+        "procedure_priority": row.procedure_priority,
+        "is_loaner_instrument": row.is_loaner_instrument,
     }
 
 
@@ -505,6 +520,8 @@ async def create_inspection(
         coverage_score=readiness["coverage_score"],
         coverage_gate_status=coverage_gate_status,
         is_draft=is_draft_val,
+        procedure_priority=body.procedure_priority,
+        is_loaner_instrument=body.is_loaner_instrument,
     )
     db.add(row)
     db.commit()
@@ -542,6 +559,29 @@ async def create_inspection(
                 capture_quality=tag.get("capture_quality", "acceptable"),
                 notes=tag.get("notes", ""),
             ))
+        db.commit()
+
+    # v1.7 — Workflow Intelligence: audit the real transitions this request
+    # just performed (image capture + AI analysis happen synchronously in
+    # this same call), then advance into Supervisor Review if the
+    # disposition engine says a human must weigh in before proceeding.
+    from app.services import workflow_state_service
+    from app.services.disposition_engine import SUPERVISOR_REVIEW_REQUIRED, recommend_disposition
+    from app.services.readiness_engine import compute_readiness, get_primary_finding_type
+
+    if body.has_image:
+        workflow_state_service.record_capture_and_analysis(db, insp=row, tenant_id=tenant_id, actor=actor)
+        db.commit()
+
+    workflow_readiness = compute_readiness(db, tenant_id, row, confirmed=False)
+    workflow_disposition = recommend_disposition(
+        workflow_readiness, row, coverage_pct=row.coverage_pct,
+        primary_finding_type=get_primary_finding_type(db, row),
+    )
+    if workflow_disposition["disposition"] == SUPERVISOR_REVIEW_REQUIRED:
+        workflow_state_service.enter_supervisor_review(
+            db, insp=row, tenant_id=tenant_id, actor="system", reason=workflow_disposition["explanation"],
+        )
         db.commit()
 
     log_audit_event(
