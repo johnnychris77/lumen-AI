@@ -77,3 +77,9 @@ class Inspection(Base):
     risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     recommended_action: Mapped[str | None] = mapped_column(String(500), nullable=True)
     overall_cleaning_assessment: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    # v1.4 — the technician who submitted the inspection (request actor at
+    # creation time), so the SPD Mentor Engine's competency service can
+    # attribute findings-reviewed/supervisor-corrections to a real person
+    # instead of fabricating attribution. Nullable/blank for older rows.
+    technician: Mapped[str | None] = mapped_column(String(255), nullable=True)

@@ -107,6 +107,9 @@ class InspectionCreate(BaseModel):
     inspected_zones: Optional[List[str]] = Field(None)
     # Technician-declared finding categories (optional — AI determines findings)
     finding_categories: Optional[List[str]] = Field(None)
+    # v1.4 — SPD Mentor Engine Training Mode: explain every finding, anatomy,
+    # recommendation, and terminology in the returned analysis.
+    training_mode: bool = Field(False)
 
     @field_validator("instrument_type")
     @classmethod
@@ -387,6 +390,7 @@ async def create_inspection(
             keydot_id=body.keydot_id,
             decoder_backend=body.identifier_source or "declared",
             inspected_zones=body.inspected_zones,
+            training_mode=body.training_mode,
         )
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
@@ -409,6 +413,8 @@ async def create_inspection(
         baseline_status = "not_applicable"
         risk_score_val = calculate_risk(detected_issue, conf_val)
         score_status = "scored"
+
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     row = models.Inspection(
         file_name=body.file_name or "manual-entry",
@@ -439,12 +445,12 @@ async def create_inspection(
         risk_level=risk_level_val,
         recommended_action=recommended_action_val,
         overall_cleaning_assessment=cleaning_assessment_val,
+        technician=actor,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
 
-    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
     log_audit_event(
         db,
         tenant_id=tenant_id,

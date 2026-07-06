@@ -100,6 +100,8 @@ const ImageQualityPage = lazy(() => import("./pages/ImageQualityPage"));
 const GoLiveCenterPage = lazy(() => import("./pages/GoLiveCenterPage"));
 const ImplementationTrackerPage = lazy(() => import("./pages/ImplementationTrackerPage"));
 const TrainingCompliancePage = lazy(() => import("./pages/TrainingCompliancePage"));
+const EducationLibraryPage = lazy(() => import("./pages/EducationLibraryPage"));
+const SupervisorCoachingDashboard = lazy(() => import("./pages/SupervisorCoachingDashboard"));
 const BaselineReadinessPage = lazy(() => import("./pages/BaselineReadinessPage"));
 const InspectionReadinessPage = lazy(() => import("./pages/InspectionReadinessPage"));
 const ExecutiveAdoptionPage = lazy(() => import("./pages/ExecutiveAdoptionPage"));
@@ -387,6 +389,8 @@ function App() {
                       <Route path="/go-live-center" element={<Page name="GoLiveCenter"><GoLiveCenterPage /></Page>} />
                       <Route path="/implementation-tracker" element={<Page name="ImplementationTracker"><ImplementationTrackerPage /></Page>} />
                       <Route path="/training-compliance" element={<Page name="TrainingCompliance"><TrainingCompliancePage /></Page>} />
+                      <Route path="/education-library" element={<Page name="EducationLibrary"><EducationLibraryPage /></Page>} />
+                      <Route path="/coaching-dashboard" element={<Page name="CoachingDashboard"><RequireRole allowed={ELEVATED_ROLES}><SupervisorCoachingDashboard /></RequireRole></Page>} />
                       <Route path="/baseline-readiness" element={<Page name="BaselineReadiness"><BaselineReadinessPage /></Page>} />
                       <Route path="/inspection-readiness" element={<Page name="InspectionReadiness"><InspectionReadinessPage /></Page>} />
                       <Route path="/executive-adoption" element={<Page name="ExecutiveAdoption"><ExecutiveAdoptionPage /></Page>} />

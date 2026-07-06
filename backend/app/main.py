@@ -117,6 +117,8 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.instrument_knowledge")  # register instrument knowledge library
     importlib.import_module("app.models.model_registry")        # register P17 model registry table
     importlib.import_module("app.models.shadow_prediction")     # register P17 shadow-prediction table
+    importlib.import_module("app.models.competency_event")       # register v1.4 technician competency events
+    importlib.import_module("app.models.mentor_coaching_review") # register v1.4 supervisor coaching reviews
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -126,7 +128,7 @@ async def lifespan(_app: FastAPI):
         from app.db.column_migrator import ensure_columns
         from app.models.inspection import Inspection
         from app.models.supervisor_review import SupervisorReview
-        ensure_columns(engine, Inspection)
+        ensure_columns(engine, Inspection)  # includes v1.4's `technician` column
         ensure_columns(engine, SupervisorReview)
     except Exception as _mig_e:
         import logging
@@ -598,6 +600,9 @@ app.include_router(agent_router, prefix=settings.API_PREFIX)
 app.include_router(stream_router, prefix=settings.API_PREFIX)
 
 app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
+
+from app.routes.spd_mentor import router as spd_mentor_router
+app.include_router(spd_mentor_router, prefix=settings.API_PREFIX)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 

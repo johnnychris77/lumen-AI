@@ -137,6 +137,20 @@ def submit_supervisor_review(
         inspection.override_reason = body.rationale.strip()
         inspection.override_by = _actor(current_user)
         inspection.override_at = datetime.now(timezone.utc)
+
+    # v1.4 — technician competency tracking, derived from this same review.
+    from app.services.competency_service import record_finding_reviewed, record_supervisor_correction
+
+    if inspection.technician:
+        record_finding_reviewed(
+            db, tenant_id=tenant_id, technician=inspection.technician, inspection_id=inspection_id,
+        )
+        if agreement != "agree" or body.override_action.strip():
+            record_supervisor_correction(
+                db, tenant_id=tenant_id, technician=inspection.technician,
+                finding_type=body.finding_type.strip(), inspection_id=inspection_id,
+            )
+
     db.commit()
     db.refresh(review)
 

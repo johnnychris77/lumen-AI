@@ -51,6 +51,27 @@ type ClinicalDecision = {
     standard_practice: string; what_should_happen_next: string[];
     where_was_it_detected?: string; why_this_zone_is_high_risk?: string; verify_manually?: string;
   };
+  // v1.4 — SPD Mentor Engine
+  spd_mentor?: SpdMentor;
+};
+
+type SpdMentor = {
+  disclaimer: string;
+  corrective_actions: { finding: string; steps: string[] }[];
+  anatomy_coaching: string[];
+  confidence_coaching: { message: string; suggestions: string[] } | null;
+  clinical_decision_summary: {
+    instrument: string; inspection_coverage: number | null; findings: string;
+    risk: string | null; recommendation: string | null; supervisor_review: string;
+  };
+  education_cards: { finding: string; clinical_significance: string; recommended_practice: string; reference: string }[];
+  training_mode: boolean;
+  expanded_explanations?: {
+    every_finding: Record<string, unknown>[];
+    anatomy_explained: { zone: string; explanation: string }[];
+    recommendation_explained: { disposition: string; next_actions: string[]; standards_guidance: string };
+    terminology: { term: string; definition: string }[];
+  };
 };
 
 const RISK_BADGE: Record<string, string> = {
@@ -136,8 +157,24 @@ export default function ClinicalDecisionPanel({
   const { headers, role } = useAuth();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [learning, setLearning] = useState(false);
+  const [mentor, setMentor] = useState<SpdMentor | undefined>(cd.spd_mentor);
+  const [trainingBusy, setTrainingBusy] = useState(false);
   const result = cd.overall_result;
   const canReview = role === "admin" || role === "spd_manager";
+
+  async function toggleTrainingMode() {
+    if (!inspectionId) return;
+    const next = !(mentor?.training_mode ?? false);
+    setTrainingBusy(true);
+    try {
+      const updated = await apiFetch<SpdMentor>(
+        `/api/inspections/${inspectionId}/mentor?training_mode=${next}`
+      );
+      setMentor(updated);
+    } finally {
+      setTrainingBusy(false);
+    }
+  }
 
   async function downloadPdf() {
     if (!inspectionId) return;
@@ -230,6 +267,102 @@ export default function ClinicalDecisionPanel({
             <p><span className="font-semibold text-slate-900">Standard practice:</span> {cd.ai_mentor.standard_practice}</p>
             <p><span className="font-semibold text-slate-900">What should happen next:</span> {cd.ai_mentor.what_should_happen_next.join("; ")}</p>
           </div>
+        </div>
+      )}
+
+      {/* v1.4 — SPD Mentor Engine */}
+      {mentor && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">SPD Mentor</p>
+            {inspectionId && (
+              <button
+                onClick={toggleTrainingMode}
+                disabled={trainingBusy}
+                className="text-xs font-medium text-indigo-700 underline disabled:opacity-50"
+              >
+                {trainingBusy ? "Loading…" : mentor.training_mode ? "Training Mode: On" : "Training Mode: Off"}
+              </button>
+            )}
+          </div>
+
+          {/* Clinical Decision Summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+            <div><div className="text-xs text-slate-500">Instrument</div><div className="font-medium text-slate-800">{mentor.clinical_decision_summary.instrument}</div></div>
+            <div><div className="text-xs text-slate-500">Coverage</div><div className="font-medium text-slate-800">{mentor.clinical_decision_summary.inspection_coverage ?? "—"}%</div></div>
+            <div><div className="text-xs text-slate-500">Supervisor Review</div><div className="font-medium text-slate-800">{mentor.clinical_decision_summary.supervisor_review}</div></div>
+          </div>
+          <p className="text-sm text-slate-700">{mentor.clinical_decision_summary.findings}</p>
+
+          {/* Corrective Action Recommendations */}
+          {mentor.corrective_actions.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Corrective Action</p>
+              {mentor.corrective_actions.map((a, i) => (
+                <p key={i} className="text-sm text-slate-700">
+                  <span className="font-medium capitalize">{a.finding}:</span> {a.steps.join(" → ")}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {/* Anatomy-Aware Coaching */}
+          {mentor.anatomy_coaching.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Anatomy Coaching</p>
+              <ul className="space-y-0.5 text-sm text-slate-700">
+                {mentor.anatomy_coaching.map((c, i) => <li key={i}>• {c}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* AI Confidence Coaching */}
+          {mentor.confidence_coaching && (
+            <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2">
+              <p className="text-sm font-medium text-amber-800">{mentor.confidence_coaching.message}</p>
+              <ul className="mt-1 text-sm text-amber-700">
+                {mentor.confidence_coaching.suggestions.map((s, i) => <li key={i}>• {s}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* SPD Education Cards */}
+          {mentor.education_cards.length > 0 && (
+            <div className="space-y-1.5">
+              {mentor.education_cards.map((c, i) => (
+                <div key={i} className="rounded border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-sm font-semibold capitalize text-slate-800">{c.finding}</p>
+                  <p className="text-sm text-slate-600">{c.clinical_significance}</p>
+                  <p className="text-sm text-slate-600"><span className="text-slate-500">Recommended practice:</span> {c.recommended_practice}</p>
+                  <p className="text-xs text-slate-400">{c.reference}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Training Mode expanded explanations */}
+          {mentor.training_mode && mentor.expanded_explanations && (
+            <div className="rounded border border-indigo-300 bg-white px-3 py-2 space-y-2">
+              <p className="text-xs font-semibold text-indigo-700">Terminology</p>
+              <ul className="text-sm text-slate-700 space-y-0.5">
+                {mentor.expanded_explanations.terminology.map((t, i) => (
+                  <li key={i}><span className="font-medium">{t.term}:</span> {t.definition}</li>
+                ))}
+              </ul>
+              {mentor.expanded_explanations.anatomy_explained.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-indigo-700">Anatomy Explained</p>
+                  <ul className="text-sm text-slate-700 space-y-0.5">
+                    {mentor.expanded_explanations.anatomy_explained.map((z, i) => (
+                      <li key={i}><span className="font-medium capitalize">{z.zone}:</span> {z.explanation}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-slate-400 italic">{mentor.disclaimer}</p>
         </div>
       )}
 
