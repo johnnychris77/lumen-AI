@@ -43,6 +43,7 @@ import {
   Cpu,
   ListChecks,
   ClipboardList,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +118,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/coaching-dashboard", label: "Supervisor Coaching", icon: ClipboardCheck, roles: ELEVATED_ROLES },
       { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
       { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+      { to: "/knowledge-center", label: "Knowledge Center", icon: BookMarked },
       { to: "/agent-trace", label: "Agent Trace", icon: Workflow },
       { to: "/cios-dashboard", label: "Clinical Intelligence OS", icon: Cpu },
     ],

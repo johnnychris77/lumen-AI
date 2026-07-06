@@ -127,6 +127,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.inspection_image_tag")  # register v1.2 image-view tag table
     importlib.import_module("app.models.disposition_override")   # register v1.6 supervisor disposition workspace
     importlib.import_module("app.models.workflow")               # register v1.7 workflow intelligence tables
+    importlib.import_module("app.models.knowledge")               # register v1.8 institutional knowledge tables
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -623,6 +624,9 @@ app.include_router(clinical_readiness_router)
 
 from app.routes.workflow import router as workflow_router
 app.include_router(workflow_router)
+
+from app.routes.knowledge import router as knowledge_router
+app.include_router(knowledge_router)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 

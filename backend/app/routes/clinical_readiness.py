@@ -190,10 +190,19 @@ def post_disposition_action(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     from app.services import workflow_state_service
+    from app.services.clinical_case_library_service import save_or_update_case
 
     insp = _get_inspection(db, tenant_id, inspection_id)
     workflow_state_service.record_disposition_action(
         db, insp=insp, tenant_id=tenant_id, action=body.action, actor=_actor(current_user), reason=body.reason,
+    )
+
+    # v1.8 — a supervisor override is itself a significant-inspection
+    # trigger; preserve (or update) the case with the real correction.
+    save_or_update_case(
+        db, tenant_id, insp, finding_type=get_primary_finding_type(db, insp),
+        supervisor_corrections=body.reason, final_disposition=body.modified_disposition or body.ai_recommended_disposition,
+        outcome=body.action,
     )
 
     db.commit()

@@ -584,6 +584,24 @@ async def create_inspection(
         )
         db.commit()
 
+    # v1.8 — Clinical Case Library: automatically preserve significant
+    # inspections (a critical finding on the readiness engine's own
+    # classification) as a reusable case for future similar-case lookups.
+    from app.services.clinical_case_library_service import is_significant, save_or_update_case
+    from app.services.risk_stratification_service import stratify_risk
+
+    workflow_primary_finding = get_primary_finding_type(db, row)
+    workflow_risk = stratify_risk(row, primary_finding_type=workflow_primary_finding)
+    if is_significant(
+        risk_tier=workflow_risk["risk_tier"], is_critical_finding=workflow_readiness.get("is_critical_finding", False),
+        has_override=False, finding_type=workflow_primary_finding,
+    ):
+        save_or_update_case(
+            db, tenant_id, row, finding_type=workflow_primary_finding,
+            final_disposition=workflow_disposition["disposition"], clinical_reasoning=workflow_disposition["explanation"],
+        )
+        db.commit()
+
     log_audit_event(
         db,
         tenant_id=tenant_id,
