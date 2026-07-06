@@ -151,7 +151,17 @@ def get_readiness_report_pdf(
 ):
     tenant_id = _tenant(current_user, request)
     insp = _get_inspection(db, tenant_id, inspection_id)
-    pdf = build_readiness_report_pdf(db, tenant_id, insp)
+    try:
+        pdf = build_readiness_report_pdf(db, tenant_id, insp)
+    except Exception as exc:
+        from app.services.pilot_error_log_service import log_error
+
+        log_error(
+            db, tenant_id=tenant_id, error_type="report_generation_failure",
+            detail=str(exc)[:500], actor_role=getattr(current_user, "role", ""), inspection_id=inspection_id,
+        )
+        db.commit()
+        raise HTTPException(status_code=500, detail="Report generation failed. This has been logged.") from exc
     return StreamingResponse(
         io.BytesIO(pdf),
         media_type="application/pdf",

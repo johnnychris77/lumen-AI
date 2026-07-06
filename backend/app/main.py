@@ -128,6 +128,8 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.disposition_override")   # register v1.6 supervisor disposition workspace
     importlib.import_module("app.models.workflow")               # register v1.7 workflow intelligence tables
     importlib.import_module("app.models.knowledge")               # register v1.8 institutional knowledge tables
+    importlib.import_module("app.models.pilot_config")             # register v1.9 pilot site config table
+    importlib.import_module("app.models.pilot_error_log")          # register v1.9 pilot error log table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -627,6 +629,9 @@ app.include_router(workflow_router)
 
 from app.routes.knowledge import router as knowledge_router
 app.include_router(knowledge_router)
+
+from app.routes.pilot_deployment import router as pilot_deployment_router
+app.include_router(pilot_deployment_router)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 

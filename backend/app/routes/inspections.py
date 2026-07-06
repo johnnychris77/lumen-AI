@@ -618,6 +618,18 @@ async def create_inspection(
         # Attach the full explainable AI analysis output (placeholder scoring).
         response["analysis"] = analysis
     response["coverage_readiness"] = readiness
+
+    # v1.9 — Data Quality Guardrails: surface clear, actionable gaps
+    # (missing instrument/image/anatomy zone, poor image quality, missing
+    # baseline, incomplete coverage, missing technician identity) against
+    # the pilot site's own configured thresholds.
+    from app.services.data_quality_guardrails_service import evaluate_data_quality
+    from app.services.pilot_site_config_service import get_or_create_config
+
+    pilot_config = get_or_create_config(db, tenant_id)
+    db.commit()
+    response["data_quality"] = evaluate_data_quality(row, pilot_config=pilot_config)
+
     return response
 
 

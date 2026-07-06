@@ -134,6 +134,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/clinical-readiness", label: "Clinical Service Readiness", icon: ShieldCheck },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
       { to: "/operations-board", label: "Operations Board", icon: ClipboardList, roles: ["admin", "spd_manager"] },
+      { to: "/pilot-data-collection", label: "Pilot Data Collection", icon: Database, roles: ["admin", "spd_manager"] },
       { to: "/pilot-validation", label: "Pilot Validation", icon: Activity, roles: ["admin", "spd_manager"] },
     ],
   },

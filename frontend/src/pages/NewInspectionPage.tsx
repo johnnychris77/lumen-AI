@@ -9,6 +9,7 @@ import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import { apiFetch } from "@/lib/api";
+import { logPilotError } from "@/lib/errorLog";
 
 // ─── types ─────────────────────────────────────────────────────────────────── v2
 
@@ -562,10 +563,12 @@ export default function NewInspectionPage() {
       scrollToResult();
     } catch (err) {
       // Never fail silently — surface the error so the user knows what happened.
+      const detail = err instanceof Error ? err.message : "network error";
       setBanner({
         type: "error",
-        message: `Could not complete AI analysis: ${err instanceof Error ? err.message : "network error"}. Please try again.`,
+        message: `Could not complete AI analysis: ${detail}. Please try again.`,
       });
+      logPilotError(allImages.length > 0 ? "upload_failure" : "ai_analysis_failure", detail);
       scrollToResult();
     } finally {
       setSubmitting(false);
