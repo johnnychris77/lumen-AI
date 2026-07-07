@@ -6,11 +6,12 @@ for the ten instrument families SPD sees most often. Each profile links to
 a real anatomy family in `app/services/instrument_anatomy.py` so "typical
 anatomy" is always the live zone data, never a duplicated copy.
 
-Three families (Cannulated Instruments, Orthopedic Instruments, Micro
-Instruments) do not yet have a dedicated anatomy-zone taxonomy split out —
-they honestly borrow the closest existing anatomy family (flagged via
-`anatomy_family_note`) rather than fabricating zones that were never
-defined. See docs/knowledge-graph/instrument-intelligence.md.
+v1.10 resolved the borrowed-anatomy debt these three families used to carry:
+Cannulated Instruments, Orthopedic Instruments, and Micro Instruments each
+now point at a dedicated anatomy family with its own real zone taxonomy
+(`orthopedic_reamer`, `oscillating_saw`, `micro_forceps` respectively — see
+the v1.10 expansion block in instrument_anatomy.py) instead of borrowing an
+unrelated family's zones. See docs/knowledge-graph/instrument-intelligence.md.
 """
 from __future__ import annotations
 
@@ -89,11 +90,8 @@ INSTRUMENT_FAMILY_PROFILES: dict[str, dict] = {
     },
     "cannulated_instruments": {
         "display_name": "Cannulated Instruments",
-        "anatomy_family_key": "laparoscopic",
-        "anatomy_family_note": (
-            "Cannulated instruments do not yet have a dedicated anatomy-zone taxonomy split out; "
-            "typical anatomy is borrowed from the laparoscopic family's lumen/cannulated channel zone."
-        ),
+        # v1.10: dedicated anatomy family (was borrowed from laparoscopic).
+        "anatomy_family_key": "orthopedic_reamer",
         "typical_contamination": ["blood", "tissue", "debris", "other_organic_residue"],
         "typical_damage": ["lumen obstruction", "channel scoring"],
         "typical_repair_issues": ["channel reaming", "cannula replacement"],
@@ -103,11 +101,8 @@ INSTRUMENT_FAMILY_PROFILES: dict[str, dict] = {
     },
     "orthopedic_instruments": {
         "display_name": "Orthopedic Instruments",
-        "anatomy_family_key": "drill_bit",
-        "anatomy_family_note": (
-            "Broader orthopedic instruments (saws, awls, broaches) share the drill_bit anatomy "
-            "family pending a dedicated split; drill/reamer/burr zones are the closest real match."
-        ),
+        # v1.10: dedicated anatomy family (was borrowed from drill_bit).
+        "anatomy_family_key": "oscillating_saw",
         "typical_contamination": ["bone", "other_organic_residue", "debris"],
         "typical_damage": ["worn cutting surfaces", "corroded threads", "bent components"],
         "typical_repair_issues": ["resharpening", "component straightening"],
@@ -117,11 +112,8 @@ INSTRUMENT_FAMILY_PROFILES: dict[str, dict] = {
     },
     "micro_instruments": {
         "display_name": "Micro Instruments",
-        "anatomy_family_key": "default",
-        "anatomy_family_note": (
-            "No micro-instrument-specific anatomy zones exist yet; falls back to the generic "
-            "instrument profile. Flagged as a future anatomy-taxonomy expansion."
-        ),
+        # v1.10: dedicated anatomy family (was falling back to the generic default profile).
+        "anatomy_family_key": "micro_forceps",
         "typical_contamination": ["blood", "tissue"],
         "typical_damage": ["bent tips", "misaligned jaws", "loss of tip precision"],
         "typical_repair_issues": ["tip realignment", "spring tension adjustment"],

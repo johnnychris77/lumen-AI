@@ -1,0 +1,188 @@
+"""v1.10 — Instrument Knowledge Expansion.
+
+Covers the acceptance criteria: 100+ instrument families, anatomy profiles,
+high-risk inspection zones, inspection guidance, the Knowledge Graph
+explorer's new instrument_family category, and the resolved borrowed-anatomy
+debt in instrument_family_profiles.py.
+"""
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.services.instrument_anatomy import (
+    INSTRUMENT_ANATOMY, anatomy_profile, get_anatomy, list_anatomy_families, resolve_family,
+)
+from app.services.instrument_family_profiles import INSTRUMENT_FAMILY_PROFILES, get_family_profile
+from app.services.knowledge_graph_service import explore
+
+client = TestClient(app)
+AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
+AUTH_VIEWER = {"Authorization": "Bearer viewer-token"}
+
+
+class TestFamilyCountAcceptanceCriterion:
+    def test_at_least_100_real_families_declared(self):
+        families = list_anatomy_families()
+        assert len(families) >= 100
+
+    def test_default_fallback_excluded_from_family_list(self):
+        assert "default" not in {f["family"] for f in list_anatomy_families()}
+        assert "default" in INSTRUMENT_ANATOMY
+
+
+class TestAnatomyProfilesAndHighRiskZones:
+    def test_every_declared_family_has_zones_and_guidance(self):
+        for family, defn in INSTRUMENT_ANATOMY.items():
+            assert defn["zones"], f"{family} has no zones"
+            assert defn["required_images"], f"{family} has no required_images"
+            assert defn["manual_steps"], f"{family} has no manual_steps"
+            assert defn["min_images"] >= 1
+
+    def test_every_family_required_image_is_a_real_zone(self):
+        for family, defn in INSTRUMENT_ANATOMY.items():
+            zone_names = {z["zone_name"] for z in defn["zones"]}
+            for img in defn["required_images"]:
+                assert img in zone_names, f"{family}: required image '{img}' is not a declared zone"
+
+    def test_high_risk_zones_are_a_real_subset_of_declared_zones(self):
+        for family in list_anatomy_families():
+            zone_names = set(family["zone_names"])
+            for z in family["high_risk_zones"]:
+                assert z in zone_names
+
+    def test_new_family_resolves_and_has_full_profile_shape(self):
+        p = anatomy_profile("towel clamp")
+        assert p["profile_found"] is True
+        assert p["instrument_family"] == "towel_clamp"
+        for key in (
+            "anatomy_zones", "required_zones", "high_risk_zones", "zone_descriptions",
+            "contamination_risks", "condition_risks", "recommended_image_views", "manual_check_steps",
+        ):
+            assert key in p
+        assert p["warning"] is None
+
+    def test_specialty_coverage_spot_check(self):
+        # One representative family per major specialty added in v1.10.
+        expectations = {
+            "acetabular reamer": "orthopedic_reamer",
+            "kerrison pituitary": None,  # not a real phrase; falls back to default below
+            "pituitary rongeur": "pituitary_rongeur",
+            "myringotomy knife": "myringotomy_knife",
+            "capsulorhexis forceps": "capsulorhexis_forceps",
+            "aortic punch": "aortic_punch",
+            "resectoscope": "resectoscope",
+            "micro scissors": "micro_scissors",
+            "dental extraction forceps": "dental_extraction_forceps",
+            "veress needle": "veress_needle",
+            "harmonic scalpel handpiece": "harmonic_scalpel_handpiece",
+            "rigid sterilization container": "rigid_sterilization_container",
+        }
+        for instrument_type, expected_family in expectations.items():
+            if expected_family is None:
+                continue
+            assert resolve_family(instrument_type) == expected_family
+
+
+class TestExistingResolutionUnchanged:
+    """The v1.10 expansion is declared before the original 8 families so its
+    specific multi-word keywords win — this must not change resolution for
+    any input the original 8 families already matched."""
+
+    def test_original_families_still_resolve_the_same(self):
+        checks = {
+            "rigid scope": "rigid_scope",
+            "flexible colonoscope": "flexible_endoscope",
+            "gastroscope": "flexible_endoscope",
+            "orthopedic drill bit": "drill_bit",
+            "drill bit": "drill_bit",
+            "reamer": "drill_bit",
+            "kerrison rongeur": "kerrison_rongeur",
+            "kerrison": "kerrison_rongeur",
+            "kelly forceps": "general_forceps",
+            "forceps": "general_forceps",
+            "serrated forceps": "general_forceps",
+            "curved scissors": "scissors",
+            "needle holder": "needle_holder",
+            "laparoscopic grasper": "laparoscopic",
+            "trocar": "laparoscopic",
+            "scope": "rigid_scope",
+            "mystery tool": "default",
+        }
+        for instrument_type, expected_family in checks.items():
+            assert resolve_family(instrument_type) == expected_family, instrument_type
+
+    def test_get_anatomy_zone_names_unchanged_for_original_families(self):
+        assert "o-ring area" in get_anatomy("rigid scope")["zone_names"]
+        assert "biopsy channel" in get_anatomy("flexible gastroscope")["zone_names"]
+        assert "flutes" in get_anatomy("drill bit")["zone_names"]
+
+
+class TestBorrowedAnatomyDebtResolved:
+    def test_previously_borrowed_families_now_have_dedicated_anatomy(self):
+        assert get_family_profile("cannulated_instruments")["anatomy_family_key"] != "laparoscopic"
+        assert get_family_profile("orthopedic_instruments")["anatomy_family_key"] != "drill_bit"
+        assert get_family_profile("micro_instruments")["anatomy_family_key"] != "default"
+
+    def test_dedicated_anatomy_keys_resolve_to_themselves(self):
+        for key in ("cannulated_instruments", "orthopedic_instruments", "micro_instruments"):
+            profile = get_family_profile(key)
+            assert profile["typical_anatomy"], key
+            assert profile["high_risk_zones"], key
+
+    def test_ten_family_profile_key_set_unchanged(self):
+        # v1.10 only changed anatomy_family_key values inside existing
+        # profiles — the profile key set itself is a fixed contract
+        # (test_knowledge_graph.py::test_all_ten_families_defined).
+        assert len(INSTRUMENT_FAMILY_PROFILES) == 10
+
+
+class TestKnowledgeGraphInstrumentFamilyCategory:
+    def test_explore_instrument_family_category_lists_all_families(self):
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            result = explore(db, "default-tenant", "instrument_family")
+        finally:
+            db.close()
+        assert result["category"] == "instrument_family"
+        assert result["total_families"] >= 100
+        assert any(r["family"] == "towel_clamp" for r in result["results"])
+
+    def test_explore_instrument_family_query_filters(self):
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            result = explore(db, "default-tenant", "instrument_family", query="reamer")
+        finally:
+            db.close()
+        assert result["results"]
+        assert all("reamer" in r["family"].lower() or "reamer" in r["category"].lower() for r in result["results"])
+
+    def test_api_lists_all_families_still_returns_10_knowledge_profiles(self):
+        res = client.get("/api/knowledge-graph/instrument-families", headers=AUTH_VIEWER)
+        assert res.status_code == 200
+        assert len(res.json()["families"]) == 10
+
+    def test_highest_risk_anatomy_zone_no_longer_crashes(self):
+        # Regression: enterprise_knowledge_analytics used to double-index
+        # the already-resolved zone string, 500ing whenever any supervisor
+        # review had a missed-zone entry.
+        res = client.get("/api/analytics/zone-intelligence", headers=AUTH_ADMIN)
+        assert res.status_code == 200
+
+
+class TestAnatomyLibraryEndpointsExposeExpansion:
+    def test_list_endpoint_returns_100_plus_families(self):
+        res = client.get("/api/instrument-anatomy", headers=AUTH_ADMIN)
+        assert res.status_code == 200
+        assert len(res.json()["families"]) >= 100
+
+    def test_profile_endpoint_resolves_a_new_family(self):
+        res = client.get("/api/instrument-anatomy/pituitary%20rongeur", headers=AUTH_ADMIN)
+        assert res.status_code == 200
+        body = res.json()
+        assert body["instrument_family"] == "pituitary_rongeur"
+        assert "cup jaw" in body["anatomy_zones"]

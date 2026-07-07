@@ -24,11 +24,16 @@ is the "step 2" service LumenAI Inspect v1.1 requires before AI analysis.
 - `list_anatomy_families()` — summary of every declared family (v1.1
   addition), for the Anatomy Library's browse view.
 
-Families: rigid scope, flexible endoscope, drill bit, Kerrison/rongeur,
-scissors, needle holder, laparoscopic, general forceps, default (generic
-fallback). Flexible endoscopes are declared before rigid scopes in the match
-table so endoscope-specific keywords resolve first (a rigid scope's generic
-"scope"/"endoscope" match would otherwise swallow them).
+Families: 112 as of v1.10 (see `docs/instrument-knowledge/v1.10-instrument-knowledge-expansion.md`
+for the full specialty breakdown), plus `default` (generic fallback). The
+original 8 — rigid scope, flexible endoscope, drill bit, Kerrison/rongeur,
+scissors, needle holder, laparoscopic, general forceps — are unchanged.
+Flexible endoscopes are declared before rigid scopes in the match table so
+endoscope-specific keywords resolve first (a rigid scope's generic
+"scope"/"endoscope" match would otherwise swallow them); the v1.10 expansion
+families are declared before all 8 originals for the same reason, using
+distinctive multi-word match phrases so none of the originals' resolution
+behavior changes.
 
 ## API
 

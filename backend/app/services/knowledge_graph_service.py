@@ -260,6 +260,16 @@ def explore(db: Session, tenant_id: str, category: str, query: str = "") -> dict
                 results.append({"manufacturer": r.manufacturer, "model": r.model, "instrument_family": r.instrument_family, "failure_mode": m})
         return {"category": "failure_mode", "results": results}
 
+    if category == "instrument_family":
+        from app.services.instrument_anatomy import list_anatomy_families
+
+        results = []
+        for fam in list_anatomy_families():
+            if q and q not in fam["family"].lower() and q not in fam["category"].lower():
+                continue
+            results.append(fam)
+        return {"category": "instrument_family", "results": results, "total_families": len(results)}
+
     if category == "recommendation":
         results = [{"outcome": k, "action_text": v} for k, v in _ACTION_TEXT.items() if not q or q in k.lower() or q in v.lower()]
         return {"category": "recommendation", "results": results}
@@ -278,7 +288,7 @@ def explore(db: Session, tenant_id: str, category: str, query: str = "") -> dict
             },
         }
 
-    return {"category": category, "results": [], "error": "Unknown category. Use one of: manufacturer, instrument, model, finding, zone, failure_mode, recommendation, supervisor_learning."}
+    return {"category": category, "results": [], "error": "Unknown category. Use one of: manufacturer, instrument, model, finding, zone, failure_mode, recommendation, supervisor_learning, instrument_family."}
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +360,7 @@ def enterprise_knowledge_analytics(db: Session, tenant_id: str) -> dict:
     return {
         "most_common_findings_by_manufacturer": _top(findings_by_manufacturer),
         "most_common_findings_by_anatomy": _top(findings_by_zone),
-        "highest_risk_anatomy_zone": highest_risk_zone["zone"] if highest_risk_zone else None,
+        "highest_risk_anatomy_zone": highest_risk_zone,
         "most_common_repair_reason": _top(repair_reasons, n=3),
         "most_common_supervisor_override": _top(override_counts, n=3),
         "most_difficult_instrument_family": most_difficult_family,
