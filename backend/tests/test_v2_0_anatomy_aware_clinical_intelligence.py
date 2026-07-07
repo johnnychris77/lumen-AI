@@ -17,12 +17,15 @@ from app.main import app
 from app.models.admin_credential import AdminCredential
 from app.models.baseline_library import BaselineLibraryEntry
 from app.services.baseline_comparison_scoring_service import analyze_inspection
+from app.services.guided_capture import guided_capture_panel
 from app.services.instrument_anatomy import INSTRUMENT_ANATOMY, TYPICAL_FINDINGS_BY_CATEGORY
 from app.services.learning_dataset_v2 import learning_dataset_v2
 from app.services.zone_intelligence import (
     dynamic_inspection_guidance, typical_findings_for_legacy_zone, zone_engine,
-    zone_risk_for_name, zone_risk_matrix,
+    zone_risk_for_family, zone_risk_for_name, zone_risk_matrix,
 )
+from app.models.inspection_image_tag import InspectionImageTag
+from app.models.supervisor_review import SupervisorReview
 
 client = TestClient(app)
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
@@ -217,6 +220,135 @@ class TestLearningDatasetV2:
         body = res.json()
         assert "rows" in body
         assert body["human_review_required"] is True
+
+
+class TestGuidedCapturePanelZoneGuidance:
+    """The capture UI's Guided Capture Panel is the natural place a
+    technician sees Dynamic Inspection Guidance — v2.0 enriches its existing
+    per-zone camera-technique guidance (angle/lighting/focus, unchanged)
+    with the new zone-specific clinical risk_level/expected_findings,
+    rather than duplicating the camera-guidance logic."""
+
+    def test_panel_carries_risk_level_and_expected_findings_for_current_zone(self):
+        panel = guided_capture_panel("kerrison rongeur", [])
+        assert panel["current_zone"] == "jaw"
+        assert panel["risk_level"] == "high"
+        assert "blood" in panel["expected_findings"]
+        assert "corrosion" in panel["expected_findings"]
+        # Existing per-zone camera guidance is untouched by the v2.0 addition.
+        assert panel["recommended_camera_angle"]
+
+    def test_panel_has_no_risk_fields_once_all_zones_captured(self):
+        from app.services.instrument_anatomy import get_anatomy
+
+        anatomy = get_anatomy("kerrison rongeur")
+        panel = guided_capture_panel("kerrison rongeur", anatomy["required_images"])
+        assert panel["current_zone"] is None
+        assert panel["risk_level"] is None
+        assert panel["expected_findings"] == []
+
+    def test_endpoint_response_includes_new_fields(self):
+        res = client.get(
+            "/api/guided-capture/kerrison%20rongeur",
+            headers=AUTH_VIEWER,
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert "risk_level" in body
+        assert "expected_findings" in body
+
+
+class TestCodeReviewFixes:
+    """Regression coverage for issues flagged by automated review on PR #83."""
+
+    def test_flutes_gets_the_real_drill_bit_cleaning_entry_not_the_generic_fallback(self):
+        # Regression: zone_engine("drill bit", "flutes") used to fall back to
+        # the generic "unspecified region" cleaning entry because the
+        # anatomy zone name ("flutes") didn't match the cleaning library's
+        # key for the same real zone ("drill-bit flute").
+        result = zone_engine("drill bit", "flutes")
+        assert "flute" in result["cleaning_method"].lower()
+        assert result["cleaning_method"] != "Standard manual cleaning per facility protocol."
+
+    def test_zone_engine_endpoint_accepts_slash_bearing_zone_name(self):
+        # Regression: the default `str` path converter stopped matching at
+        # the "/" in zone names like "air/water nozzle", 404ing declared
+        # zones that happen to contain a slash.
+        res = client.get(
+            "/api/anatomy/zone-engine/flexible endoscope/air/water nozzle",
+            headers=AUTH_VIEWER,
+        )
+        assert res.status_code == 200
+        assert res.json()["anatomy_zone"] == "air/water nozzle"
+
+    def test_zone_risk_for_family_prefers_the_reviewed_familys_own_zone(self):
+        # "blade" exists in both scissors (medium) and skin_graft_mesher-style
+        # families with different risk levels — family-scoped lookup must
+        # not silently pick whichever family happens to declare it first.
+        assert zone_risk_for_family("scissors", "blade") == "medium"
+
+    def test_learning_dataset_scopes_joins_to_the_requesting_tenant(self):
+        # Regression: an Inspection/InspectionImageTag row belonging to a
+        # different tenant than the SupervisorReview must never leak into
+        # this tenant's exported dataset.
+        tenant_a = f"tenant-{uuid.uuid4().hex[:8]}"
+        tenant_b = f"tenant-{uuid.uuid4().hex[:8]}"
+        _baseline("scissors")
+
+        r = client.post("/api/inspections", json={
+            "instrument_type": "scissors", "site_name": "Mercy", "has_image": True,
+            "image_sha256": SHA, "file_name": "x.jpg", "finding_categories": [],
+        }, headers={**AUTH_ADMIN, "X-Tenant-Id": tenant_a})
+        assert r.status_code == 201
+        iid = r.json()["id"]
+
+        db = SessionLocal()
+        try:
+            # A SupervisorReview row claiming tenant_b but pointing at
+            # tenant_a's inspection — the export for tenant_b must not
+            # pull in tenant_a's real inspection/vendor data.
+            db.add(SupervisorReview(
+                inspection_id=iid, tenant_id=tenant_b, reviewer_name="x",
+                reviewer_role="admin", agreement="agree", ai_recommendation="MONITOR",
+                finding_type="blood", ai_zone="blade",
+            ))
+            db.commit()
+            dataset = learning_dataset_v2(db, tenant_b)
+        finally:
+            db.close()
+        assert dataset["count"] == 1
+        assert dataset["rows"][0]["manufacturer"] == ""  # not tenant_a's real vendor_name
+
+    def test_learning_dataset_matches_image_tag_to_the_reviewed_zone(self):
+        tenant = f"tenant-{uuid.uuid4().hex[:8]}"
+        _baseline("scissors")
+        r = client.post("/api/inspections", json={
+            "instrument_type": "scissors", "site_name": "Mercy", "has_image": True,
+            "image_sha256": SHA, "file_name": "x.jpg", "finding_categories": [],
+        }, headers={**AUTH_ADMIN, "X-Tenant-Id": tenant})
+        iid = r.json()["id"]
+
+        db = SessionLocal()
+        try:
+            db.add(InspectionImageTag(
+                tenant_id=tenant, inspection_id=iid, instrument_family="scissors",
+                anatomy_zone="handle", image_view="overview",
+            ))
+            db.add(InspectionImageTag(
+                tenant_id=tenant, inspection_id=iid, instrument_family="scissors",
+                anatomy_zone="blade", image_view="blade close-up",
+            ))
+            db.add(SupervisorReview(
+                inspection_id=iid, tenant_id=tenant, reviewer_name="x",
+                reviewer_role="admin", agreement="agree", ai_recommendation="MONITOR",
+                finding_type="blood", ai_zone="blade",
+            ))
+            db.commit()
+            dataset = learning_dataset_v2(db, tenant)
+        finally:
+            db.close()
+        row = next(r for r in dataset["rows"] if r["inspection_id"] == iid)
+        assert row["inspection_view"] == "blade close-up"
 
 
 class TestSupervisorRoleCanReadAnatomyIntelligence:

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from app.services.inspection_coverage import compute_coverage, missing_image_guidance
 from app.services.instrument_anatomy import get_anatomy
+from app.services.zone_intelligence import zone_engine
 
 # ── Per-zone capture guidance ────────────────────────────────────────────────
 # angle: recommended camera position. lighting: lighting setup. focus: what to
@@ -231,12 +232,24 @@ def guided_capture_panel(instrument_type: str, captured_zones: list[str] | None)
     current_zone = _next_zone_to_capture(instrument_type, checklist)
 
     guidance = zone_capture_guidance(instrument_type, current_zone) if current_zone else None
+    # v2.0 — Dynamic Inspection Guidance: the zone-specific clinical risk and
+    # expected findings for the zone being captured next, from the Anatomy
+    # Zone Engine (app/services/zone_intelligence.py). This panel's own
+    # camera-technique guidance above (angle/lighting/focus) is more granular
+    # per-zone than the Zone Engine's category-level fallback, so only the
+    # clinical fields it doesn't already have are pulled in here — nothing
+    # duplicated.
+    risk = zone_engine(instrument_type, current_zone) if current_zone else None
 
     return {
         "instrument_family": anatomy["family"],
         "instrument_category": anatomy["category"],
         **checklist,
         "current_zone": current_zone,
+        "risk_level": risk["zone_risk_level"] if risk else None,
+        "expected_findings": (
+            risk["typical_contamination_findings"] + risk["typical_condition_findings"] if risk else []
+        ),
         "recommended_camera_angle": guidance["angle"] if guidance else None,
         "lighting_tips": guidance["lighting"] if guidance else None,
         "focus_tips": guidance["focus"] if guidance else None,

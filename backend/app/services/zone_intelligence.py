@@ -135,6 +135,21 @@ def dynamic_inspection_guidance(
     }
 
 
+def zone_risk_for_family(family_key: str, zone_name: str) -> str | None:
+    """Risk tier for a zone name scoped to one specific instrument family —
+    use this instead of `zone_risk_for_name()` whenever the reviewed
+    instrument's family is known, since several zone names (e.g. "blade",
+    "tip", "ratchet") are reused across families with different risk
+    levels; a global first-match lookup can silently pick the wrong
+    family's risk for an ambiguous name."""
+    defn = INSTRUMENT_ANATOMY.get(family_key)
+    if defn:
+        for zone in defn["zones"]:
+            if zone["zone_name"] == zone_name:
+                return zone["zone_risk_level"]
+    return zone_risk_for_name(zone_name)
+
+
 def zone_risk_for_name(zone_name: str) -> str | None:
     """Best-effort real risk tier for a bare zone name, regardless of which
     of the two zone vocabularies it came from (a per-family anatomy zone or

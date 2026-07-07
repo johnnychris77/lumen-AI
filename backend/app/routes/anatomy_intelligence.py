@@ -27,7 +27,7 @@ def get_zone_risk_matrix(current_user=Depends(require_roles(*_READ_ROLES))):
     return zone_risk_matrix()
 
 
-@router.get("/anatomy/zone-engine/{instrument_type}/{zone_name}")
+@router.get("/anatomy/zone-engine/{instrument_type}/{zone_name:path}")
 def get_zone_engine(
     instrument_type: str,
     zone_name: str,
@@ -44,7 +44,7 @@ def get_zone_engine(
     return result
 
 
-@router.get("/anatomy/inspection-zone-guidance/{instrument_type}/{zone_name}")
+@router.get("/anatomy/inspection-zone-guidance/{instrument_type}/{zone_name:path}")
 def get_inspection_zone_guidance(
     instrument_type: str,
     zone_name: str,
