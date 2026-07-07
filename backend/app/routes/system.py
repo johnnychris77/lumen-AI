@@ -63,10 +63,18 @@ async def login(request: Request):
 
         db = SessionLocal()
         try:
-            cred = (
+            # Prefer an exact-case match first — if a case-only duplicate row
+            # ever exists (e.g. from data predating this case-insensitive
+            # lookup), a case-folded `.first()` could pick either row
+            # nondeterministically and check the wrong password hash.
+            candidates = (
                 db.query(AdminCredential)
                 .filter(func.lower(AdminCredential.username) == username_normalized)
-                .first()
+                .order_by(AdminCredential.id.asc())
+                .all()
+            )
+            cred = next((c for c in candidates if c.username == username), None) or (
+                candidates[0] if candidates else None
             )
             if cred and bcrypt.verify(password, cred.password_hash):
                 return {

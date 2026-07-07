@@ -163,7 +163,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   // instead of firing an Authorization: Bearer (empty) request that always
   // 401s.
   const fetchAlerts = useCallback(async () => {
-    if (!token) return;
+    if (!token) {
+      // Clear the previous user's alert state on sign-out — otherwise a
+      // shared browser or quick re-login can show the old unread count
+      // until (and unless) the next successful fetch replaces it.
+      setAlerts([]);
+      return;
+    }
     try {
       const [kpiRes, pwrRes] = await Promise.allSettled([
         apiFetch("/api/analytics/kpi-summary", { raw: true }),
