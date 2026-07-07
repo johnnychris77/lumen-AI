@@ -16,21 +16,56 @@ from __future__ import annotations
 
 from app.services.instrument_zones import HIGH_RETENTION_ZONES
 
-# Standard contamination / condition risk vocabularies (per zone).
+# Fallback contamination / condition vocabulary for a zone_category not in
+# TYPICAL_FINDINGS_BY_CATEGORY below (should not happen for any declared
+# zone, kept only so _zone() never raises on an unrecognized category).
 _CONTAM = ["blood", "bone", "tissue", "organic residue", "debris"]
 _COND = ["rust", "corrosion", "pitting", "crack", "discoloration", "insulation damage", "missing component", "wear"]
+
+# v2.0 — Zone-Specific Finding Models. Different anatomy zones present
+# different clinical findings (a rigid-scope o-ring shows cracks/damaged
+# seals; a drill flute shows metal shavings; a box lock shows blood/bone
+# between the pivot plates) — every zone previously defaulted to the same
+# generic _CONTAM/_COND list regardless of what kind of zone it was. This
+# maps each of the five zone_category values every declared zone already
+# uses to its own real, SPD-grounded expected-finding vocabulary, and
+# `_zone()` now uses it as the per-zone default (an explicit contamination=/
+# condition= argument still overrides it for a genuinely atypical zone).
+TYPICAL_FINDINGS_BY_CATEGORY: dict[str, dict[str, list[str]]] = {
+    "cutting_working_surface": {
+        "contamination": ["blood", "bone", "tissue", "debris"],
+        "condition": ["corrosion", "pitting", "dulling", "nicked edge"],
+    },
+    "rotary_orthopedic": {
+        "contamination": ["bone", "metal shavings", "retained debris"],
+        "condition": ["corrosion", "wear", "dulled cutting surface"],
+    },
+    "lumen_scope": {
+        "contamination": ["blood", "organic residue", "debris"],
+        "condition": ["discoloration", "crack", "damaged seal", "pitting"],
+    },
+    "mechanical": {
+        "contamination": ["blood", "tissue", "debris"],
+        "condition": ["corrosion", "wear", "loose pivot", "fatigued spring"],
+    },
+    "handle_external": {
+        "contamination": ["blood", "debris"],
+        "condition": ["insulation damage", "discoloration", "cosmetic wear"],
+    },
+}
 
 
 def _zone(name: str, category: str, risk: str, retention: str,
           contamination: list[str] | None = None,
           condition: list[str] | None = None) -> dict:
+    defaults = TYPICAL_FINDINGS_BY_CATEGORY.get(category, {"contamination": _CONTAM, "condition": _COND})
     return {
         "zone_name": name,
         "zone_category": category,
         "zone_risk_level": risk,          # low / medium / high / critical
         "retention_risk": retention,      # low / medium / high
-        "contamination_risks": contamination if contamination is not None else _CONTAM,
-        "condition_risks": condition if condition is not None else _COND,
+        "contamination_risks": contamination if contamination is not None else defaults["contamination"],
+        "condition_risks": condition if condition is not None else defaults["condition"],
     }
 
 

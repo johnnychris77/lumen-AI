@@ -26,7 +26,9 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.services.instrument_anatomy import resolve_family
 from app.services.instrument_zones import is_high_retention, zone_fields
+from app.services.zone_intelligence import typical_findings_for_legacy_zone
 
 # Baseline resolution order — most authoritative first.
 BASELINE_PRIORITY = ["manufacturer", "vendor", "hospital"]
@@ -1067,6 +1069,12 @@ def analyze_inspection(
         # Instrument-zone taxonomy: where this finding is likely to hide, its
         # retention risk, and the recommended manual check for that zone.
         finding.update(zone_fields(instrument_type, kpi))
+        # v2.0 — Zone-Based AI Context: which anatomy family this instrument
+        # resolved to, and the zone-specific (not generic) findings expected
+        # at this zone — the reasoning engine reasons differently for a
+        # Kerrison serration than a rigid-scope o-ring from this point on.
+        finding["instrument_family"] = resolve_family(instrument_type)
+        finding["expected_findings_for_zone"] = typical_findings_for_legacy_zone(finding["instrument_zone"])
         # Per-finding recommended action (Reprocess / Remove / Supervisor review /
         # Monitor / Clear) from its SPD tier + structural vs contamination.
         finding["recommended_action"] = _finding_action(kpi, spd_tier)
