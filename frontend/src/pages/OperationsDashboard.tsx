@@ -1,79 +1,65 @@
-const activityRows = [
-  {
-    id: "SPD-1042",
-    facility: "ORC",
-    instrument: "Laparoscopic grasper",
-    finding: "Blood residue flagged",
-    risk: "High",
-    status: "Review",
-    date: "Today",
-  },
-  {
-    id: "SPD-1041",
-    facility: "St. Francis",
-    instrument: "Orthopedic cutter",
-    finding: "Rust on hinge",
-    risk: "High",
-    status: "CAPA",
-    date: "Today",
-  },
-  {
-    id: "SPD-1039",
-    facility: "Memorial Regional",
-    instrument: "Forceps",
-    finding: "Discoloration",
-    risk: "Medium",
-    status: "Open",
-    date: "Yesterday",
-  },
-  {
-    id: "SPD-1037",
-    facility: "Southside",
-    instrument: "Tray liner",
-    finding: "Lint found during pack",
-    risk: "Low",
-    status: "Closed",
-    date: "2 days ago",
-  },
-];
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { apiFetch } from "@/lib/api";
 
-const workflowSteps = ["Capture", "Classify", "Review", "CAPA", "Close"];
+interface QueueItem {
+  inspection_id: number;
+  instrument_type: string;
+  facility_name: string | null;
+  workflow_state: string;
+  risk_tier: string;
+  minutes_waiting: number | null;
+}
+
+interface WorkQueue {
+  pending_inspections: QueueItem[];
+  high_risk_inspections: QueueItem[];
+  supervisor_reviews: QueueItem[];
+  repair_holds: QueueItem[];
+  total_pending: number;
+}
+
+const workflowSteps = ["Image Capture", "AI Analysis", "Supervisor Review", "Reclean / Repair", "Completed"];
 
 function riskStyle(risk: string): React.CSSProperties {
-  if (risk === "High") {
-    return { ...badge, background: "#7f1d1d", color: "#fecaca" };
-  }
-  if (risk === "Medium") {
-    return { ...badge, background: "#78350f", color: "#fde68a" };
-  }
+  if (risk === "Critical") return { ...badge, background: "#450a0a", color: "#fecaca" };
+  if (risk === "High Risk") return { ...badge, background: "#7f1d1d", color: "#fecaca" };
+  if (risk === "Moderate Risk") return { ...badge, background: "#78350f", color: "#fde68a" };
   return { ...badge, background: "#064e3b", color: "#a7f3d0" };
 }
 
 function statusStyle(status: string): React.CSSProperties {
-  if (status === "CAPA") {
-    return { ...badge, background: "#1e3a8a", color: "#bfdbfe" };
-  }
-  if (status === "Review") {
-    return { ...badge, background: "#4c1d95", color: "#ddd6fe" };
-  }
-  if (status === "Closed") {
-    return { ...badge, background: "#065f46", color: "#bbf7d0" };
-  }
+  if (status === "Repair") return { ...badge, background: "#1e3a8a", color: "#bfdbfe" };
+  if (status === "Supervisor Review") return { ...badge, background: "#4c1d95", color: "#ddd6fe" };
+  if (status === "Completed") return { ...badge, background: "#065f46", color: "#bbf7d0" };
   return { ...badge, background: "#374151", color: "#e5e7eb" };
 }
 
+function formatWait(minutes: number | null): string {
+  if (minutes == null) return "—";
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+
 export default function OperationsDashboard() {
+  const [queue, setQueue] = useState<WorkQueue | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<WorkQueue>("/api/inspection-work-queue")
+      .then((d) => { if (!cancelled) setQueue(d); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const recent = queue?.pending_inspections.slice(0, 8) ?? [];
+
   return (
     <main style={pageShell}>
       <section style={hero}>
-        <nav style={topNav} aria-label="Operations navigation">
-          <a href="/" style={navLink}>Public Landing</a>
-          <a href="/dashboard" style={navLink}>Dashboard</a>
-          <a href="/operations" style={activeNavLink}>Operations</a>
-        </nav>
-
         <div style={banner}>
-          Pilot mode: focused on inspection, findings, CAPA, and quality trend workflow.
+          Live SPD operations — real inspection, workflow-state, and risk data from the Smart Inspection Queue.
         </div>
 
         <div style={heroGrid}>
@@ -81,77 +67,95 @@ export default function OperationsDashboard() {
             <p style={eyebrow}>Daily SPD workflow</p>
             <h1 style={title}>LumenAI SPD Quality Operations</h1>
             <p style={subtitle}>
-              Daily inspection, findings, CAPA, and quality review workspace for sterile processing teams.
+              Daily inspection, review, and quality workspace for sterile processing teams.
             </p>
           </div>
 
           <div style={quickActions} aria-label="Quick actions">
-            <a href="/inspection/new" style={primaryAction}>New Inspection</a>
-            <a href="/findings" style={secondaryAction}>Findings Queue</a>
-            <a href="/capa" style={secondaryAction}>CAPA Queue</a>
-            <a href="/analytics" style={secondaryAction}>Analytics</a>
+            <Link to="/inspection/new" style={primaryAction}>New Inspection</Link>
+            <Link to="/inspection-work-queue" style={secondaryAction}>Smart Work Queue</Link>
+            <Link to="/findings" style={secondaryAction}>Findings Queue</Link>
+            <Link to="/operations-board" style={secondaryAction}>Operations Board</Link>
           </div>
         </div>
       </section>
 
-      <section style={kpiGrid} aria-label="Operations KPIs">
-        <KpiCard label="Open Findings" value="18" tone="#38bdf8" />
-        <KpiCard label="Open CAPAs" value="6" tone="#a78bfa" />
-        <KpiCard label="Pending Reviews" value="9" tone="#f59e0b" />
-        <KpiCard label="High-Risk Events" value="4" tone="#f87171" />
-      </section>
+      {error && (
+        <section style={{ ...panelLarge, marginBottom: 18, borderColor: "rgba(248, 113, 113, 0.4)" }}>
+          <p style={{ color: "#fca5a5", margin: 0 }}>Failed to load live operations data: {error}</p>
+        </section>
+      )}
 
-      <section style={contentGrid}>
-        <div style={panelLarge}>
-          <div style={panelHeader}>
-            <div>
-              <h2 style={panelTitle}>Recent Activity</h2>
-              <p style={panelHint}>Pilot-safe sample activity for daily review.</p>
-            </div>
-          </div>
+      {!error && queue === null && (
+        <section style={panelLarge}>
+          <p style={{ color: "#94a3b8", margin: 0 }}>Loading…</p>
+        </section>
+      )}
 
-          <div style={tableWrap}>
-            <table style={table}>
-              <thead>
-                <tr>
-                  <th style={th}>ID</th>
-                  <th style={th}>Facility</th>
-                  <th style={th}>Instrument</th>
-                  <th style={th}>Finding</th>
-                  <th style={th}>Risk</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activityRows.map((row) => (
-                  <tr key={row.id} style={tr}>
-                    <td style={tdStrong}>{row.id}</td>
-                    <td style={td}>{row.facility}</td>
-                    <td style={td}>{row.instrument}</td>
-                    <td style={td}>{row.finding}</td>
-                    <td style={td}><span style={riskStyle(row.risk)}>{row.risk}</span></td>
-                    <td style={td}><span style={statusStyle(row.status)}>{row.status}</span></td>
-                    <td style={tdMuted}>{row.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {queue && (
+        <>
+          <section style={kpiGrid} aria-label="Operations KPIs">
+            <KpiCard label="Pending Inspections" value={String(queue.total_pending)} tone="#38bdf8" />
+            <KpiCard label="Supervisor Reviews" value={String(queue.supervisor_reviews.length)} tone="#a78bfa" />
+            <KpiCard label="Repair Holds" value={String(queue.repair_holds.length)} tone="#f59e0b" />
+            <KpiCard label="High-Risk Inspections" value={String(queue.high_risk_inspections.length)} tone="#f87171" />
+          </section>
 
-        <aside style={panel}>
-          <h2 style={panelTitle}>Pilot Workflow</h2>
-          <div style={workflowList}>
-            {workflowSteps.map((step, index) => (
-              <div key={step} style={workflowStep}>
-                <span style={stepNumber}>{index + 1}</span>
-                <span>{step}</span>
+          <section style={contentGrid}>
+            <div style={panelLarge}>
+              <div style={panelHeader}>
+                <div>
+                  <h2 style={panelTitle}>Recent Activity</h2>
+                  <p style={panelHint}>Highest-priority pending inspections, live from the Smart Inspection Queue.</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </aside>
-      </section>
+
+              {recent.length === 0 ? (
+                <p style={{ color: "#94a3b8" }}>No pending inspections right now.</p>
+              ) : (
+                <div style={tableWrap}>
+                  <table style={table}>
+                    <thead>
+                      <tr>
+                        <th style={th}>ID</th>
+                        <th style={th}>Facility</th>
+                        <th style={th}>Instrument</th>
+                        <th style={th}>Risk</th>
+                        <th style={th}>Status</th>
+                        <th style={th}>Waiting</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recent.map((row) => (
+                        <tr key={row.inspection_id} style={tr}>
+                          <td style={tdStrong}>#{row.inspection_id}</td>
+                          <td style={td}>{row.facility_name ?? "—"}</td>
+                          <td style={td}>{row.instrument_type}</td>
+                          <td style={td}><span style={riskStyle(row.risk_tier)}>{row.risk_tier}</span></td>
+                          <td style={td}><span style={statusStyle(row.workflow_state)}>{row.workflow_state}</span></td>
+                          <td style={tdMuted}>{formatWait(row.minutes_waiting)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <aside style={panel}>
+              <h2 style={panelTitle}>Workflow States</h2>
+              <div style={workflowList}>
+                {workflowSteps.map((step, index) => (
+                  <div key={step} style={workflowStep}>
+                    <span style={stepNumber}>{index + 1}</span>
+                    <span>{step}</span>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </section>
+        </>
+      )}
     </main>
   );
 }
@@ -177,26 +181,6 @@ const pageShell: React.CSSProperties = {
 const hero: React.CSSProperties = {
   maxWidth: "1360px",
   margin: "0 auto 22px",
-};
-
-const topNav: React.CSSProperties = {
-  display: "flex",
-  gap: "12px",
-  flexWrap: "wrap",
-  marginBottom: "18px",
-};
-
-const navLink: React.CSSProperties = {
-  color: "#cbd5e1",
-  textDecoration: "none",
-  fontWeight: 700,
-  padding: "9px 12px",
-};
-
-const activeNavLink: React.CSSProperties = {
-  ...navLink,
-  color: "#ffffff",
-  borderBottom: "2px solid #38bdf8",
 };
 
 const banner: React.CSSProperties = {

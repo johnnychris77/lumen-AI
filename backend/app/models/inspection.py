@@ -77,3 +77,58 @@ class Inspection(Base):
     risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     recommended_action: Mapped[str | None] = mapped_column(String(500), nullable=True)
     overall_cleaning_assessment: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    # v1.4 — the technician who submitted the inspection (request actor at
+    # creation time), so the SPD Mentor Engine's competency service can
+    # attribute findings-reviewed/supervisor-corrections to a real person
+    # instead of fabricating attribution. Nullable/blank for older rows.
+    technician: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # v1.5 — Quality Intelligence. `disposition` is the one of
+    # PASS/MONITOR/SUPERVISOR REVIEW/REPROCESS/REMOVE FROM SERVICE computed at
+    # analysis time (clinical_decision.overall_result) — persisted so pass
+    # rate/reclean rate/remove-from-service rate can be reported later without
+    # re-deriving analysis. `coverage_pct`/`coverage_quality` are the
+    # Inspection Coverage Engine's result at submission time, persisted for
+    # the same reason (coverage compliance reporting). All nullable/blank for
+    # older rows or inspections with no image.
+    disposition: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    coverage_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    coverage_quality: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # v1.5 — the AI-computed analysis confidence (0-1), distinct from the
+    # pre-existing `confidence` column above (a client-supplied manual-entry
+    # field for the no-image path). Persisted so "AI Confidence Trend" can be
+    # reported without re-deriving analysis.
+    ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Zones the technician tagged as inspected (anatomy-aware coverage engine).
+    # JSON-encoded: "null" means not tagged (coverage not_assessed), "[...]" is
+    # an explicit (possibly empty) list — see app/services/inspection_coverage.py.
+    inspected_zones_json: Mapped[str] = mapped_column(String(2000), default="null", nullable=False)
+
+    # v1.2 — Guided Capture & Coverage Gate. coverage_status/coverage_score are
+    # a snapshot of compute_coverage() at creation time (so history/dashboards
+    # don't need to recompute it); coverage_gate_status governs whether the
+    # inspection can proceed to a final AI decision without a supervisor
+    # override, when org policy requires full coverage. NOTE: overlaps in
+    # purpose with v1.5's coverage_pct/coverage_quality above (independently
+    # added by a parallel phase) — a future cleanup should consolidate these;
+    # both are kept for now since each phase's dashboards already read from
+    # its own field.
+    coverage_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    coverage_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ready | draft | blocked_pending_override
+    coverage_gate_status: Mapped[str] = mapped_column(String(30), default="ready", nullable=False)
+    is_draft: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    coverage_override_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    coverage_override_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    coverage_override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # v1.7 — Workflow Intelligence. Real OR-urgency/loaner signal declared at
+    # intake time, used by the prioritization engine. Nullable/blank for older
+    # rows and for inspections where no procedure context was declared — never
+    # fabricated as "routine" when actually unknown.
+    # emergency | trauma | first_case | routine | None
+    procedure_priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_loaner_instrument: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

@@ -117,6 +117,19 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.instrument_knowledge")  # register instrument knowledge library
     importlib.import_module("app.models.model_registry")        # register P17 model registry table
     importlib.import_module("app.models.shadow_prediction")     # register P17 shadow-prediction table
+    importlib.import_module("app.models.competency_event")       # register v1.4 technician competency events
+    importlib.import_module("app.models.mentor_coaching_review") # register v1.4 supervisor coaching reviews
+    importlib.import_module("app.models.inspection_finding")      # register v1.5 per-finding detection log
+    importlib.import_module("app.models.root_cause")              # register v1.5 root-cause assignments
+    importlib.import_module("app.models.continuous_improvement")  # register v1.5 improvement tracker
+    importlib.import_module("app.models.clinical_decision_ledger")  # register P23 CIOS decision ledger table
+    importlib.import_module("app.models.cios_event")            # register P23 CIOS event bus table
+    importlib.import_module("app.models.inspection_image_tag")  # register v1.2 image-view tag table
+    importlib.import_module("app.models.disposition_override")   # register v1.6 supervisor disposition workspace
+    importlib.import_module("app.models.workflow")               # register v1.7 workflow intelligence tables
+    importlib.import_module("app.models.knowledge")               # register v1.8 institutional knowledge tables
+    importlib.import_module("app.models.pilot_config")             # register v1.9 pilot site config table
+    importlib.import_module("app.models.pilot_error_log")          # register v1.9 pilot error log table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -126,7 +139,7 @@ async def lifespan(_app: FastAPI):
         from app.db.column_migrator import ensure_columns
         from app.models.inspection import Inspection
         from app.models.supervisor_review import SupervisorReview
-        ensure_columns(engine, Inspection)
+        ensure_columns(engine, Inspection)  # includes v1.4's `technician` column
         ensure_columns(engine, SupervisorReview)
     except Exception as _mig_e:
         import logging
@@ -587,6 +600,9 @@ app.include_router(instrument_intelligence_router, prefix=settings.API_PREFIX)
 from app.routes.instrument_intelligence_admin import router as instrument_intelligence_admin_router
 app.include_router(instrument_intelligence_admin_router, prefix=settings.API_PREFIX)
 
+from app.routes.guided_capture import router as guided_capture_router
+app.include_router(guided_capture_router, prefix=settings.API_PREFIX)
+
 from app.routes.model_pipeline import router as model_pipeline_router
 app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)
 
@@ -598,6 +614,24 @@ app.include_router(agent_router, prefix=settings.API_PREFIX)
 app.include_router(stream_router, prefix=settings.API_PREFIX)
 
 app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
+
+from app.routes.spd_mentor import router as spd_mentor_router
+app.include_router(spd_mentor_router, prefix=settings.API_PREFIX)
+
+from app.routes.quality_dashboard import router as quality_dashboard_router
+app.include_router(quality_dashboard_router)
+
+from app.routes.clinical_readiness import router as clinical_readiness_router
+app.include_router(clinical_readiness_router)
+
+from app.routes.workflow import router as workflow_router
+app.include_router(workflow_router)
+
+from app.routes.knowledge import router as knowledge_router
+app.include_router(knowledge_router)
+
+from app.routes.pilot_deployment import router as pilot_deployment_router
+app.include_router(pilot_deployment_router)
 
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
@@ -940,6 +974,18 @@ from app.routes.p24_standards import router as p24_router
 app.include_router(p24_router)
 from app.routes.p25_infrastructure import router as p25_router
 app.include_router(p25_router)
+
+from app.routes.pre_sterilization_command_center import router as pre_sterilization_command_center_router
+app.include_router(pre_sterilization_command_center_router)
+
+from app.routes.knowledge_graph import router as knowledge_graph_router
+app.include_router(knowledge_graph_router)
+
+from app.routes.agents_pipeline import router as agents_pipeline_router
+app.include_router(agents_pipeline_router)
+
+from app.routes.cios import router as cios_router
+app.include_router(cios_router)
 
 from fastapi.openapi.utils import get_openapi
 

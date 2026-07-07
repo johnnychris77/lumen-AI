@@ -186,6 +186,20 @@ export async function apiFetch<T = unknown>(
     } catch {
       /* fall through with the generic message */
     }
+
+    // v1.9 — fire-and-forget role-permission-failure logging. Inlined
+    // (rather than importing errorLog.ts) to avoid a circular import, and
+    // skipped for the logging endpoint itself so a permission failure can
+    // never recurse into logging its own failure.
+    if (res.status === 403 && !path.includes("/api/pilot-deployment/error-log")) {
+      fetch(buildUrl("/api/pilot-deployment/error-log"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...Object.fromEntries(finalHeaders.entries()) },
+        credentials: "include",
+        body: JSON.stringify({ error_type: "role_permission_failure", detail: message.slice(0, 500) }),
+      }).catch(() => { /* logging must never surface a second error */ });
+    }
+
     throw new ApiError(res.status, message, parsed);
   }
 

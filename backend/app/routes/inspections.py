@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import re
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
@@ -82,6 +83,15 @@ _ALLOWED_BASELINE_SOURCES = {
 }
 
 
+class ImageViewTagIn(BaseModel):
+    """v1.2 — per-uploaded-image metadata (see app/models/inspection_image_tag.py)."""
+    instrument_family: str = Field("", max_length=100)
+    anatomy_zone: str = Field("", max_length=100)
+    image_view: str = Field("", max_length=100)
+    capture_quality: str = Field("acceptable", max_length=20)
+    notes: str = Field("", max_length=2000)
+
+
 class InspectionCreate(BaseModel):
     instrument_type: str = Field(..., description="Must be an approved instrument type")
     material_type: Optional[str] = Field(None, description="Must be an approved material type; optional when image present")
@@ -107,6 +117,25 @@ class InspectionCreate(BaseModel):
     inspected_zones: Optional[List[str]] = Field(None)
     # Technician-declared finding categories (optional — AI determines findings)
     finding_categories: Optional[List[str]] = Field(None)
+    # v1.4 — SPD Mentor Engine Training Mode: explain every finding, anatomy,
+    # recommendation, and terminology in the returned analysis.
+    training_mode: bool = Field(False)
+    # v1.2 — Guided Capture: per-image view tags and the save-as-draft escape
+    # hatch for incomplete coverage (see app/services/guided_capture.py).
+    image_view_tags: Optional[List[ImageViewTagIn]] = Field(None)
+    save_as_draft: bool = Field(False)
+    # v1.7 — Workflow Intelligence: real OR-urgency/loaner signal for the
+    # prioritization engine. Optional and unvalidated-to-empty (None) rather
+    # than defaulted to "routine" when not actually declared.
+    procedure_priority: Optional[str] = Field(None, max_length=20)
+    is_loaner_instrument: Optional[bool] = Field(None)
+
+    @field_validator("procedure_priority")
+    @classmethod
+    def validate_procedure_priority(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in {"emergency", "trauma", "first_case", "routine"}:
+            raise ValueError("procedure_priority must be one of emergency, trauma, first_case, routine")
+        return v
 
     @field_validator("instrument_type")
     @classmethod
@@ -277,6 +306,17 @@ def inspection_response(row: models.Inspection) -> dict:
         "risk_level": row.risk_level,
         "recommended_action": row.recommended_action,
         "overall_cleaning_assessment": row.overall_cleaning_assessment,
+        # v1.2 — Guided Capture coverage gate
+        "coverage_status": row.coverage_status,
+        "coverage_score": row.coverage_score,
+        "coverage_gate_status": row.coverage_gate_status,
+        "is_draft": row.is_draft,
+        "coverage_override_reason": row.coverage_override_reason,
+        "coverage_override_by": row.coverage_override_by,
+        "coverage_override_at": row.coverage_override_at.isoformat() if row.coverage_override_at else None,
+        # v1.7 — Workflow Intelligence
+        "procedure_priority": row.procedure_priority,
+        "is_loaner_instrument": row.is_loaner_instrument,
     }
 
 
@@ -373,6 +413,14 @@ async def create_inspection(
     risk_level_val: Optional[str] = None
     recommended_action_val: Optional[str] = None
     cleaning_assessment_val: Optional[str] = None
+    # v1.5 — Quality Intelligence: disposition + coverage, persisted for later
+    # reporting (pass/reclean/remove-from-service rates, coverage compliance).
+    disposition_val: Optional[str] = None
+    coverage_pct_val: Optional[int] = None
+    coverage_quality_val: Optional[str] = None
+    ai_confidence_val: Optional[float] = None
+
+    image_view_tags_dicts = [t.model_dump() for t in (body.image_view_tags or [])]
 
     if body.has_image:
         analysis = analyze_inspection(
@@ -387,12 +435,19 @@ async def create_inspection(
             keydot_id=body.keydot_id,
             decoder_backend=body.identifier_source or "declared",
             inspected_zones=body.inspected_zones,
+            training_mode=body.training_mode,
+            image_view_tags=image_view_tags_dicts,
         )
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
         risk_level_val = analysis.get("risk_level")
         recommended_action_val = analysis.get("recommended_action")
         cleaning_assessment_val = analysis.get("overall_cleaning_assessment")
+        disposition_val = analysis.get("clinical_decision", {}).get("overall_result")
+        coverage = analysis.get("inspection_coverage") or {}
+        coverage_pct_val = coverage.get("overall_coverage")
+        coverage_quality_val = coverage.get("quality")
+        ai_confidence_val = analysis.get("confidence")
         if analysis["analysis_status"] == "completed":
             baseline_status = "approved_baseline_found"
             baseline_source_val = analysis["baseline_source"]
@@ -409,6 +464,22 @@ async def create_inspection(
         baseline_status = "not_applicable"
         risk_score_val = calculate_risk(detected_issue, conf_val)
         score_status = "scored"
+
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
+
+    # v1.2 — Guided Capture coverage gate. Computed regardless of has_image so
+    # a no-image manual entry still gets an honest "not_assessed" snapshot.
+    from app.config import get_settings
+    from app.services.guided_capture import coverage_readiness
+
+    readiness = coverage_readiness(
+        body.instrument_type,
+        body.inspected_zones,
+        require_full_coverage=get_settings().require_full_coverage_before_final_decision,
+        override_applied=False,
+    )
+    coverage_gate_status = readiness["gate_status"]
+    is_draft_val = body.save_as_draft or coverage_gate_status == "blocked_pending_override"
 
     row = models.Inspection(
         file_name=body.file_name or "manual-entry",
@@ -439,12 +510,98 @@ async def create_inspection(
         risk_level=risk_level_val,
         recommended_action=recommended_action_val,
         overall_cleaning_assessment=cleaning_assessment_val,
+        technician=actor,
+        disposition=disposition_val,
+        coverage_pct=coverage_pct_val,
+        coverage_quality=coverage_quality_val,
+        ai_confidence=ai_confidence_val,
+        inspected_zones_json=json.dumps(body.inspected_zones),
+        coverage_status=readiness["coverage_status"],
+        coverage_score=readiness["coverage_score"],
+        coverage_gate_status=coverage_gate_status,
+        is_draft=is_draft_val,
+        procedure_priority=body.procedure_priority,
+        is_loaner_instrument=body.is_loaner_instrument,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
 
-    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
+    # v1.5 — Quality Intelligence: log each actionable finding (severity >= 1)
+    # for real trend/anatomy-risk/instrument-family aggregation. Only findings
+    # from a completed analysis are real detections — nothing logged for
+    # no-baseline/manual-entry inspections.
+    if analysis is not None and analysis.get("analysis_status") == "completed":
+        from app.models.inspection_finding import InspectionFinding
+
+        for f in analysis.get("predicted_findings", []):
+            if f.get("severity_index", 0) >= 1:
+                db.add(InspectionFinding(
+                    inspection_id=row.id,
+                    tenant_id=tenant_id,
+                    instrument_type=body.instrument_type,
+                    finding_type=f["type"],
+                    zone=f.get("instrument_zone", ""),
+                    severity_index=f["severity_index"],
+                ))
+        db.commit()
+
+    if image_view_tags_dicts:
+        from app.models.inspection_image_tag import InspectionImageTag
+
+        for tag in image_view_tags_dicts:
+            db.add(InspectionImageTag(
+                tenant_id=tenant_id,
+                inspection_id=row.id,
+                instrument_family=tag.get("instrument_family", ""),
+                anatomy_zone=tag.get("anatomy_zone", ""),
+                image_view=tag.get("image_view", ""),
+                capture_quality=tag.get("capture_quality", "acceptable"),
+                notes=tag.get("notes", ""),
+            ))
+        db.commit()
+
+    # v1.7 — Workflow Intelligence: audit the real transitions this request
+    # just performed (image capture + AI analysis happen synchronously in
+    # this same call), then advance into Supervisor Review if the
+    # disposition engine says a human must weigh in before proceeding.
+    from app.services import workflow_state_service
+    from app.services.disposition_engine import SUPERVISOR_REVIEW_REQUIRED, recommend_disposition
+    from app.services.readiness_engine import compute_readiness, get_primary_finding_type
+
+    if body.has_image:
+        workflow_state_service.record_capture_and_analysis(db, insp=row, tenant_id=tenant_id, actor=actor)
+        db.commit()
+
+    workflow_readiness = compute_readiness(db, tenant_id, row, confirmed=False)
+    workflow_disposition = recommend_disposition(
+        workflow_readiness, row, coverage_pct=row.coverage_pct,
+        primary_finding_type=get_primary_finding_type(db, row),
+    )
+    if workflow_disposition["disposition"] == SUPERVISOR_REVIEW_REQUIRED:
+        workflow_state_service.enter_supervisor_review(
+            db, insp=row, tenant_id=tenant_id, actor="system", reason=workflow_disposition["explanation"],
+        )
+        db.commit()
+
+    # v1.8 — Clinical Case Library: automatically preserve significant
+    # inspections (a critical finding on the readiness engine's own
+    # classification) as a reusable case for future similar-case lookups.
+    from app.services.clinical_case_library_service import is_significant, save_or_update_case
+    from app.services.risk_stratification_service import stratify_risk
+
+    workflow_primary_finding = get_primary_finding_type(db, row)
+    workflow_risk = stratify_risk(row, primary_finding_type=workflow_primary_finding)
+    if is_significant(
+        risk_tier=workflow_risk["risk_tier"], is_critical_finding=workflow_readiness.get("is_critical_finding", False),
+        has_override=False, finding_type=workflow_primary_finding,
+    ):
+        save_or_update_case(
+            db, tenant_id, row, finding_type=workflow_primary_finding,
+            final_disposition=workflow_disposition["disposition"], clinical_reasoning=workflow_disposition["explanation"],
+        )
+        db.commit()
+
     log_audit_event(
         db,
         tenant_id=tenant_id,
@@ -460,6 +617,19 @@ async def create_inspection(
     if analysis is not None:
         # Attach the full explainable AI analysis output (placeholder scoring).
         response["analysis"] = analysis
+    response["coverage_readiness"] = readiness
+
+    # v1.9 — Data Quality Guardrails: surface clear, actionable gaps
+    # (missing instrument/image/anatomy zone, poor image quality, missing
+    # baseline, incomplete coverage, missing technician identity) against
+    # the pilot site's own configured thresholds.
+    from app.services.data_quality_guardrails_service import evaluate_data_quality
+    from app.services.pilot_site_config_service import get_or_create_config
+
+    pilot_config = get_or_create_config(db, tenant_id)
+    db.commit()
+    response["data_quality"] = evaluate_data_quality(row, pilot_config=pilot_config)
+
     return response
 
 

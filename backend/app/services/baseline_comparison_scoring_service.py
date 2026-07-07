@@ -851,10 +851,11 @@ def executive_summary(result: dict, overall_result: str) -> list[str]:
     return [ln for ln in lines if ln]
 
 
-def build_clinical_decision(result: dict) -> dict:
+def build_clinical_decision(result: dict, training_mode: bool = False) -> dict:
     """Assemble the full Explainable-AI Clinical Decision Support payload
     (Phases 13.1–13.11) from an already-computed analysis result."""
     from app.services.clinical_mentor import build_mentor  # lazy: avoid cycle
+    from app.services.spd_mentor_engine import build_spd_mentor  # lazy: avoid cycle
 
     findings = {x["type"]: x for x in result.get("predicted_findings", [])}
     overall = _overall_result(result)
@@ -951,6 +952,9 @@ def build_clinical_decision(result: dict) -> dict:
         # Phase 14 — Clinical Mentor: interpretation, why-this-matters, expanded
         # actions, standards guidance, learning mode, risk separation, mentor.
         **build_mentor(result, overall),
+        # v1.4 — SPD Mentor Engine: corrective action chains, anatomy coaching,
+        # confidence coaching, clinical decision summary, education cards.
+        "spd_mentor": build_spd_mentor(result, overall, training_mode=training_mode),
     }
 
 
@@ -967,6 +971,8 @@ def analyze_inspection(
     keydot_id: Optional[str] = None,
     decoder_backend: str = "declared",
     inspected_zones: Optional[list[str]] = None,
+    training_mode: bool = False,
+    image_view_tags: Optional[list[dict]] = None,
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -984,8 +990,12 @@ def analyze_inspection(
 
     # ── Governance gate: no approved baseline → no final score ──────────────
     if not resolution["baseline_found"]:
+        from app.services.instrument_anatomy import get_anatomy
+
         no_baseline = {
             "analysis_status": "supervisor_review_required",
+            "instrument_type": instrument_type,
+            "instrument_anatomy": get_anatomy(instrument_type),
             "baseline_source": None,
             "baseline_version": None,
             "baseline_comparison_label": None,
@@ -1015,7 +1025,7 @@ def analyze_inspection(
             "human_review_required": True,
             "placeholder_scoring": True,
         }
-        no_baseline["clinical_decision"] = build_clinical_decision(no_baseline)
+        no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
 
     seed = _seed_from(image_sha256, f"{instrument_type}:{instrument_barcode or ''}")
@@ -1308,6 +1318,7 @@ def analyze_inspection(
 
     result = {
         "analysis_status": "completed",
+        "instrument_type": instrument_type,
         "baseline_source": source,
         "baseline_role": _baseline_role(source),
         "baseline_comparison_label": _baseline_comparison_label(source),
@@ -1339,6 +1350,9 @@ def analyze_inspection(
         "inspection_coverage": coverage,
         "missing_image_guidance": guidance,
         "risk_map": risk_map,
+        # v1.2 — per-image view tags (family/zone/view/quality/notes), passed
+        # straight through so the AI context reflects exactly what was tagged.
+        "image_view_tags": image_view_tags or [],
         "reason": reason,
         "critical_flags": critical_flags,
         "score_adjustments": score_adjustments,
@@ -1350,5 +1364,5 @@ def analyze_inspection(
         "production_validated": False,
     }
     # Phase 13: Explainable Clinical Decision Support payload.
-    result["clinical_decision"] = build_clinical_decision(result)
+    result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)
     return result

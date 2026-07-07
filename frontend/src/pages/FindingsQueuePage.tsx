@@ -1,216 +1,145 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { apiFetch } from "@/lib/api";
 
-const sampleFindings = [
-  {
-    id: "F-1007",
-    facility: "ORC",
-    department: "Prep and Pack",
-    tray: "Orthopedic major set",
-    instrument: "Bone cutter",
-    vendor: "Acme Surgical",
-    findingType: "Rust",
-    riskLevel: "High",
-    status: "New",
-    date: "Today",
-  },
-  {
-    id: "F-1006",
-    facility: "St. Francis",
-    department: "Decontamination",
-    tray: "Laparoscopic set",
-    instrument: "Laparoscopic grasper",
-    vendor: "Northline Medical",
-    findingType: "Blood",
-    riskLevel: "Critical",
-    status: "Under Review",
-    date: "Today",
-  },
-  {
-    id: "F-1005",
-    facility: "St. Mary’s",
-    department: "Prep and Pack",
-    tray: "Spine tray",
-    instrument: "Kerrison rongeur",
-    vendor: "SterilePro",
-    findingType: "Bone fragment",
-    riskLevel: "Critical",
-    status: "CAPA Needed",
-    date: "Yesterday",
-  },
-  {
-    id: "F-1004",
-    facility: "Memorial Regional",
-    department: "Sterilization",
-    tray: "Minor procedure set",
-    instrument: "Forceps",
-    vendor: "Acme Surgical",
-    findingType: "Discoloration",
-    riskLevel: "Medium",
-    status: "New",
-    date: "Yesterday",
-  },
-  {
-    id: "F-1003",
-    facility: "Southside",
-    department: "Sterile Storage",
-    tray: "General tray",
-    instrument: "Tray liner",
-    vendor: "Regional Supply",
-    findingType: "Lint",
-    riskLevel: "Low",
-    status: "Closed",
-    date: "2 days ago",
-  },
-  {
-    id: "F-1002",
-    facility: "Rappahannock General",
-    department: "Prep and Pack",
-    tray: "Vascular tray",
-    instrument: "Tray basin",
-    vendor: "Northline Medical",
-    findingType: "Plastic/metal fragment",
-    riskLevel: "High",
-    status: "CAPA Needed",
-    date: "2 days ago",
-  },
-  {
-    id: "F-1001",
-    facility: "ORC",
-    department: "Decontamination",
-    tray: "ENT set",
-    instrument: "Suction tip",
-    vendor: "SterilePro",
-    findingType: "Tissue",
-    riskLevel: "High",
-    status: "Under Review",
-    date: "3 days ago",
-  },
-  {
-    id: "F-1000",
-    facility: "Memorial Regional",
-    department: "OR",
-    tray: "General backup set",
-    instrument: "Clamp",
-    vendor: "Regional Supply",
-    findingType: "Other",
-    riskLevel: "Medium",
-    status: "New",
-    date: "3 days ago",
-  },
-];
+interface QueueItem {
+  inspection_id: number;
+  instrument_type: string;
+  facility_name: string | null;
+  workflow_state: string;
+  risk_tier: string;
+  disposition: string;
+  minutes_waiting: number | null;
+  assigned_technician: string | null;
+}
 
-type Finding = typeof sampleFindings[number];
+interface WorkQueue {
+  pending_inspections: QueueItem[];
+}
 
 function riskStyle(risk: string): React.CSSProperties {
   if (risk === "Critical") return { ...badge, background: "#450a0a", color: "#fecaca" };
-  if (risk === "High") return { ...badge, background: "#7f1d1d", color: "#fecaca" };
-  if (risk === "Medium") return { ...badge, background: "#78350f", color: "#fde68a" };
+  if (risk === "High Risk") return { ...badge, background: "#7f1d1d", color: "#fecaca" };
+  if (risk === "Moderate Risk") return { ...badge, background: "#78350f", color: "#fde68a" };
   return { ...badge, background: "#064e3b", color: "#a7f3d0" };
 }
 
 function statusStyle(status: string): React.CSSProperties {
-  if (status === "CAPA Needed") return { ...badge, background: "#1e3a8a", color: "#bfdbfe" };
-  if (status === "Under Review") return { ...badge, background: "#4c1d95", color: "#ddd6fe" };
-  if (status === "Closed") return { ...badge, background: "#065f46", color: "#bbf7d0" };
+  if (status === "Repair") return { ...badge, background: "#1e3a8a", color: "#bfdbfe" };
+  if (status === "Supervisor Review") return { ...badge, background: "#4c1d95", color: "#ddd6fe" };
+  if (status === "Completed") return { ...badge, background: "#065f46", color: "#bbf7d0" };
   return { ...badge, background: "#374151", color: "#e5e7eb" };
 }
 
+function formatWait(minutes: number | null): string {
+  if (minutes == null) return "—";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
 export default function FindingsQueuePage() {
-  const [findings, setFindings] = useState<Finding[]>(sampleFindings);
-  const [notice, setNotice] = useState("");
+  const [items, setItems] = useState<QueueItem[] | null>(null);
+  const [error, setError] = useState("");
 
-  const summary = useMemo(() => {
-    return {
-      total: findings.length,
-      highCritical: findings.filter((finding) => ["High", "Critical"].includes(finding.riskLevel)).length,
-      capaNeeded: findings.filter((finding) => finding.status === "CAPA Needed").length,
-      closed: findings.filter((finding) => finding.status === "Closed").length,
-    };
-  }, [findings]);
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<WorkQueue>("/api/inspection-work-queue")
+      .then((d) => { if (!cancelled) setItems(d.pending_inspections); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
+  }, []);
 
-  function updateStatus(id: string, status: string, action: string) {
-    setFindings((current) =>
-      current.map((finding) => finding.id === id ? { ...finding, status } : finding)
-    );
-    setNotice(`${action} saved in pilot mode for finding ${id}.`);
-  }
+  const summary = items
+    ? {
+        total: items.length,
+        highCritical: items.filter((i) => ["High Risk", "Critical"].includes(i.risk_tier)).length,
+        repairPending: items.filter((i) => i.workflow_state === "Repair").length,
+        supervisorReview: items.filter((i) => i.workflow_state === "Supervisor Review").length,
+      }
+    : null;
 
   return (
     <main style={pageShell}>
       <section style={hero}>
-        <nav style={topNav} aria-label="Findings navigation">
-          <a href="/operations" style={navLink}>Operations Dashboard</a>
-          <a href="/inspection/new" style={navLink}>New Inspection</a>
-          <a href="/capa" style={navLink}>CAPA Queue</a>
-          <a href="/analytics" style={navLink}>Analytics</a>
-          <a href="/" style={navLink}>Public Landing</a>
-        </nav>
-
         <p style={eyebrow}>Daily review queue</p>
         <h1 style={title}>Findings Queue</h1>
-        <p style={subtitle}>Review, prioritize, and route SPD quality findings for action.</p>
+        <p style={subtitle}>Real, live inspections awaiting review or action — backed by the Smart Inspection Queue.</p>
       </section>
 
-      <section style={summaryGrid} aria-label="Findings summary">
-        <SummaryCard label="Total Findings" value={summary.total} tone="#38bdf8" />
-        <SummaryCard label="High/Critical Findings" value={summary.highCritical} tone="#f87171" />
-        <SummaryCard label="CAPA Needed" value={summary.capaNeeded} tone="#a78bfa" />
-        <SummaryCard label="Closed Findings" value={summary.closed} tone="#34d399" />
-      </section>
+      {error && (
+        <section style={{ ...panel, marginBottom: 18, borderColor: "rgba(248, 113, 113, 0.4)" }}>
+          <p style={{ color: "#fca5a5", margin: 0 }}>Failed to load the findings queue: {error}</p>
+        </section>
+      )}
 
-      <section style={panel}>
-        <div style={panelHeader}>
-          <div>
-            <h2 style={panelTitle}>Review Worklist</h2>
-            <p style={panelHint}>Pilot sample findings for daily SPD review and routing.</p>
+      {!error && items === null && (
+        <section style={panel}>
+          <p style={{ color: "#94a3b8", margin: 0 }}>Loading…</p>
+        </section>
+      )}
+
+      {summary && (
+        <section style={summaryGrid} aria-label="Findings summary">
+          <SummaryCard label="Total Pending" value={summary.total} tone="#38bdf8" />
+          <SummaryCard label="High/Critical Risk" value={summary.highCritical} tone="#f87171" />
+          <SummaryCard label="Awaiting Supervisor Review" value={summary.supervisorReview} tone="#a78bfa" />
+          <SummaryCard label="Repair Pending" value={summary.repairPending} tone="#f59e0b" />
+        </section>
+      )}
+
+      {items && (
+        <section style={panel}>
+          <div style={panelHeader}>
+            <div>
+              <h2 style={panelTitle}>Review Worklist</h2>
+              <p style={panelHint}>
+                Live pending inspections, ranked by priority.{" "}
+                <Link to="/inspection-work-queue" style={{ color: "#67e8f9" }}>Open the full Smart Inspection Queue →</Link>
+              </p>
+            </div>
           </div>
-        </div>
 
-        {notice ? <div style={noticeBox}>{notice}</div> : null}
-
-        <div style={tableWrap}>
-          <table style={table}>
-            <thead>
-              <tr>
-                <th style={th}>ID</th>
-                <th style={th}>Facility</th>
-                <th style={th}>Department</th>
-                <th style={th}>Tray</th>
-                <th style={th}>Instrument</th>
-                <th style={th}>Vendor</th>
-                <th style={th}>Finding Type</th>
-                <th style={th}>Risk Level</th>
-                <th style={th}>Status</th>
-                <th style={th}>Date</th>
-                <th style={th}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {findings.map((finding) => (
-                <tr key={finding.id} style={tr}>
-                  <td style={tdStrong}>{finding.id}</td>
-                  <td style={td}>{finding.facility}</td>
-                  <td style={td}>{finding.department}</td>
-                  <td style={td}>{finding.tray}</td>
-                  <td style={td}>{finding.instrument}</td>
-                  <td style={td}>{finding.vendor}</td>
-                  <td style={td}>{finding.findingType}</td>
-                  <td style={td}><span style={riskStyle(finding.riskLevel)}>{finding.riskLevel}</span></td>
-                  <td style={td}><span style={statusStyle(finding.status)}>{finding.status}</span></td>
-                  <td style={tdMuted}>{finding.date}</td>
-                  <td style={td}>
-                    <div style={actionGroup}>
-                      <button type="button" style={smallButton} onClick={() => updateStatus(finding.id, "Under Review", "Review")}>Review</button>
-                      <button type="button" style={smallButton} onClick={() => updateStatus(finding.id, "CAPA Needed", "Create CAPA")}>Create CAPA</button>
-                      <button type="button" style={smallButton} onClick={() => updateStatus(finding.id, "Closed", "Close")}>Close</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          {items.length === 0 ? (
+            <p style={{ color: "#94a3b8" }}>No inspections are currently pending review.</p>
+          ) : (
+            <div style={tableWrap}>
+              <table style={table}>
+                <thead>
+                  <tr>
+                    <th style={th}>Inspection</th>
+                    <th style={th}>Facility</th>
+                    <th style={th}>Instrument</th>
+                    <th style={th}>Risk</th>
+                    <th style={th}>Status</th>
+                    <th style={th}>Disposition</th>
+                    <th style={th}>Waiting</th>
+                    <th style={th}>Assigned</th>
+                    <th style={th}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.inspection_id} style={tr}>
+                      <td style={tdStrong}>#{item.inspection_id}</td>
+                      <td style={td}>{item.facility_name ?? "—"}</td>
+                      <td style={td}>{item.instrument_type}</td>
+                      <td style={td}><span style={riskStyle(item.risk_tier)}>{item.risk_tier}</span></td>
+                      <td style={td}><span style={statusStyle(item.workflow_state)}>{item.workflow_state}</span></td>
+                      <td style={td}>{item.disposition}</td>
+                      <td style={tdMuted}>{formatWait(item.minutes_waiting)}</td>
+                      <td style={td}>{item.assigned_technician ?? "Unassigned"}</td>
+                      <td style={td}>
+                        <Link to="/inspection-work-queue" style={smallButtonLink}>Review →</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </main>
   );
 }
@@ -236,23 +165,6 @@ const pageShell: React.CSSProperties = {
 const hero: React.CSSProperties = {
   maxWidth: "1360px",
   margin: "0 auto 22px",
-};
-
-const topNav: React.CSSProperties = {
-  display: "flex",
-  gap: "12px",
-  flexWrap: "wrap",
-  marginBottom: "22px",
-};
-
-const navLink: React.CSSProperties = {
-  color: "#cbd5e1",
-  textDecoration: "none",
-  fontWeight: 800,
-  padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid rgba(148, 163, 184, 0.24)",
-  background: "rgba(15, 23, 42, 0.72)",
 };
 
 const eyebrow: React.CSSProperties = {
@@ -345,16 +257,6 @@ const panelHint: React.CSSProperties = {
   fontSize: "14px",
 };
 
-const noticeBox: React.CSSProperties = {
-  marginBottom: "14px",
-  padding: "12px 14px",
-  borderRadius: "8px",
-  border: "1px solid rgba(56, 189, 248, 0.36)",
-  background: "rgba(14, 116, 144, 0.18)",
-  color: "#cffafe",
-  fontWeight: 700,
-};
-
 const tableWrap: React.CSSProperties = {
   overflowX: "auto",
 };
@@ -404,13 +306,7 @@ const badge: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const actionGroup: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "8px",
-};
-
-const smallButton: React.CSSProperties = {
+const smallButtonLink: React.CSSProperties = {
   border: "1px solid rgba(148, 163, 184, 0.32)",
   borderRadius: "8px",
   background: "rgba(30, 41, 59, 0.84)",
@@ -418,4 +314,6 @@ const smallButton: React.CSSProperties = {
   cursor: "pointer",
   fontWeight: 800,
   padding: "8px 10px",
+  textDecoration: "none",
+  display: "inline-block",
 };

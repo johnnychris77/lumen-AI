@@ -3,10 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import ClinicalDecisionPanel from "@/components/ClinicalDecisionPanel";
 import InstrumentIntelligencePanel, { InstrumentIntel } from "@/components/InstrumentIntelligencePanel";
+import GuidedCapturePanel from "@/components/GuidedCapturePanel";
+import CoverageOverridePanel from "@/components/CoverageOverridePanel";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import { apiFetch } from "@/lib/api";
+import { logPilotError } from "@/lib/errorLog";
 
 // ─── types ─────────────────────────────────────────────────────────────────── v2
 
@@ -35,6 +38,13 @@ type FormFields = {
 };
 
 type FieldErrors = Partial<Record<keyof FormFields | "images", string>>;
+
+// v1.2 — Image View Tagging (one tag per uploaded image).
+type ImageTag = { anatomy_zone: string; image_view: string; capture_quality: string; notes: string };
+const DEFAULT_IMAGE_TAG: ImageTag = { anatomy_zone: "", image_view: "", capture_quality: "acceptable", notes: "" };
+function imageFileKey(f: File): string {
+  return `${f.name}__${f.size}`;
+}
 
 type PredictedFinding = {
   type: string;
@@ -125,6 +135,9 @@ type AIPrediction = {
   confidence: number;
   instrument_type: string;
   analysis: Analysis | null;
+  // v1.2 — Guided Capture coverage gate
+  coverage_gate_status?: "ready" | "draft" | "blocked_pending_override";
+  is_draft?: boolean;
 };
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -250,6 +263,10 @@ export default function NewInspectionPage() {
     return () => { cancelled = true; clearTimeout(t); };
   }, [form.instrument_type, headers]);
   const [borescopeImages, setBorescopeImages] = useState<File[]>([]);
+  // v1.2 — per-image view tags, keyed by "name__size" so tags survive re-renders
+  // without depending on array index (which shifts when a file is removed).
+  const [imageTags, setImageTags] = useState<Record<string, ImageTag>>({});
+  const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [prediction, setPrediction] = useState<AIPrediction | null>(null);
@@ -345,6 +362,12 @@ export default function NewInspectionPage() {
 
   function removeImage(index: number, setter: React.Dispatch<React.SetStateAction<File[]>>) {
     setter((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // v1.2 — Image View Tagging
+  function updateImageTag(f: File, patch: Partial<ImageTag>) {
+    const key = imageFileKey(f);
+    setImageTags((prev) => ({ ...prev, [key]: { ...DEFAULT_IMAGE_TAG, ...prev[key], ...patch } }));
   }
 
   // ── validation ─────────────────────────────────────────────────────────────
@@ -455,6 +478,18 @@ export default function NewInspectionPage() {
         file_name: allImages[0]?.name || "inspection_image",
         has_image: true,
         image_sha256: imageSha256,
+        // v1.2 — Image View Tagging + AI Analysis Gate escape hatch
+        image_view_tags: allImages.map((f) => {
+          const t = imageTags[imageFileKey(f)] ?? DEFAULT_IMAGE_TAG;
+          return {
+            instrument_family: form.instrument_type,
+            anatomy_zone: t.anatomy_zone,
+            image_view: t.image_view || t.anatomy_zone,
+            capture_quality: t.capture_quality,
+            notes: t.notes,
+          };
+        }),
+        save_as_draft: saveAsDraft,
         // Risk level is AI-determined — never required from technician
         risk_level: "pending_ai_analysis",
         // Finding categories submitted as-is (empty [] is valid — AI will determine)
@@ -528,10 +563,12 @@ export default function NewInspectionPage() {
       scrollToResult();
     } catch (err) {
       // Never fail silently — surface the error so the user knows what happened.
+      const detail = err instanceof Error ? err.message : "network error";
       setBanner({
         type: "error",
-        message: `Could not complete AI analysis: ${err instanceof Error ? err.message : "network error"}. Please try again.`,
+        message: `Could not complete AI analysis: ${detail}. Please try again.`,
       });
+      logPilotError(allImages.length > 0 ? "upload_failure" : "ai_analysis_failure", detail);
       scrollToResult();
     } finally {
       setSubmitting(false);
@@ -916,6 +953,80 @@ export default function NewInspectionPage() {
                 <p className="mt-1 text-xs text-slate-400">Drives the Inspection Coverage score and missing-image guidance.</p>
               </div>
             )}
+
+            {/* v1.2 — Guided Capture Panel: current zone to capture + coverage/gate */}
+            {form.instrument_type.trim() && (
+              <div className="mt-3">
+                <GuidedCapturePanel instrumentType={form.instrument_type} capturedZones={inspectedZones} />
+              </div>
+            )}
+
+            {/* v1.2 — Image View Tagging: per-uploaded-image metadata */}
+            {(inspectionImages.length > 0 || borescopeImages.length > 0) && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Tag captured images <span className="text-slate-400 font-normal">(zone, view, quality, notes per image)</span>
+                </label>
+                <div className="mt-2 space-y-2">
+                  {[...inspectionImages, ...borescopeImages].map((f) => {
+                    const key = imageFileKey(f);
+                    const tag = imageTags[key] ?? DEFAULT_IMAGE_TAG;
+                    return (
+                      <div key={key} className="rounded-lg border border-slate-200 p-3 grid grid-cols-1 sm:grid-cols-4 gap-2 text-sm">
+                        <div className="sm:col-span-4 text-xs font-medium text-slate-600 truncate">{f.name}</div>
+                        <select
+                          value={tag.anatomy_zone}
+                          disabled={!canRunInspection}
+                          onChange={(e) => updateImageTag(f, { anatomy_zone: e.target.value })}
+                          className="rounded border border-slate-300 px-2 py-1"
+                        >
+                          <option value="">Zone…</option>
+                          {anatomyZones.map((z) => <option key={z} value={z}>{z}</option>)}
+                        </select>
+                        <select
+                          value={tag.image_view}
+                          disabled={!canRunInspection}
+                          onChange={(e) => updateImageTag(f, { image_view: e.target.value })}
+                          className="rounded border border-slate-300 px-2 py-1"
+                        >
+                          <option value="">Image view (defaults to zone)…</option>
+                          {anatomyZones.map((z) => <option key={z} value={z}>{z}</option>)}
+                        </select>
+                        <select
+                          value={tag.capture_quality}
+                          disabled={!canRunInspection}
+                          onChange={(e) => updateImageTag(f, { capture_quality: e.target.value })}
+                          className="rounded border border-slate-300 px-2 py-1"
+                        >
+                          <option value="good">Good</option>
+                          <option value="acceptable">Acceptable</option>
+                          <option value="poor">Poor</option>
+                          <option value="unusable">Unusable</option>
+                        </select>
+                        <input
+                          value={tag.notes}
+                          disabled={!canRunInspection}
+                          onChange={(e) => updateImageTag(f, { notes: e.target.value })}
+                          placeholder="Notes (optional)"
+                          className="rounded border border-slate-300 px-2 py-1"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* v1.2 — AI Analysis Gate escape hatch */}
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveAsDraft}
+                disabled={!canRunInspection}
+                onChange={(e) => setSaveAsDraft(e.target.checked)}
+              />
+              Save as draft (coverage is incomplete — proceed without a final decision for now)
+            </label>
           </FormSection>
 
           {/* Section 5 — Manual Observations (always optional) */}
@@ -1077,7 +1188,11 @@ function AIPredictionPanel({
 
         {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
         {prediction.analysis?.clinical_decision && (
-          <ClinicalDecisionPanel cd={prediction.analysis.clinical_decision} inspectionId={prediction.id} />
+          <ClinicalDecisionPanel
+            cd={prediction.analysis.clinical_decision}
+            inspectionId={prediction.id}
+            rawResult={prediction.analysis}
+          />
         )}
 
         {/* Phase 15 — Instrument Intelligence: coverage, risk map, guidance */}
@@ -1101,6 +1216,11 @@ function AIPredictionPanel({
           Human review required. All AI findings represent potential associations only — qualified clinician review is mandatory before any clinical action.
         </p>
       </div>
+
+      {/* v1.2 — Coverage Override Panel (gated final decision due to incomplete coverage) */}
+      {prediction.coverage_gate_status === "blocked_pending_override" && (
+        <CoverageOverridePanel inspectionId={Number(prediction.id)} />
+      )}
 
       {/* Supervisor Override Panel */}
       {isSupervisorRequired && (

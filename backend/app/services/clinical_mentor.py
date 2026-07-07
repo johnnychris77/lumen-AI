@@ -51,7 +51,7 @@ FINDING_EDUCATION: dict[str, dict] = {
         ),
         "definition": "Non-specific biological soil not otherwise classified.",
         "typical_causes": "Biofilm, dried bioburden, or detergent residue.",
-        "clinical_significance": "Any retained organic soil reduces sterilization assurance.",
+        "clinical_significance": "Any retained organic soil compromises pre-sterilization cleaning assurance.",
         "spd_response": "Return for complete cleaning; consider biofilm-directed protocols.",
         "supervisor_tips": "Biofilm may require extended contact time or ultrasonic cleaning.",
     },
@@ -153,6 +153,17 @@ FINDING_EDUCATION: dict[str, dict] = {
         "clinical_significance": "Incomplete instruments are a functional and retained-item risk.",
         "spd_response": "Remove from service; complete assembly or replace.",
         "supervisor_tips": "Verify against the tray content list and instrument photo.",
+    },
+    "wear": {
+        "why_it_matters": (
+            "Wear is a gradual loss of material or sharpness that can reduce instrument "
+            "performance and, if progressive, lead to functional failure."
+        ),
+        "definition": "Gradual surface or edge degradation from repeated use and reprocessing cycles.",
+        "typical_causes": "Normal use over the instrument's service life, repeated sterilization cycles, or mechanical stress.",
+        "clinical_significance": "Worn cutting edges or jaw inserts can compromise instrument function even without contamination.",
+        "spd_response": "Monitor minor wear; evaluate for repair or retirement if function is affected.",
+        "supervisor_tips": "Compare against the instrument's inspection history to judge whether wear is progressive.",
     },
 }
 

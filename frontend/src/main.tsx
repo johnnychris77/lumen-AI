@@ -65,6 +65,10 @@ const FindingsQueuePage = lazy(() => import("./pages/FindingsQueuePage"));
 const CapaQueuePage = lazy(() => import("./pages/CapaQueuePage"));
 const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage"));
 const PilotAnalyticsDashboard = lazy(() => import("./pages/PilotAnalyticsDashboard"));
+const PreSterilizationCommandCenter = lazy(() => import("./pages/PreSterilizationCommandCenter"));
+const KnowledgeGraphExplorer = lazy(() => import("./pages/KnowledgeGraphExplorer"));
+const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
+const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
 const GrowthConsole = lazy(() => import("./pages/GrowthConsole"));
@@ -77,6 +81,12 @@ const GlobalInfrastructureConsole = lazy(() => import("./pages/GlobalInfrastruct
 const VendorIntelligencePage = lazy(() => import("./pages/VendorIntelligencePage"));
 const DigitalTwinPage = lazy(() => import("./pages/DigitalTwinPage"));
 const QualityIntelligencePage = lazy(() => import("./pages/QualityIntelligencePage"));
+const QualityDashboardPage = lazy(() => import("./pages/QualityDashboardPage"));
+const ClinicalReadinessPage = lazy(() => import("./pages/ClinicalReadinessPage"));
+const InspectionWorkQueuePage = lazy(() => import("./pages/InspectionWorkQueuePage"));
+const OperationsBoardPage = lazy(() => import("./pages/OperationsBoardPage"));
+const KnowledgeCenterPage = lazy(() => import("./pages/KnowledgeCenterPage"));
+const PilotDataCollectionPage = lazy(() => import("./pages/PilotDataCollectionPage"));
 const DemoImageLibraryPage = lazy(() => import("./pages/DemoImageLibraryPage"));
 const BaselineImageUploadPage = lazy(() => import("./pages/BaselineImageUploadPage"));
 const InspectionImageUploadPage = lazy(() => import("./pages/InspectionImageUploadPage"));
@@ -100,6 +110,8 @@ const ImageQualityPage = lazy(() => import("./pages/ImageQualityPage"));
 const GoLiveCenterPage = lazy(() => import("./pages/GoLiveCenterPage"));
 const ImplementationTrackerPage = lazy(() => import("./pages/ImplementationTrackerPage"));
 const TrainingCompliancePage = lazy(() => import("./pages/TrainingCompliancePage"));
+const EducationLibraryPage = lazy(() => import("./pages/EducationLibraryPage"));
+const SupervisorCoachingDashboard = lazy(() => import("./pages/SupervisorCoachingDashboard"));
 const BaselineReadinessPage = lazy(() => import("./pages/BaselineReadinessPage"));
 const InspectionReadinessPage = lazy(() => import("./pages/InspectionReadinessPage"));
 const ExecutiveAdoptionPage = lazy(() => import("./pages/ExecutiveAdoptionPage"));
@@ -112,6 +124,10 @@ const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
 const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const InstrumentLibraryPage = lazy(() => import("./pages/InstrumentLibraryPage"));
+const AnatomyLibraryPage = lazy(() => import("./pages/AnatomyLibraryPage"));
+const InspectionZonesPage = lazy(() => import("./pages/InspectionZonesPage"));
+const CoverageDashboardPage = lazy(() => import("./pages/CoverageDashboardPage"));
 
 // ─── Loading spinner shown during lazy chunk loads ────────────────────────────
 
@@ -357,6 +373,10 @@ function App() {
                       <Route path="/vendor-baseline-portal" element={<Page name="VendorBaselines"><VendorBaselinePortalPage /></Page>} />
                       <Route path="/intake-history" element={<Page name="IntakeHistory"><IntakeHistoryPage /></Page>} />
                       <Route path="/pilot-analytics" element={<Page name="PilotAnalytics"><PilotAnalyticsDashboard /></Page>} />
+                      <Route path="/pre-sterilization-command-center" element={<Page name="PreSterilizationCommandCenter"><PreSterilizationCommandCenter /></Page>} />
+                      <Route path="/knowledge-graph" element={<Page name="KnowledgeGraph"><KnowledgeGraphExplorer /></Page>} />
+                      <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
+                      <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
                       <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />
                       <Route path="/growth" element={<Page name="Growth"><GrowthConsole /></Page>} />
@@ -369,6 +389,12 @@ function App() {
                       <Route path="/vendor-intelligence" element={<Page name="VendorIntelligence"><VendorIntelligencePage /></Page>} />
                       <Route path="/digital-twin" element={<Page name="DigitalTwin"><DigitalTwinPage /></Page>} />
                       <Route path="/quality-intelligence" element={<Page name="QualityIntelligence"><QualityIntelligencePage /></Page>} />
+                      <Route path="/quality-dashboard" element={<Page name="QualityDashboard"><QualityDashboardPage /></Page>} />
+                      <Route path="/clinical-readiness" element={<Page name="ClinicalReadiness"><ClinicalReadinessPage /></Page>} />
+                      <Route path="/inspection-work-queue" element={<Page name="InspectionWorkQueue"><InspectionWorkQueuePage /></Page>} />
+                      <Route path="/operations-board" element={<Page name="OperationsBoard"><RequireRole allowed={ELEVATED_ROLES}><OperationsBoardPage /></RequireRole></Page>} />
+                      <Route path="/knowledge-center" element={<Page name="KnowledgeCenter"><KnowledgeCenterPage /></Page>} />
+                      <Route path="/pilot-data-collection" element={<Page name="PilotDataCollection"><RequireRole allowed={["admin", "spd_manager"]}><PilotDataCollectionPage /></RequireRole></Page>} />
                       <Route path="/baseline-library" element={<Page name="BaselineLibrary"><BaselineLibraryPage /></Page>} />
                       <Route path="/instrument-passport" element={<Page name="InstrumentPassport"><InstrumentPassportPage /></Page>} />
                       <Route path="/executive-command-center" element={<Page name="CommandCenter"><ExecutiveCommandCenterPage /></Page>} />
@@ -387,6 +413,8 @@ function App() {
                       <Route path="/go-live-center" element={<Page name="GoLiveCenter"><GoLiveCenterPage /></Page>} />
                       <Route path="/implementation-tracker" element={<Page name="ImplementationTracker"><ImplementationTrackerPage /></Page>} />
                       <Route path="/training-compliance" element={<Page name="TrainingCompliance"><TrainingCompliancePage /></Page>} />
+                      <Route path="/education-library" element={<Page name="EducationLibrary"><EducationLibraryPage /></Page>} />
+                      <Route path="/coaching-dashboard" element={<Page name="CoachingDashboard"><RequireRole allowed={ELEVATED_ROLES}><SupervisorCoachingDashboard /></RequireRole></Page>} />
                       <Route path="/baseline-readiness" element={<Page name="BaselineReadiness"><BaselineReadinessPage /></Page>} />
                       <Route path="/inspection-readiness" element={<Page name="InspectionReadiness"><InspectionReadinessPage /></Page>} />
                       <Route path="/executive-adoption" element={<Page name="ExecutiveAdoption"><ExecutiveAdoptionPage /></Page>} />
@@ -397,6 +425,10 @@ function App() {
                       <Route path="/training-center" element={<Page name="TrainingCenter"><TrainingCenterPage /></Page>} />
                       <Route path="/roi-center" element={<Page name="ROICenter"><ROICenterPage /></Page>} />
                       <Route path="/subscription-readiness" element={<Page name="SubscriptionReadiness"><SubscriptionReadinessPage /></Page>} />
+                      <Route path="/instrument-library" element={<Page name="InstrumentLibrary"><InstrumentLibraryPage /></Page>} />
+                      <Route path="/anatomy-library" element={<Page name="AnatomyLibrary"><AnatomyLibraryPage /></Page>} />
+                      <Route path="/inspection-zones" element={<Page name="InspectionZones"><InspectionZonesPage /></Page>} />
+                      <Route path="/coverage-dashboard" element={<Page name="CoverageDashboard"><CoverageDashboardPage /></Page>} />
                       <Route path="/legacy" element={<Page name="Legacy"><DashboardApp /></Page>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

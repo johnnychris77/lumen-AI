@@ -38,6 +38,12 @@ import {
   GraduationCap,
   DollarSign,
   Camera,
+  Network,
+  Workflow,
+  Cpu,
+  ListChecks,
+  ClipboardList,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +80,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/intake-history", label: "Inspection History", icon: History },
       { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
       { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
+      { to: "/inspection-work-queue", label: "Smart Work Queue", icon: ListChecks },
     ],
   },
   {
@@ -90,6 +97,10 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/infrastructure", label: "Instrument Registry", icon: Database },
       { to: "/instrument-passport", label: "Instrument Passport", icon: CreditCard },
+      { to: "/instrument-library", label: "Instrument Library", icon: BookOpen },
+      { to: "/anatomy-library", label: "Anatomy Library", icon: Network },
+      { to: "/inspection-zones", label: "Inspection Zones", icon: FileSearch },
+      { to: "/coverage-dashboard", label: "Coverage Dashboard", icon: BarChart3 },
       { to: "/vendor-intake", label: "Barcode / QR / KeyDot", icon: ScanLine },
       { to: "/demo-image-library", label: "Image Library", icon: Images },
       { to: "/baseline-image-upload", label: "Upload Baseline Image", icon: Upload },
@@ -103,6 +114,13 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/capa", label: "CAPA", icon: ShieldCheck },
       { to: "/audit-evidence", label: "Audit Evidence", icon: FileText, roles: [...ELEVATED_ROLES, "auditor"] },
       { to: "/enterprise", label: "Enterprise Quality", icon: Building2, roles: ELEVATED_ROLES },
+      { to: "/education-library", label: "SPD Education Library", icon: BookOpen },
+      { to: "/coaching-dashboard", label: "Supervisor Coaching", icon: ClipboardCheck, roles: ELEVATED_ROLES },
+      { to: "/pre-sterilization-command-center", label: "Pre-Sterilization Command Center", icon: CheckCircle2 },
+      { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+      { to: "/knowledge-center", label: "Knowledge Center", icon: BookMarked },
+      { to: "/agent-trace", label: "Agent Trace", icon: Workflow },
+      { to: "/cios-dashboard", label: "Clinical Intelligence OS", icon: Cpu },
     ],
   },
   {
@@ -112,7 +130,11 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/pilot-analytics", label: "Executive Dashboard", icon: TrendingUp, roles: EXECUTIVE_ROLES },
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
+      { to: "/quality-dashboard", label: "Quality Dashboard", icon: BarChart3 },
+      { to: "/clinical-readiness", label: "Clinical Service Readiness", icon: ShieldCheck },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
+      { to: "/operations-board", label: "Operations Board", icon: ClipboardList, roles: ["admin", "spd_manager"] },
+      { to: "/pilot-data-collection", label: "Pilot Data Collection", icon: Database, roles: ["admin", "spd_manager"] },
       { to: "/pilot-validation", label: "Pilot Validation", icon: Activity, roles: ["admin", "spd_manager"] },
     ],
   },
