@@ -101,8 +101,14 @@ INSTRUMENT_FAMILY_PROFILES: dict[str, dict] = {
     },
     "orthopedic_instruments": {
         "display_name": "Orthopedic Instruments",
-        # v1.10: dedicated anatomy family (was borrowed from drill_bit).
-        "anatomy_family_key": "oscillating_saw",
+        # v1.10/v2.0: dedicated anatomy family (was borrowed from drill_bit,
+        # then briefly pointed at oscillating_saw — but that family only
+        # declares saw-blade zones with no threaded/cannulated region,
+        # which this profile's own inspection_priorities/cleaning_priorities/
+        # supervisor_focus_areas below explicitly call out; orthopedic_reamer
+        # declares a reaming head, cannulation, and coupling hub, matching
+        # this broader profile's stated priorities instead of just saws).
+        "anatomy_family_key": "orthopedic_reamer",
         "typical_contamination": ["bone", "other_organic_residue", "debris"],
         "typical_damage": ["worn cutting surfaces", "corroded threads", "bent components"],
         "typical_repair_issues": ["resharpening", "component straightening"],

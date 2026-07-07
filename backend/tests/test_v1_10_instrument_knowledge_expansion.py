@@ -14,7 +14,7 @@ from app.services.instrument_anatomy import (
     INSTRUMENT_ANATOMY, anatomy_profile, get_anatomy, list_anatomy_families, resolve_family,
 )
 from app.services.instrument_family_profiles import INSTRUMENT_FAMILY_PROFILES, get_family_profile
-from app.services.knowledge_graph_service import explore
+from app.services.knowledge_graph_service import explore, reasoning_chain
 
 client = TestClient(app)
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
@@ -82,6 +82,78 @@ class TestAnatomyProfilesAndHighRiskZones:
             if expected_family is None:
                 continue
             assert resolve_family(instrument_type) == expected_family
+
+
+class TestCodeReviewFixes:
+    """Regression coverage for issues flagged by automated review on PR #82."""
+
+    def test_canonical_underscore_slugs_resolve_to_the_new_family(self):
+        # Regression: the inspection form's slug-fallback validator submits
+        # instrument_type as an underscore slug (e.g. "towel_clamp"), but
+        # match keywords are written as space-separated phrases — a plain
+        # substring check never matched the slug form, so real submissions
+        # silently fell through to an unrelated, broader family instead.
+        assert resolve_family("towel_clamp") == "towel_clamp"
+        assert resolve_family("oscillating_saw") == "oscillating_saw"
+        assert resolve_family("rib_approximator") == "rib_approximator"
+
+    def test_more_specific_alias_wins_over_a_shadowing_generic_keyword(self):
+        # Regression: first-declaration-order matching let an earlier,
+        # shorter generic keyword ("tenaculum") shadow a later, more
+        # specific alias ("uterine tenaculum forceps") for a completely
+        # different declared family.
+        assert resolve_family("uterine tenaculum forceps") == "uterine_tenaculum"
+        assert resolve_family("mesh dermatome") == "skin_graft_mesher"
+        assert resolve_family("monopolar cautery pencil") == "monopolar_pencil"
+
+    def test_every_new_familys_own_keywords_resolve_to_itself(self):
+        # Broad sweep: no family's own declared match keyword should ever
+        # resolve to a different family (the bug class above, generalized).
+        mismatches = []
+        for family, defn in INSTRUMENT_ANATOMY.items():
+            if family == "default":
+                continue
+            for kw in defn["match"]:
+                got = resolve_family(kw)
+                if got != family:
+                    mismatches.append((family, kw, got))
+        assert mismatches == []
+
+    def test_orthopedic_instruments_profile_points_at_matching_anatomy(self):
+        # Regression: pointed at oscillating_saw (saw-blade-only zones) while
+        # this profile's own inspection/cleaning priorities call out
+        # threaded/cannulated regions and cannulation patency — now points
+        # at a family whose declared zones actually include a cannulation.
+        profile = get_family_profile("orthopedic_instruments")
+        assert "cannulation" in profile["typical_anatomy"]
+
+    def test_reasoning_chain_never_reports_a_zone_the_family_does_not_declare(self):
+        # Regression: the legacy pilot zone-assignment taxonomy has no rule
+        # written for v1.10's new families, so a coincidental keyword match
+        # (e.g. "clamp") reported a zone ("serrations") that towel_clamp
+        # never declares, leaving Typical Contamination/Damage empty.
+        result = reasoning_chain("towel clamp", "blood")
+        nodes = {s["node"]: s["value"] for s in result["chain"]}
+        assert nodes["Inspection Zone"] in get_anatomy("towel clamp")["zone_names"]
+        assert nodes["Typical Contamination"]
+
+    def test_reasoning_chain_unchanged_for_original_families(self):
+        # The 8 pre-v1.10 families keep their existing (tested) legacy zone
+        # mapping even where it names the mechanical pivot differently than
+        # instrument_anatomy.py does for the same family.
+        result = reasoning_chain("scissors", "blood")
+        nodes = {s["node"]: s["value"] for s in result["chain"]}
+        assert nodes["Inspection Zone"] == "hinge"
+
+    def test_explorer_category_reachable_from_frontend_category_list(self):
+        import re
+
+        source = (
+            __import__("pathlib").Path(__file__).resolve().parents[2]
+            / "frontend" / "src" / "pages" / "KnowledgeGraphExplorer.tsx"
+        ).read_text()
+        match = re.search(r"EXPLORE_CATEGORIES\s*=\s*\[(.*?)\]", source, re.DOTALL)
+        assert match and '"instrument_family"' in match.group(1)
 
 
 class TestExistingResolutionUnchanged:

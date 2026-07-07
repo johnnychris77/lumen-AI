@@ -58,6 +58,22 @@ RELATIONSHIP_TYPES = [
 _CONTAMINATION_FINDINGS = {"blood", "bone", "tissue", "debris", "other", "other_organic_residue"}
 _STRUCTURAL_FINDINGS = {"crack", "corrosion", "insulation_damage", "pitting", "rust", "missing_component", "discoloration"}
 
+# The 8 families that predate the v1.10 anatomy expansion — the legacy pilot
+# zone-assignment taxonomy (instrument_zones.py) was hand-written against
+# these specific 8 and is exercised by existing tests that accept its zone
+# names as-is even where they differ from instrument_anatomy.py's own zone
+# vocabulary for the same family (e.g. scissors: legacy "hinge" vs. anatomy
+# "box lock"/"cutting edge" for the same mechanical pivot). The v1.10
+# expansion's 104 new families were never given legacy rules of their own,
+# so a legacy keyword match for one of them (e.g. "clamp" catching "towel
+# clamp") is coincidental, not a deliberate mapping — only for those is a
+# legacy zone name that the resolved family doesn't declare a real bug
+# worth substituting away.
+_LEGACY_TAXONOMY_FAMILIES = frozenset({
+    "flexible_endoscope", "rigid_scope", "drill_bit", "kerrison_rongeur",
+    "scissors", "needle_holder", "laparoscopic", "general_forceps",
+})
+
 
 def graph_schema() -> dict:
     """The node/relationship taxonomy itself — Section 1 deliverable."""
@@ -108,6 +124,25 @@ def reasoning_chain(instrument_type: str, finding_type: str, manufacturer: str =
     family = profile["instrument_family"]
     zinfo = zone_fields(instrument_type, finding_type)
     zone = zinfo["instrument_zone"]
+    zone_risk = zinfo["zone_risk"]
+    zone_reason = zinfo["zone_reason"]
+
+    declared_zones = profile.get("anatomy_zones") or []
+    if profile["profile_found"] and family not in _LEGACY_TAXONOMY_FAMILIES and zone not in declared_zones:
+        # The legacy pilot zone-assignment taxonomy (instrument_zones.py,
+        # written before the v1.10 anatomy-family expansion) doesn't have a
+        # rule for every new family, so it can hand back a generic zone
+        # name (e.g. "serrations") that this specific family never
+        # declares — reporting a zone the instrument doesn't actually have.
+        # Fall back to a zone the resolved family's own registry declares,
+        # preferring its highest-risk zone so the chain stays clinically
+        # meaningful.
+        candidates = profile.get("high_risk_zones") or declared_zones
+        if candidates:
+            zone = candidates[0]
+            zone_risk = zinfo["zone_risk"]  # no more-specific real-zone risk is tracked separately here
+            zone_reason = profile.get("zone_descriptions", {}).get(zone, zone_reason)
+
     cleaning = get_cleaning_knowledge(zone)
     education = FINDING_EDUCATION.get((finding_type or "").strip().lower(), {})
     outcome, action_phrase = _recommended_action_text(finding_type, zone)
@@ -120,7 +155,7 @@ def reasoning_chain(instrument_type: str, finding_type: str, manufacturer: str =
         {"node": "Model", "value": model or "not specified"},
         {"node": "Anatomy Zone", "value": zone, "note": profile.get("warning")},
         {"node": "Inspection Zone", "value": zone},
-        {"node": "Retention Risk", "value": zinfo["zone_risk"]},
+        {"node": "Retention Risk", "value": zone_risk},
         {"node": "Cleaning Method", "value": cleaning["cleaning_method"]},
         {"node": "Typical Contamination", "value": profile.get("contamination_risks", {}).get(zone, [])},
         {"node": "Typical Damage", "value": profile.get("condition_risks", {}).get(zone, [])},
@@ -132,7 +167,7 @@ def reasoning_chain(instrument_type: str, finding_type: str, manufacturer: str =
 
     narrative = (
         f"I detected probable {finding_label} in the {instrument_type} {zone}. "
-        f"{zinfo['zone_reason']} "
+        f"{zone_reason} "
         f"Based on SPD best practices and the {family.replace('_', ' ')} instrument profile, "
         f"{action_phrase} are recommended before the instrument proceeds to packaging."
     )

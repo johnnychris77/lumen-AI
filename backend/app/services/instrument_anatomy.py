@@ -1412,14 +1412,40 @@ def list_anatomy_families() -> list[dict]:
 
 
 def resolve_family(instrument_type: str) -> str:
-    """Resolve free-text instrument_type onto an anatomy family key."""
-    name = (instrument_type or "").lower()
+    """Resolve free-text instrument_type onto an anatomy family key.
+
+    Two normalizations, both fixing real gaps found by review:
+
+    1. Underscore/hyphen slugs (e.g. "towel_clamp" — the canonical form the
+       inspection form actually submits via its slug-fallback validator)
+       are normalized to spaces before matching, so they resolve the same
+       way as the human-readable form ("towel clamp") every match keyword
+       is written in.
+    2. The LONGEST matching keyword across every family wins, not simply
+       the first family declared in dict order. A first-match scheme let a
+       later, more specific alias (e.g. "uterine tenaculum forceps") get
+       shadowed by an earlier, shorter generic keyword from a different
+       family ("tenaculum") that also happens to be a substring — since
+       family declaration order can't simultaneously satisfy every pair of
+       specific/generic keywords as more families are added, matching on
+       specificity (keyword length) instead of declaration order is the
+       fix that scales.
+    """
+    def _norm(s: str) -> str:
+        return s.replace("_", " ").replace("-", " ")
+
+    name = _norm((instrument_type or "").lower())
+    best_family: str | None = None
+    best_len = 0
     for family, defn in INSTRUMENT_ANATOMY.items():
         if family == "default":
             continue
-        if any(k in name for k in defn["match"]):
-            return family
-    return "default"
+        for k in defn["match"]:
+            k_norm = _norm(k)
+            if k_norm in name and len(k_norm) > best_len:
+                best_family = family
+                best_len = len(k_norm)
+    return best_family or "default"
 
 
 def get_anatomy(instrument_type: str) -> dict:
