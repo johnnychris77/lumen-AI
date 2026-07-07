@@ -1411,41 +1411,67 @@ def list_anatomy_families() -> list[dict]:
     ]
 
 
+# Specific match keywords that would otherwise be shadowed by an earlier,
+# shorter generic keyword from a *different* family declared before them
+# (found via a full self-match sweep: resolve_family(kw) for every family's
+# own declared keyword should always return that family). Each entry maps
+# one literal problem keyword to the family it should resolve to — checked
+# first, before the normal declaration-order pass, without touching that
+# family's other (correctly generic) keywords. An earlier attempt hoisted
+# the whole shadowed-*family* ahead instead; that just moved the shadowing
+# problem onto whichever other family's keywords the hoisted family's own
+# generic keywords ("rongeur", "punch") then swallowed in turn.
+_PRIORITY_KEYWORD_OVERRIDES: dict[str, str] = {
+    # "tenaculum" (generic) would otherwise claim this uterine-specific alias.
+    "uterine tenaculum forceps": "uterine_tenaculum",
+    # "dermatome" (generic) would otherwise claim this mesher alias.
+    "mesh dermatome": "skin_graft_mesher",
+    # electrosurgical_pencil's own "cautery pencil" keyword would otherwise
+    # claim this monopolar-specific alias.
+    "monopolar cautery pencil": "monopolar_pencil",
+    # drill_bit's own "bit" keyword would otherwise claim kerrison_rongeur's
+    # own "biter" keyword — a pre-existing latent bug in the original 8
+    # families, found by the same sweep, fixed the same targeted way.
+    "biter": "kerrison_rongeur",
+}
+
+
 def resolve_family(instrument_type: str) -> str:
     """Resolve free-text instrument_type onto an anatomy family key.
 
-    Two normalizations, both fixing real gaps found by review:
+    First matching family wins (after the `_PRIORITY_KEYWORD_OVERRIDES`
+    pre-pass above), in `INSTRUMENT_ANATOMY` declaration order — this is why
+    more specific families are always declared before broader ones whose
+    generic keywords would otherwise swallow them (e.g. flexible endoscopes
+    before rigid scopes: rigid_scope's generic "scope"/"endoscope" keywords
+    would otherwise match "flexible endoscope" too). Matching on keyword
+    length instead of declaration order was tried and reverted — it
+    incorrectly picked rigid_scope for "flexible endoscope" because
+    "endoscope" (9 chars) outweighs "flexible" (8 chars) even though
+    declaration order already encodes the correct, deliberate priority;
+    keyword length is not a reliable proxy for specificity.
 
-    1. Underscore/hyphen slugs (e.g. "towel_clamp" — the canonical form the
-       inspection form actually submits via its slug-fallback validator)
-       are normalized to spaces before matching, so they resolve the same
-       way as the human-readable form ("towel clamp") every match keyword
-       is written in.
-    2. The LONGEST matching keyword across every family wins, not simply
-       the first family declared in dict order. A first-match scheme let a
-       later, more specific alias (e.g. "uterine tenaculum forceps") get
-       shadowed by an earlier, shorter generic keyword from a different
-       family ("tenaculum") that also happens to be a substring — since
-       family declaration order can't simultaneously satisfy every pair of
-       specific/generic keywords as more families are added, matching on
-       specificity (keyword length) instead of declaration order is the
-       fix that scales.
+    Underscore/hyphen slugs (e.g. "towel_clamp" — the canonical form the
+    inspection form actually submits via its slug-fallback validator) are
+    normalized to spaces before matching, so they resolve the same way as
+    the human-readable form ("towel clamp") every match keyword is written
+    in.
     """
     def _norm(s: str) -> str:
         return s.replace("_", " ").replace("-", " ")
 
     name = _norm((instrument_type or "").lower())
-    best_family: str | None = None
-    best_len = 0
+
+    for kw, family in _PRIORITY_KEYWORD_OVERRIDES.items():
+        if _norm(kw) in name:
+            return family
+
     for family, defn in INSTRUMENT_ANATOMY.items():
         if family == "default":
             continue
-        for k in defn["match"]:
-            k_norm = _norm(k)
-            if k_norm in name and len(k_norm) > best_len:
-                best_family = family
-                best_len = len(k_norm)
-    return best_family or "default"
+        if any(_norm(k) in name for k in defn["match"]):
+            return family
+    return "default"
 
 
 def get_anatomy(instrument_type: str) -> dict:
