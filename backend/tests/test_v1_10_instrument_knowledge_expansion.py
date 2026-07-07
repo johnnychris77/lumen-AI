@@ -106,6 +106,30 @@ class TestCodeReviewFixes:
         assert resolve_family("mesh dermatome") == "skin_graft_mesher"
         assert resolve_family("monopolar cautery pencil") == "monopolar_pencil"
 
+    def test_kerrisons_own_biter_keyword_no_longer_shadowed_by_drill_bit(self):
+        # Pre-existing bug in the original 8 families (unrelated to any
+        # Codex comment), found by the same self-match sweep: drill_bit's
+        # "bit" is a substring of kerrison_rongeur's own "biter" keyword,
+        # and drill_bit is declared first.
+        assert resolve_family("biter") == "kerrison_rongeur"
+
+    def test_generic_family_terms_still_resolve_correctly_after_the_keyword_fix(self):
+        # Regression: an earlier attempt at the fix above matched on
+        # keyword LENGTH instead of declaration order, which broke this —
+        # rigid_scope's generic "endoscope" keyword (9 chars) outweighed
+        # flexible_endoscope's "flexible" keyword (8 chars) even though
+        # flexible_endoscope is deliberately declared first specifically so
+        # its keywords win. A second attempt hoisted whole shadowed
+        # *families* ahead instead, which just shadowed OTHER families
+        # sharing that family's own generic keywords in turn (kerrison_rongeur's
+        # "rongeur"/"punch" swallowing pituitary_rongeur/aortic_punch/etc.).
+        # The final fix targets only the single literal problem keyword.
+        assert resolve_family("flexible endoscope") == "flexible_endoscope"
+        assert resolve_family("pituitary rongeur") == "pituitary_rongeur"
+        assert resolve_family("laminectomy rongeur") == "laminectomy_rongeur"
+        assert resolve_family("aortic punch") == "aortic_punch"
+        assert resolve_family("biopsy punch") == "biopsy_punch"
+
     def test_every_new_familys_own_keywords_resolve_to_itself(self):
         # Broad sweep: no family's own declared match keyword should ever
         # resolve to a different family (the bug class above, generalized).
