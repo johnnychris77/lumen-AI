@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_membership import require_enabled_tenant_membership
 from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
-from app.enterprise_auth import get_request_tenant_id
 
 router = APIRouter(tags=["analytics"])
 
@@ -28,6 +28,35 @@ def _scoped(db: Session, *, role: str, tenant_id: str):
     if role != "admin":
         query = query.filter(models.Inspection.tenant_id == tenant_id)
     return query
+
+
+def _resolve_scoped_tenant(request: Request, db: Session, current_user, role: str) -> str:
+    """Resolve the tenant a caller is scoped to, closing a real tenant-
+    isolation gap: `current_user` from the simple dev/JWT auth path
+    (app/deps.py) never carries its own `tenant_id`, so falling back to the
+    caller-supplied X-Tenant-Id header meant any operator/viewer could set
+    that header to an arbitrary tenant and read its data.
+
+    A user's own `tenant_id` (when the auth context actually carries one —
+    e.g. the enterprise OIDC path) is always trusted as-is. Otherwise, a
+    request that doesn't supply a tenant header at all keeps the existing
+    single-tenant-deployment default ("default-tenant") unchanged. Only a
+    request that *explicitly claims a specific tenant identity* via header
+    is now required to prove real, enabled membership in that tenant
+    before the claim is honored — this is exactly the exploit path the
+    review comment described."""
+    own_tenant_id = getattr(current_user, "tenant_id", None)
+    if own_tenant_id:
+        return own_tenant_id
+
+    header_tenant_id = request.headers.get("x-lumenai-tenant-id") or request.headers.get("x-tenant-id")
+    tenant_id = header_tenant_id or "default-tenant"
+
+    if role != "admin" and header_tenant_id:
+        user_email = getattr(current_user, "email", None) or getattr(current_user, "username", "") or ""
+        require_enabled_tenant_membership(db, tenant_id=tenant_id, user_email=user_email)
+
+    return tenant_id
 
 
 @router.get("/analytics/kpi-summary")
@@ -51,7 +80,7 @@ def kpi_summary(
     from app.services.capa_service import capa_summary
 
     role = getattr(current_user, "role", "")
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = _resolve_scoped_tenant(request, db, current_user, role)
 
     # Counted at the database with COUNT(*)/DISTINCT rather than
     # materializing every matching Inspection row in Python — this endpoint
@@ -157,7 +186,7 @@ def powerbi_dataset(
     # Platform admins (role=="admin") see all rows; everyone else is always
     # scoped to their own resolved tenant — never left unfiltered.
     role = getattr(current_user, "role", "")
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = _resolve_scoped_tenant(request, db, current_user, role)
 
     rows = _scoped(db, role=role, tenant_id=tenant_id).all()
 
