@@ -46,6 +46,20 @@ function imageFileKey(f: File): string {
   return `${f.name}__${f.size}`;
 }
 
+// v2.3 — Live Capture Warnings: same missing-anatomy / duplicate-detection
+// shape the Vision Session review page uses, computed here before submission.
+type CaptureWarningFinding = { type: string; message: string; [key: string]: unknown };
+type CaptureWarnings = {
+  missing_anatomy: { prompts: { zone: string; message: string }[]; suggested_next: string | null };
+  duplicate_detection: { findings: CaptureWarningFinding[]; has_warnings: boolean; count: number };
+};
+
+async function sha256Hex(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 type PredictedFinding = {
   type: string;
   label?: string;
@@ -276,6 +290,42 @@ export default function NewInspectionPage() {
   const [overrideBanner, setOverrideBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [barcodeScanned, setBarcodeScanned] = useState(false);
   const [noBaselineWarning, setNoBaselineWarning] = useState(false);
+  // v2.3 — Live Capture Warnings (missing anatomy / duplicate images), computed
+  // during capture instead of only after submission on the Vision Session page.
+  const [captureWarnings, setCaptureWarnings] = useState<CaptureWarnings | null>(null);
+  const fileHashCache = useRef<Record<string, string>>({});
+
+  // v2.3 — Live Capture Warnings: reruns the same missing-anatomy / duplicate
+  // checks the Vision Session review page uses, on the images/tags captured
+  // so far, before the inspection is ever submitted. Debounced so it doesn't
+  // fire on every keystroke while tagging.
+  useEffect(() => {
+    const type = form.instrument_type.trim();
+    const allImages = [...inspectionImages, ...borescopeImages];
+    if (!type) { setCaptureWarnings(null); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const tags = await Promise.all(allImages.map(async (f) => {
+          const key = imageFileKey(f);
+          const tag = imageTags[key] ?? DEFAULT_IMAGE_TAG;
+          let sha256 = fileHashCache.current[key];
+          if (!sha256) {
+            sha256 = await sha256Hex(f);
+            fileHashCache.current[key] = sha256;
+          }
+          return { anatomy_zone: tag.anatomy_zone, instrument_family: type, image_sha256: sha256 };
+        }));
+        if (cancelled) return;
+        const result = await apiFetch<CaptureWarnings>("/api/inspections/preview-warnings", {
+          method: "POST",
+          body: { instrument_type: type, tags },
+        });
+        if (!cancelled) setCaptureWarnings(result);
+      } catch { if (!cancelled) setCaptureWarnings(null); }
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [form.instrument_type, inspectionImages, borescopeImages, imageTags]);
 
   const inspectionInputRef = useRef<HTMLInputElement>(null);
   const borescopeInputRef = useRef<HTMLInputElement>(null);
@@ -1014,6 +1064,23 @@ export default function NewInspectionPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* v2.3 — Live Capture Warnings: missing anatomy + duplicate/wrong-zone
+                images, surfaced during capture instead of only after submission. */}
+            {captureWarnings && (
+              captureWarnings.missing_anatomy.prompts.length > 0 ||
+              captureWarnings.duplicate_detection.findings.length > 0
+            ) && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <p className="text-sm font-medium text-amber-900">Capture warnings</p>
+                {captureWarnings.missing_anatomy.prompts.map((p) => (
+                  <p key={p.zone} className="text-xs text-amber-800">⚠ {p.message}</p>
+                ))}
+                {captureWarnings.duplicate_detection.findings.map((f, idx) => (
+                  <p key={`${f.type}-${idx}`} className="text-xs text-amber-800">⚠ {f.message}</p>
+                ))}
               </div>
             )}
 

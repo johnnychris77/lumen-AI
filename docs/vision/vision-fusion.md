@@ -38,8 +38,10 @@ governance rule that no recommendation here is self-executing.
 ## What this deliberately does not do
 
 Evidence Fusion does not re-run `analyze_inspection()` or invent new
-per-image confidence values — confidence isn't persisted per finding today
-(see `docs/vision/inspection-session.md`), so the average is computed only
-over values that are actually available, and is `null` rather than
-fabricated when none are. This is the same "no fabrication" convention the
-rest of the platform's scoring/anatomy/knowledge services follow.
+per-image confidence values. Per-finding confidence (v2.3) is persisted on
+`InspectionFinding` at analysis time and read back verbatim; the average is
+computed only over values that are actually available (rows logged before
+the column existed, or findings below the logged severity threshold, carry
+none), and is `null` rather than fabricated when none are. This is the same
+"no fabrication" convention the rest of the platform's scoring/anatomy/
+knowledge services follow.

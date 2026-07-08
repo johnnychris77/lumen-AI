@@ -550,6 +550,7 @@ async def create_inspection(
                     finding_type=f["type"],
                     zone=f.get("instrument_zone", ""),
                     severity_index=f["severity_index"],
+                    confidence=f.get("confidence"),
                 ))
         db.commit()
 
