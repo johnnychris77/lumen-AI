@@ -130,7 +130,7 @@ export default function FindingsQueuePage() {
                       <td style={tdMuted}>{formatWait(item.minutes_waiting)}</td>
                       <td style={td}>{item.assigned_technician ?? "Unassigned"}</td>
                       <td style={td}>
-                        <Link to="/inspection-work-queue" style={smallButtonLink}>Review →</Link>
+                        <Link to={`/inspection/${item.inspection_id}/vision-session`} style={smallButtonLink}>Review →</Link>
                       </td>
                     </tr>
                   ))}

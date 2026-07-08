@@ -639,6 +639,9 @@ app.include_router(analytics_router, prefix=settings.API_PREFIX)
 from app.routes.anatomy_intelligence import router as anatomy_intelligence_router
 app.include_router(anatomy_intelligence_router, prefix=settings.API_PREFIX)
 
+from app.routes.vision_session import router as vision_session_router
+app.include_router(vision_session_router, prefix=settings.API_PREFIX)
+
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
 app.include_router(capa_predictive_risk_router)

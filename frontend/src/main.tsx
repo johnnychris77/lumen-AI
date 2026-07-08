@@ -90,6 +90,7 @@ const PilotDataCollectionPage = lazy(() => import("./pages/PilotDataCollectionPa
 const DemoImageLibraryPage = lazy(() => import("./pages/DemoImageLibraryPage"));
 const BaselineImageUploadPage = lazy(() => import("./pages/BaselineImageUploadPage"));
 const InspectionImageUploadPage = lazy(() => import("./pages/InspectionImageUploadPage"));
+const VisionSessionPage = lazy(() => import("./pages/VisionSessionPage"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const PilotValidationPage = lazy(() => import("./pages/PilotValidationPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
@@ -408,6 +409,7 @@ function App() {
                       <Route path="/demo-image-library" element={<Page name="DemoImageLibrary"><DemoImageLibraryPage /></Page>} />
                       <Route path="/baseline-image-upload" element={<Page name="BaselineImageUpload"><BaselineImageUploadPage /></Page>} />
                       <Route path="/inspection-image-upload" element={<Page name="InspectionImageUpload"><InspectionImageUploadPage /></Page>} />
+                      <Route path="/inspection/:id/vision-session" element={<Page name="VisionSession"><VisionSessionPage /></Page>} />
                       <Route path="/network-dashboard" element={<Page name="NetworkDashboard"><NetworkDashboardPage /></Page>} />
                       <Route path="/image-quality" element={<Page name="ImageQuality"><ImageQualityPage /></Page>} />
                       <Route path="/go-live-center" element={<Page name="GoLiveCenter"><GoLiveCenterPage /></Page>} />
