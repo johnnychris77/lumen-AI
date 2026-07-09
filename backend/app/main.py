@@ -1002,6 +1002,10 @@ from app.models import sentinel_orchestration as _sentinel_orchestration_models 
 from app.routes.sentinel_orchestration import router as sentinel_orchestration_router
 app.include_router(sentinel_orchestration_router)
 
+from app.models import atlas_enterprise as _atlas_enterprise_models  # noqa: F401
+from app.routes.atlas_enterprise import router as atlas_enterprise_router
+app.include_router(atlas_enterprise_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 
