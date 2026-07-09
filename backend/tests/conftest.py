@@ -95,6 +95,7 @@ def _force_import_models():
         "app.models.inspection_image_tag",
         "app.models.simulation_engine",
         "app.models.or_connect",
+        "app.models.quality_guardian",
     ]:
         try:
             importlib.import_module(model_path)
