@@ -96,6 +96,7 @@ def _force_import_models():
         "app.models.simulation_engine",
         "app.models.or_connect",
         "app.models.quality_guardian",
+        "app.models.sentinel_orchestration",
     ]:
         try:
             importlib.import_module(model_path)

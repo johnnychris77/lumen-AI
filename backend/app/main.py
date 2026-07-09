@@ -998,6 +998,10 @@ from app.models import quality_guardian as _quality_guardian_models  # noqa: F40
 from app.routes.quality_guardian import router as quality_guardian_router
 app.include_router(quality_guardian_router)
 
+from app.models import sentinel_orchestration as _sentinel_orchestration_models  # noqa: F401
+from app.routes.sentinel_orchestration import router as sentinel_orchestration_router
+app.include_router(sentinel_orchestration_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 
