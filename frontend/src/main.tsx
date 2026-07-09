@@ -67,6 +67,7 @@ const AnalyticsDashboardPage = lazy(() => import("./pages/AnalyticsDashboardPage
 const PilotAnalyticsDashboard = lazy(() => import("./pages/PilotAnalyticsDashboard"));
 const PreSterilizationCommandCenter = lazy(() => import("./pages/PreSterilizationCommandCenter"));
 const KnowledgeGraphExplorer = lazy(() => import("./pages/KnowledgeGraphExplorer"));
+const ScenarioAnalysisPage = lazy(() => import("./pages/ScenarioAnalysisPage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
@@ -375,6 +376,7 @@ function App() {
                       <Route path="/pilot-analytics" element={<Page name="PilotAnalytics"><PilotAnalyticsDashboard /></Page>} />
                       <Route path="/pre-sterilization-command-center" element={<Page name="PreSterilizationCommandCenter"><PreSterilizationCommandCenter /></Page>} />
                       <Route path="/knowledge-graph" element={<Page name="KnowledgeGraph"><KnowledgeGraphExplorer /></Page>} />
+                      <Route path="/scenario-analysis" element={<Page name="ScenarioAnalysis"><ScenarioAnalysisPage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />

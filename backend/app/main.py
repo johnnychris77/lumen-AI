@@ -984,6 +984,10 @@ app.include_router(pre_sterilization_command_center_router)
 from app.routes.knowledge_graph import router as knowledge_graph_router
 app.include_router(knowledge_graph_router)
 
+from app.models import simulation_engine as _simulation_engine_models  # noqa: F401
+from app.routes.scenario_analysis import router as scenario_analysis_router
+app.include_router(scenario_analysis_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 
