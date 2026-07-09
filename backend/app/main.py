@@ -1006,6 +1006,12 @@ from app.models import atlas_enterprise as _atlas_enterprise_models  # noqa: F40
 from app.routes.atlas_enterprise import router as atlas_enterprise_router
 app.include_router(atlas_enterprise_router)
 
+from app.models import nexus_integration as _nexus_integration_models  # noqa: F401
+from app.routes.nexus_integration import router as nexus_integration_router
+app.include_router(nexus_integration_router)
+from app.routes.nexus_api_gateway import router as nexus_api_gateway_router
+app.include_router(nexus_api_gateway_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 
