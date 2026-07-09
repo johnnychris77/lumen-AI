@@ -131,6 +131,8 @@ export default function FindingsQueuePage() {
                       <td style={td}>{item.assigned_technician ?? "Unassigned"}</td>
                       <td style={td}>
                         <Link to={`/inspection/${item.inspection_id}/vision-session`} style={smallButtonLink}>Review →</Link>
+                        {" "}
+                        <Link to={`/inspection/${item.inspection_id}/decision-reasoning`} style={smallButtonLink}>Decision →</Link>
                       </td>
                     </tr>
                   ))}

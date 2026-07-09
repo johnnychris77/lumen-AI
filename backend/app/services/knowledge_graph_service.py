@@ -186,7 +186,12 @@ def reasoning_chain(instrument_type: str, finding_type: str, manufacturer: str =
 def explain_inspection(db: Session, inspection) -> dict:
     """Section 6 — Explainability graph for one real, scored inspection.
     Uses the inspection's actual persisted recommended_action/risk_score
-    rather than the generic (severity-unaware) reasoning_chain estimate."""
+    rather than the generic (severity-unaware) reasoning_chain estimate.
+
+    v2.5 (Project Cortex) extends this chain with the two nodes the Clinical
+    Reasoning Graph adds beyond the original Phase 21 chain — Corrective
+    Action and Disposition — reusing the same persisted
+    recommended_action/disposition fields rather than re-deriving them."""
     zinfo = zone_fields(inspection.instrument_type, inspection.detected_issue)
     zone = zinfo["instrument_zone"]
     education = FINDING_EDUCATION.get((inspection.detected_issue or "").strip().lower(), {})
@@ -200,12 +205,70 @@ def explain_inspection(db: Session, inspection) -> dict:
             {"node": "Zone", "value": zone, "detail": zinfo["zone_reason"]},
             {"node": "Clinical Significance", "value": education.get("clinical_significance", "")},
             {"node": "SPD Rule", "value": cleaning["cleaning_method"]},
+            {"node": "Corrective Action", "value": cleaning.get("cleaning_method", ""), "detail": "The SPD-recommended corrective step for this zone."},
             {"node": "Recommendation", "value": inspection.recommended_action or "Pending analysis."},
+            {"node": "Disposition", "value": inspection.disposition or "Pending supervisor disposition."},
         ],
         "instrument_family": family,
         "risk_score": inspection.risk_score,
         "human_review_required": True,
     }
+
+
+# ---------------------------------------------------------------------------
+# v2.5 (Project Cortex) — Section 1: individually queryable graph nodes
+# ---------------------------------------------------------------------------
+
+_QUERYABLE_NODE_TYPES = (
+    "instrument", "manufacturer", "instrumentfamily", "anatomyzone", "inspectionzone",
+    "finding", "severity", "spdrisk", "clinicalsignificance", "correctiveaction", "disposition",
+)
+
+
+def query_node(db: Session, tenant_id: str, node_type: str, value: str = "") -> dict:
+    """Section 1 — 'each node should be queryable.' Normalizes a node type
+    from the Clinical Reasoning Graph's chain (Instrument -> Manufacturer ->
+    Instrument Family -> Anatomy -> Inspection Zone -> Finding -> Severity ->
+    SPD Risk -> Clinical Significance -> Corrective Action -> Disposition)
+    to the right existing lookup, rather than introducing a second node
+    taxonomy alongside `explore()`'s categories."""
+    from app.services.spd_rule_library import SPD_RULE_LIBRARY, evaluate_rules
+
+    key = (node_type or "").strip().lower().replace("_", "").replace(" ", "")
+    if key not in _QUERYABLE_NODE_TYPES:
+        return {
+            "node_type": node_type, "value": value, "results": [],
+            "error": f"Unknown node type. Use one of: {', '.join(_QUERYABLE_NODE_TYPES)}.",
+        }
+
+    if key == "instrument":
+        return explore(db, tenant_id, "instrument", value)
+    if key == "manufacturer":
+        return explore(db, tenant_id, "manufacturer", value)
+    if key == "instrumentfamily":
+        return explore(db, tenant_id, "instrument_family", value)
+    if key in ("anatomyzone", "inspectionzone"):
+        return explore(db, tenant_id, "zone", value)
+    if key == "finding":
+        return explore(db, tenant_id, "finding", value)
+    if key == "severity":
+        return {"node_type": "Severity", "value": value, "results": [{"level": lvl} for lvl in ("Low", "Moderate", "High", "Critical") if not value or value.lower() in lvl.lower()]}
+    if key == "spdrisk":
+        matches = evaluate_rules({"finding_type": value.lower()}) if value else [r.to_dict() for r in SPD_RULE_LIBRARY]
+        return {"node_type": "SPDRisk", "value": value, "results": matches}
+    if key == "clinicalsignificance":
+        results = [
+            {"finding": f, "clinical_significance": info.get("clinical_significance", "")}
+            for f, info in FINDING_EDUCATION.items() if not value or value.lower() in f.lower()
+        ]
+        return {"node_type": "ClinicalSignificance", "value": value, "results": results}
+    if key == "correctiveaction":
+        results = [{"zone": z, "cleaning_method": get_cleaning_knowledge(z)["cleaning_method"]} for z in ZONE_INFO if not value or value.lower() in z.lower()]
+        return {"node_type": "CorrectiveAction", "value": value, "results": results}
+    if key == "disposition":
+        results = [{"outcome": k, "action_text": v} for k, v in _ACTION_TEXT.items() if not value or value.lower() in k.lower()]
+        return {"node_type": "Disposition", "value": value, "results": results}
+    return {"node_type": node_type, "value": value, "results": []}
 
 
 # ---------------------------------------------------------------------------

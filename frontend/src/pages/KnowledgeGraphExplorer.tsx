@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -146,6 +147,47 @@ function ReasoningChainPanel() {
   );
 }
 
+interface SPDRule {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  spd_risk: string;
+  recommendation: string[];
+}
+
+const RISK_TAG: Record<string, string> = {
+  Low: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  Moderate: "bg-amber-50 text-amber-800 border-amber-200",
+  High: "bg-orange-50 text-orange-800 border-orange-200",
+  Critical: "bg-red-50 text-red-800 border-red-200",
+};
+
+function SPDRuleLibrary() {
+  const [rules, setRules] = useState<SPDRule[]>([]);
+
+  useEffect(() => {
+    fetchJSON("/api/decision-rules/library").then((d) => setRules(d.rules)).catch(() => {});
+  }, []);
+
+  return (
+    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {rules.map((rule) => (
+        <div key={rule.id} className="rounded-lg border bg-white p-4">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className="font-semibold text-gray-900 text-sm">{rule.title}</p>
+            <span className={`text-xs font-medium rounded-full border px-2 py-0.5 ${RISK_TAG[rule.spd_risk] ?? RISK_TAG.Moderate}`}>{rule.spd_risk}</span>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">{rule.description}</p>
+          <ul className="list-disc list-inside text-xs text-gray-700 space-y-0.5">
+            {rule.recommendation.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Explorer() {
   const [category, setCategory] = useState<(typeof EXPLORE_CATEGORIES)[number]>("zone");
   const [query, setQuery] = useState("");
@@ -212,6 +254,14 @@ export default function KnowledgeGraphExplorer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {families.map((f) => <FamilyCard key={f.family_key} profile={f} />)}
         </div>
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between">
+          <SectionHeader title="SPD Rule Library" subtitle="Structured, code-shipped clinical decision rules — description, evidence, severity, risk, recommendation." />
+          <Link to="/supervisor-rule-builder" className="text-sm text-blue-600 hover:underline whitespace-nowrap">Supervisor Rule Builder →</Link>
+        </div>
+        <SPDRuleLibrary />
       </section>
 
       <section>

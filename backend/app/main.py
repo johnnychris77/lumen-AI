@@ -648,6 +648,9 @@ app.include_router(capa_predictive_risk_router)
 
 from app.routes.clinical_memory import router as clinical_memory_router
 app.include_router(clinical_memory_router)
+
+from app.routes.clinical_reasoning import router as clinical_reasoning_router
+app.include_router(clinical_reasoning_router)
 app.include_router(capa_router, prefix=settings.API_PREFIX)
 app.include_router(vendor_governance_router, prefix=settings.API_PREFIX)
 

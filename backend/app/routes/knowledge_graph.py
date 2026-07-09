@@ -19,6 +19,7 @@ from app.services.knowledge_graph_service import (
     graph_schema,
     learning_confidence,
     list_instrument_family_intelligence,
+    query_node,
     reasoning_chain,
 )
 
@@ -90,6 +91,21 @@ def get_explorer(
     """Section 7 — Knowledge Graph Explorer."""
     tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
     return explore(db, tenant_id, category, q)
+
+
+@router.get("/node/{node_type}")
+def get_graph_node(
+    node_type: str,
+    value: str = Query(""),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*_READ_ROLES)),
+):
+    """v2.5 (Project Cortex) Section 1 — every Clinical Reasoning Graph node
+    is independently queryable: Instrument, Manufacturer, InstrumentFamily,
+    AnatomyZone, InspectionZone, Finding, Severity, SPDRisk,
+    ClinicalSignificance, CorrectiveAction, Disposition."""
+    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    return query_node(db, tenant_id, node_type, value)
 
 
 @router.get("/analytics")
