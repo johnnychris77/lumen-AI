@@ -988,6 +988,12 @@ from app.models import simulation_engine as _simulation_engine_models  # noqa: F
 from app.routes.scenario_analysis import router as scenario_analysis_router
 app.include_router(scenario_analysis_router)
 
+from app.models import or_connect as _or_connect_models  # noqa: F401
+from app.routes.or_connect import router as or_connect_router
+app.include_router(or_connect_router)
+from app.routes.or_connect_vendor_portal import router as or_connect_vendor_portal_router
+app.include_router(or_connect_vendor_portal_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 

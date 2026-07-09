@@ -132,3 +132,9 @@ class Inspection(Base):
     # emergency | trauma | first_case | routine | None
     procedure_priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_loaner_instrument: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    # v2.8 — OR Connect / Project Symphony. Links this inspection to a
+    # SurgicalCase (app.models.or_connect) so case-level readiness can be
+    # derived from real linked inspections instead of duplicating their state.
+    # Nullable — most inspections are not tied to a scheduled OR case.
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
