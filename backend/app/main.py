@@ -1012,6 +1012,10 @@ app.include_router(nexus_integration_router)
 from app.routes.nexus_api_gateway import router as nexus_api_gateway_router
 app.include_router(nexus_api_gateway_router)
 
+from app.models import predictive_insight as _predictive_insight_models  # noqa: F401
+from app.routes.predictive_insight import router as predictive_insight_router
+app.include_router(predictive_insight_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 

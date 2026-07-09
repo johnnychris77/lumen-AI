@@ -99,6 +99,7 @@ def _force_import_models():
         "app.models.sentinel_orchestration",
         "app.models.atlas_enterprise",
         "app.models.nexus_integration",
+        "app.models.predictive_insight",
     ]:
         try:
             importlib.import_module(model_path)
