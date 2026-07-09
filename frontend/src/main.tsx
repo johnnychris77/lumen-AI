@@ -82,6 +82,7 @@ const VendorIntelligencePage = lazy(() => import("./pages/VendorIntelligencePage
 const DigitalTwinPage = lazy(() => import("./pages/DigitalTwinPage"));
 const QualityIntelligencePage = lazy(() => import("./pages/QualityIntelligencePage"));
 const QualityDashboardPage = lazy(() => import("./pages/QualityDashboardPage"));
+const LearningDashboardPage = lazy(() => import("./pages/LearningDashboardPage"));
 const ClinicalReadinessPage = lazy(() => import("./pages/ClinicalReadinessPage"));
 const InspectionWorkQueuePage = lazy(() => import("./pages/InspectionWorkQueuePage"));
 const OperationsBoardPage = lazy(() => import("./pages/OperationsBoardPage"));
@@ -391,6 +392,7 @@ function App() {
                       <Route path="/digital-twin" element={<Page name="DigitalTwin"><DigitalTwinPage /></Page>} />
                       <Route path="/quality-intelligence" element={<Page name="QualityIntelligence"><QualityIntelligencePage /></Page>} />
                       <Route path="/quality-dashboard" element={<Page name="QualityDashboard"><QualityDashboardPage /></Page>} />
+                      <Route path="/learning-dashboard" element={<Page name="LearningDashboard"><LearningDashboardPage /></Page>} />
                       <Route path="/clinical-readiness" element={<Page name="ClinicalReadiness"><ClinicalReadinessPage /></Page>} />
                       <Route path="/inspection-work-queue" element={<Page name="InspectionWorkQueue"><InspectionWorkQueuePage /></Page>} />
                       <Route path="/operations-board" element={<Page name="OperationsBoard"><RequireRole allowed={ELEVATED_ROLES}><OperationsBoardPage /></RequireRole></Page>} />
