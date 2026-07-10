@@ -12,6 +12,8 @@ interface GuidedCaptureData {
   missing_zones: string[];
   high_risk_zones: string[];
   current_zone: string | null;
+  risk_level: string | null;
+  expected_findings: string[];
   recommended_camera_angle: string | null;
   lighting_tips: string | null;
   focus_tips: string | null;
@@ -32,6 +34,13 @@ const STATUS_STYLE: Record<string, string> = {
   incomplete: "bg-orange-100 text-orange-800",
   insufficient: "bg-red-100 text-red-800",
   not_assessed: "bg-slate-100 text-slate-500",
+};
+
+const RISK_STYLE: Record<string, string> = {
+  critical: "bg-red-100 text-red-800",
+  high: "bg-orange-100 text-orange-800",
+  medium: "bg-amber-100 text-amber-800",
+  low: "bg-slate-100 text-slate-600",
 };
 
 function ZoneChips({ zones, tone }: { zones: string[]; tone: "slate" | "emerald" | "red" | "amber" }) {
@@ -108,15 +117,28 @@ export default function GuidedCapturePanel({
       {/* Current zone to capture */}
       {data.current_zone ? (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-1">
-          <p className="text-sm font-semibold text-blue-900">
-            Next: capture <span className="capitalize">{data.current_zone}</span>
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-blue-900">
+              Next: capture <span className="capitalize">{data.current_zone}</span>
+            </p>
+            {data.risk_level && (
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold capitalize ${RISK_STYLE[data.risk_level] ?? "bg-slate-100"}`}>
+                {data.risk_level} risk
+              </span>
+            )}
+          </div>
           <p className="text-sm text-blue-800">{data.example_placeholder_guidance}</p>
           <div className="mt-1 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-blue-700">
             <div><span className="font-medium">Angle:</span> {data.recommended_camera_angle}</div>
             <div><span className="font-medium">Lighting:</span> {data.lighting_tips}</div>
             <div><span className="font-medium">Focus:</span> {data.focus_tips}</div>
           </div>
+          {data.expected_findings?.length > 0 && (
+            <div className="mt-1">
+              <span className="text-xs font-medium text-blue-900">Expected findings at this zone: </span>
+              <span className="text-xs text-blue-700 capitalize">{data.expected_findings.join(", ")}</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
