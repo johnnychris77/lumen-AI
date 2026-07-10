@@ -8,6 +8,27 @@ from app.models.inspection import Inspection
 from app.models.review import Review
 from app.models.user import User
 from app.models.external_connector import ExternalSystemConnector, ExternalEventImport  # noqa: F401
+# Pre-existing bug, fixed while building Project Vanguard's Governance
+# Dashboard: `release_governance_dashboard.py`/`governance_sla.py`/
+# `governance_sla_scanner.py` reference `models.LeadershipPacket`,
+# `models.LeadershipPacketDelivery`, `models.PacketRelease`,
+# `models.PacketReleaseHold`, `models.PacketReleaseOverride`,
+# `models.GovernanceSlaEvent`, and `models.GovernanceSlaPolicy`, but none
+# of these six models were ever imported here — every call into that
+# whole release-governance/SLA dependency chain raised AttributeError,
+# in any environment, since Python doesn't expose a submodule's classes
+# without an import.
+from app.models.governance_sla_event import GovernanceSlaEvent  # noqa: F401
+from app.models.governance_sla_policy import GovernanceSlaPolicy  # noqa: F401
+from app.models.leadership_packet import LeadershipPacket  # noqa: F401
+from app.models.leadership_packet_delivery import LeadershipPacketDelivery  # noqa: F401
+from app.models.packet_release import PacketRelease  # noqa: F401
+from app.models.packet_release_hold import PacketReleaseHold  # noqa: F401
+from app.models.packet_release_override import PacketReleaseOverride  # noqa: F401
+# Same pre-existing gap: `governance_console.py`'s own
+# `/governance-console/summary` route references `models.RetentionPolicy`,
+# also never imported here.
+from app.models.retention_policy import RetentionPolicy  # noqa: F401
 from app.models.patient_safety import (  # noqa: F401
     InstrumentQualitySignal,
     PatientSafetyEventLink,

@@ -26,7 +26,7 @@ from app.models.predictive_insight import (
     HORIZON_7_DAY,
     HORIZON_30_DAY,
 )
-from app.services import catalyst_skills_service, pulse_kpi_service
+from app.services import catalyst_skills_service, pulse_kpi_service, vanguard_ai_advisor_service
 from app.services.catalyst_explainability_service import build_evidence_envelope
 from app.services.finding_trend_service import TREND_FINDING_TYPES
 
@@ -38,6 +38,13 @@ INTENT_RECURRING_FINDING_TREND = "recurring_finding_trend"
 INTENT_INSTRUMENT_FINDING_SEARCH = "instrument_finding_search"
 INTENT_FORECAST = "forecast"
 INTENT_KNOWLEDGE_SEARCH = "knowledge_search"
+# Added for v4.6 Project Vanguard, Section 6: Executive AI Advisor —
+# extends this same deterministic classifier rather than building a
+# second natural-language engine.
+INTENT_ENTERPRISE_RISK_SUMMARY = "enterprise_risk_summary"
+INTENT_INVESTMENT_RECOMMENDATION = "investment_recommendation"
+INTENT_FACILITY_ATTENTION_RANKING = "facility_attention_ranking"
+INTENT_QUALITY_TRENDS_FOR_MEETING = "quality_trends_for_meeting"
 INTENT_UNKNOWN = "unknown"
 
 
@@ -70,6 +77,14 @@ def classify_intent(query: str) -> str:
         return INTENT_DIGITAL_TWIN_HEALTH
     if "contamination" in text and ("zone" in text or "anatomy" in text):
         return INTENT_ANATOMY_CONTAMINATION
+    if any(k in text for k in ["enterprise risk", "top risk", "top enterprise risk"]):
+        return INTENT_ENTERPRISE_RISK_SUMMARY
+    if "investment" in text and ("repair cost" in text or "reduce" in text):
+        return INTENT_INVESTMENT_RECOMMENDATION
+    if "facilit" in text and ("attention" in text or "require attention" in text):
+        return INTENT_FACILITY_ATTENTION_RANKING
+    if "quality trend" in text and ("meeting" in text or "discuss" in text):
+        return INTENT_QUALITY_TRENDS_FOR_MEETING
     if "recurring" in text or ("trend" in text and "forecast" not in text):
         return INTENT_RECURRING_FINDING_TREND
     if any(k in text for k in ["forecast", "predict", "projection", "workload next"]):
@@ -179,13 +194,53 @@ def answer_query(db: Session, tenant_id: str, query: str) -> dict:
         )
         return {"intent": intent, "skill_used": "knowledge_search", "answer": answer, "data": result, "evidence": evidence}
 
+    if intent == INTENT_ENTERPRISE_RISK_SUMMARY:
+        result = vanguard_ai_advisor_service.top_enterprise_risks(db, tenant_id)
+        answer = f"{len(result['top_risks'])} top enterprise risk(s) surfaced; enterprise risk score is {result['enterprise_risk_score']}."
+        evidence = build_evidence_envelope(
+            evidence_used=[f"enterprise_risk_score={result['enterprise_risk_score']}"], knowledge_sources=[], digital_twin_factors=[],
+            workflow_rules=[], reasoning_path=["vanguard_ai_advisor_service.top_enterprise_risks"], confidence=0.8,
+            references=[{"source": "pulse_command_center_service.pulse_command_center"}],
+        )
+        return {"intent": intent, "skill_used": "enterprise_risk_summary", "answer": answer, "data": result, "evidence": evidence}
+
+    if intent == INTENT_INVESTMENT_RECOMMENDATION:
+        result = vanguard_ai_advisor_service.investment_recommendation(db, tenant_id)
+        answer = f"{len(result['capital_replacement_priorities'])} capital replacement priority item(s) identified from real repair/replacement cost projections."
+        evidence = build_evidence_envelope(
+            evidence_used=[result["data_source"]], knowledge_sources=[], digital_twin_factors=[], workflow_rules=[],
+            reasoning_path=["prediction_engine.compute_predictive_dashboard"], confidence=0.7 if result["data_source"] == "real" else 0.3,
+            references=[{"source": "prediction_engine.compute_predictive_dashboard"}],
+        )
+        return {"intent": intent, "skill_used": "investment_recommendation", "answer": answer, "data": result, "evidence": evidence}
+
+    if intent == INTENT_FACILITY_ATTENTION_RANKING:
+        result = vanguard_ai_advisor_service.facilities_requiring_attention(db, tenant_id)
+        answer = f"{len(result.get('facilities_requiring_attention', []))} facility(ies) ranked lowest on inspection quality."
+        evidence = build_evidence_envelope(
+            evidence_used=[], knowledge_sources=[], digital_twin_factors=[], workflow_rules=[],
+            reasoning_path=["vanguard_benchmarking_service.compute_benchmark(inspection_programs)"], confidence=0.75,
+            references=[{"source": "atlas_benchmarking_service.cross_facility_benchmark"}],
+        )
+        return {"intent": intent, "skill_used": "facility_attention_ranking", "answer": answer, "data": result, "evidence": evidence}
+
+    if intent == INTENT_QUALITY_TRENDS_FOR_MEETING:
+        result = vanguard_ai_advisor_service.quality_trends_for_meeting(db, tenant_id)
+        answer = "Top quality trends worth discussing: " + ", ".join(f["finding_type"] for f in result["top_finding_types"]) + "."
+        evidence = build_evidence_envelope(
+            evidence_used=[], knowledge_sources=[], digital_twin_factors=[], workflow_rules=[],
+            reasoning_path=["finding_trend_service.finding_trends"], confidence=0.75,
+            references=[{"source": "finding_trend_service.finding_trends"}],
+        )
+        return {"intent": intent, "skill_used": "quality_trends_for_meeting", "answer": answer, "data": result, "evidence": evidence}
+
     evidence = build_evidence_envelope(
         evidence_used=[], knowledge_sources=[], digital_twin_factors=[], workflow_rules=[],
         reasoning_path=["no keyword pattern matched"], confidence=0.0, references=[],
     )
     return {
         "intent": INTENT_UNKNOWN, "skill_used": "", "evidence": evidence,
-        "answer": "I couldn't match that to a known query type yet. Try asking about supervisor backlog, executive summary, Digital Twin health, contamination by zone, recurring findings, forecasts, or knowledge articles.",
+        "answer": "I couldn't match that to a known query type yet. Try asking about supervisor backlog, executive summary, Digital Twin health, contamination by zone, recurring findings, forecasts, knowledge articles, enterprise risks, investment recommendations, facilities needing attention, or quality trends.",
         "data": {},
     }
 

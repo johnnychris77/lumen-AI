@@ -1050,6 +1050,10 @@ from app.models import orbit_readiness as _orbit_readiness_models  # noqa: F401
 from app.routes.orbit_readiness import router as orbit_readiness_router
 app.include_router(orbit_readiness_router)
 
+from app.models import vanguard_intelligence as _vanguard_intelligence_models  # noqa: F401
+from app.routes.vanguard_intelligence import router as vanguard_intelligence_router
+app.include_router(vanguard_intelligence_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
