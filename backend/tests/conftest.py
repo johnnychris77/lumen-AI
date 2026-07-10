@@ -102,6 +102,7 @@ def _force_import_models():
         "app.models.predictive_insight",
         "app.models.federated_horizon",
         "app.models.industry_collaboration",
+        "app.models.platform_core",
     ]:
         try:
             importlib.import_module(model_path)

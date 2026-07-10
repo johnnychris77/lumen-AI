@@ -1030,6 +1030,10 @@ from app.models import industry_collaboration as _industry_collaboration_models 
 from app.routes.industry_collaboration import router as industry_collaboration_router
 app.include_router(industry_collaboration_router)
 
+from app.models import platform_core as _platform_core_models  # noqa: F401
+from app.routes.platform import router as platform_router
+app.include_router(platform_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

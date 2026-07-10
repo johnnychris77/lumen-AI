@@ -168,9 +168,16 @@ EVENT_KNOWLEDGE_UPDATED = "KnowledgeUpdated"
 EVENT_BASELINE_PUBLISHED = "BaselinePublished"
 EVENT_DIGITAL_TWIN_UPDATED = "DigitalTwinUpdated"
 EVENT_ENTERPRISE_ALERT_CREATED = "EnterpriseAlertCreated"
+# Added for LumenAI OS v4.0 (Project Genesis) Section 1/8 — module licensing
+# and plugin registration are new platform-level occurrences that didn't
+# exist before Genesis; extending this list (and reusing `publish()`
+# directly) was the reuse path rather than a second event bus.
+EVENT_MODULE_LICENSE_CHANGED = "ModuleLicenseChanged"
+EVENT_PLUGIN_REGISTERED = "PluginRegistered"
 NEXUS_EVENT_TYPES = [
     EVENT_INSPECTION_COMPLETED, EVENT_SUPERVISOR_APPROVED, EVENT_REPAIR_RECOMMENDED,
     EVENT_KNOWLEDGE_UPDATED, EVENT_BASELINE_PUBLISHED, EVENT_DIGITAL_TWIN_UPDATED, EVENT_ENTERPRISE_ALERT_CREATED,
+    EVENT_MODULE_LICENSE_CHANGED, EVENT_PLUGIN_REGISTERED,
 ]
 
 SUBSCRIPTION_TARGET_WEBHOOK = "webhook"

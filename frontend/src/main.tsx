@@ -78,6 +78,8 @@ const ResearchPortalPage = lazy(() => import("./pages/ResearchPortalPage"));
 const GovernanceCenterPage = lazy(() => import("./pages/GovernanceCenterPage"));
 const CollaborationHubPage = lazy(() => import("./pages/CollaborationHubPage"));
 const CollaborationGovernancePage = lazy(() => import("./pages/CollaborationGovernancePage"));
+const PlatformLauncherPage = lazy(() => import("./pages/PlatformLauncherPage"));
+const PlatformAdminPage = lazy(() => import("./pages/PlatformAdminPage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
@@ -397,6 +399,8 @@ function App() {
                       <Route path="/governance" element={<Page name="Governance"><GovernanceCenterPage /></Page>} />
                       <Route path="/collaboration" element={<Page name="Collaboration"><CollaborationHubPage /></Page>} />
                       <Route path="/collaboration-governance" element={<Page name="CollaborationGovernance"><CollaborationGovernancePage /></Page>} />
+                      <Route path="/launcher" element={<Page name="Launcher"><PlatformLauncherPage /></Page>} />
+                      <Route path="/platform-admin" element={<Page name="PlatformAdmin"><PlatformAdminPage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
