@@ -1034,6 +1034,10 @@ from app.models import platform_core as _platform_core_models  # noqa: F401
 from app.routes.platform import router as platform_router
 app.include_router(platform_router)
 
+from app.models import workflow_forge as _workflow_forge_models  # noqa: F401
+from app.routes.workflow_forge import router as workflow_forge_router
+app.include_router(workflow_forge_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

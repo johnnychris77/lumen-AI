@@ -103,6 +103,7 @@ def _force_import_models():
         "app.models.federated_horizon",
         "app.models.industry_collaboration",
         "app.models.platform_core",
+        "app.models.workflow_forge",
     ]:
         try:
             importlib.import_module(model_path)
