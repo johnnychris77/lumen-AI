@@ -10,12 +10,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Date, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 INITIATIVE_STATUSES: list[str] = ["proposed", "in_progress", "completed", "abandoned"]
+
+# v4.7 Project Apollo — Continuous Improvement Portfolio methodologies
+# (Section 8 of the brief); additive, not a new table.
+METHODOLOGIES: list[str] = ["pi", "lean", "six_sigma", "kaizen", "other"]
 
 
 class ContinuousImprovementInitiative(Base):
@@ -43,3 +47,13 @@ class ContinuousImprovementInitiative(Base):
     status: Mapped[str] = mapped_column(String(20), default="proposed", nullable=False, index=True)
     expected_impact: Mapped[str] = mapped_column(Text, default="", nullable=False)
     actual_impact: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    # v4.7 Project Apollo — Continuous Improvement Portfolio additions
+    # (Section 8): methodology classification, cost savings, quality/risk
+    # metrics, and executive visibility flag. All nullable/blank for older
+    # rows and never fabricated — human-entered only, same as actual_impact.
+    methodology: Mapped[str] = mapped_column(String(20), default="", nullable=False, index=True)
+    cost_savings_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quality_improvement_metric: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    risk_reduction_metric: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    executive_visible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

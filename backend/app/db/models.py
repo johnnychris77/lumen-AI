@@ -100,6 +100,9 @@ from app.models.p25_infrastructure import (  # noqa: F401
     InstrumentDigitalIdentity, SurgicalReadinessScore, InstrumentPassportEvent,
     GlobalQualityRegistryEntry, IndustryAPICredential,
 )
+from app.models.apollo_quality import (  # noqa: F401
+    CustomerComplaint, QualityPolicy, QualityTwinSnapshot,
+)
 
 
 class TenantMembership(Base):

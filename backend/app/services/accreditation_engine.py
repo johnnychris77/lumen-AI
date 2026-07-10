@@ -214,6 +214,16 @@ def generate_audit_package(
         "aami": "aami",
         "fda": "fda",
         "cms": "cms",
+        # v4.7 Project Apollo additions — AAMI ST91 (endoscope reprocessing),
+        # AORN (perioperative practice), DNV (accreditation body), and
+        # facility-defined internal/vendor audit package types. Internal and
+        # vendor audits are not tied to a single regulatory body's standards,
+        # so they include the full standards catalogue like "full" does.
+        "aami_st91": "aami_st91",
+        "aorn": "aorn",
+        "dnv": "dnv",
+        "internal": None,
+        "vendor": None,
         "full": None,  # all bodies
     }
     target_body = body_map.get(package_type)

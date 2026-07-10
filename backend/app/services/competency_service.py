@@ -76,6 +76,48 @@ def record_education_completed(db: Session, *, tenant_id: str, technician: str, 
             event_type="education_completed", finding_type=finding_type)
 
 
+# v4.7 Project Apollo — four new event types on this same log (Section 5:
+# Competency Center), reusing `finding_type` as the free-text subject label
+# (procedure name / competency cycle / scenario+outcome / contribution topic)
+# rather than adding new columns to CompetencyEvent.
+
+def record_annual_competency(db: Session, *, tenant_id: str, technician: str, competency_area: str) -> None:
+    """A technician completed their annual competency assessment for a given
+    area (e.g. "flexible endoscope reprocessing")."""
+    if not technician:
+        return
+    _record(db, tenant_id=tenant_id, technician=technician,
+            event_type="annual_competency", finding_type=competency_area[:40])
+
+
+def record_procedure_validation(db: Session, *, tenant_id: str, technician: str, procedure_name: str) -> None:
+    """A technician was validated on a specific reprocessing procedure."""
+    if not technician:
+        return
+    _record(db, tenant_id=tenant_id, technician=technician,
+            event_type="procedure_validation", finding_type=procedure_name[:40])
+
+
+def record_simulation_result(db: Session, *, tenant_id: str, technician: str, scenario: str, passed: bool) -> None:
+    """A technician completed a simulation-based training scenario. Result is
+    encoded in the event_type itself (simulation_passed/simulation_failed) —
+    never fabricated as a score with no basis."""
+    if not technician:
+        return
+    _record(db, tenant_id=tenant_id, technician=technician,
+            event_type="simulation_passed" if passed else "simulation_failed",
+            finding_type=scenario[:40])
+
+
+def record_knowledge_contribution(db: Session, *, tenant_id: str, technician: str, topic: str) -> None:
+    """A technician contributed to the Standards Knowledge Library (e.g. an
+    authored best-practice note or a reviewed article)."""
+    if not technician:
+        return
+    _record(db, tenant_id=tenant_id, technician=technician,
+            event_type="knowledge_contribution", finding_type=topic[:40])
+
+
 def _count(db: Session, technician: str, event_type: str) -> int:
     return (
         db.query(func.count(CompetencyEvent.id))
@@ -117,6 +159,13 @@ def competency_summary(db: Session, technician: str) -> dict:
         if supervisor_corrections else None
     )
 
+    # v4.7 Project Apollo — counts for the four new event types (Section 5).
+    annual_competencies = _count(db, technician, "annual_competency")
+    procedure_validations = _count(db, technician, "procedure_validation")
+    simulations_passed = _count(db, technician, "simulation_passed")
+    simulations_failed = _count(db, technician, "simulation_failed")
+    knowledge_contributions = _count(db, technician, "knowledge_contribution")
+
     return {
         "technician": technician,
         "findings_reviewed": findings_reviewed,
@@ -125,6 +174,11 @@ def competency_summary(db: Session, technician: str) -> dict:
         "education_completed": education_completed,
         "training_progress_pct": training_progress_pct,
         "has_activity": total_activity > 0,
+        "annual_competencies": annual_competencies,
+        "procedure_validations": procedure_validations,
+        "simulations_passed": simulations_passed,
+        "simulations_failed": simulations_failed,
+        "knowledge_contributions": knowledge_contributions,
     }
 
 

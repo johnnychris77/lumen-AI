@@ -108,6 +108,7 @@ def _force_import_models():
         "app.models.catalyst_copilot",
         "app.models.orbit_readiness",
         "app.models.vanguard_intelligence",
+        "app.models.apollo_quality",
     ]:
         try:
             importlib.import_module(model_path)
