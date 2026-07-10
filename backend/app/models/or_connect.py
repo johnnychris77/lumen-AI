@@ -68,9 +68,19 @@ RISK_BASELINE_MISSING = "baseline_missing"
 RISK_REPAIR_INCOMPLETE = "repair_incomplete"
 RISK_CRITICAL_FINDING_UNRESOLVED = "critical_finding_unresolved"
 RISK_SUPERVISOR_REVIEW_PENDING = "supervisor_review_pending"
+# Added for v4.5 Project Orbit's Readiness Alert Engine (Section 5) — these
+# extend the same `CaseRiskAlert` table/vocabulary rather than Orbit adding a
+# second alert table for the same `SurgicalCase` entity.
+RISK_MISSING_INSTRUMENT = "missing_instrument"
+RISK_MISSING_IMPLANT = "missing_implant"
+RISK_HIGH_RISK_DIGITAL_TWIN = "high_risk_digital_twin"
+RISK_EQUIPMENT_UNAVAILABLE = "equipment_unavailable"
+RISK_KNOWLEDGE_ADVISORY = "knowledge_advisory"
 RISK_TYPES = [
     RISK_VENDOR_TRAY_NOT_RECEIVED, RISK_INSPECTION_OVERDUE, RISK_BASELINE_MISSING,
     RISK_REPAIR_INCOMPLETE, RISK_CRITICAL_FINDING_UNRESOLVED, RISK_SUPERVISOR_REVIEW_PENDING,
+    RISK_MISSING_INSTRUMENT, RISK_MISSING_IMPLANT, RISK_HIGH_RISK_DIGITAL_TWIN,
+    RISK_EQUIPMENT_UNAVAILABLE, RISK_KNOWLEDGE_ADVISORY,
 ]
 
 # ── Stakeholder roles (Section 5) ───────────────────────────────────────────
@@ -80,9 +90,15 @@ ROLE_SURGEON = "surgeon"
 ROLE_VENDOR_REP = "vendor_rep"
 ROLE_CLINICAL_ENGINEERING = "clinical_engineering"
 ROLE_SUPPLY_CHAIN = "supply_chain"
+# Added for v4.5 Project Orbit's Cross-Department Coordination (Section 4) —
+# the three named departments not already covered by the six roles above.
+ROLE_INFECTION_PREVENTION = "infection_prevention"
+ROLE_QUALITY = "quality"
+ROLE_BIOMEDICAL_ENGINEERING = "biomedical_engineering"
 STAKEHOLDER_ROLES = [
     ROLE_SPD, ROLE_OR_CHARGE_NURSE, ROLE_SURGEON, ROLE_VENDOR_REP,
     ROLE_CLINICAL_ENGINEERING, ROLE_SUPPLY_CHAIN,
+    ROLE_INFECTION_PREVENTION, ROLE_QUALITY, ROLE_BIOMEDICAL_ENGINEERING,
 ]
 
 DISCLAIMER = (
@@ -117,6 +133,13 @@ class SurgicalCase(Base):
     supervisor_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     supervisor_approved_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     supervisor_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Added for v4.5 Project Orbit's Surgical Timeline (Section 6) — the
+    # terminal "Procedure Complete" step needed a real, independently-timed
+    # record rather than a fabricated timestamp; additive nullable columns
+    # on the existing case row rather than a second case-state table.
+    procedure_completed_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    procedure_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
@@ -187,6 +210,10 @@ class CaseRiskAlert(Base):
     risk_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    # Added for v4.5 Project Orbit's Readiness Alert Engine (Section 5):
+    # "every alert includes recommended next actions" — additive nullable
+    # column on the same alert row rather than a second alert table.
+    recommended_action: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     acknowledged_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)

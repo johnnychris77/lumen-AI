@@ -213,7 +213,7 @@ def post_approve_case(
 ):
     tenant_id = _tenant(current_user, request)
     try:
-        case = engine._get_case(db, tenant_id, case_id)
+        case = engine.get_case_or_404(db, tenant_id, case_id)
     except engine.CaseNotFoundError as exc:
         raise _not_found(exc) from exc
     case.supervisor_approved = body.approved

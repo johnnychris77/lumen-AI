@@ -1046,6 +1046,10 @@ from app.models import catalyst_copilot as _catalyst_copilot_models  # noqa: F40
 from app.routes.catalyst_copilot import router as catalyst_copilot_router
 app.include_router(catalyst_copilot_router)
 
+from app.models import orbit_readiness as _orbit_readiness_models  # noqa: F401
+from app.routes.orbit_readiness import router as orbit_readiness_router
+app.include_router(orbit_readiness_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

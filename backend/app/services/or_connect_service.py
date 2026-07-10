@@ -81,7 +81,7 @@ def _row_to_dict(obj) -> dict:
     return result
 
 
-def _get_case(db: Session, tenant_id: str, case_id: int) -> SurgicalCase:
+def get_case_or_404(db: Session, tenant_id: str, case_id: int) -> SurgicalCase:
     case = (
         db.query(SurgicalCase)
         .filter(SurgicalCase.id == case_id, SurgicalCase.tenant_id == tenant_id)
@@ -147,7 +147,7 @@ def list_cases(db: Session, tenant_id: str, *, target_date: date | None = None) 
 
 
 def link_inspection_to_case(db: Session, tenant_id: str, case_id: int, inspection_id: int):
-    _get_case(db, tenant_id, case_id)
+    get_case_or_404(db, tenant_id, case_id)
     insp = (
         db.query(models.Inspection)
         .filter(models.Inspection.id == inspection_id, models.Inspection.tenant_id == tenant_id)
@@ -165,7 +165,7 @@ def add_vendor_tray(
     db: Session, tenant_id: str, case_id: int, *, tray_name: str, vendor_name: str = "",
     tray_label: str = "", is_vendor_tray: bool = True,
 ) -> VendorTray:
-    _get_case(db, tenant_id, case_id)
+    get_case_or_404(db, tenant_id, case_id)
     tray = VendorTray(
         tenant_id=tenant_id, case_id=case_id, tray_name=tray_name, vendor_name=vendor_name,
         tray_label=tray_label, is_vendor_tray=is_vendor_tray, requested_at=datetime.now(timezone.utc),
@@ -198,7 +198,7 @@ def case_detail(db: Session, tenant_id: str, case_id: int) -> dict:
     """Section 1 — the full case view: identity, trays, inspections, and
     derived status (never duplicated storage of what an Inspection already
     tracks)."""
-    case = _get_case(db, tenant_id, case_id)
+    case = get_case_or_404(db, tenant_id, case_id)
     inspections = _case_inspections(db, tenant_id, case_id)
     trays = _case_trays(db, tenant_id, case_id)
     repairs = _case_repairs(db, tenant_id, case_id)
@@ -262,7 +262,7 @@ def _ratio(numerator: int, denominator: int) -> float:
 
 
 def compute_case_readiness_score(db: Session, tenant_id: str, case_id: int) -> dict:
-    case = _get_case(db, tenant_id, case_id)
+    case = get_case_or_404(db, tenant_id, case_id)
     inspections = _case_inspections(db, tenant_id, case_id)
     trays = _case_trays(db, tenant_id, case_id)
     repairs = _case_repairs(db, tenant_id, case_id)
@@ -345,7 +345,7 @@ def compute_case_readiness_score(db: Session, tenant_id: str, case_id: int) -> d
 
 
 def build_case_timeline(db: Session, tenant_id: str, case_id: int) -> dict:
-    case = _get_case(db, tenant_id, case_id)
+    case = get_case_or_404(db, tenant_id, case_id)
     inspections = _case_inspections(db, tenant_id, case_id)
     trays = _case_trays(db, tenant_id, case_id)
     vendor_trays = [t for t in trays if t.vendor_name]
@@ -425,7 +425,7 @@ def _already_alerted(db: Session, tenant_id: str, case_id: int, risk_type: str) 
 
 
 def detect_operational_risks(db: Session, tenant_id: str, case_id: int) -> list[dict]:
-    case = _get_case(db, tenant_id, case_id)
+    case = get_case_or_404(db, tenant_id, case_id)
     inspections = _case_inspections(db, tenant_id, case_id)
     trays = _case_trays(db, tenant_id, case_id)
     repairs = _case_repairs(db, tenant_id, case_id)

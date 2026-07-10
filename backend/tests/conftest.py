@@ -106,6 +106,7 @@ def _force_import_models():
         "app.models.workflow_forge",
         "app.models.pulse_operations",
         "app.models.catalyst_copilot",
+        "app.models.orbit_readiness",
     ]:
         try:
             importlib.import_module(model_path)
