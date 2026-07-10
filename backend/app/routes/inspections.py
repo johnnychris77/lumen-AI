@@ -445,6 +445,24 @@ async def create_inspection(
             training_mode=body.training_mode,
             image_view_tags=image_view_tags_dicts,
         )
+        # v2.4 — AI Context Expansion: attach this instrument's own Clinical
+        # Memory (prior history, recurring issues, predictive risk, forecast)
+        # when it's a real re-identified instrument (barcode/UDI). Computed
+        # BEFORE this inspection is persisted below, so it only ever reflects
+        # prior history — purely additive context, never altering the score.
+        from app.services.clinical_memory_service import get_clinical_memory
+
+        if body.instrument_barcode:
+            memory_identity = f"barcode:{body.instrument_barcode}"
+        elif body.instrument_udi:
+            memory_identity = f"udi:{body.instrument_udi}"
+        else:
+            memory_identity = None
+        if memory_identity:
+            clinical_memory = get_clinical_memory(db, tenant_id, memory_identity)
+            if clinical_memory:
+                analysis["clinical_memory"] = clinical_memory
+
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
         risk_level_val = analysis.get("risk_level")

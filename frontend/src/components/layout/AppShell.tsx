@@ -44,6 +44,7 @@ import {
   ListChecks,
   ClipboardList,
   BookMarked,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +132,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analytics", label: "Benchmarking", icon: BarChart3 },
       { to: "/quality-intelligence", label: "Risk Signals", icon: AlertTriangle },
       { to: "/quality-dashboard", label: "Quality Dashboard", icon: BarChart3 },
+      { to: "/learning-dashboard", label: "Learning Dashboard", icon: Brain },
       { to: "/clinical-readiness", label: "Clinical Service Readiness", icon: ShieldCheck },
       { to: "/operations", label: "Operational Analytics", icon: Activity },
       { to: "/operations-board", label: "Operations Board", icon: ClipboardList, roles: ["admin", "spd_manager"] },
