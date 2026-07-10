@@ -172,7 +172,8 @@ class AdvisoryConsortiumMember(Base):
     id = Column(Integer, primary_key=True)
     tenant_id = Column(String, nullable=False, index=True, unique=True)
     organization_type = Column(String, nullable=False)
-    # hospital / manufacturer / regulator / academic / standards_body
+    # hospital / manufacturer / regulator / academic / standards_body /
+    # repair_vendor / research_partner (last two added for Project Beacon v3.5)
     region = Column(String)
     membership_tier = Column(String, default="observer")
     # observer / contributor / voting / steering
@@ -201,6 +202,10 @@ class StandardsPublication(Base):
     authors = Column(Text)  # JSON: list of contributing organizations (anonymized)
     regulatory_bodies_aligned = Column(Text)  # JSON: [FDA, EUMDR, TGA, ...]
     public_comment_period_days = Column(Integer, default=30)
+    # Added for Project Beacon (v3.5) Section 4 — links a revised publication
+    # back to the version it supersedes, so "maintain version history" has a
+    # real chain to walk rather than only a free-text `version` string.
+    supersedes_id = Column(Integer, nullable=True, index=True)
     human_review_required = Column(Boolean, default=True, nullable=False)
     disclaimer = Column(
         Text,

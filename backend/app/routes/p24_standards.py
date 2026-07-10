@@ -453,7 +453,14 @@ def enroll_consortium(
             },
         )
 
-    VALID_TYPES = {"hospital", "manufacturer", "regulator", "academic", "standards_body"}
+    # "repair_vendor" and "research_partner" added for Project Beacon (v3.5)
+    # Section 1 — the two participant types P24's original consortium
+    # enrollment didn't cover, reusing this same table/endpoint rather than
+    # a parallel Beacon-specific membership model.
+    VALID_TYPES = {
+        "hospital", "manufacturer", "regulator", "academic", "standards_body",
+        "repair_vendor", "research_partner",
+    }
     if body.organization_type not in VALID_TYPES:
         raise HTTPException(
             status_code=422,

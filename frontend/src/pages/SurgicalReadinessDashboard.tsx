@@ -1,387 +1,313 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  Package,
-  RefreshCw,
-  ShieldCheck,
-  Stethoscope,
-  Thermometer,
-  XCircle,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
-import { useAuth, API_BASE } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+/**
+ * v4.5 — LumenAI OS: Project Orbit — Perioperative Intelligence &
+ * Surgical Readiness Platform.
+ *
+ * This page previously rendered a thin, mostly client-side heuristic
+ * "Surgical Readiness" demo (hard-coded tray rows, fabricated fallback
+ * numbers on fetch failure) built on P25's `/api/infrastructure`
+ * instrument-quality endpoints. It is rewritten here in place to be
+ * Orbit's real, case-scoped Surgical Readiness Platform, backed entirely
+ * by `/api/orbit/*` — the `/surgical-readiness` route is kept, but the
+ * page underneath it is now a different, real system. See
+ * `app/models/orbit_readiness.py`'s naming-disambiguation note.
+ */
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
-type ReadinessDimension = {
-  label: string;
-  score: number; // 0–100
-  status: "ready" | "caution" | "not-ready";
-  detail: string;
-  icon: React.ElementType;
-};
-
-type TrayRow = {
-  tray_id: string;
-  instruments: number;
-  ready: number;
-  status: "ready" | "caution" | "not-ready";
-};
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function scoreToStatus(score: number): "ready" | "caution" | "not-ready" {
-  if (score >= 80) return "ready";
-  if (score >= 60) return "caution";
-  return "not-ready";
+interface CaseSummary {
+  id: number;
+  case_ref: string;
+  procedure: string;
+  scheduled_start: string;
 }
 
-function statusColor(status: "ready" | "caution" | "not-ready") {
-  return status === "ready"
-    ? "text-emerald-600"
-    : status === "caution"
-    ? "text-amber-600"
-    : "text-red-600";
+interface ReadinessDimensionEntry {
+  weight: number;
+  value: number;
+  points: number;
 }
 
-function statusBg(status: "ready" | "caution" | "not-ready") {
-  return status === "ready"
-    ? "bg-emerald-50 border-emerald-200"
-    : status === "caution"
-    ? "bg-amber-50 border-amber-200"
-    : "bg-red-50 border-red-200";
+interface SurgicalReadiness {
+  case_id: number;
+  case_ref: string;
+  overall_score: number;
+  dimensions: Record<string, ReadinessDimensionEntry>;
+  rationale: string;
+  or_connect_readiness_score: number;
 }
 
-function statusIcon(status: "ready" | "caution" | "not-ready") {
-  if (status === "ready") return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-  if (status === "caution") return <AlertTriangle className="h-4 w-4 text-amber-500" />;
-  return <XCircle className="h-4 w-4 text-red-500" />;
+interface RiskAlert {
+  id: number;
+  risk_type: string;
+  severity: string;
+  message: string;
+  recommended_action: string;
+  resolved_at: string | null;
 }
 
-function ScoreMeter({ score, status }: { score: number; status: "ready" | "caution" | "not-ready" }) {
-  const trackColor =
-    status === "ready"
-      ? "bg-emerald-500"
-      : status === "caution"
-      ? "bg-amber-500"
-      : "bg-red-500";
+interface TimelineStep {
+  step: string;
+  completed: boolean | null;
+  timestamp: string | null;
+  note?: string;
+}
+
+interface ExecutiveSummary {
+  date: string;
+  cases_today: number;
+  readiness_pct: number | null;
+  delayed_cases: number;
+  inspection_holds: number;
+  repair_holds: number;
+  digital_twin_risk: { utilization_pct: number; high_risk_alert_count: number };
+  top_operational_risks: { risk_type: string; count: number }[];
+}
+
+const TABS = ["OR Readiness", "Case Intelligence", "Timeline", "Alerts", "Coordination", "Executive", "Simulation"] as const;
+type Tab = (typeof TABS)[number];
+
+function scoreColor(score: number): string {
+  if (score >= 80) return "text-emerald-600";
+  if (score >= 60) return "text-amber-600";
+  return "text-red-600";
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="w-full">
-      <div className="flex justify-between text-xs mb-1">
-        <span className={`font-bold tabular-nums ${statusColor(status)}`}>{score}%</span>
-        <span className="text-slate-400 capitalize">{status.replace("-", " ")}</span>
-      </div>
-      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${trackColor}`}
-          style={{ width: `${score}%` }}
-        />
-      </div>
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">{title}</h3>
+      {children}
     </div>
   );
 }
 
-function ReadinessCard({ dim }: { dim: ReadinessDimension }) {
-  return (
-    <Card className={`border ${statusBg(dim.status)}`}>
-      <CardContent className="p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
-              <dim.icon className="h-4 w-4 text-slate-600" />
-            </div>
-            <span className="text-sm font-semibold text-slate-800">{dim.label}</span>
-          </div>
-          {statusIcon(dim.status)}
-        </div>
-        <ScoreMeter score={dim.score} status={dim.status} />
-        <p className="text-xs text-slate-500">{dim.detail}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Main Component ───────────────────────────────────────────────────────────
-
 export default function SurgicalReadinessDashboard() {
-  const { headers } = useAuth();
-  const [dimensions, setDimensions] = useState<ReadinessDimension[]>([]);
-  const [trays, setTrays] = useState<TrayRow[]>([]);
-  const [overallScore, setOverallScore] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("OR Readiness");
+  const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
 
-  const buildReadiness = useCallback(async () => {
+  const [readiness, setReadiness] = useState<SurgicalReadiness | null>(null);
+  const [intelligence, setIntelligence] = useState<Record<string, unknown> | null>(null);
+  const [timeline, setTimeline] = useState<{ steps: TimelineStep[] } | null>(null);
+  const [alerts, setAlerts] = useState<RiskAlert[]>([]);
+  const [coordination, setCoordination] = useState<{ timeline: Record<string, unknown>[]; departments: string[] } | null>(null);
+  const [executive, setExecutive] = useState<ExecutiveSummary | null>(null);
+  const [simulations, setSimulations] = useState<Record<string, unknown>[]>([]);
+  const [hoursShift, setHoursShift] = useState("1");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get<{ cases: CaseSummary[] }>("/api/orbit/cases").then((r) => {
+      setCases(r.cases);
+      if (r.cases.length && selectedCaseId === null) setSelectedCaseId(r.cases[0].id);
+    }).catch(() => {});
+    api.get<ExecutiveSummary>("/api/orbit/executive").then(setExecutive).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (selectedCaseId === null) return;
     setLoading(true);
-    try {
-      const hdrs = headers();
+    Promise.allSettled([
+      api.get<SurgicalReadiness>(`/api/orbit/case-readiness/${selectedCaseId}`).then(setReadiness),
+      api.get<Record<string, unknown>>(`/api/orbit/cases/${selectedCaseId}/intelligence`).then(setIntelligence),
+      api.get<{ steps: TimelineStep[] }>(`/api/orbit/cases/${selectedCaseId}/timeline`).then(setTimeline),
+      api.get<{ alerts: RiskAlert[] }>(`/api/orbit/readiness-alerts/${selectedCaseId}`).then((r) => setAlerts(r.alerts)),
+      api.get<{ timeline: Record<string, unknown>[]; departments: string[] }>(`/api/orbit/cases/${selectedCaseId}/coordination`).then(setCoordination),
+      api.get<{ simulations: Record<string, unknown>[] }>(`/api/orbit/cases/${selectedCaseId}/simulations`).then((r) => setSimulations(r.simulations)),
+    ]).finally(() => setLoading(false));
+  }, [selectedCaseId]);
 
-      const [kpiRes, baselineRes, instrRes] = await Promise.allSettled([
-        apiFetch(`/api/analytics/kpi-summary`, { raw: true, headers: hdrs }),
-        apiFetch(`/api/baseline-library?limit=200&status=approved`, { raw: true, headers: hdrs }),
-        apiFetch(`/api/infrastructure/instruments?limit=200`, { raw: true, headers: hdrs }),
-      ]);
+  async function runTimeShiftSimulation() {
+    if (selectedCaseId === null) return;
+    await api.post(`/api/orbit/cases/${selectedCaseId}/simulate/time-shift`, { hours_shift: Number(hoursShift) });
+    const r = await api.get<{ simulations: Record<string, unknown>[] }>(`/api/orbit/cases/${selectedCaseId}/simulations`);
+    setSimulations(r.simulations);
+  }
 
-      let totalInspections = 0;
-      let highRisk = 0;
-      let openFindings = 0;
-      let baselineApproved = 0;
-      let baselineTotal = 1;
-      let totalInstruments = 0;
-
-      if (kpiRes.status === "fulfilled" && kpiRes.value.ok) {
-        const d = await kpiRes.value.json();
-        totalInspections = d.total_inspections ?? 0;
-        highRisk = d.high_risk_instruments ?? 0;
-        openFindings = d.open_findings ?? d.total_findings ?? 0;
-        baselineApproved = d.baselines?.approved ?? 0;
-        baselineTotal = Math.max(d.baselines?.total ?? 1, 1);
-      }
-
-      if (baselineRes.status === "fulfilled" && baselineRes.value.ok) {
-        const d = await baselineRes.value.json();
-        const items = Array.isArray(d) ? d : d.items ?? [];
-        baselineApproved = Math.max(baselineApproved, items.length);
-      }
-
-      if (instrRes.status === "fulfilled" && instrRes.value.ok) {
-        const d = await instrRes.value.json();
-        totalInstruments = (Array.isArray(d) ? d : d.items ?? []).length;
-      }
-
-      // Derive scores from real data
-      const facilityScore = totalInspections > 0
-        ? Math.min(100, Math.round(80 + (totalInspections > 100 ? 15 : totalInspections / 10)))
-        : 72;
-
-      const instrumentScore = totalInstruments > 0
-        ? Math.max(40, Math.round(100 - (highRisk / Math.max(totalInstruments, 1)) * 100))
-        : 68;
-
-      const trayScore = openFindings > 0
-        ? Math.max(50, Math.round(100 - (openFindings / Math.max(totalInspections, 1)) * 200))
-        : 90;
-
-      const inspectionScore = totalInspections > 0 ? 85 : 60;
-
-      const baselineScore = baselineTotal > 0
-        ? Math.min(100, Math.round((baselineApproved / baselineTotal) * 100))
-        : 55;
-
-      const dims: ReadinessDimension[] = [
-        {
-          label: "Facility Readiness",
-          score: facilityScore,
-          status: scoreToStatus(facilityScore),
-          detail: `${totalInspections.toLocaleString()} inspections processed. Staff and systems operational.`,
-          icon: Activity,
-        },
-        {
-          label: "Instrument Readiness",
-          score: instrumentScore,
-          status: scoreToStatus(instrumentScore),
-          detail: `${highRisk} high-risk instruments flagged out of ${totalInstruments} tracked.`,
-          icon: Stethoscope,
-        },
-        {
-          label: "Tray Readiness",
-          score: trayScore,
-          status: scoreToStatus(trayScore),
-          detail: `${openFindings} open findings pending review. Trays with open findings are flagged.`,
-          icon: Package,
-        },
-        {
-          label: "Inspection Completion",
-          score: inspectionScore,
-          status: scoreToStatus(inspectionScore),
-          detail: `${totalInspections} inspections recorded. AI-assisted detection active.`,
-          icon: CheckCircle2,
-        },
-        {
-          label: "Baseline Coverage",
-          score: baselineScore,
-          status: scoreToStatus(baselineScore),
-          detail: `${baselineApproved} approved baselines. Coverage affects risk score accuracy.`,
-          icon: ShieldCheck,
-        },
-      ];
-
-      setDimensions(dims);
-
-      const overall = Math.round(dims.reduce((sum, d) => sum + d.score, 0) / dims.length);
-      setOverallScore(overall);
-
-      // Build demo tray rows (real tray data requires tray_id grouping query)
-      setTrays([
-        { tray_id: "TRAY-UROLOGY-01", instruments: 8, ready: 8, status: "ready" },
-        { tray_id: "TRAY-ENDO-01", instruments: 12, ready: 11, status: "caution" },
-        { tray_id: "TRAY-ORTHO-02", instruments: 6, ready: 5, status: "caution" },
-        { tray_id: "TRAY-GENERAL-03", instruments: 14, ready: 14, status: "ready" },
-        { tray_id: "TRAY-CARDIAC-01", instruments: 9, ready: 7, status: "caution" },
-      ]);
-
-      setLastUpdated(new Date());
-    } catch {
-      // Fallback demo data
-      const fallbackDims: ReadinessDimension[] = [
-        { label: "Facility Readiness", score: 88, status: "ready", detail: "All departments operational.", icon: Activity },
-        { label: "Instrument Readiness", score: 74, status: "caution", detail: "12 instruments flagged for review.", icon: Stethoscope },
-        { label: "Tray Readiness", score: 81, status: "ready", detail: "4 trays with open findings pending.", icon: Package },
-        { label: "Inspection Completion", score: 85, status: "ready", detail: "2,847 inspections recorded.", icon: CheckCircle2 },
-        { label: "Baseline Coverage", score: 78, status: "caution", detail: "34 approved baselines. 8 pending review.", icon: ShieldCheck },
-      ];
-      setDimensions(fallbackDims);
-      setOverallScore(Math.round(fallbackDims.reduce((s, d) => s + d.score, 0) / fallbackDims.length));
-      setTrays([
-        { tray_id: "TRAY-UROLOGY-01", instruments: 8, ready: 8, status: "ready" },
-        { tray_id: "TRAY-ENDO-01", instruments: 12, ready: 11, status: "caution" },
-        { tray_id: "TRAY-ORTHO-02", instruments: 6, ready: 5, status: "caution" },
-        { tray_id: "TRAY-GENERAL-03", instruments: 14, ready: 14, status: "ready" },
-        { tray_id: "TRAY-CARDIAC-01", instruments: 9, ready: 7, status: "caution" },
-      ]);
-      setLastUpdated(new Date());
-    } finally {
-      setLoading(false);
-    }
-  }, [headers]);
-
-  useEffect(() => { buildReadiness(); }, [buildReadiness]);
-
-  const overallStatus = overallScore !== null ? scoreToStatus(overallScore) : "caution";
+  const selectedCase = cases.find((c) => c.id === selectedCaseId);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600">
-            <Thermometer className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Surgical Readiness</h1>
-            <p className="text-sm text-slate-500">
-              Composite readiness scoring across facilities, instruments, trays, inspections, and baselines.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={buildReadiness}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 shrink-0"
+    <div className="space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-slate-800">Surgical Readiness Platform</h1>
+        <select
+          className="rounded border border-slate-300 p-1 text-sm"
+          value={selectedCaseId ?? ""}
+          onChange={(e) => setSelectedCaseId(Number(e.target.value))}
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+          {cases.map((c) => (
+            <option key={c.id} value={c.id}>{c.case_ref} — {c.procedure}</option>
+          ))}
+        </select>
       </div>
 
-      {loading && dimensions.length === 0 ? (
-        <div className="flex h-48 items-center justify-center gap-3 text-slate-400">
-          <Spinner className="h-5 w-5" />
-          <span className="text-sm">Computing readiness scores…</span>
-        </div>
-      ) : (
-        <>
-          {/* Overall Score */}
-          {overallScore !== null && (
-            <Card className={`border-2 ${statusBg(overallStatus)}`}>
-              <CardContent className="p-6">
-                <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <div className="text-center sm:text-left">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                      Overall Readiness Score
-                    </p>
-                    <div className="flex items-baseline gap-2">
-                      <span className={`text-5xl font-black tabular-nums ${statusColor(overallStatus)}`}>
-                        {overallScore}
-                      </span>
-                      <span className="text-xl text-slate-400">/ 100</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 w-full">
-                    <ScoreMeter score={overallScore} status={overallStatus} />
-                    <p className="text-xs text-slate-500 mt-2">
-                      Composite of facility, instrument, tray, inspection, and baseline dimensions.
-                      Scores below 80 require investigation before surgical use.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {statusIcon(overallStatus)}
-                    <span className={`text-sm font-semibold capitalize ${statusColor(overallStatus)}`}>
-                      {overallStatus.replace("-", " ")}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+      <div className="flex flex-wrap gap-1">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
 
-          {/* Dimension Cards */}
-          <div>
-            <h2 className="text-sm font-semibold text-slate-700 mb-3">Readiness Dimensions</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dimensions.map((dim) => (
-                <ReadinessCard key={dim.label} dim={dim} />
-              ))}
-            </div>
-          </div>
+      {loading && <p className="text-xs text-slate-400">Loading case data…</p>}
 
-          {/* Tray Readiness Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-slate-800">Tray Readiness</CardTitle>
-              <CardDescription>Per-tray instrument readiness — updated on inspection submission</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Tray ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Instruments</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Ready</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trays.map((row) => (
-                    <tr key={row.tray_id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.tray_id}</td>
-                      <td className="px-4 py-3 text-slate-600">{row.instruments}</td>
-                      <td className="px-4 py-3 text-slate-600">{row.ready}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          {statusIcon(row.status)}
-                          <Badge
-                            variant={row.status === "ready" ? "success" : row.status === "caution" ? "warning" : "destructive"}
-                            className="text-xs capitalize"
-                          >
-                            {row.status.replace("-", " ")}
-                          </Badge>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-
-          {lastUpdated && (
-            <p className="text-center text-xs text-slate-400">
-              Last updated {lastUpdated.toLocaleTimeString()}
+      {activeTab === "OR Readiness" && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Section title="Cases Today">
+            <p className="text-2xl font-bold">{executive?.cases_today ?? "—"}</p>
+          </Section>
+          <Section title="Readiness %">
+            <p className={`text-2xl font-bold ${executive ? scoreColor(executive.readiness_pct ?? 0) : ""}`}>
+              {executive?.readiness_pct ?? "—"}%
             </p>
-          )}
-        </>
+          </Section>
+          <Section title="Delayed Cases">
+            <p className="text-2xl font-bold text-amber-600">{executive?.delayed_cases ?? "—"}</p>
+          </Section>
+          <Section title="Repair Holds">
+            <p className="text-2xl font-bold text-red-600">{executive?.repair_holds ?? "—"}</p>
+          </Section>
+          <Section title="Today's Cases">
+            <ul className="space-y-1 text-sm text-slate-600">
+              {cases.map((c) => (
+                <li key={c.id} className="flex justify-between">
+                  <span>{c.case_ref} — {c.procedure}</span>
+                  <span className="text-slate-400">{new Date(c.scheduled_start).toLocaleTimeString()}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+          <Section title="Digital Twin Risk">
+            <p className="text-sm text-slate-600">
+              Utilization: {executive?.digital_twin_risk?.utilization_pct ?? "—"}% · High-risk alerts: {executive?.digital_twin_risk?.high_risk_alert_count ?? "—"}
+            </p>
+          </Section>
+        </div>
       )}
 
-      <p className="text-center text-xs text-slate-400 pb-4">
-        Readiness scores are AI-assisted indicators. All outputs require qualified human review before clinical use.
-        LumenAI makes no claim of FDA clearance or regulatory approval.
-      </p>
+      {activeTab === "Case Intelligence" && selectedCase && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Section title={`${selectedCase.case_ref} — Surgical Readiness Score`}>
+            {readiness ? (
+              <>
+                <p className={`text-3xl font-bold ${scoreColor(readiness.overall_score)}`}>{readiness.overall_score}</p>
+                <p className="mt-2 text-xs text-slate-500">{readiness.rationale}</p>
+                <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                  {Object.entries(readiness.dimensions).map(([name, d]) => (
+                    <li key={name} className="flex justify-between">
+                      <span>{name.replace(/_/g, " ")}</span>
+                      <span>{Math.round(d.value * 100)}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : <p className="text-xs text-slate-400">No readiness data yet.</p>}
+          </Section>
+          <Section title="Case Detail">
+            {intelligence ? (
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs text-slate-600">
+                {JSON.stringify({
+                  procedure: intelligence.procedure, digital_twins: intelligence.digital_twins,
+                  clinical_readiness: intelligence.clinical_readiness, supervisor_holds: intelligence.supervisor_holds,
+                  implants: intelligence.implants, loaner_equipment: intelligence.loaner_equipment,
+                }, null, 2)}
+              </pre>
+            ) : <p className="text-xs text-slate-400">No case selected.</p>}
+          </Section>
+        </div>
+      )}
+
+      {activeTab === "Timeline" && (
+        <Section title="Surgical Timeline">
+          <ol className="space-y-2">
+            {(timeline?.steps ?? []).map((s, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm">
+                <span className={`h-2 w-2 rounded-full ${s.completed ? "bg-emerald-500" : s.completed === null ? "bg-slate-300" : "bg-slate-200"}`} />
+                <span className={s.completed ? "text-slate-800" : "text-slate-400"}>{s.step}</span>
+                {s.note && <span className="text-xs text-slate-400">— {s.note}</span>}
+              </li>
+            ))}
+          </ol>
+        </Section>
+      )}
+
+      {activeTab === "Alerts" && (
+        <Section title="Readiness Alerts">
+          {alerts.length ? (
+            <ul className="space-y-2">
+              {alerts.map((a) => (
+                <li key={a.id} className="rounded border border-slate-200 p-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium">{a.risk_type.replace(/_/g, " ")}</span>
+                    <span className="text-xs uppercase text-slate-400">{a.severity}</span>
+                  </div>
+                  <p className="text-xs text-slate-600">{a.message}</p>
+                  <p className="mt-1 text-xs text-indigo-600">→ {a.recommended_action}</p>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-xs text-slate-400">No open alerts for this case.</p>}
+        </Section>
+      )}
+
+      {activeTab === "Coordination" && (
+        <Section title="Cross-Department Coordination">
+          <p className="mb-2 text-xs text-slate-500">Departments: {coordination?.departments.join(", ")}</p>
+          <ul className="space-y-1 text-xs text-slate-600">
+            {(coordination?.timeline ?? []).map((e, i) => (
+              <li key={i}>{String(e.timestamp)} — {String(e.kind)}: {String(e.message)}</li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {activeTab === "Executive" && executive && (
+        <Section title="Executive Surgical Operations Dashboard">
+          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <div>Cases Today: <b>{executive.cases_today}</b></div>
+            <div>Readiness %: <b className={scoreColor(executive.readiness_pct ?? 0)}>{executive.readiness_pct}%</b></div>
+            <div>Delayed: <b>{executive.delayed_cases}</b></div>
+            <div>Inspection Holds: <b>{executive.inspection_holds}</b></div>
+          </div>
+          <h4 className="mb-1 mt-3 text-xs font-semibold text-slate-600">Top Operational Risks</h4>
+          <ul className="text-xs text-slate-600">
+            {executive.top_operational_risks.map((r, i) => (
+              <li key={i}>{r.risk_type.replace(/_/g, " ")}: {r.count}</li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {activeTab === "Simulation" && (
+        <Section title="Readiness Simulation">
+          <div className="mb-3 flex items-center gap-2">
+            <label className="text-xs text-slate-600">Shift case start by (hours):</label>
+            <input
+              type="number" value={hoursShift} onChange={(e) => setHoursShift(e.target.value)}
+              className="w-20 rounded border border-slate-300 p-1 text-sm"
+            />
+            <button className="rounded bg-indigo-600 px-3 py-1 text-xs text-white" onClick={runTimeShiftSimulation}>
+              Run Simulation
+            </button>
+          </div>
+          <ul className="space-y-2 text-xs text-slate-600">
+            {simulations.map((s, i) => (
+              <li key={i} className="rounded border border-slate-200 p-2">
+                <div className="font-medium">{String(s.scenario_type)}</div>
+                <div>{String(s.rationale)}</div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-400">
+            Every simulation is a transparent recomputation over this case's real current data — decision support only, human review required.
+          </p>
+        </Section>
+      )}
     </div>
   );
 }

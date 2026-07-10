@@ -984,11 +984,75 @@ app.include_router(pre_sterilization_command_center_router)
 from app.routes.knowledge_graph import router as knowledge_graph_router
 app.include_router(knowledge_graph_router)
 
+from app.models import simulation_engine as _simulation_engine_models  # noqa: F401
+from app.routes.scenario_analysis import router as scenario_analysis_router
+app.include_router(scenario_analysis_router)
+
+from app.models import or_connect as _or_connect_models  # noqa: F401
+from app.routes.or_connect import router as or_connect_router
+app.include_router(or_connect_router)
+from app.routes.or_connect_vendor_portal import router as or_connect_vendor_portal_router
+app.include_router(or_connect_vendor_portal_router)
+
+from app.models import quality_guardian as _quality_guardian_models  # noqa: F401
+from app.routes.quality_guardian import router as quality_guardian_router
+app.include_router(quality_guardian_router)
+
+from app.models import sentinel_orchestration as _sentinel_orchestration_models  # noqa: F401
+from app.routes.sentinel_orchestration import router as sentinel_orchestration_router
+app.include_router(sentinel_orchestration_router)
+
+from app.models import atlas_enterprise as _atlas_enterprise_models  # noqa: F401
+from app.routes.atlas_enterprise import router as atlas_enterprise_router
+app.include_router(atlas_enterprise_router)
+
+from app.models import nexus_integration as _nexus_integration_models  # noqa: F401
+from app.routes.nexus_integration import router as nexus_integration_router
+app.include_router(nexus_integration_router)
+from app.routes.nexus_api_gateway import router as nexus_api_gateway_router
+app.include_router(nexus_api_gateway_router)
+
+from app.models import predictive_insight as _predictive_insight_models  # noqa: F401
+from app.routes.predictive_insight import router as predictive_insight_router
+app.include_router(predictive_insight_router)
+
 from app.routes.agents_pipeline import router as agents_pipeline_router
 app.include_router(agents_pipeline_router)
 
 from app.routes.cios import router as cios_router
 app.include_router(cios_router)
+
+from app.models import federated_horizon as _federated_horizon_models  # noqa: F401
+from app.routes.federated_horizon import router as federated_horizon_router
+app.include_router(federated_horizon_router)
+
+from app.models import industry_collaboration as _industry_collaboration_models  # noqa: F401
+from app.routes.industry_collaboration import router as industry_collaboration_router
+app.include_router(industry_collaboration_router)
+
+from app.models import platform_core as _platform_core_models  # noqa: F401
+from app.routes.platform import router as platform_router
+app.include_router(platform_router)
+
+from app.models import workflow_forge as _workflow_forge_models  # noqa: F401
+from app.routes.workflow_forge import router as workflow_forge_router
+app.include_router(workflow_forge_router)
+
+from app.models import pulse_operations as _pulse_operations_models  # noqa: F401
+from app.routes.pulse_operations import router as pulse_operations_router
+app.include_router(pulse_operations_router)
+
+from app.models import catalyst_copilot as _catalyst_copilot_models  # noqa: F401
+from app.routes.catalyst_copilot import router as catalyst_copilot_router
+app.include_router(catalyst_copilot_router)
+
+from app.models import orbit_readiness as _orbit_readiness_models  # noqa: F401
+from app.routes.orbit_readiness import router as orbit_readiness_router
+app.include_router(orbit_readiness_router)
+
+from app.models import vanguard_intelligence as _vanguard_intelligence_models  # noqa: F401
+from app.routes.vanguard_intelligence import router as vanguard_intelligence_router
+app.include_router(vanguard_intelligence_router)
 
 from fastapi.openapi.utils import get_openapi
 

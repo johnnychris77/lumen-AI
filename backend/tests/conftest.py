@@ -93,6 +93,21 @@ def _force_import_models():
         "app.models.clinical_decision_ledger",
         "app.models.cios_event",
         "app.models.inspection_image_tag",
+        "app.models.simulation_engine",
+        "app.models.or_connect",
+        "app.models.quality_guardian",
+        "app.models.sentinel_orchestration",
+        "app.models.atlas_enterprise",
+        "app.models.nexus_integration",
+        "app.models.predictive_insight",
+        "app.models.federated_horizon",
+        "app.models.industry_collaboration",
+        "app.models.platform_core",
+        "app.models.workflow_forge",
+        "app.models.pulse_operations",
+        "app.models.catalyst_copilot",
+        "app.models.orbit_readiness",
+        "app.models.vanguard_intelligence",
     ]:
         try:
             importlib.import_module(model_path)
