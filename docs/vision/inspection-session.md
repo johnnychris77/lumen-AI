@@ -18,9 +18,9 @@ Returns the full multi-image session view for one inspection:
 `predicted_findings` used by cross-image reasoning and evidence fusion are
 reconstructed from `InspectionFinding` — the real per-finding rows already
 persisted at analysis time (`app/routes/inspections.py`) — not a re-run of
-the scoring engine. Per-finding confidence isn't persisted individually, so
-it's omitted from the reconstruction rather than fabricated; only the
-scored analysis response (returned once, at creation time) carries it.
+the scoring engine. Per-finding `confidence` (v2.3) is persisted on the same
+row and read back verbatim; rows logged before the column existed carry
+`null` rather than a fabricated value.
 
 ## `GET /api/inspections/{id}/gallery`
 

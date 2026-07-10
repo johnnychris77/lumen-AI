@@ -645,6 +645,9 @@ app.include_router(vision_session_router, prefix=settings.API_PREFIX)
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 
 app.include_router(capa_predictive_risk_router)
+
+from app.routes.clinical_memory import router as clinical_memory_router
+app.include_router(clinical_memory_router)
 app.include_router(capa_router, prefix=settings.API_PREFIX)
 app.include_router(vendor_governance_router, prefix=settings.API_PREFIX)
 

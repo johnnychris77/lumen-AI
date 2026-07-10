@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Brain,
   CheckCircle2,
   ClipboardList,
   CreditCard,
@@ -77,6 +78,64 @@ type TimelineResponse = {
   identifier: string;
   inspection_count: number;
   prediction: Prediction;
+};
+
+// v2.4 — Clinical Memory & Predictive Intelligence ("Project Insight"), from
+// the backend /api/clinical-memory endpoint.
+type RecurringAlert = { type: string; occurrences: number; message: string; finding_type?: string };
+type RiskLevel = "Low" | "Moderate" | "High" | "Critical";
+type PredictiveRisk = {
+  repeat_contamination_likelihood: RiskLevel;
+  repair_likelihood: RiskLevel;
+  supervisor_escalation_likelihood: RiskLevel;
+  removal_from_service_likelihood: RiskLevel;
+  overall_risk_level: RiskLevel;
+  basis: string;
+};
+type HealthForecast = {
+  condition_trend: string;
+  failure_risk_trend: string;
+  repair_trend: string;
+  estimated_remaining_useful_life: string | null;
+  confidence_interval: { low: number; high: number } | null;
+  sample_size: number;
+};
+type SimilarInstrument = {
+  instrument_identity: string;
+  instrument_type: string;
+  vendor_name: string;
+  similarity_score: number;
+  shared_finding_types: string[];
+  inspection_count: number;
+};
+type KnowledgeArticleRef = { id: number; title: string; category: string };
+type MemoryTimelineEvent = {
+  type: "inspection" | "finding" | "repair" | "supervisor_note" | "current";
+  inspection_id?: number;
+  date: string | null;
+  disposition?: string;
+  findings?: string[];
+  note?: string;
+};
+type MemoryRecommendation = { finding_type: string; zone: string; occurrences: number; message: string };
+type ClinicalMemory = {
+  instrument_identity: string;
+  instrument_type: string;
+  condition_history: { inspection_count: number; repair_count: number; corrosion_history_count: number; condition_trend: string };
+  recurring_issues: { alerts: RecurringAlert[]; has_recurring_issues: boolean };
+  predictive_risk: PredictiveRisk;
+  health_forecast: HealthForecast;
+  similar_instruments: SimilarInstrument[];
+  knowledge_articles: KnowledgeArticleRef[];
+  timeline: MemoryTimelineEvent[];
+  memory_recommendation: MemoryRecommendation | null;
+};
+
+const RISK_LEVEL_COLOR: Record<RiskLevel, string> = {
+  Low: "text-emerald-600 bg-emerald-50 border-emerald-200",
+  Moderate: "text-amber-600 bg-amber-50 border-amber-200",
+  High: "text-orange-600 bg-orange-50 border-orange-200",
+  Critical: "text-red-600 bg-red-50 border-red-200",
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -185,6 +244,7 @@ export default function InstrumentPassportPage() {
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [baselines, setBaselines] = useState<Baseline[]>([]);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [clinicalMemory, setClinicalMemory] = useState<ClinicalMemory | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -252,6 +312,32 @@ export default function InstrumentPassportPage() {
         }
       } catch {
         /* non-fatal — prediction card simply hides */
+      }
+
+      // v2.4 — Clinical Memory: only meaningful for a real re-identified
+      // instrument (barcode/UDI). When the Instrument Registry lookup didn't
+      // resolve `found`, fall back to trying the raw URL param as both a
+      // barcode and a UDI — the same ambiguity the prediction fetch above
+      // already accepts via its OR-matched `trendKey`.
+      setClinicalMemory(null);
+      const candidateIdentities = found?.barcode
+        ? [`barcode:${found.barcode}`]
+        : found?.udi
+        ? [`udi:${found.udi}`]
+        : [`barcode:${identifier}`, `udi:${identifier}`];
+      for (const candidate of candidateIdentities) {
+        try {
+          const memRes = await apiFetch(
+            `/api/clinical-memory?instrument_identity=${encodeURIComponent(candidate)}`,
+            { raw: true, headers: hdrs }
+          );
+          if (memRes.ok) {
+            setClinicalMemory(await memRes.json());
+            break;
+          }
+        } catch {
+          /* try the next candidate identity */
+        }
       }
     } catch {
       setError("Failed to load passport data.");
@@ -562,6 +648,140 @@ export default function InstrumentPassportPage() {
             </Card>
           </div>
         </div>
+      )}
+
+      {/* v2.4 — Clinical Memory & Predictive Intelligence ("Project Insight") */}
+      {clinicalMemory && (
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionTitle icon={Brain} title="Clinical Memory" />
+          </CardHeader>
+          <CardContent className="pt-0 space-y-5">
+            {clinicalMemory.memory_recommendation && (
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5">
+                <p className="text-xs font-medium text-indigo-900 mb-0.5">Memory-driven recommendation</p>
+                <p className="text-sm text-indigo-800">{clinicalMemory.memory_recommendation.message}</p>
+              </div>
+            )}
+
+            {clinicalMemory.recurring_issues.alerts.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-600 mb-2">Recurring issue alerts</p>
+                <div className="space-y-1.5">
+                  {clinicalMemory.recurring_issues.alerts.map((alert, idx) => (
+                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                      <span className="text-xs text-amber-800">{alert.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium text-slate-600 mb-2">Predictive risk</p>
+                <div className="space-y-1.5">
+                  {([
+                    ["Repeat contamination", clinicalMemory.predictive_risk.repeat_contamination_likelihood],
+                    ["Repair", clinicalMemory.predictive_risk.repair_likelihood],
+                    ["Supervisor escalation", clinicalMemory.predictive_risk.supervisor_escalation_likelihood],
+                    ["Removal from service", clinicalMemory.predictive_risk.removal_from_service_likelihood],
+                  ] as [string, RiskLevel][]).map(([label, level]) => (
+                    <div key={label} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">{label}</span>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-medium ${RISK_LEVEL_COLOR[level]}`}>
+                        {level}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-2 italic">{clinicalMemory.predictive_risk.basis}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-600 mb-2">Health forecast</p>
+                <div className="space-y-1.5 text-xs">
+                  <Row label="Condition trend" value={clinicalMemory.health_forecast.condition_trend.replace(/_/g, " ")} capitalize />
+                  <Row label="Failure risk trend" value={clinicalMemory.health_forecast.failure_risk_trend.replace(/_/g, " ")} capitalize />
+                  <Row label="Repair trend" value={clinicalMemory.health_forecast.repair_trend.replace(/_/g, " ")} capitalize />
+                  <Row
+                    label="Confidence interval"
+                    value={
+                      clinicalMemory.health_forecast.confidence_interval
+                        ? `${clinicalMemory.health_forecast.confidence_interval.low}–${clinicalMemory.health_forecast.confidence_interval.high}`
+                        : "Not enough history"
+                    }
+                  />
+                  <Row label="Sample size" value={`${clinicalMemory.health_forecast.sample_size} inspections`} />
+                </div>
+              </div>
+            </div>
+
+            {clinicalMemory.timeline.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-600 mb-2">Memory timeline</p>
+                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                  {clinicalMemory.timeline.map((event, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-xs">
+                      <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+                      <span className="text-slate-400 shrink-0 w-24">{formatDate(event.date ?? undefined)}</span>
+                      {event.type === "inspection" && (
+                        <span className="text-slate-600">Inspection #{event.inspection_id} — {event.disposition}</span>
+                      )}
+                      {event.type === "finding" && (
+                        <span className="text-slate-600">Finding: {event.findings?.join(", ")}</span>
+                      )}
+                      {event.type === "repair" && (
+                        <span className="text-red-600 font-medium">Repair / removed from service</span>
+                      )}
+                      {event.type === "supervisor_note" && (
+                        <span className="text-slate-500 italic">Supervisor note: {event.note}</span>
+                      )}
+                      {event.type === "current" && <span className="text-slate-400">Current</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {clinicalMemory.similar_instruments.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-600 mb-2">Similar instruments</p>
+                <div className="space-y-1.5">
+                  {clinicalMemory.similar_instruments.map((sim) => (
+                    <div key={sim.instrument_identity} className="flex items-center justify-between text-xs rounded-lg border border-slate-100 bg-slate-50 px-3 py-1.5">
+                      <span className="text-slate-600 capitalize">{sim.instrument_type.replace(/_/g, " ")} · {sim.vendor_name}</span>
+                      <span className="font-mono text-slate-400">{Math.round(sim.similarity_score * 100)}% similar</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {clinicalMemory.knowledge_articles.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-600 mb-2">Applicable knowledge articles</p>
+                <div className="flex flex-wrap gap-2">
+                  {clinicalMemory.knowledge_articles.map((article) => (
+                    <Link
+                      key={article.id}
+                      to="/knowledge-center"
+                      className="text-xs text-blue-600 hover:underline rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1"
+                    >
+                      {article.title}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-slate-400 border-t border-slate-100 pt-2">
+              Clinical Memory reflects this instrument's own recorded history — a potential
+              association, never a claim of causation. Human review required before clinical action.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       <p className="text-center text-xs text-slate-400 pb-4">

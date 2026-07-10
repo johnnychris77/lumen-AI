@@ -9,10 +9,14 @@ Vision 360").
   zone, for the Inspection Gallery.
 - POST /api/inspections/{id}/images/{tag_id}/flag — flag/unflag one
   captured image with a reason.
+- POST /api/inspections/preview-warnings (v2.3) — the same missing-anatomy
+  and duplicate-detection checks, run live during capture on tags that
+  haven't been submitted yet (nothing persisted, no inspection_id needed).
 """
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -48,8 +52,9 @@ def _get_inspection(db: Session, inspection_id: int, tenant_id: str | None, is_a
 def _reconstruct_predicted_findings(db: Session, inspection_id: int) -> list[dict]:
     """Real per-finding rows already persisted at analysis time
     (app/models/inspection_finding.py) — not a re-run of the scoring
-    engine. Confidence isn't persisted per-finding, so it's omitted rather
-    than fabricated."""
+    engine. Confidence is read from the persisted column when available
+    (v2.3); rows logged before that column existed carry null rather than
+    a fabricated value."""
     rows = db.query(InspectionFinding).filter(InspectionFinding.inspection_id == inspection_id).all()
     return [
         {
@@ -57,7 +62,7 @@ def _reconstruct_predicted_findings(db: Session, inspection_id: int) -> list[dic
             "instrument_zone": r.zone,
             "severity_index": r.severity_index,
             "status": _SEVERITY_STATUS.get(r.severity_index, "clear"),
-            "confidence": None,
+            "confidence": r.confidence,
         }
         for r in rows
     ]
@@ -141,6 +146,42 @@ def get_inspection_gallery(
             for zone, images in sorted(groups.items())
         ],
         "total_images": len(tags),
+    }
+
+
+class PreviewTagIn(BaseModel):
+    anatomy_zone: str = Field("")
+    instrument_family: str = Field("")
+    image_sha256: Optional[str] = Field(None)
+
+
+class PreviewWarningsIn(BaseModel):
+    instrument_type: str
+    tags: list[PreviewTagIn] = Field(default_factory=list)
+
+
+@router.post("/inspections/preview-warnings")
+def preview_capture_warnings(
+    body: PreviewWarningsIn,
+    current_user=Depends(require_roles(*_READ_ROLES)),
+):
+    """v2.3 — Live capture warnings: missing-anatomy prompts and duplicate/
+    wrong-anatomy/wrong-instrument detection on tags the technician has
+    added so far, before the inspection is submitted. Reuses the same
+    stateless services the after-the-fact Vision Session view uses — no
+    inspection_id, nothing persisted, no second scoring engine."""
+    tag_dicts = [
+        {
+            "id": idx,
+            "anatomy_zone": t.anatomy_zone,
+            "instrument_family": t.instrument_family or body.instrument_type,
+            "image_sha256": t.image_sha256,
+        }
+        for idx, t in enumerate(body.tags)
+    ]
+    return {
+        "missing_anatomy": missing_anatomy_prompts(body.instrument_type, tag_dicts),
+        "duplicate_detection": detect_all(tag_dicts),
     }
 
 
