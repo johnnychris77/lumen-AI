@@ -52,7 +52,7 @@ interface Analytics {
 
 const EXPLORE_CATEGORIES = [
   "manufacturer", "instrument", "model", "finding", "zone",
-  "failure_mode", "recommendation", "supervisor_learning",
+  "failure_mode", "recommendation", "supervisor_learning", "instrument_family",
 ] as const;
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {

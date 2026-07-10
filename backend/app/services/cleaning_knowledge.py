@@ -160,11 +160,24 @@ CLEANING_KNOWLEDGE: dict[str, dict] = {
 
 _DEFAULT_CLEANING = CLEANING_KNOWLEDGE["unspecified region"]
 
+# v2.0 — the Anatomy Zone Engine (app/services/zone_intelligence.py) calls
+# this with the per-family anatomy zone's own name (instrument_anatomy.py),
+# which occasionally differs from this dict's key for the exact same real
+# zone (e.g. drill_bit declares "flutes"; this dict's matching entry
+# predates it as "drill-bit flute"). Alias the zone name onto the existing,
+# already-written entry rather than falling back to the generic default for
+# a zone real, specific guidance already exists for.
+_ZONE_ALIASES: dict[str, str] = {
+    "flutes": "drill-bit flute",
+}
+
 
 def get_cleaning_knowledge(zone: str) -> dict:
     """Cleaning knowledge for a zone — never a substitute for the device IFU."""
+    key = (zone or "").strip().lower()
+    key = _ZONE_ALIASES.get(key, key)
     return {
         "zone": zone,
-        **CLEANING_KNOWLEDGE.get((zone or "").strip().lower(), _DEFAULT_CLEANING),
+        **CLEANING_KNOWLEDGE.get(key, _DEFAULT_CLEANING),
         "note": "Advisory clinical knowledge, not an IFU replacement — the device IFU governs when the two differ.",
     }
