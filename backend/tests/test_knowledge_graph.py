@@ -123,7 +123,13 @@ class TestExplainabilityGraph:
         assert res.status_code == 200
         data = res.json()
         why_nodes = [w["node"] for w in data["why"]]
-        assert why_nodes == ["Finding", "Zone", "Clinical Significance", "SPD Rule", "Recommendation"]
+        # v2.5 (Project Cortex) extends the chain with Corrective Action and
+        # Disposition — the two nodes the Clinical Reasoning Graph adds
+        # beyond the original Phase 21 chain.
+        assert why_nodes == [
+            "Finding", "Zone", "Clinical Significance", "SPD Rule",
+            "Corrective Action", "Recommendation", "Disposition",
+        ]
         finding_node = next(w for w in data["why"] if w["node"] == "Finding")
         assert finding_node["value"] == "blood"
         zone_node = next(w for w in data["why"] if w["node"] == "Zone")
