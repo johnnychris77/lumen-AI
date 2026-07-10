@@ -1042,6 +1042,10 @@ from app.models import pulse_operations as _pulse_operations_models  # noqa: F40
 from app.routes.pulse_operations import router as pulse_operations_router
 app.include_router(pulse_operations_router)
 
+from app.models import catalyst_copilot as _catalyst_copilot_models  # noqa: F401
+from app.routes.catalyst_copilot import router as catalyst_copilot_router
+app.include_router(catalyst_copilot_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
