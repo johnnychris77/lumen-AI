@@ -44,6 +44,23 @@ REPAIR_RETURNED = "returned"
 REPAIR_REPLACED = "replaced"
 REPAIR_STATUSES = [REPAIR_PENDING, REPAIR_IN_PROGRESS, REPAIR_RETURNED, REPAIR_REPLACED]
 
+# ── Structured failure cause (added for Project Beacon v3.5, Section 3 & 7) ──
+# `repair_type` above was always a free-text label; Beacon's Repair Partner
+# Portal and Repair Intelligence sections need a closed vocabulary to group
+# and benchmark repair causes across tenants/vendors, so this is a new
+# nullable column on the same row rather than a parallel repair-cause table.
+FAILURE_CORROSION = "corrosion"
+FAILURE_MECHANICAL_WEAR = "mechanical_wear"
+FAILURE_ELECTRICAL_FAULT = "electrical_fault"
+FAILURE_INSULATION_DEFECT = "insulation_defect"
+FAILURE_MISUSE_DAMAGE = "misuse_damage"
+FAILURE_MANUFACTURING_DEFECT = "manufacturing_defect"
+FAILURE_OTHER = "other"
+FAILURE_CATEGORIES = [
+    FAILURE_CORROSION, FAILURE_MECHANICAL_WEAR, FAILURE_ELECTRICAL_FAULT,
+    FAILURE_INSULATION_DEFECT, FAILURE_MISUSE_DAMAGE, FAILURE_MANUFACTURING_DEFECT, FAILURE_OTHER,
+]
+
 # ── Operational risk types (Section 4) ──────────────────────────────────────
 RISK_VENDOR_TRAY_NOT_RECEIVED = "vendor_tray_not_received"
 RISK_INSPECTION_OVERDUE = "inspection_overdue"
@@ -154,6 +171,7 @@ class RepairRequest(Base):
     actual_return_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     replacement_available: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    failure_category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
 
 class CaseRiskAlert(Base):

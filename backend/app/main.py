@@ -1026,6 +1026,10 @@ from app.models import federated_horizon as _federated_horizon_models  # noqa: F
 from app.routes.federated_horizon import router as federated_horizon_router
 app.include_router(federated_horizon_router)
 
+from app.models import industry_collaboration as _industry_collaboration_models  # noqa: F401
+from app.routes.industry_collaboration import router as industry_collaboration_router
+app.include_router(industry_collaboration_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

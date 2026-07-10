@@ -123,9 +123,16 @@ FEDERATED_SIGNAL_CATEGORIES = [
 ]
 
 # ── Section 5: Global Benchmarking metric names (new, distinct from P15's) ──
+# "repair_category_rate" and "digital_twin_health_score" were added for
+# Project Beacon (v3.5) Section 8 — Industry Benchmarking asks for a
+# repair-category and Digital Twin health dimension neither this list nor
+# P15's benchmark engine covered; extending this list (and
+# horizon_benchmark_service.py's per-metric value function) was the reuse
+# path rather than a sixth percentile engine.
 BENCHMARK_METRICS = [
     "kerrison_blood_finding_rate", "corrosion_trend", "coverage_trend",
     "repair_referral_rate", "knowledge_maturity_index", "training_maturity_index",
+    "repair_category_rate", "digital_twin_health_score",
 ]
 
 # ── Section 6: Emerging Trend Detection ─────────────────────────────────────
@@ -146,9 +153,17 @@ EVIDENCE_AAMI = "aami"
 EVIDENCE_AORN = "aorn"
 EVIDENCE_ORG_SOP = "org_sop"
 EVIDENCE_INTERNAL_VALIDATION_STUDY = "internal_validation_study"
+# Added for Project Beacon (v3.5) Section 5 — Clinical Evidence Exchange asks
+# for case reports, quality improvement initiatives, and best practices
+# alongside the evidence types Horizon already defined; extending this list
+# was the reuse path rather than a second evidence table.
+EVIDENCE_CASE_REPORT = "case_report"
+EVIDENCE_QUALITY_IMPROVEMENT_INITIATIVE = "quality_improvement_initiative"
+EVIDENCE_BEST_PRACTICE = "best_practice"
 EVIDENCE_TYPES = [
     EVIDENCE_PEER_REVIEWED, EVIDENCE_MANUFACTURER_GUIDANCE, EVIDENCE_AAMI,
     EVIDENCE_AORN, EVIDENCE_ORG_SOP, EVIDENCE_INTERNAL_VALIDATION_STUDY,
+    EVIDENCE_CASE_REPORT, EVIDENCE_QUALITY_IMPROVEMENT_INITIATIVE, EVIDENCE_BEST_PRACTICE,
 ]
 
 # ── Section 10: Global AI Improvement target systems ────────────────────────

@@ -244,7 +244,9 @@ class TestFederatedAggregationAndBenchmarking:
         res = client.get("/api/horizon/benchmarks", headers=_headers(AUTH_VIEWER, tenant_ids[0]))
         assert res.status_code == 200
         benchmarks = res.json()["benchmarks"]
-        assert len(benchmarks) == 6
+        # 8, not 6: Project Beacon (v3.5) extended BENCHMARK_METRICS with
+        # "repair_category_rate" and "digital_twin_health_score".
+        assert len(benchmarks) == 8
         assert all(b["suppressed"] for b in benchmarks if b["n_facilities"] < 5)
 
     def test_benchmark_percentile_never_returns_raw_org_data(self):

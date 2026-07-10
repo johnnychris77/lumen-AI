@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.models.digital_twin import InstrumentFlowRecord
 from app.models.federated_horizon import BENCHMARK_METRICS
 from app.models.inspection import Inspection
 from app.models.inspection_finding import InspectionFinding
@@ -102,6 +103,39 @@ def _per_tenant_values(db: Session, metric_name: str) -> dict[str, float]:
             progress_values = [t["training_progress_pct"] for t in dashboard.get("technicians", []) if t.get("training_progress_pct") is not None]
             if progress_values:
                 values[tenant_id] = round(sum(progress_values) / len(progress_values), 2)
+
+    elif metric_name == "repair_category_rate":
+        # Added for Project Beacon (v3.5) Section 8 — share of a tenant's
+        # repairs in the last _LOOKBACK_DAYS that carry a structured
+        # `failure_category` at all (vs. only free-text `repair_type`),
+        # a real signal of how well a tenant's repair data is categorized.
+        for tenant_id in tenant_ids:
+            total = db.query(RepairRequest.id).filter(
+                RepairRequest.tenant_id == tenant_id, RepairRequest.created_at >= since,
+            ).count()
+            if not total:
+                continue
+            categorized = db.query(RepairRequest.id).filter(
+                RepairRequest.tenant_id == tenant_id, RepairRequest.created_at >= since,
+                RepairRequest.failure_category.isnot(None),
+            ).count()
+            values[tenant_id] = round(categorized / total, 4)
+
+    elif metric_name == "digital_twin_health_score":
+        # Added for Project Beacon (v3.5) Section 8 — share of a tenant's
+        # instrument flow records in the last _LOOKBACK_DAYS with a
+        # non-adverse outcome ("passed"), a real Digital Twin health signal.
+        for tenant_id in tenant_ids:
+            total = db.query(InstrumentFlowRecord.id).filter(
+                InstrumentFlowRecord.tenant_id == tenant_id, InstrumentFlowRecord.arrived_at >= since,
+            ).count()
+            if not total:
+                continue
+            passed = db.query(InstrumentFlowRecord.id).filter(
+                InstrumentFlowRecord.tenant_id == tenant_id, InstrumentFlowRecord.arrived_at >= since,
+                InstrumentFlowRecord.outcome == "passed",
+            ).count()
+            values[tenant_id] = round(passed / total, 4)
 
     else:
         raise ValueError(f"metric_name must be one of {BENCHMARK_METRICS}")
