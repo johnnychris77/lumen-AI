@@ -82,6 +82,7 @@ const VendorIntelligencePage = lazy(() => import("./pages/VendorIntelligencePage
 const DigitalTwinPage = lazy(() => import("./pages/DigitalTwinPage"));
 const QualityIntelligencePage = lazy(() => import("./pages/QualityIntelligencePage"));
 const QualityDashboardPage = lazy(() => import("./pages/QualityDashboardPage"));
+const LearningDashboardPage = lazy(() => import("./pages/LearningDashboardPage"));
 const ClinicalReadinessPage = lazy(() => import("./pages/ClinicalReadinessPage"));
 const InspectionWorkQueuePage = lazy(() => import("./pages/InspectionWorkQueuePage"));
 const OperationsBoardPage = lazy(() => import("./pages/OperationsBoardPage"));
@@ -90,6 +91,7 @@ const PilotDataCollectionPage = lazy(() => import("./pages/PilotDataCollectionPa
 const DemoImageLibraryPage = lazy(() => import("./pages/DemoImageLibraryPage"));
 const BaselineImageUploadPage = lazy(() => import("./pages/BaselineImageUploadPage"));
 const InspectionImageUploadPage = lazy(() => import("./pages/InspectionImageUploadPage"));
+const VisionSessionPage = lazy(() => import("./pages/VisionSessionPage"));
 const ManufacturerBaselinesPage = lazy(() => import("./pages/ManufacturerBaselinesPage"));
 const PilotValidationPage = lazy(() => import("./pages/PilotValidationPage"));
 const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
@@ -390,6 +392,7 @@ function App() {
                       <Route path="/digital-twin" element={<Page name="DigitalTwin"><DigitalTwinPage /></Page>} />
                       <Route path="/quality-intelligence" element={<Page name="QualityIntelligence"><QualityIntelligencePage /></Page>} />
                       <Route path="/quality-dashboard" element={<Page name="QualityDashboard"><QualityDashboardPage /></Page>} />
+                      <Route path="/learning-dashboard" element={<Page name="LearningDashboard"><LearningDashboardPage /></Page>} />
                       <Route path="/clinical-readiness" element={<Page name="ClinicalReadiness"><ClinicalReadinessPage /></Page>} />
                       <Route path="/inspection-work-queue" element={<Page name="InspectionWorkQueue"><InspectionWorkQueuePage /></Page>} />
                       <Route path="/operations-board" element={<Page name="OperationsBoard"><RequireRole allowed={ELEVATED_ROLES}><OperationsBoardPage /></RequireRole></Page>} />
@@ -408,6 +411,7 @@ function App() {
                       <Route path="/demo-image-library" element={<Page name="DemoImageLibrary"><DemoImageLibraryPage /></Page>} />
                       <Route path="/baseline-image-upload" element={<Page name="BaselineImageUpload"><BaselineImageUploadPage /></Page>} />
                       <Route path="/inspection-image-upload" element={<Page name="InspectionImageUpload"><InspectionImageUploadPage /></Page>} />
+                      <Route path="/inspection/:id/vision-session" element={<Page name="VisionSession"><VisionSessionPage /></Page>} />
                       <Route path="/network-dashboard" element={<Page name="NetworkDashboard"><NetworkDashboardPage /></Page>} />
                       <Route path="/image-quality" element={<Page name="ImageQuality"><ImageQualityPage /></Page>} />
                       <Route path="/go-live-center" element={<Page name="GoLiveCenter"><GoLiveCenterPage /></Page>} />

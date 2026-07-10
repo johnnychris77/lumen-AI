@@ -182,7 +182,10 @@ class TestImageViewTagsIncludedInAIContext:
         r = _create_inspection("kerrison_rongeur", inspected_zones=["jaw"], image_view_tags=tags)
         assert r.status_code == 201, r.text
         analysis = r.json()["analysis"]
-        assert analysis["image_view_tags"] == tags
+        # v2.2 additively echoes back image_sha256/technician/sequence
+        # alongside the original v1.2 fields — check those, not exact equality.
+        echoed = analysis["image_view_tags"][0]
+        assert all(echoed[k] == v for k, v in tags[0].items())
 
     def test_image_tags_persisted_and_listable(self):
         tags = [{

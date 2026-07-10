@@ -84,12 +84,19 @@ _ALLOWED_BASELINE_SOURCES = {
 
 
 class ImageViewTagIn(BaseModel):
-    """v1.2 — per-uploaded-image metadata (see app/models/inspection_image_tag.py)."""
+    """v1.2 — per-uploaded-image metadata (see app/models/inspection_image_tag.py).
+    v2.2 adds image_sha256/technician/sequence for multi-image sessions."""
     instrument_family: str = Field("", max_length=100)
     anatomy_zone: str = Field("", max_length=100)
     image_view: str = Field("", max_length=100)
     capture_quality: str = Field("acceptable", max_length=20)
     notes: str = Field("", max_length=2000)
+    # v2.2 — Multi-Image Inspection Session. Per-image hash (distinct from
+    # the inspection-level image_sha256 below) so duplicate detection and
+    # deterministic quality scoring operate on each image individually.
+    image_sha256: Optional[str] = Field(None, max_length=64)
+    technician: str = Field("", max_length=255)
+    sequence: Optional[int] = Field(None, ge=0)
 
 
 class InspectionCreate(BaseModel):
@@ -438,6 +445,24 @@ async def create_inspection(
             training_mode=body.training_mode,
             image_view_tags=image_view_tags_dicts,
         )
+        # v2.4 — AI Context Expansion: attach this instrument's own Clinical
+        # Memory (prior history, recurring issues, predictive risk, forecast)
+        # when it's a real re-identified instrument (barcode/UDI). Computed
+        # BEFORE this inspection is persisted below, so it only ever reflects
+        # prior history — purely additive context, never altering the score.
+        from app.services.clinical_memory_service import get_clinical_memory
+
+        if body.instrument_barcode:
+            memory_identity = f"barcode:{body.instrument_barcode}"
+        elif body.instrument_udi:
+            memory_identity = f"udi:{body.instrument_udi}"
+        else:
+            memory_identity = None
+        if memory_identity:
+            clinical_memory = get_clinical_memory(db, tenant_id, memory_identity)
+            if clinical_memory:
+                analysis["clinical_memory"] = clinical_memory
+
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
         risk_level_val = analysis.get("risk_level")
@@ -543,13 +568,24 @@ async def create_inspection(
                     finding_type=f["type"],
                     zone=f.get("instrument_zone", ""),
                     severity_index=f["severity_index"],
+                    confidence=f.get("confidence"),
                 ))
         db.commit()
 
     if image_view_tags_dicts:
         from app.models.inspection_image_tag import InspectionImageTag
+        from app.services.image_quality_engine import score_image
 
-        for tag in image_view_tags_dicts:
+        for idx, tag in enumerate(image_view_tags_dicts):
+            image_sha256 = tag.get("image_sha256")
+            # v2.2 — Image Quality Intelligence, scored per image at capture
+            # time. Falls back to a stable per-image seed (not the shared
+            # inspection-level hash) so untagged images in the same session
+            # still get distinguishable, deterministic scores.
+            quality = score_image(
+                image_sha256,
+                fallback_key=f"{row.id}:{tag.get('anatomy_zone', '')}:{idx}",
+            )
             db.add(InspectionImageTag(
                 tenant_id=tenant_id,
                 inspection_id=row.id,
@@ -558,6 +594,11 @@ async def create_inspection(
                 image_view=tag.get("image_view", ""),
                 capture_quality=tag.get("capture_quality", "acceptable"),
                 notes=tag.get("notes", ""),
+                image_sha256=image_sha256,
+                technician=tag.get("technician", "") or actor,
+                sequence=tag.get("sequence") if tag.get("sequence") is not None else idx,
+                quality_score=quality["overall_score"],
+                quality_band=quality["quality_band"],
             ))
         db.commit()
 

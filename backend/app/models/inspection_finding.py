@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -37,3 +37,9 @@ class InspectionFinding(Base):
     finding_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     zone: Mapped[str] = mapped_column(String(60), default="", nullable=False, index=True)
     severity_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # v2.3 — the scoring engine's own confidence (0-1) for this finding at
+    # analysis time, so Evidence Fusion (app/services/vision_session_engine.py)
+    # can average real per-finding confidence instead of omitting it.
+    # Nullable for rows logged before this column existed — never backfilled
+    # with a fabricated value.
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
