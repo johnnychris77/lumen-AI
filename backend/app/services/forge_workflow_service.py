@@ -32,7 +32,7 @@ class InvalidWorkflowStateError(Exception):
     pass
 
 
-def _row_to_dict(obj) -> dict:
+def workflow_row_to_dict(obj) -> dict:
     result: dict = {}
     for col in obj.__table__.columns:
         val = getattr(obj, col.name)
@@ -68,7 +68,7 @@ def create_workflow(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _row_to_dict(row)
+    return workflow_row_to_dict(row)
 
 
 def get_workflow_row_or_404(db: Session, workflow_id: int) -> WorkflowDefinition:
@@ -80,7 +80,7 @@ def get_workflow_row_or_404(db: Session, workflow_id: int) -> WorkflowDefinition
 
 def get_workflow(db: Session, workflow_id: int) -> dict | None:
     row = db.query(WorkflowDefinition).filter(WorkflowDefinition.id == workflow_id).first()
-    return _row_to_dict(row) if row else None
+    return workflow_row_to_dict(row) if row else None
 
 
 def list_workflows(db: Session, tenant_id: str, *, category: str = "", current_only: bool = True) -> list[dict]:
@@ -91,7 +91,7 @@ def list_workflows(db: Session, tenant_id: str, *, category: str = "", current_o
         q = q.filter(WorkflowDefinition.category == category)
     if current_only:
         q = q.filter(WorkflowDefinition.is_current.is_(True))
-    return [_row_to_dict(r) for r in q.order_by(WorkflowDefinition.id.desc()).all()]
+    return [workflow_row_to_dict(r) for r in q.order_by(WorkflowDefinition.id.desc()).all()]
 
 
 def revise_workflow(
@@ -118,7 +118,7 @@ def revise_workflow(
         original.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(original)
-        return _row_to_dict(original)
+        return workflow_row_to_dict(original)
 
     new_row = WorkflowDefinition(
         tenant_id=original.tenant_id, workflow_ref=original.workflow_ref,
@@ -134,7 +134,7 @@ def revise_workflow(
     db.add(new_row)
     db.commit()
     db.refresh(new_row)
-    return _row_to_dict(new_row)
+    return workflow_row_to_dict(new_row)
 
 
 def publish_workflow(db: Session, workflow_id: int, *, approved_by: str) -> dict:
@@ -147,7 +147,7 @@ def publish_workflow(db: Session, workflow_id: int, *, approved_by: str) -> dict
     row.effective_date = row.effective_date or datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
-    return _row_to_dict(row)
+    return workflow_row_to_dict(row)
 
 
 def archive_workflow(db: Session, workflow_id: int) -> dict:
@@ -156,7 +156,7 @@ def archive_workflow(db: Session, workflow_id: int) -> dict:
     row.is_current = False
     db.commit()
     db.refresh(row)
-    return _row_to_dict(row)
+    return workflow_row_to_dict(row)
 
 
 def version_history(db: Session, workflow_id: int) -> list[dict]:
@@ -184,7 +184,7 @@ def version_history(db: Session, workflow_id: int) -> list[dict]:
         current = db.query(WorkflowDefinition).filter(WorkflowDefinition.id == current_id).first()
         if current is None:
             break
-        chain.append(_row_to_dict(current))
+        chain.append(workflow_row_to_dict(current))
         successor = db.query(WorkflowDefinition).filter(WorkflowDefinition.supersedes_id == current_id).first()
         current_id = successor.id if successor else None
     return chain
@@ -212,4 +212,4 @@ def rollback_to_version(db: Session, workflow_id: int, target_version_id: int, *
     target.reviewer = rolled_back_by
     db.commit()
     db.refresh(target)
-    return _row_to_dict(target)
+    return workflow_row_to_dict(target)

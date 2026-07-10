@@ -35,10 +35,16 @@ FAQ = "faq"
 COMPETENCY_GUIDANCE = "competency_guidance"
 MANUFACTURER_CLARIFICATION = "manufacturer_clarification"
 TEACHING_POINT = "teaching_point"
+# v4.8 — Project Athena additions (Institutional Memory Engine, Section 1):
+# the only two memory types the brief names that had no existing home.
+SUPERVISOR_EXPERIENCE = "supervisor_experience"
+VENDOR_OBSERVATION = "vendor_observation"
+REPAIR_OBSERVATION = "repair_observation"
 
 ARTICLE_CATEGORIES = [
     BEST_PRACTICE, LOCAL_STANDARD, APPROVED_WORKFLOW, CLINICAL_PEARL,
     LESSON_LEARNED, FAQ, COMPETENCY_GUIDANCE, MANUFACTURER_CLARIFICATION, TEACHING_POINT,
+    SUPERVISOR_EXPERIENCE, VENDOR_OBSERVATION, REPAIR_OBSERVATION,
 ]
 
 # ── Governance approval states ───────────────────────────────────────────────
@@ -105,6 +111,11 @@ class KnowledgeArticle(Base):
     source_inspection_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # v4.8 — Project Athena. Standard codes this article cites (e.g. AAMI
+    # ST79 clauses), JSON-encoded like the other facet lists above — the
+    # basis for the Knowledge Trust Score's "Reference Strength" component.
+    linked_standards_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
 
 
 class ClinicalCase(Base):
