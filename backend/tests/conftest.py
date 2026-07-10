@@ -104,6 +104,7 @@ def _force_import_models():
         "app.models.industry_collaboration",
         "app.models.platform_core",
         "app.models.workflow_forge",
+        "app.models.pulse_operations",
     ]:
         try:
             importlib.import_module(model_path)

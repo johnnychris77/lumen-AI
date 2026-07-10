@@ -1038,6 +1038,10 @@ from app.models import workflow_forge as _workflow_forge_models  # noqa: F401
 from app.routes.workflow_forge import router as workflow_forge_router
 app.include_router(workflow_forge_router)
 
+from app.models import pulse_operations as _pulse_operations_models  # noqa: F401
+from app.routes.pulse_operations import router as pulse_operations_router
+app.include_router(pulse_operations_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

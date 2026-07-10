@@ -81,6 +81,7 @@ const CollaborationGovernancePage = lazy(() => import("./pages/CollaborationGove
 const PlatformLauncherPage = lazy(() => import("./pages/PlatformLauncherPage"));
 const PlatformAdminPage = lazy(() => import("./pages/PlatformAdminPage"));
 const WorkflowBuilderPage = lazy(() => import("./pages/WorkflowBuilderPage"));
+const PulseCommandCenterPage = lazy(() => import("./pages/PulseCommandCenterPage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
@@ -403,6 +404,7 @@ function App() {
                       <Route path="/launcher" element={<Page name="Launcher"><PlatformLauncherPage /></Page>} />
                       <Route path="/platform-admin" element={<Page name="PlatformAdmin"><PlatformAdminPage /></Page>} />
                       <Route path="/workflow-builder" element={<Page name="WorkflowBuilder"><WorkflowBuilderPage /></Page>} />
+                      <Route path="/pulse" element={<Page name="Pulse"><PulseCommandCenterPage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />

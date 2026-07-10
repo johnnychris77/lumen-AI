@@ -174,10 +174,22 @@ EVENT_ENTERPRISE_ALERT_CREATED = "EnterpriseAlertCreated"
 # directly) was the reuse path rather than a second event bus.
 EVENT_MODULE_LICENSE_CHANGED = "ModuleLicenseChanged"
 EVENT_PLUGIN_REGISTERED = "PluginRegistered"
+# Added for LumenAI OS v4.2 (Project Pulse) Section 2 — the Live Event
+# Stream names ten event types; five already existed above (Repair
+# Recommended, Knowledge Added -> KnowledgeUpdated, Digital Twin Updated,
+# Enterprise Alert, Supervisor Review -> SupervisorApproved). These five
+# are the ones that genuinely didn't exist yet.
+EVENT_INSPECTION_STARTED = "InspectionStarted"
+EVENT_IMAGE_UPLOADED = "ImageUploaded"
+EVENT_AI_ANALYSIS_COMPLETED = "AIAnalysisCompleted"
+EVENT_WORKFLOW_EXECUTED = "WorkflowExecuted"
+EVENT_INTEGRATION_SYNC = "IntegrationSync"
 NEXUS_EVENT_TYPES = [
     EVENT_INSPECTION_COMPLETED, EVENT_SUPERVISOR_APPROVED, EVENT_REPAIR_RECOMMENDED,
     EVENT_KNOWLEDGE_UPDATED, EVENT_BASELINE_PUBLISHED, EVENT_DIGITAL_TWIN_UPDATED, EVENT_ENTERPRISE_ALERT_CREATED,
     EVENT_MODULE_LICENSE_CHANGED, EVENT_PLUGIN_REGISTERED,
+    EVENT_INSPECTION_STARTED, EVENT_IMAGE_UPLOADED, EVENT_AI_ANALYSIS_COMPLETED,
+    EVENT_WORKFLOW_EXECUTED, EVENT_INTEGRATION_SYNC,
 ]
 
 SUBSCRIPTION_TARGET_WEBHOOK = "webhook"

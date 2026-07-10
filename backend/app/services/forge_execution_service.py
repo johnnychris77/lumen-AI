@@ -223,6 +223,22 @@ def execute_workflow(
     execution.actual_outcome = status
     db.commit()
     db.refresh(execution)
+
+    if not is_simulation:
+        # Best-effort: publish to Nexus's event bus so Pulse's Live Event
+        # Stream (v4.2) can surface it — a publish failure must never roll
+        # back an already-persisted execution.
+        try:
+            from app.models.nexus_integration import EVENT_WORKFLOW_EXECUTED
+            from app.services import nexus_event_bus_service
+            nexus_event_bus_service.publish(
+                db, tenant_id=tenant_id, event_type=EVENT_WORKFLOW_EXECUTED,
+                payload={"workflow_id": workflow_id, "execution_id": execution.id, "status": status, "inspection_id": inspection_id},
+                actor=triggered_by,
+            )
+        except Exception:
+            pass
+
     return _execution_to_dict(execution)
 
 

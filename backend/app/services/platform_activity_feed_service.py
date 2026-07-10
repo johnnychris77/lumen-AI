@@ -65,7 +65,11 @@ def universal_activity_feed(db: Session, tenant_id: str, *, limit: int = 50) -> 
     for e in event_rows:
         items.append({
             "source": "event_bus", "id": e.id,
-            "created_at": e.created_at.isoformat() if getattr(e, "created_at", None) else None,
+            # NexusEvent's timestamp column is `published_at`, not `created_at` —
+            # using the wrong attribute name previously left every event-bus
+            # item with a null timestamp (silently swallowed by getattr's
+            # default), sorting it to the bottom of the reverse-chron feed.
+            "created_at": e.published_at.isoformat() if getattr(e, "published_at", None) else None,
             "action_type": e.event_type, "actor": e.actor, "resource_type": "nexus_event",
             "resource_id": str(e.id), "module": _EVENT_TYPE_TO_MODULE.get(e.event_type, "connect"),
         })
