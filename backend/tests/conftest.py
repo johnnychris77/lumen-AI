@@ -100,6 +100,7 @@ def _force_import_models():
         "app.models.atlas_enterprise",
         "app.models.nexus_integration",
         "app.models.predictive_insight",
+        "app.models.federated_horizon",
     ]:
         try:
             importlib.import_module(model_path)

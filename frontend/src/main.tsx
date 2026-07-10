@@ -74,6 +74,8 @@ const SentinelPage = lazy(() => import("./pages/SentinelPage"));
 const AtlasPage = lazy(() => import("./pages/AtlasPage"));
 const NexusPage = lazy(() => import("./pages/NexusPage"));
 const ForecastPage = lazy(() => import("./pages/ForecastPage"));
+const ResearchPortalPage = lazy(() => import("./pages/ResearchPortalPage"));
+const GovernanceCenterPage = lazy(() => import("./pages/GovernanceCenterPage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
@@ -389,6 +391,8 @@ function App() {
                       <Route path="/atlas" element={<Page name="Atlas"><AtlasPage /></Page>} />
                       <Route path="/integrations" element={<Page name="Integrations"><NexusPage /></Page>} />
                       <Route path="/forecast" element={<Page name="Forecast"><ForecastPage /></Page>} />
+                      <Route path="/research" element={<Page name="Research"><ResearchPortalPage /></Page>} />
+                      <Route path="/governance" element={<Page name="Governance"><GovernanceCenterPage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />

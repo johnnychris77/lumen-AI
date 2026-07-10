@@ -1022,6 +1022,10 @@ app.include_router(agents_pipeline_router)
 from app.routes.cios import router as cios_router
 app.include_router(cios_router)
 
+from app.models import federated_horizon as _federated_horizon_models  # noqa: F401
+from app.routes.federated_horizon import router as federated_horizon_router
+app.include_router(federated_horizon_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
