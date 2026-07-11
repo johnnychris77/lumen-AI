@@ -17,6 +17,14 @@ AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
 AUTH_MGR = {"Authorization": "Bearer manager-token"}
 AUTH_VIEWER = {"Authorization": "Bearer viewer-token"}
 
+# The dev-role bearer tokens above map to a fixed identity per role (see
+# app.deps._DEV_ROLE_MAP: "{role}@local.dev"), not a distinct user per test.
+_DEV_ROLE_EMAIL = {
+    "Bearer dev-token": ("admin@local.dev", "admin"),
+    "Bearer manager-token": ("spd_manager@local.dev", "spd_manager"),
+    "Bearer viewer-token": ("viewer@local.dev", "viewer"),
+}
+
 _counter = [0]
 
 
@@ -25,7 +33,38 @@ def uid(prefix: str) -> str:
     return f"{prefix}-{int(time.time() * 1000) % 1_000_000}-{_counter[0]}"
 
 
+def _ensure_membership(tenant_id: str, user_email: str, role: str) -> None:
+    """Grant the dev-role identity an enabled TenantMembership for tenant_id.
+
+    Horizon's cross-hospital intelligence routes now DB-verify tenant
+    membership instead of trusting the X-Tenant-Id header outright, so tests
+    that exercise many synthetic tenant_ids under one shared dev-role
+    identity must grant that identity membership in each tenant, same as a
+    real deployment would require a real per-tenant user account.
+    """
+    from app.db import models
+
+    db = SessionLocal()
+    try:
+        exists = (
+            db.query(models.TenantMembership)
+            .filter_by(tenant_id=tenant_id, user_email=user_email)
+            .first()
+        )
+        if exists:
+            return
+        db.add(models.TenantMembership(
+            tenant_id=tenant_id, user_email=user_email, role=role, is_enabled=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
 def _headers(base: dict, tenant_id: str) -> dict:
+    identity = _DEV_ROLE_EMAIL.get(base.get("Authorization", ""))
+    if identity:
+        _ensure_membership(tenant_id, identity[0], identity[1])
     return {**base, "x-tenant-id": tenant_id}
 
 

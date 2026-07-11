@@ -31,6 +31,7 @@ from app.authz import require_roles
 from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.federated_horizon import BENCHMARK_METRICS
+from app.tenant_authz import assert_tenant_membership
 from app.services import (
     horizon_ai_improvement_service,
     horizon_benchmark_service,
@@ -51,8 +52,20 @@ _ALL_ROLES = ("admin", "spd_manager", "operator", "viewer")
 _LEADERSHIP_ROLES = ("admin", "spd_manager")
 
 
-def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+def _tenant(current_user, request: Request, db: Session) -> str:
+    """Resolve the tenant_id for a Horizon (cross-hospital intelligence) request.
+
+    tenant_id is read from the client-supplied header, but it is never
+    trusted on its own -- it must correspond to an enabled TenantMembership
+    row for the authenticated user, or the request is rejected with 403.
+    Without this check, an authenticated user from one hospital could set
+    X-Tenant-Id to a different hospital's tenant id and read (or, worse,
+    enroll/withdraw/approve on behalf of) that hospital's cross-hospital
+    intelligence data.
+    """
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    assert_tenant_membership(db, tenant_id=tenant_id, user_email=_actor(current_user))
+    return tenant_id
 
 
 def _actor(current_user) -> str:
@@ -68,7 +81,7 @@ def _actor(current_user) -> str:
 def post_enroll(
     payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_LEADERSHIP_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     result = horizon_participation_service.enroll_organization(
         db, tenant_id, participant_type=payload["participant_type"], region=payload["region"],
         contribution_categories=payload.get("contribution_categories", []), agreed_by=_actor(current_user),
@@ -84,13 +97,13 @@ def post_enroll(
 
 @router.get("/participation/status")
 def get_participation_status(request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_ALL_ROLES))):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     return horizon_participation_service.get_participation_status(db, tenant_id)
 
 
 @router.post("/participation/withdraw")
 def post_withdraw(request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_LEADERSHIP_ROLES))):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     result = horizon_participation_service.withdraw_organization(db, tenant_id, withdrawn_by=_actor(current_user))
     log_audit_event(
         db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user), actor_role="",
@@ -103,7 +116,7 @@ def post_withdraw(request: Request, db: Session = Depends(get_db), current_user=
 def post_contribution_categories(
     payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_LEADERSHIP_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     result = horizon_participation_service.update_contribution_categories(db, tenant_id, payload.get("categories", []))
     if result is None:
         raise HTTPException(status_code=404, detail="Organization is not enrolled.")
@@ -120,7 +133,7 @@ def get_local_graph(
     request: Request, category: str = Query("instrument"), query: str = Query(""), db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_ALL_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     return horizon_knowledge_graph_service.local_graph_summary(db, tenant_id, category=category, query=query)
 
 
@@ -148,7 +161,7 @@ def get_global_graph(source_node_type: str = Query(""), db: Session = Depends(ge
 def post_submit_contribution(
     payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_LEADERSHIP_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     try:
         result = horizon_contribution_service.submit_contribution(
             db, tenant_id, contribution_type=payload["contribution_type"], category=payload.get("category", ""),
@@ -169,7 +182,7 @@ def get_contributions(
     request: Request, approval_status: str = Query(""), contribution_type: str = Query(""), db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_ALL_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     try:
         return {"contributions": horizon_contribution_service.list_contributions(
             db, approval_status=approval_status, contribution_type=contribution_type, requesting_tenant_id=tenant_id,
@@ -188,8 +201,15 @@ def post_approve_contribution(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InvalidContributionStateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # Approval is a global leadership action gated by role, not scoped to any
+    # one tenant's data (contribution_id is looked up globally above) -- the
+    # tenant_id here is only descriptive audit metadata for "which org
+    # context this approver represented," so it doesn't need the
+    # membership-verified _tenant() used by the tenant-data-scoping routes
+    # in this file.
+    tenant_id = get_request_tenant_id(request)
     log_audit_event(
-        db, tenant_id=_tenant(current_user, request), tenant_name=_tenant(current_user, request), actor_email=_actor(current_user), actor_role="",
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user), actor_role="",
         action_type="horizon.contribution_approved", resource_type="horizon_knowledge_contribution", resource_id=str(contribution_id), details={},
     )
     return result
@@ -265,7 +285,7 @@ def get_benchmark_percentile(
 ):
     if metric_name not in BENCHMARK_METRICS:
         raise HTTPException(status_code=422, detail=f"metric_name must be one of {BENCHMARK_METRICS}")
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     return horizon_benchmark_service.get_tenant_benchmark_percentile(db, tenant_id, metric_name)
 
 
@@ -283,7 +303,7 @@ def post_detect_emerging_trends(db: Session = Depends(get_db), current_user=Depe
 def get_emerging_trends(
     request: Request, mine_only: bool = Query(False), db: Session = Depends(get_db), current_user=Depends(require_roles(*_ALL_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request) if mine_only else ""
+    tenant_id = _tenant(current_user, request, db) if mine_only else ""
     return {"trends": horizon_trend_detection_service.list_emerging_trends(db, tenant_id=tenant_id)}
 
 
@@ -291,7 +311,7 @@ def get_emerging_trends(
 def post_acknowledge_trend(
     trend_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_ALL_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     result = horizon_trend_detection_service.acknowledge_trend(db, tenant_id, trend_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Trend {trend_id} not found.")
@@ -317,12 +337,17 @@ def get_research_portal(db: Session = Depends(get_db), current_user=Depends(requ
 def post_add_evidence(
     payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_LEADERSHIP_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request)
+    # Only resolve (and membership-verify) a tenant_id when the evidence is
+    # actually going to be scoped as private to that tenant -- shared/public
+    # evidence isn't tenant data, so it shouldn't require the submitter to
+    # have a matching TenantMembership for whatever X-Tenant-Id they sent.
+    is_private = bool(payload.get("private", False))
+    tenant_id = _tenant(current_user, request, db) if is_private else ""
     try:
         return horizon_evidence_service.add_evidence(
             db, evidence_type=payload["evidence_type"], title=payload["title"], citation_text=payload["citation_text"],
             source=payload.get("source", ""), url=payload.get("url", ""),
-            tenant_id=tenant_id if payload.get("private", False) else "", added_by=_actor(current_user),
+            tenant_id=tenant_id, added_by=_actor(current_user),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -333,7 +358,7 @@ def get_evidence_list(
     request: Request, evidence_type: str = Query(""), include_private: bool = Query(True), db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_ALL_ROLES)),
 ):
-    tenant_id = _tenant(current_user, request) if include_private else ""
+    tenant_id = _tenant(current_user, request, db) if include_private else ""
     return {"evidence": horizon_evidence_service.list_evidence(db, evidence_type=evidence_type, tenant_id=tenant_id)}
 
 
@@ -370,7 +395,7 @@ def get_evidence_for_recommendation(source_type: str, source_id: str, db: Sessio
 
 @router.get("/governance/overview")
 def get_governance_overview(request: Request, db: Session = Depends(get_db), current_user=Depends(require_roles(*_LEADERSHIP_ROLES))):
-    tenant_id = _tenant(current_user, request)
+    tenant_id = _tenant(current_user, request, db)
     return horizon_governance_service.governance_overview(db, tenant_id)
 
 
