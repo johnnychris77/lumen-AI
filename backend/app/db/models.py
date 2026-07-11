@@ -123,6 +123,9 @@ from app.models.guardianx_assurance import (  # noqa: F401
 from app.models.genesis_ai_intelligence_cloud import (  # noqa: F401
     AnatomyProfile, ManufacturerKnowledgeUpdate,
 )
+from app.models.nova_agent_platform import (  # noqa: F401
+    AgentCollaborationRequest, AgentDefinition, AgentMemoryEntry, AgentMessage, AgentTaskRun,
+)
 
 
 class TenantMembership(Base):

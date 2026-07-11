@@ -115,6 +115,7 @@ def _force_import_models():
         "app.models.olympus_network",
         "app.models.guardianx_assurance",
         "app.models.genesis_ai_intelligence_cloud",
+        "app.models.nova_agent_platform",
     ]:
         try:
             importlib.import_module(model_path)

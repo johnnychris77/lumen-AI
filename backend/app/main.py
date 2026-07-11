@@ -1085,6 +1085,10 @@ from app.models import genesis_ai_intelligence_cloud as _genesis_ai_intelligence
 from app.routes.genesis_ai_intelligence_cloud import router as genesis_ai_intelligence_cloud_router
 app.include_router(genesis_ai_intelligence_cloud_router)
 
+from app.models import nova_agent_platform as _nova_agent_platform_models  # noqa: F401
+from app.routes.nova_agent_platform import router as nova_agent_platform_router
+app.include_router(nova_agent_platform_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
