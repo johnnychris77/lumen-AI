@@ -1081,6 +1081,10 @@ from app.models import guardianx_assurance as _guardianx_assurance_models  # noq
 from app.routes.guardianx_assurance import router as guardianx_assurance_router
 app.include_router(guardianx_assurance_router)
 
+from app.models import genesis_ai_intelligence_cloud as _genesis_ai_intelligence_cloud_models  # noqa: F401
+from app.routes.genesis_ai_intelligence_cloud import router as genesis_ai_intelligence_cloud_router
+app.include_router(genesis_ai_intelligence_cloud_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

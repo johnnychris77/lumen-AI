@@ -120,6 +120,9 @@ from app.models.guardianx_assurance import (  # noqa: F401
     AIAssuranceTrustSnapshot, AIExplainabilityRecord, AIModelRiskEntry,
     ComplianceCapabilityMapping, EvidenceLedgerEntry,
 )
+from app.models.genesis_ai_intelligence_cloud import (  # noqa: F401
+    AnatomyProfile, ManufacturerKnowledgeUpdate,
+)
 
 
 class TenantMembership(Base):

@@ -93,6 +93,7 @@ const DeveloperPortalPage = lazy(() => import("./pages/DeveloperPortalPage"));
 const PlatformMarketplacePage = lazy(() => import("./pages/PlatformMarketplacePage"));
 const NetworkPage = lazy(() => import("./pages/NetworkPage"));
 const AIAssurancePage = lazy(() => import("./pages/AIAssurancePage"));
+const IntelligenceCloudPage = lazy(() => import("./pages/IntelligenceCloudPage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
@@ -427,6 +428,7 @@ function App() {
                       <Route path="/marketplace" element={<Page name="Marketplace"><PlatformMarketplacePage /></Page>} />
                       <Route path="/network" element={<Page name="Network"><NetworkPage /></Page>} />
                       <Route path="/ai-assurance" element={<Page name="AIAssurance"><AIAssurancePage /></Page>} />
+                      <Route path="/intelligence-cloud" element={<Page name="IntelligenceCloud"><IntelligenceCloudPage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />

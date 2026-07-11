@@ -245,3 +245,49 @@ def get_v1_phoenix(request: Request, db: Session = Depends(get_db), auth=Depends
 
     tenant_id = auth["tenant_id"]
     return {"api_version": "v1", "tenant_id": tenant_id, "phoenix": learning_engine_summary(db, tenant_id)}
+
+
+# v5.3 — Project Genesis AI, Section 7 (Instrument Intelligence API): the
+# world-scale instrument/anatomy/evidence registries this sprint builds are
+# global, not tenant-scoped, but every v1 endpoint in this gateway shares the
+# same auth contract, so `tenant_id` is still returned for consistency even
+# though it doesn't filter the underlying query. Named `instrument-registry`,
+# not `instruments` -- the pre-existing `/api/v1/instruments` above already
+# means something different (this tenant's own inspected-instrument list).
+
+
+@router.get("/api/v1/instrument-registry")
+def get_v1_instrument_registry(
+    request: Request, instrument_family: str = Query(""), db: Session = Depends(get_db), auth=Depends(require_gateway_auth),
+):
+    from app.services.genesis_ai_instrument_registry_service import list_instruments_by_family
+    from app.services.instrument_registry_service import get_registry_stats
+
+    tenant_id = auth["tenant_id"]
+    instruments = list_instruments_by_family(db, instrument_family) if instrument_family else []
+    return {
+        "api_version": "v1", "tenant_id": tenant_id, "registry_stats": get_registry_stats(db), "instruments": instruments,
+    }
+
+
+@router.get("/api/v1/anatomy")
+def get_v1_anatomy(request: Request, db: Session = Depends(get_db), auth=Depends(require_gateway_auth)):
+    from app.services.genesis_ai_anatomy_registry_service import anatomy_registry_summary, list_anatomy_profiles
+
+    tenant_id = auth["tenant_id"]
+    return {
+        "api_version": "v1", "tenant_id": tenant_id, "summary": anatomy_registry_summary(db),
+        "profiles": list_anatomy_profiles(db),
+    }
+
+
+@router.get("/api/v1/evidence")
+def get_v1_evidence(request: Request, db: Session = Depends(get_db), auth=Depends(require_gateway_auth)):
+    from app.services import horizon_evidence_service
+    from app.services.genesis_ai_evidence_cloud_service import evidence_cloud_summary
+
+    tenant_id = auth["tenant_id"]
+    return {
+        "api_version": "v1", "tenant_id": tenant_id, "summary": evidence_cloud_summary(db),
+        "evidence": horizon_evidence_service.list_evidence(db),
+    }
