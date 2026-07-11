@@ -159,6 +159,10 @@ MARKETPLACE_STATUSES = [MARKETPLACE_PRIVATE, MARKETPLACE_PENDING_REVIEW, MARKETP
 TEMPLATE_CATEGORIES = [
     "general_instrument_inspection", "rigid_scope", "flexible_endoscope", "loaner_instrument",
     "vendor_tray", "robotic_instrument", "orthopedic", "neurosurgery", "custom_organization",
+    # v4.8 — Project Athena Clinical Playbooks (Section 5): three of the six
+    # named scenarios (loaner_instrument, vendor_tray, robotic_instrument)
+    # already existed above; these three did not.
+    "blood_detection_investigation", "corrosion_investigation", "joint_commission_preparation",
 ]
 
 # ── Section 7: Default approval chain steps ─────────────────────────────────
@@ -219,6 +223,12 @@ class WorkflowDefinition(Base):
     is_template: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     marketplace_status: Mapped[str] = mapped_column(String(20), default=MARKETPLACE_PRIVATE, nullable=False, index=True)
     approval_chain_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # v4.8 — Project Athena Clinical Playbooks (Section 5). Standards a
+    # playbook references (e.g. AAMI ST79, Joint Commission clauses),
+    # JSON-encoded — photos/videos attach via `KnowledgeMediaAttachment`
+    # (source_type="workflow_definition"), not a column here.
+    linked_standards_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
 
 
 class WorkflowRule(Base):

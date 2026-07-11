@@ -100,6 +100,12 @@ from app.models.p25_infrastructure import (  # noqa: F401
     InstrumentDigitalIdentity, SurgicalReadinessScore, InstrumentPassportEvent,
     GlobalQualityRegistryEntry, IndustryAPICredential,
 )
+from app.models.apollo_quality import (  # noqa: F401
+    CustomerComplaint, QualityPolicy, QualityTwinSnapshot,
+)
+from app.models.athena_knowledge import (  # noqa: F401
+    ExperienceGraphEdge, ExperienceGraphNode, KnowledgeMediaAttachment, KnowledgePreservationSession,
+)
 
 
 class TenantMembership(Base):

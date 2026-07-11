@@ -1057,6 +1057,14 @@ from app.models import vanguard_intelligence as _vanguard_intelligence_models  #
 from app.routes.vanguard_intelligence import router as vanguard_intelligence_router
 app.include_router(vanguard_intelligence_router)
 
+from app.models import apollo_quality as _apollo_quality_models  # noqa: F401
+from app.routes.apollo_quality import router as apollo_quality_router
+app.include_router(apollo_quality_router)
+
+from app.models import athena_knowledge as _athena_knowledge_models  # noqa: F401
+from app.routes.athena_knowledge import router as athena_knowledge_router
+app.include_router(athena_knowledge_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

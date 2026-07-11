@@ -6,6 +6,10 @@ Standards covered:
 - FDA 21 CFR Part 820 (Quality System Regulation)
 - CMS Conditions of Participation
 - ISO 17664 (sterilization of health-care products)
+- v4.7 Project Apollo additions: AAMI ST91 (flexible/semi-rigid endoscope
+  reprocessing — distinct body code `aami_st91` from ST79's `aami`), AORN
+  (perioperative practice standards), DNV (accreditation body, alternative
+  to Joint Commission).
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -101,6 +105,38 @@ STANDARDS: list[StandardDef] = [
         "ISO 17664-1: Sterilization — IFU for medical devices",
         "Manufacturers shall provide instructions for use (IFU) that describe validated decontamination and sterilization processes. Deviations from IFU are non-conformances.",
         "ifu_compliance", "SPD,Quality"),
+
+    # v4.7 Project Apollo — AAMI ST91 (flexible/semi-rigid endoscope
+    # reprocessing). Distinct body code from ST79's "aami".
+    StandardDef("AAMI-ST91-6", "aami_st91",
+        "ST91 Section 6: Point-of-use treatment and transport of flexible endoscopes",
+        "Flexible endoscopes shall receive point-of-use treatment immediately after the procedure and be transported in a manner that prevents drying of soil.",
+        "endoscope_reprocessing", "SPD,GI/Endo"),
+    StandardDef("AAMI-ST91-9", "aami_st91",
+        "ST91 Section 9: Manual cleaning and leak testing of flexible endoscopes",
+        "Flexible endoscopes shall undergo leak testing before manual cleaning; a failed leak test indicates internal damage and requires removal from service.",
+        "endoscope_reprocessing", "SPD,GI/Endo"),
+
+    # v4.7 Project Apollo — AORN perioperative practice standards.
+    StandardDef("AORN-INSTR-01", "aorn",
+        "AORN Guideline for Care and Cleaning of Surgical Instruments",
+        "Perioperative team members should collaborate with SPD on point-of-use treatment, transport, and instrument tray assembly to reduce the risk of instrument damage and contamination.",
+        "instrument_handling", "OR,SPD"),
+    StandardDef("AORN-COUNT-01", "aorn",
+        "AORN Guideline for Sharps Safety and Surgical Counts",
+        "Instrument, sponge, and sharps counts should be performed and documented per facility policy to prevent retained surgical items.",
+        "surgical_counts", "OR"),
+
+    # v4.7 Project Apollo — DNV accreditation standards (alternative to
+    # Joint Commission).
+    StandardDef("DNV-QM.3", "dnv",
+        "DNV NIAHO Quality Management System Standard QM.3",
+        "The organization shall establish a quality management system that identifies, monitors, and corrects nonconformances, including those affecting instrument reprocessing.",
+        "quality_management", "Enterprise,Quality"),
+    StandardDef("DNV-IC.4", "dnv",
+        "DNV NIAHO Infection Control Standard IC.4",
+        "The organization shall have a documented process for high-level disinfection and sterilization of reusable medical devices consistent with manufacturer IFU.",
+        "infection_control", "SPD,Quality"),
 ]
 
 

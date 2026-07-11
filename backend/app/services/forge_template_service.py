@@ -43,6 +43,10 @@ _TEMPLATE_NAMES = {
     "orthopedic": "Orthopedic Workflow",
     "neurosurgery": "Neurosurgery Workflow",
     "custom_organization": "Custom Organization Workflow",
+    # v4.8 — Project Athena Clinical Playbooks (Section 5).
+    "blood_detection_investigation": "Blood Detection Investigation Workflow",
+    "corrosion_investigation": "Corrosion Investigation Workflow",
+    "joint_commission_preparation": "Joint Commission Preparation Workflow",
 }
 
 
