@@ -1069,6 +1069,10 @@ from app.models import phoenix_intelligence as _phoenix_intelligence_models  # n
 from app.routes.phoenix_intelligence import router as phoenix_intelligence_router
 app.include_router(phoenix_intelligence_router)
 
+from app.models import infinity_platform as _infinity_platform_models  # noqa: F401
+from app.routes.infinity_platform import router as infinity_platform_router
+app.include_router(infinity_platform_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

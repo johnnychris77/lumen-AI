@@ -202,6 +202,22 @@ class PlatformPlugin(Base):
     registered_dashboards_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     registered_reports_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
 
+    # v5.0 — Project Infinity Plugin SDK (Section 3): the remaining
+    # extension-point types the SDK names that this table didn't yet
+    # have. Still metadata-only — no code is ever imported or run from
+    # any of these columns, same as the fields above.
+    registered_workflow_nodes_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    registered_ai_skills_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    registered_notifications_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    registered_commands_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    registered_analytics_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+
+    # Links this plugin registration to the third-party developer/listing
+    # that published it, if any — blank/null for LumenAI's own core
+    # modules (`is_core=True` on `PlatformModule`).
+    developer_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    marketplace_listing_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
     registered_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
 

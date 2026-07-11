@@ -109,6 +109,10 @@ from app.models.athena_knowledge import (  # noqa: F401
 from app.models.phoenix_intelligence import (  # noqa: F401
     AIInferenceLatencySample, ImprovementRecommendation, InnovationIdea, PlatformMaturitySnapshot, ValidationOutcome,
 )
+from app.models.infinity_platform import (  # noqa: F401
+    DeveloperAccount, DeveloperApiKey, DeveloperSandboxSession, MarketplaceInstallation,
+    MarketplaceListing, MarketplaceRevenueEvent, PartnerLicense,
+)
 
 
 class TenantMembership(Base):

@@ -111,6 +111,7 @@ def _force_import_models():
         "app.models.apollo_quality",
         "app.models.athena_knowledge",
         "app.models.phoenix_intelligence",
+        "app.models.infinity_platform",
     ]:
         try:
             importlib.import_module(model_path)

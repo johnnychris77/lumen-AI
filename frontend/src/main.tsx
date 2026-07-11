@@ -89,6 +89,8 @@ const QualityManagementCenterPage = lazy(() => import("./pages/QualityManagement
 const KnowledgeMemoryPage = lazy(() => import("./pages/KnowledgeMemoryPage"));
 const PhoenixIntelligencePage = lazy(() => import("./pages/PhoenixIntelligencePage"));
 const PlatformHealthPage = lazy(() => import("./pages/PlatformHealthPage"));
+const DeveloperPortalPage = lazy(() => import("./pages/DeveloperPortalPage"));
+const PlatformMarketplacePage = lazy(() => import("./pages/PlatformMarketplacePage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
@@ -419,6 +421,8 @@ function App() {
                       <Route path="/knowledge-memory" element={<Page name="KnowledgeMemory"><KnowledgeMemoryPage /></Page>} />
                       <Route path="/phoenix" element={<Page name="Phoenix"><PhoenixIntelligencePage /></Page>} />
                       <Route path="/platform-health" element={<Page name="PlatformHealth"><PlatformHealthPage /></Page>} />
+                      <Route path="/developers" element={<Page name="DeveloperPortal"><DeveloperPortalPage /></Page>} />
+                      <Route path="/marketplace" element={<Page name="Marketplace"><PlatformMarketplacePage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
