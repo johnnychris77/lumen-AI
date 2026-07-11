@@ -96,6 +96,7 @@ const AIAssurancePage = lazy(() => import("./pages/AIAssurancePage"));
 const IntelligenceCloudPage = lazy(() => import("./pages/IntelligenceCloudPage"));
 const AgentsPage = lazy(() => import("./pages/AgentsPage"));
 const AgentTraceViewer = lazy(() => import("./pages/AgentTraceViewer"));
+const InstrumentForensicsPage = lazy(() => import("./pages/InstrumentForensicsPage"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
@@ -432,6 +433,7 @@ function App() {
                       <Route path="/intelligence-cloud" element={<Page name="IntelligenceCloud"><IntelligenceCloudPage /></Page>} />
                       <Route path="/agent-trace" element={<Page name="AgentTrace"><AgentTraceViewer /></Page>} />
                       <Route path="/agents" element={<Page name="Agents"><AgentsPage /></Page>} />
+                      <Route path="/instrument-forensics" element={<Page name="InstrumentForensics"><InstrumentForensicsPage /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
                       <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />

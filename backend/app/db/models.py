@@ -126,6 +126,9 @@ from app.models.genesis_ai_intelligence_cloud import (  # noqa: F401
 from app.models.nova_agent_platform import (  # noqa: F401
     AgentCollaborationRequest, AgentDefinition, AgentMemoryEntry, AgentMessage, AgentTaskRun,
 )
+from app.models.vulcan_reliability import (  # noqa: F401
+    VulcanFeedback, VulcanReliabilityAssessment, VulcanRepairEffectivenessAssessment,
+)
 
 
 class TenantMembership(Base):
