@@ -125,8 +125,12 @@ def record_enterprise_audit_event(
     resource_type: str,
     resource_id: str | int | None = None,
     actor: str = "system",
+    actor_email: str | None = None,
     actor_role: str = "system",
     tenant_id: str | None = None,
+    tenant_name: str | None = None,
+    status: str = "success",
+    compliance_flag: bool = False,
     finding_id: int | None = None,
     baseline_id: int | None = None,
     packet_hash: str | None = None,
@@ -139,9 +143,14 @@ def record_enterprise_audit_event(
     """
     Centralized enterprise audit writer.
 
-    This service is intentionally append-only. It also adapts to the current
+    This service is intentionally append-only and hash-chains every event
+    per (resource_type, resource_id) -- see verify_audit_chain() in
+    audit_chain_verification_service.py. It also adapts to the current
     AuditLog schema by placing fields into direct columns when available and
     into details when the column does not exist yet.
+
+    This is the single writer for LumenAI audit events. app.audit.log_audit_event
+    is a deprecated compatibility shim that delegates here.
     """
 
     columns = _auditlog_columns()
@@ -149,9 +158,24 @@ def record_enterprise_audit_event(
     details = merge_auth_context_into_details(details, auth_context, request=request)
     safe_details = _safe_details(details)
 
+    resolved_actor = actor or "system"
+    resolved_actor_role = actor_role or "system"
+    resolved_actor_email = actor_email if actor_email is not None else resolved_actor
+    resolved_tenant_name = tenant_name if tenant_name is not None else (tenant_id or "")
+
+    # NOTE: this normalized/safe_details step (and therefore the event hash
+    # payload built from safe_details below) is intentionally unchanged from
+    # before actor_email/tenant_name/status/compliance_flag were added as
+    # real columns -- those new fields are written directly to columns
+    # further down and never enter `details`, so they don't affect hash
+    # computation for any existing caller. Callers that need tenant_id/
+    # actor_role to also be queryable via audit_query_service.py (which
+    # reads `details`, not columns) should include them in `details=`
+    # explicitly, the same way auth_context=... already does via
+    # to_audit_details().
     normalized = {
-        "actor": actor or "system",
-        "actor_role": actor_role or "system",
+        "actor": resolved_actor,
+        "actor_role": resolved_actor_role,
         "tenant_id": tenant_id,
         "finding_id": finding_id,
         "baseline_id": baseline_id,
@@ -174,8 +198,8 @@ def record_enterprise_audit_event(
         action_type=action_type,
         resource_type=resource_type,
         resource_id=normalized_resource_id,
-        actor=actor or "system",
-        actor_role=actor_role or "system",
+        actor=resolved_actor,
+        actor_role=resolved_actor_role,
         details=safe_details,
         previous_event_hash=previous_event_hash,
     )
@@ -190,9 +214,16 @@ def record_enterprise_audit_event(
         "action_type": action_type,
         "resource_type": resource_type,
         "resource_id": normalized_resource_id,
-        "actor": actor or "system",
-        "actor_role": actor_role or "system",
+        "actor": resolved_actor,
+        "actor_email": resolved_actor_email,
+        "actor_role": resolved_actor_role,
         "tenant_id": tenant_id,
+        "tenant_name": resolved_tenant_name or None,
+        "status": status,
+        "compliance_flag": compliance_flag,
+        "request_method": request.method if request else None,
+        "request_path": str(request.url.path) if request else None,
+        "client_ip": (request.client.host if request and request.client else None),
         "finding_id": finding_id,
         "baseline_id": baseline_id,
         "packet_hash": packet_hash,

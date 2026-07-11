@@ -105,7 +105,10 @@ def _decode_unverified_jwt_claims(token: str) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="Invalid JWT.") from exc
 
 
-def _require_dev_auth_context(request: Request) -> AuthContext:
+def _require_dev_auth_context(
+    request: Request,
+    db: Session | None = None,
+) -> AuthContext:
     authorization = request.headers.get("authorization", "")
     expected = f"Bearer {get_dev_token()}"
 
@@ -146,10 +149,27 @@ def _require_dev_auth_context(request: Request) -> AuthContext:
                 role = _user_role(username) or "viewer"
             except Exception:
                 pass
+
+            tenant_id = get_request_tenant_id(request)
+
+            # The tenant_id above comes straight from a client-supplied
+            # header and must never be trusted on its own — a real,
+            # JWT-authenticated user could otherwise set X-Tenant-Id to a
+            # tenant they don't belong to and read/act on that tenant's
+            # data (this is exactly the gap the cross-hospital intelligence
+            # routes were found to have). Verify it against a real
+            # TenantMembership row before honoring it.
+            if db is not None:
+                require_enabled_tenant_membership(
+                    db,
+                    tenant_id=tenant_id,
+                    user_email=username,
+                )
+
             return build_dev_auth_context(
                 actor=username,
                 role=role,
-                tenant_id=get_request_tenant_id(request),
+                tenant_id=tenant_id,
                 tenant_name=get_request_tenant_name(request),
             )
 
@@ -211,7 +231,7 @@ def get_auth_context(
     auth_mode = get_auth_mode()
 
     if auth_mode == "dev":
-        return _require_dev_auth_context(request)
+        return _require_dev_auth_context(request, db=db)
 
     if auth_mode == "oidc":
         return _require_oidc_auth_context(request, db=db)
@@ -239,7 +259,24 @@ def require_enterprise_auth(
                 status_code=401,
                 detail="Invalid token format. Production requires a signed JWT.",
             )
-    return get_auth_context(request, db=db)
+
+    if db is not None:
+        return get_auth_context(request, db=db)
+
+    # Callers across the codebase are inconsistent about threading their
+    # request-scoped `db` session through to this function — dozens of
+    # cross-hospital intelligence routes call require_enterprise_auth(request)
+    # with no `db=`, which used to mean the TenantMembership check was
+    # silently skipped and a client-supplied X-Tenant-Id header was trusted
+    # outright. Rather than depend on every call site remembering to pass
+    # `db=`, open a session here so the tenant-membership check always runs.
+    from app.db import SessionLocal
+
+    owned_db = SessionLocal()
+    try:
+        return get_auth_context(request, db=owned_db)
+    finally:
+        owned_db.close()
 
 
 def require_enterprise_role(

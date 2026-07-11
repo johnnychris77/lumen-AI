@@ -286,9 +286,13 @@ class TestFDASubmissionsAPI:
         r = client.get("/api/regulatory/fda-submissions", params={"tenant_id": TENANT}, headers=AUTH)
         assert isinstance(r.json()["submissions"], list)
 
-    def test_list_submissions_not_empty(self):
-        r = client.get("/api/regulatory/fda-submissions", params={"tenant_id": TENANT}, headers=AUTH)
-        assert len(r.json()["submissions"]) > 0
+    def test_list_submissions_empty_when_no_real_data(self):
+        """No fabricated FDA record should ever be returned for a tenant with no real submissions."""
+        r = client.get("/api/regulatory/fda-submissions", params={"tenant_id": "no-submissions-tenant-p8"}, headers=AUTH)
+        body = r.json()
+        assert body["submissions"] == []
+        assert body["is_synthetic"] is False
+        assert body["data_available"] is False
 
     def test_list_submissions_has_status_field(self):
         r = client.get("/api/regulatory/fda-submissions", params={"tenant_id": TENANT}, headers=AUTH)
@@ -314,6 +318,15 @@ class TestFDASubmissionsAPI:
             "status": "pending",
         }, headers=AUTH)
         assert "id" in r.json()
+
+    def test_list_submissions_reflects_real_data_only(self):
+        """Once a real submission exists, it's returned honestly -- never a fabricated record."""
+        r = client.get("/api/regulatory/fda-submissions", params={"tenant_id": TENANT}, headers=AUTH)
+        body = r.json()
+        assert body["data_available"] is True
+        assert body["is_synthetic"] is False
+        assert len(body["submissions"]) > 0
+        assert all(s["submission_number"] != "K253421" for s in body["submissions"])
 
     def test_list_submissions_requires_auth(self):
         r = client.get("/api/regulatory/fda-submissions", params={"tenant_id": TENANT})
@@ -415,11 +428,11 @@ class TestAccreditationEngine:
         assert _readiness_tier(65) == "needs_improvement"
         assert _readiness_tier(50) == "at_risk"
 
-    def test_fda_submissions_mock_fallback(self):
+    def test_fda_submissions_no_real_data_returns_empty(self):
+        """With db=None (no real records reachable), the honest answer is an empty list -- not a fabricated one."""
         from app.services.accreditation_engine import list_fda_submissions
         subs = list_fda_submissions(TENANT)
-        assert len(subs) > 0
-        assert subs[0].tenant_id == TENANT
+        assert subs == []
 
 
 # ── TestTierGating ────────────────────────────────────────────────────────────
