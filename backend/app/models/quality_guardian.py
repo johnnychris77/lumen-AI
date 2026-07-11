@@ -121,9 +121,16 @@ OPPORTUNITY_TEAM_EDUCATION = "team_education"
 OPPORTUNITY_DEPARTMENT_RETRAINING = "department_retraining"
 OPPORTUNITY_ANNUAL_COMPETENCY = "annual_competency"
 OPPORTUNITY_RECURRING_LEARNING = "recurring_learning"
+# v4.9 — Project Phoenix Competency Intelligence (Section 6). Three new
+# types; `annual_competency`/`recurring_learning` above were already
+# defined here but never produced by any detector until Phoenix.
+OPPORTUNITY_SIMULATION = "simulation"
+OPPORTUNITY_MENTORING = "mentoring"
+OPPORTUNITY_KNOWLEDGE_SHARING = "knowledge_sharing"
 OPPORTUNITY_TYPES = [
     OPPORTUNITY_COACHING, OPPORTUNITY_TEAM_EDUCATION, OPPORTUNITY_DEPARTMENT_RETRAINING,
     OPPORTUNITY_ANNUAL_COMPETENCY, OPPORTUNITY_RECURRING_LEARNING,
+    OPPORTUNITY_SIMULATION, OPPORTUNITY_MENTORING, OPPORTUNITY_KNOWLEDGE_SHARING,
 ]
 
 DISCLAIMER = (

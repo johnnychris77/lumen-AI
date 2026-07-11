@@ -106,6 +106,9 @@ from app.models.apollo_quality import (  # noqa: F401
 from app.models.athena_knowledge import (  # noqa: F401
     ExperienceGraphEdge, ExperienceGraphNode, KnowledgeMediaAttachment, KnowledgePreservationSession,
 )
+from app.models.phoenix_intelligence import (  # noqa: F401
+    AIInferenceLatencySample, ImprovementRecommendation, InnovationIdea, PlatformMaturitySnapshot, ValidationOutcome,
+)
 
 
 class TenantMembership(Base):

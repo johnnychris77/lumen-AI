@@ -1065,6 +1065,10 @@ from app.models import athena_knowledge as _athena_knowledge_models  # noqa: F40
 from app.routes.athena_knowledge import router as athena_knowledge_router
 app.include_router(athena_knowledge_router)
 
+from app.models import phoenix_intelligence as _phoenix_intelligence_models  # noqa: F401
+from app.routes.phoenix_intelligence import router as phoenix_intelligence_router
+app.include_router(phoenix_intelligence_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
