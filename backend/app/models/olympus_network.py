@@ -117,11 +117,15 @@ HIX_PACKAGE_ANATOMY_MODEL = "anatomy_model"
 HIX_PACKAGE_CONTAMINATION_TREND = "contamination_trend"
 HIX_PACKAGE_QUALITY_INSIGHT = "quality_insight"
 HIX_PACKAGE_RESEARCH_FINDING = "research_finding"
+# Added for Project Genesis AI (v5.3) Section 8 — lets P20's governance-gated
+# ResearchDataset rows flow through the same exchange pipeline, distinct
+# from "research_finding" (a narrative finding, not a released dataset).
+HIX_PACKAGE_RESEARCH_DATASET = "research_dataset"
 HIX_PACKAGE_TYPES = [
     HIX_PACKAGE_KNOWLEDGE, HIX_PACKAGE_WORKFLOW_TEMPLATE, HIX_PACKAGE_DIGITAL_TWIN_MODEL,
     HIX_PACKAGE_INSPECTION_PROTOCOL, HIX_PACKAGE_EDUCATIONAL_MODULE, HIX_PACKAGE_BENCHMARK_REPORT,
     HIX_PACKAGE_ANATOMY_MODEL, HIX_PACKAGE_CONTAMINATION_TREND, HIX_PACKAGE_QUALITY_INSIGHT,
-    HIX_PACKAGE_RESEARCH_FINDING,
+    HIX_PACKAGE_RESEARCH_FINDING, HIX_PACKAGE_RESEARCH_DATASET,
 ]
 
 HIX_DRAFT = "draft"
@@ -287,6 +291,28 @@ class AIModelRegistryEntry(Base):
 
     registered_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Added for LumenAI Network v5.2 -- Project GuardianX, Section 2 (Model
+    # Governance) and Section 6 (Governance Workflow). GuardianX's governance
+    # approval (clinical_review_board/ai_governance_committee/quality_leadership/
+    # security/compliance) is a distinct chain from the certification fields
+    # above (security/performance/clinical_safety/explainability/accessibility/
+    # documentation/governance) -- a model can be certified without yet having
+    # completed governance sign-off, and vice versa.
+    model_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    clinical_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    technical_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    approval_committee: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    validation_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retirement_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    training_dataset_metadata_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    known_limitations: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    approved_use_cases_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    out_of_scope_uses_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+
+    governance_status: Mapped[str] = mapped_column(String(20), default="not_started", nullable=False, index=True)
+    governance_chain_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    governance_instance_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class NetworkGovernanceCase(Base):

@@ -189,6 +189,11 @@ class AdvisoryConsortiumMember(Base):
     # participation is opt-in; this is the single flag every observatory
     # query filters on, rather than a second participation table.
     observatory_opt_in = Column(Boolean, default=False, nullable=False)
+    # Added for Project Genesis AI (v5.3) Section 6 — Research Collaboration
+    # Hub participation is opt-in, distinct from Olympus's observatory
+    # opt-in (an org may want its own data used in Global Research
+    # Observatory trend rollups without opting into named research studies).
+    research_opt_in = Column(Boolean, default=False, nullable=False)
 
 
 class StandardsPublication(Base):

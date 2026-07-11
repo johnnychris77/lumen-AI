@@ -116,6 +116,16 @@ from app.models.infinity_platform import (  # noqa: F401
 from app.models.olympus_network import (  # noqa: F401
     AIModelRegistryEntry, HIXExchangePackage, NetworkGovernanceCase, NetworkTrustSnapshot,
 )
+from app.models.guardianx_assurance import (  # noqa: F401
+    AIAssuranceTrustSnapshot, AIExplainabilityRecord, AIModelRiskEntry,
+    ComplianceCapabilityMapping, EvidenceLedgerEntry,
+)
+from app.models.genesis_ai_intelligence_cloud import (  # noqa: F401
+    AnatomyProfile, ManufacturerKnowledgeUpdate,
+)
+from app.models.nova_agent_platform import (  # noqa: F401
+    AgentCollaborationRequest, AgentDefinition, AgentMemoryEntry, AgentMessage, AgentTaskRun,
+)
 
 
 class TenantMembership(Base):

@@ -28,3 +28,17 @@ class RegistryInstrument(Base):
     registry_status = Column(String, default="active")  # active/recalled/discontinued
     added_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Added for LumenAI Network v5.3 -- Project Genesis AI, Section 1 (Global
+    # Instrument Registry). Purely additive: the pre-existing columns above
+    # and instrument_registry_service.py's seeded-mock-fallback behavior are
+    # untouched.
+    instrument_family = Column(String, nullable=True)
+    ifu_versions_json = Column(String, nullable=True, default="[]")
+    anatomy_profile_id = Column(Integer, nullable=True)
+    inspection_zones_json = Column(String, nullable=True, default="[]")
+    digital_twin_template_ref = Column(String, nullable=True)
+    baseline_template_ref = Column(String, nullable=True)
+    failure_modes_json = Column(String, nullable=True, default="[]")
+    repair_guidance = Column(String, nullable=True)
+    knowledge_references_json = Column(String, nullable=True, default="[]")

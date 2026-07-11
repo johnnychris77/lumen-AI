@@ -1077,6 +1077,18 @@ from app.models import olympus_network as _olympus_network_models  # noqa: F401
 from app.routes.olympus_network import router as olympus_network_router
 app.include_router(olympus_network_router)
 
+from app.models import guardianx_assurance as _guardianx_assurance_models  # noqa: F401
+from app.routes.guardianx_assurance import router as guardianx_assurance_router
+app.include_router(guardianx_assurance_router)
+
+from app.models import genesis_ai_intelligence_cloud as _genesis_ai_intelligence_cloud_models  # noqa: F401
+from app.routes.genesis_ai_intelligence_cloud import router as genesis_ai_intelligence_cloud_router
+app.include_router(genesis_ai_intelligence_cloud_router)
+
+from app.models import nova_agent_platform as _nova_agent_platform_models  # noqa: F401
+from app.routes.nova_agent_platform import router as nova_agent_platform_router
+app.include_router(nova_agent_platform_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
