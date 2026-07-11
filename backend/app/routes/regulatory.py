@@ -181,11 +181,21 @@ def get_fda_submissions(
     tenant_id: str = Query(...),
     db: Session = Depends(get_db),
 ):
-    """List FDA submission tracking records."""
+    """List FDA submission tracking records.
+
+    submissions is only ever populated from real FDASubmissionTracker rows --
+    never fabricated. is_synthetic is always False for that reason;
+    data_available reports whether any real record was found.
+    """
     require_enterprise_auth(request)
     require_tier(tenant_id, "fda_tracking", db)
     submissions = list_fda_submissions(tenant_id, db)
-    return {"status": "success", "submissions": [s.model_dump() for s in submissions]}
+    return {
+        "status": "success",
+        "submissions": [s.model_dump() for s in submissions],
+        "is_synthetic": False,
+        "data_available": bool(submissions),
+    }
 
 
 @router.post("/fda-submissions")
