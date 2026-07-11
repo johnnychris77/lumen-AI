@@ -288,6 +288,28 @@ class AIModelRegistryEntry(Base):
     registered_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Added for LumenAI Network v5.2 -- Project GuardianX, Section 2 (Model
+    # Governance) and Section 6 (Governance Workflow). GuardianX's governance
+    # approval (clinical_review_board/ai_governance_committee/quality_leadership/
+    # security/compliance) is a distinct chain from the certification fields
+    # above (security/performance/clinical_safety/explainability/accessibility/
+    # documentation/governance) -- a model can be certified without yet having
+    # completed governance sign-off, and vice versa.
+    model_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    clinical_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    technical_owner: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    approval_committee: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    validation_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retirement_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    training_dataset_metadata_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    known_limitations: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    approved_use_cases_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    out_of_scope_uses_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+
+    governance_status: Mapped[str] = mapped_column(String(20), default="not_started", nullable=False, index=True)
+    governance_chain_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    governance_instance_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
 
 class NetworkGovernanceCase(Base):
     """A Network Governance Council case (Section 9) -- one generic case

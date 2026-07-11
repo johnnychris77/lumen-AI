@@ -1077,6 +1077,10 @@ from app.models import olympus_network as _olympus_network_models  # noqa: F401
 from app.routes.olympus_network import router as olympus_network_router
 app.include_router(olympus_network_router)
 
+from app.models import guardianx_assurance as _guardianx_assurance_models  # noqa: F401
+from app.routes.guardianx_assurance import router as guardianx_assurance_router
+app.include_router(guardianx_assurance_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
