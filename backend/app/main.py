@@ -1093,6 +1093,10 @@ from app.models import vulcan_reliability as _vulcan_reliability_models  # noqa:
 from app.routes.vulcan_reliability import router as vulcan_reliability_router
 app.include_router(vulcan_reliability_router)
 
+from app.models import sage_education as _sage_education_models  # noqa: F401
+from app.routes.sage_education import router as sage_education_router
+app.include_router(sage_education_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

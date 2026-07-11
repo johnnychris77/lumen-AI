@@ -129,6 +129,10 @@ from app.models.nova_agent_platform import (  # noqa: F401
 from app.models.vulcan_reliability import (  # noqa: F401
     VulcanFeedback, VulcanReliabilityAssessment, VulcanRepairEffectivenessAssessment,
 )
+from app.models.sage_education import (  # noqa: F401
+    SageAssessment, SageEducationImageEntry, SageEffectivenessAssessment, SageFeedback,
+    SageKnowledgeGap, SageLearningPlan, SageMicrolearningModule,
+)
 
 
 class TenantMembership(Base):

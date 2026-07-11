@@ -117,6 +117,7 @@ def _force_import_models():
         "app.models.genesis_ai_intelligence_cloud",
         "app.models.nova_agent_platform",
         "app.models.vulcan_reliability",
+        "app.models.sage_education",
     ]:
         try:
             importlib.import_module(model_path)
