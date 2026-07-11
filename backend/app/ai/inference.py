@@ -2,6 +2,7 @@ import io
 import os
 import json
 import hashlib
+import logging
 from datetime import datetime, timezone
 
 from PIL import Image
@@ -18,6 +19,18 @@ try:
     from ultralytics import YOLO
 except Exception:
     YOLO = None
+
+logger = logging.getLogger(__name__)
+
+# Static marker for what this module ships with by default: no trained model
+# weights are bundled in this codebase, so LumenAIModel.predict() falls back
+# to _deterministic_fallback() (a SHA-256-seeded pseudo-random result, not
+# real computer vision) unless a real YOLO model file is present at
+# LUMENAI_MODEL_PATH at runtime. This constant reflects the shipped default,
+# not necessarily what any given deployment is doing right now — for a live,
+# runtime-checked answer (including whether a model file actually exists on
+# this machine), call app.ai.inference_status.get_inference_status().
+PRODUCTION_INFERENCE_MODE = "deterministic_placeholder"
 
 
 class LumenAIModel:
@@ -85,6 +98,7 @@ class LumenAIModel:
         }
 
     def _deterministic_fallback(self, image_bytes: bytes):
+        logger.info("INFERENCE MODE: deterministic placeholder active — not a trained CV model")
         digest = hashlib.sha256(image_bytes).hexdigest()
         seed_value = int(digest[:8], 16)
 
