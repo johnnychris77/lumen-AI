@@ -112,6 +112,7 @@ def _force_import_models():
         "app.models.athena_knowledge",
         "app.models.phoenix_intelligence",
         "app.models.infinity_platform",
+        "app.models.olympus_network",
     ]:
         try:
             importlib.import_module(model_path)

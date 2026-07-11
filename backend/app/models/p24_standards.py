@@ -173,7 +173,8 @@ class AdvisoryConsortiumMember(Base):
     tenant_id = Column(String, nullable=False, index=True, unique=True)
     organization_type = Column(String, nullable=False)
     # hospital / manufacturer / regulator / academic / standards_body /
-    # repair_vendor / research_partner (last two added for Project Beacon v3.5)
+    # repair_vendor / research_partner (last two added for Project Beacon v3.5) /
+    # partner / consultant / educator (added for Project Olympus v5.1)
     region = Column(String)
     membership_tier = Column(String, default="observer")
     # observer / contributor / voting / steering
@@ -184,6 +185,10 @@ class AdvisoryConsortiumMember(Base):
     voting_rights = Column(Boolean, default=False)
     joined_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Added for Project Olympus (v5.1) Section 5 — Global Research Observatory
+    # participation is opt-in; this is the single flag every observatory
+    # query filters on, rather than a second participation table.
+    observatory_opt_in = Column(Boolean, default=False, nullable=False)
 
 
 class StandardsPublication(Base):

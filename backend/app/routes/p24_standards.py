@@ -457,9 +457,12 @@ def enroll_consortium(
     # Section 1 — the two participant types P24's original consortium
     # enrollment didn't cover, reusing this same table/endpoint rather than
     # a parallel Beacon-specific membership model.
+    # "partner" / "consultant" / "educator" added for Project Olympus (v5.1)
+    # Section 1 — Network Identity's full participant list, again reusing
+    # this same roster rather than a new network-participant model.
     VALID_TYPES = {
         "hospital", "manufacturer", "regulator", "academic", "standards_body",
-        "repair_vendor", "research_partner",
+        "repair_vendor", "research_partner", "partner", "consultant", "educator",
     }
     if body.organization_type not in VALID_TYPES:
         raise HTTPException(

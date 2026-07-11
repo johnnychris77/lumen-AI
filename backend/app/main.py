@@ -1073,6 +1073,10 @@ from app.models import infinity_platform as _infinity_platform_models  # noqa: F
 from app.routes.infinity_platform import router as infinity_platform_router
 app.include_router(infinity_platform_router)
 
+from app.models import olympus_network as _olympus_network_models  # noqa: F401
+from app.routes.olympus_network import router as olympus_network_router
+app.include_router(olympus_network_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

@@ -116,7 +116,20 @@ DEVELOPER_STATUSES = [DEVELOPER_ACTIVE, DEVELOPER_SUSPENDED]
 # ── Marketplace listing types + AI Skill categories (Section 4) ─────────────
 LISTING_TYPE_AI_SKILL = "ai_skill"
 LISTING_TYPE_APPLICATION = "application"
-LISTING_TYPES = [LISTING_TYPE_AI_SKILL, LISTING_TYPE_APPLICATION]
+# Added for Project Olympus (v5.1) Section 8 — Innovation Marketplace reuses
+# this exact listing model/certification/installation/revenue pipeline for
+# its broader set of publishable content, rather than a second marketplace.
+LISTING_TYPE_WORKFLOW_PACK = "workflow_pack"
+LISTING_TYPE_KNOWLEDGE_PACK = "knowledge_pack"
+LISTING_TYPE_TRAINING_MODULE = "training_module"
+LISTING_TYPE_ANALYTICS_DASHBOARD = "analytics_dashboard"
+LISTING_TYPE_RESEARCH_DATASET = "research_dataset"
+LISTING_TYPE_SIMULATION_TEMPLATE = "simulation_template"
+LISTING_TYPES = [
+    LISTING_TYPE_AI_SKILL, LISTING_TYPE_APPLICATION, LISTING_TYPE_WORKFLOW_PACK,
+    LISTING_TYPE_KNOWLEDGE_PACK, LISTING_TYPE_TRAINING_MODULE, LISTING_TYPE_ANALYTICS_DASHBOARD,
+    LISTING_TYPE_RESEARCH_DATASET, LISTING_TYPE_SIMULATION_TEMPLATE,
+]
 
 SKILL_CATEGORY_INSPECTION = "inspection"
 SKILL_CATEGORY_KNOWLEDGE = "knowledge"
