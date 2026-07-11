@@ -20,6 +20,8 @@ from app.services.p24_standards_service import DISCLAIMER, _to_dict
 
 PARTICIPANT_TYPES = (
     "hospital", "manufacturer", "repair_vendor", "academic", "standards_body", "regulator", "research_partner",
+    # "partner" / "consultant" / "educator" added for Project Olympus (v5.1).
+    "partner", "consultant", "educator",
 )
 
 

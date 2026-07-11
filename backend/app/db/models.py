@@ -113,6 +113,9 @@ from app.models.infinity_platform import (  # noqa: F401
     DeveloperAccount, DeveloperApiKey, DeveloperSandboxSession, MarketplaceInstallation,
     MarketplaceListing, MarketplaceRevenueEvent, PartnerLicense,
 )
+from app.models.olympus_network import (  # noqa: F401
+    AIModelRegistryEntry, HIXExchangePackage, NetworkGovernanceCase, NetworkTrustSnapshot,
+)
 
 
 class TenantMembership(Base):
