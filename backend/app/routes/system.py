@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from app.authz import require_roles
 
 router = APIRouter(tags=["system"])
 
@@ -116,3 +118,20 @@ async def reviews_queue():
     review queue table). For now it just returns an empty list.
     """
     return {"items": []}
+
+
+@router.get("/v1/system/inference-status")
+async def inference_status(current_user=Depends(require_roles("admin"))):
+    """Live status of the inspection-scoring inference pipeline.
+
+    Admin-only: this reports whether the deployment is currently running a
+    trained CV model or the deterministic placeholder (see
+    app.ai.inference.PRODUCTION_INFERENCE_MODE and
+    app.services.baseline_comparison_scoring_service.PRODUCTION_INFERENCE_MODE),
+    which is operationally sensitive information.
+
+    Note: this system's RBAC has no distinct "superuser" role -- "admin" is
+    its highest-privilege role, so that's what gates this endpoint.
+    """
+    from app.ai.inference_status import get_inference_status
+    return get_inference_status()

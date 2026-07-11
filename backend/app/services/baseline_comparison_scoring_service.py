@@ -22,6 +22,7 @@ Governance:
 from __future__ import annotations
 
 import hashlib
+import logging
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -29,6 +30,16 @@ from sqlalchemy.orm import Session
 from app.services.instrument_anatomy import resolve_family
 from app.services.instrument_zones import is_high_retention, zone_fields
 from app.services.zone_intelligence import typical_findings_for_legacy_zone
+
+logger = logging.getLogger(__name__)
+
+# This entire module is the deterministic placeholder described in the module
+# docstring above — every call to analyze_inspection() produces its findings
+# from a SHA-256-seeded pseudo-random value, not a trained computer-vision
+# model. This constant makes that fact machine-readable (see also
+# app.ai.inference.PRODUCTION_INFERENCE_MODE and
+# app.ai.inference_status.get_inference_status() for the CV-model pipeline).
+PRODUCTION_INFERENCE_MODE = "deterministic_placeholder"
 
 # Baseline resolution order — most authoritative first.
 BASELINE_PRIORITY = ["manufacturer", "vendor", "hospital"]
@@ -982,6 +993,7 @@ def analyze_inspection(
     found, returns analysis_status="supervisor_review_required" with NO final
     score, per governance rules.
     """
+    logger.info("INFERENCE MODE: deterministic placeholder active — not a trained CV model")
     declared = {
         _DECLARED_TO_KPI[c]
         for c in (declared_findings or [])

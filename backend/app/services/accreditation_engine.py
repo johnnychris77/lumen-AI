@@ -323,39 +323,37 @@ def map_finding_to_clauses(finding_category: str, severity: str = "any") -> list
 # ── FDA Submission Tracker ────────────────────────────────────────────────────
 
 def list_fda_submissions(tenant_id: str, db=None) -> list[FDASubmissionResult]:
+    """Return real FDA submission-tracker records for a tenant.
+
+    Regulatory clearance status (510(k)/PMA/MDR numbers, "cleared" status,
+    decision dates) must never be fabricated. A synthetic submission record
+    presented without disclosure is indistinguishable from a real regulatory
+    filing to anyone reading this API's output -- a customer, an auditor, or
+    counsel drafting a filing that cites this system's capabilities. If no
+    FDASubmissionTracker rows exist for this tenant (or the query fails),
+    the only honest response is an empty list. Do not reintroduce a mock
+    or placeholder submission here.
+    """
     if db is not None:
         try:
             from app.models.regulatory import FDASubmissionTracker
             rows = db.query(FDASubmissionTracker).filter_by(tenant_id=tenant_id).all()
-            if rows:
-                return [FDASubmissionResult(
-                    id=r.id,
-                    tenant_id=r.tenant_id,
-                    submission_type=r.submission_type,
-                    submission_number=r.submission_number,
-                    device_name=r.device_name,
-                    manufacturer=r.manufacturer,
-                    status=r.status,
-                    submission_date=r.submission_date.isoformat() if r.submission_date else None,
-                    decision_date=r.decision_date.isoformat() if r.decision_date else None,
-                    notes=r.notes or "",
-                ) for r in rows]
+            return [FDASubmissionResult(
+                id=r.id,
+                tenant_id=r.tenant_id,
+                submission_type=r.submission_type,
+                submission_number=r.submission_number,
+                device_name=r.device_name,
+                manufacturer=r.manufacturer,
+                status=r.status,
+                submission_date=r.submission_date.isoformat() if r.submission_date else None,
+                decision_date=r.decision_date.isoformat() if r.decision_date else None,
+                notes=r.notes or "",
+            ) for r in rows]
         except Exception:
             pass
 
-    # Mock fallback
-    return [
-        FDASubmissionResult(
-            id=1, tenant_id=tenant_id, submission_type="510k",
-            submission_number="K253421",
-            device_name="LumenAI CV Inspection Module",
-            manufacturer="LumenAI Inc.",
-            status="cleared",
-            submission_date="2025-09-01T00:00:00+00:00",
-            decision_date="2025-11-15T00:00:00+00:00",
-            notes="Cleared for SPD inspection workflow integration.",
-        ),
-    ]
+    return []
 
 
 # ── Regulatory Dashboard ──────────────────────────────────────────────────────
