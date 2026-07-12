@@ -1109,6 +1109,10 @@ from app.models import maestro_orchestration as _maestro_orchestration_models  #
 from app.routes.maestro_orchestration import router as maestro_orchestration_router
 app.include_router(maestro_orchestration_router)
 
+from app.models import council_leadership as _council_leadership_models  # noqa: F401
+from app.routes.council_leadership import router as council_leadership_router
+app.include_router(council_leadership_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

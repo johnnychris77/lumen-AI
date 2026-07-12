@@ -145,6 +145,10 @@ from app.models.maestro_orchestration import (  # noqa: F401
     MaestroDailyBrief, MaestroDecisionJournalEntry, MaestroOperationalHealthSnapshot,
     MaestroPriorityItem, MaestroRecommendation,
 )
+from app.models.council_leadership import (  # noqa: F401
+    CouncilCase, CouncilDecisionOption, CouncilDissentRecord, CouncilHumanDecision,
+    CouncilMeetingNotes, CouncilOutcomeReview, CouncilSpecialistAssessment, CouncilTeamConfig,
+)
 
 
 class TenantMembership(Base):

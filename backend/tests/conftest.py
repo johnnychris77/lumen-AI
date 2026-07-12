@@ -121,6 +121,7 @@ def _force_import_models():
         "app.models.veritas_evidence",
         "app.models.sentinelx_risk",
         "app.models.maestro_orchestration",
+        "app.models.council_leadership",
     ]:
         try:
             importlib.import_module(model_path)
