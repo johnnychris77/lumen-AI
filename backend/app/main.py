@@ -1089,6 +1089,30 @@ from app.models import nova_agent_platform as _nova_agent_platform_models  # noq
 from app.routes.nova_agent_platform import router as nova_agent_platform_router
 app.include_router(nova_agent_platform_router)
 
+from app.models import vulcan_reliability as _vulcan_reliability_models  # noqa: F401
+from app.routes.vulcan_reliability import router as vulcan_reliability_router
+app.include_router(vulcan_reliability_router)
+
+from app.models import sage_education as _sage_education_models  # noqa: F401
+from app.routes.sage_education import router as sage_education_router
+app.include_router(sage_education_router)
+
+from app.models import veritas_evidence as _veritas_evidence_models  # noqa: F401
+from app.routes.veritas_evidence import router as veritas_evidence_router
+app.include_router(veritas_evidence_router)
+
+from app.models import sentinelx_risk as _sentinelx_risk_models  # noqa: F401
+from app.routes.sentinelx_risk import router as sentinelx_risk_router
+app.include_router(sentinelx_risk_router)
+
+from app.models import maestro_orchestration as _maestro_orchestration_models  # noqa: F401
+from app.routes.maestro_orchestration import router as maestro_orchestration_router
+app.include_router(maestro_orchestration_router)
+
+from app.models import council_leadership as _council_leadership_models  # noqa: F401
+from app.routes.council_leadership import router as council_leadership_router
+app.include_router(council_leadership_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

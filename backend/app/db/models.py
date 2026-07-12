@@ -126,6 +126,29 @@ from app.models.genesis_ai_intelligence_cloud import (  # noqa: F401
 from app.models.nova_agent_platform import (  # noqa: F401
     AgentCollaborationRequest, AgentDefinition, AgentMemoryEntry, AgentMessage, AgentTaskRun,
 )
+from app.models.vulcan_reliability import (  # noqa: F401
+    VulcanFeedback, VulcanReliabilityAssessment, VulcanRepairEffectivenessAssessment,
+)
+from app.models.sage_education import (  # noqa: F401
+    SageAssessment, SageEducationImageEntry, SageEffectivenessAssessment, SageFeedback,
+    SageKnowledgeGap, SageLearningPlan, SageMicrolearningModule,
+)
+from app.models.veritas_evidence import (  # noqa: F401
+    VeritasBaselineGovernanceAction, VeritasBaselineResolution, VeritasEvidenceConflict,
+    VeritasEvidenceProvenanceRecord, VeritasEvidenceReadinessAssessment, VeritasFeedback,
+    VeritasTrainingDatasetEntry,
+)
+from app.models.sentinelx_risk import (  # noqa: F401
+    SentinelXPatientSafetyAlert, SentinelXRiskAssessment, SentinelXSupervisorOverride,
+)
+from app.models.maestro_orchestration import (  # noqa: F401
+    MaestroDailyBrief, MaestroDecisionJournalEntry, MaestroOperationalHealthSnapshot,
+    MaestroPriorityItem, MaestroRecommendation,
+)
+from app.models.council_leadership import (  # noqa: F401
+    CouncilCase, CouncilDecisionOption, CouncilDissentRecord, CouncilHumanDecision,
+    CouncilMeetingNotes, CouncilOutcomeReview, CouncilSpecialistAssessment, CouncilTeamConfig,
+)
 
 
 class TenantMembership(Base):
