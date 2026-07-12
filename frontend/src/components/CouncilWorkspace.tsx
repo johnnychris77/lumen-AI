@@ -32,8 +32,221 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function JsonView({ data }: { data: unknown }) {
-  return <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-slate-600">{JSON.stringify(data, null, 2)}</pre>;
+function KeyValueCounts({ data }: { data: Json | null | undefined }) {
+  const entries = data ? Object.entries(data) : [];
+  if (!entries.length) return <p className="text-xs text-slate-400">No data yet.</p>;
+  return (
+    <ul className="space-y-1">
+      {entries.map(([key, value]) => (
+        <li key={key} className="flex items-center justify-between text-xs">
+          <span className="text-slate-600">{key.replace(/_/g, " ")}</span>
+          <span className="font-medium text-slate-700">{value as number}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CaseSummaryView({ data }: { data: Json | null | undefined }) {
+  if (!data) return null;
+  return (
+    <div className="space-y-1 text-xs">
+      <p className="text-sm font-medium text-slate-800">{data.case_type as string}</p>
+      <p className="text-slate-600">{data.source_event as string}</p>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-slate-400">
+        <span>team: {data.team_key as string}</span>
+        <span>risk: {data.risk_level as string}</span>
+        <span>urgency: {data.urgency as string}</span>
+        <span>status: {data.status as string}</span>
+        <span>consensus: {(data.consensus_status as string) || "pending"}</span>
+      </div>
+      {(data.recommended_action as string) ? <p className="text-slate-600">recommended: {data.recommended_action as string}</p> : null}
+      <p className="text-slate-400">specialists: {((data.participating_specialists as string[]) || []).join(", ")}</p>
+    </div>
+  );
+}
+
+function AssessmentList({ items }: { items: Json[] }) {
+  if (!items.length) return <p className="text-xs text-slate-400">No specialist assessments yet.</p>;
+  return (
+    <ol className="space-y-2">
+      {items.map((a) => (
+        <li key={a.id as number} className="rounded border border-slate-100 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-800">{a.specialist_key as string}</span>
+            <span className="text-xs text-slate-400">confidence: {a.confidence as string}</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-600">{a.conclusion as string}</p>
+          {(a.significance as string) ? <p className="mt-1 text-xs text-slate-500">{a.significance as string}</p> : null}
+          {(a.recommended_action as string) ? <p className="mt-1 text-xs text-slate-500">Recommends: {a.recommended_action as string}</p> : null}
+          {(a.evidence_limitations as string) ? <p className="mt-1 text-xs text-amber-600">Limitations: {a.evidence_limitations as string}</p> : null}
+          <p className="mt-1 text-xs text-slate-400">urgency: {a.urgency as string} · approver: {a.human_role_required as string}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function AgreementMapView({ data }: { data: Json | null | undefined }) {
+  if (!data) return <p className="text-xs text-slate-400">No agreement map yet.</p>;
+  const matrix = (data.matrix as Json) || {};
+  const dissenting = new Set((data.dissenting_specialists as string[]) || []);
+  return (
+    <div className="space-y-2">
+      {(data.consensus_position as string) ? (
+        <p className="text-xs text-slate-700"><span className="font-medium">Consensus:</span> {data.consensus_position as string}</p>
+      ) : null}
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-slate-400">
+            <th className="pr-2 font-medium">Specialist</th>
+            <th className="pr-2 font-medium">Position</th>
+            <th className="font-medium">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(matrix).map(([specialist, row]) => (
+            <tr key={specialist} className={dissenting.has(specialist) ? "text-amber-700" : "text-slate-600"}>
+              <td className="pr-2 py-1">{specialist}{dissenting.has(specialist) ? " (dissenting)" : ""}</td>
+              <td className="pr-2 py-1">{(row as Json).position as string}</td>
+              <td className="py-1">{(row as Json).confidence as string}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DissentList({ items }: { items: Json[] }) {
+  if (!items.length) return <p className="text-xs text-slate-400">No dissent recorded.</p>;
+  return (
+    <ol className="space-y-2">
+      {items.map((d) => (
+        <li key={d.id as number} className="rounded border border-amber-200 bg-amber-50 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-amber-900">{d.dissenting_specialist as string}</span>
+            <span className="text-xs text-amber-700">{d.escalation_level as string}</span>
+          </div>
+          <p className="mt-1 text-xs text-amber-800">Disputes: {d.disputed_conclusion as string}</p>
+          {(d.risk_if_ignored as string) ? <p className="mt-1 text-xs text-amber-700">Risk if ignored: {d.risk_if_ignored as string}</p> : null}
+          {(d.proposed_alternative_action as string) ? <p className="mt-1 text-xs text-amber-700">Proposed alternative: {d.proposed_alternative_action as string}</p> : null}
+          {(d.additional_evidence_required as string) ? <p className="mt-1 text-xs text-amber-600">Evidence required: {d.additional_evidence_required as string}</p> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function DecisionOptionList({ items }: { items: Json[] }) {
+  if (!items.length) return <p className="text-xs text-slate-400">No decision options yet.</p>;
+  return (
+    <ol className="space-y-2">
+      {items.map((o) => (
+        <li key={o.id as number} className="rounded border border-slate-100 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-800">Option {o.option_label as string} — {o.option_title as string}</span>
+            <span className="text-xs text-slate-400">{o.required_authority as string}</span>
+          </div>
+          <p className="mt-1 text-xs text-emerald-700">Benefits: {o.benefits as string}</p>
+          <p className="mt-1 text-xs text-red-700">Risks: {o.risks as string}</p>
+          <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-400">
+            <span>clinical risk: {o.clinical_risk as string}</span>
+            <span>reversibility: {o.reversibility as string}</span>
+            <span>evidence strength: {o.evidence_strength as string}</span>
+            <span>time to resolution: {o.expected_time_to_resolution as string}</span>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function HumanDecisionList({ items }: { items: Json[] }) {
+  if (!items.length) return <p className="text-xs text-slate-400">No human decision recorded yet.</p>;
+  return (
+    <ol className="space-y-2">
+      {items.map((d) => (
+        <li key={d.id as number} className="rounded border border-indigo-100 bg-indigo-50 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-indigo-900">{d.decision as string}</span>
+            <span className="text-xs text-indigo-600">{d.approver as string} ({d.approver_role as string})</span>
+          </div>
+          {(d.rationale as string) ? <p className="mt-1 text-xs text-indigo-800">{d.rationale as string}</p> : null}
+          {(d.conditions as string) ? <p className="mt-1 text-xs text-indigo-700">Conditions: {d.conditions as string}</p> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function TeamList({ teams }: { teams: Json[] }) {
+  if (!teams.length) return <p className="text-xs text-slate-400">No teams configured.</p>;
+  return (
+    <ol className="space-y-2">
+      {teams.map((t) => (
+        <li key={t.id as number} className="rounded border border-slate-100 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-800">{t.team_name as string}</span>
+            <span className="text-xs text-slate-400">v{t.version as number} · {t.approval_status as string}</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Required: {((t.required_specialists as string[]) || []).join(", ") || "none"}</p>
+          <p className="mt-1 text-xs text-slate-400">Optional: {((t.optional_specialists as string[]) || []).join(", ") || "none"}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            quorum: {t.quorum_requirement as number} · safety veto: {t.safety_veto_enabled ? "enabled" : "disabled"} · owner: {(t.owner as string) || "unassigned"}
+          </p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function PerformanceView({ data }: { data: Json | null | undefined }) {
+  if (!data) return <p className="text-xs text-slate-400">No performance data yet.</p>;
+  const bySpecialist = (data.by_specialist as Json) || {};
+  const entries = Object.entries(bySpecialist);
+  return (
+    <div>
+      {(data.note as string) ? <p className="mb-2 text-xs italic text-slate-400">{data.note as string}</p> : null}
+      {entries.length ? (
+        <ol className="space-y-2">
+          {entries.map(([specialist, stats]) => {
+            const s = stats as Json;
+            return (
+              <li key={specialist} className="rounded border border-slate-100 p-2">
+                <p className="text-sm font-medium text-slate-800">{specialist}</p>
+                <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                  <span>assessments: {s.total_assessments as number}</span>
+                  <span>abstentions: {s.abstention_count as number}</span>
+                  <span>dissents: {s.dissent_count as number}</span>
+                  <span>dissent validated: {s.dissent_validated_count as number}/{s.dissent_evaluated_count as number}</span>
+                  <span>resolved cases: {s.resolved_case_count as number}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="text-xs text-slate-400">No specialist activity recorded yet.</p>
+      )}
+    </div>
+  );
+}
+
+function NotificationList({ items }: { items: Json[] }) {
+  if (!items.length) return <p className="text-xs text-slate-400">No notifications.</p>;
+  return (
+    <ul className="space-y-2">
+      {items.map((n) => (
+        <li key={`${n.source as string}-${n.id as number}`} className="rounded border border-slate-100 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-700">{n.message as string}</span>
+            <span className="text-xs text-slate-400">{n.recipient_role as string}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function CaseList({ cases, onSelect }: { cases: Json[]; onSelect: (id: number) => void }) {
@@ -173,13 +386,13 @@ export default function CouncilWorkspace() {
             <CaseList cases={(workspace.recently_resolved as Json[]) || []} onSelect={selectCase} />
           </Section>
           <Section title="Outcome Effectiveness">
-            <JsonView data={workspace.outcome_effectiveness} />
+            <KeyValueCounts data={workspace.outcome_effectiveness as Json} />
           </Section>
           <Section title="Specialist Participation">
-            <JsonView data={workspace.specialist_participation} />
+            <KeyValueCounts data={workspace.specialist_participation as Json} />
           </Section>
           <Section title="Recurring Decision Themes">
-            <JsonView data={workspace.recurring_decision_themes} />
+            <KeyValueCounts data={workspace.recurring_decision_themes as Json} />
           </Section>
         </div>
       )}
@@ -194,27 +407,27 @@ export default function CouncilWorkspace() {
               <div className="space-y-3">
                 <div>
                   <h4 className="text-xs font-semibold text-slate-600">1. Issue Summary</h4>
-                  <JsonView data={caseDetail.case} />
+                  <CaseSummaryView data={caseDetail.case as Json} />
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-slate-600">3. Specialist Assessments</h4>
-                  <JsonView data={caseDetail.assessments} />
+                  <AssessmentList items={(caseDetail.assessments as Json[]) || []} />
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-slate-600">4. Agreement Map</h4>
-                  <JsonView data={caseDetail.agreement_map} />
+                  <AgreementMapView data={caseDetail.agreement_map as Json} />
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-slate-600">5. Dissent</h4>
-                  <JsonView data={caseDetail.dissent} />
+                  <DissentList items={(caseDetail.dissent as Json[]) || []} />
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-slate-600">6. Decision Options</h4>
-                  <JsonView data={caseDetail.decision_options} />
+                  <DecisionOptionList items={(caseDetail.decision_options as Json[]) || []} />
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-slate-600">9. Final Human Decision(s)</h4>
-                  <JsonView data={caseDetail.human_decisions} />
+                  <HumanDecisionList items={(caseDetail.human_decisions as Json[]) || []} />
                 </div>
               </div>
             </Section>
@@ -224,19 +437,19 @@ export default function CouncilWorkspace() {
 
       {activeTab === "Teams" && (
         <Section title="Leadership Team Registry">
-          <JsonView data={teams} />
+          <TeamList teams={teams} />
         </Section>
       )}
 
       {activeTab === "Performance" && performance && (
         <Section title="Specialist Performance Review (aggregate, non-punitive)">
-          <JsonView data={performance} />
+          <PerformanceView data={performance} />
         </Section>
       )}
 
       {activeTab === "Notifications" && (
         <Section title="Notifications and Escalations">
-          <JsonView data={notifications} />
+          <NotificationList items={notifications} />
         </Section>
       )}
     </div>
