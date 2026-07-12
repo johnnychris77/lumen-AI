@@ -100,6 +100,7 @@ const InstrumentForensicsPage = lazy(() => import("./pages/InstrumentForensicsPa
 const SageWorkspacePage = lazy(() => import("./pages/SageWorkspacePage"));
 const MyLearningPage = lazy(() => import("./pages/MyLearningPage"));
 const VeritasWorkspacePage = lazy(() => import("./pages/VeritasWorkspacePage"));
+const RiskDashboardPage = lazy(() => import("./pages/RiskDashboardPage"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
@@ -440,6 +441,7 @@ function App() {
                       <Route path="/sage" element={<Page name="Sage"><SageWorkspacePage /></Page>} />
                       <Route path="/my-learning" element={<Page name="MyLearning"><MyLearningPage /></Page>} />
                       <Route path="/veritas" element={<Page name="Veritas"><VeritasWorkspacePage /></Page>} />
+                      <Route path="/risk" element={<Page name="RiskDashboard"><RiskDashboardPage /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
                       <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />

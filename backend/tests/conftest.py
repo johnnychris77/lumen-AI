@@ -119,6 +119,7 @@ def _force_import_models():
         "app.models.vulcan_reliability",
         "app.models.sage_education",
         "app.models.veritas_evidence",
+        "app.models.sentinelx_risk",
     ]:
         try:
             importlib.import_module(model_path)

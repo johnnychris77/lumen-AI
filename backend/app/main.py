@@ -1101,6 +1101,10 @@ from app.models import veritas_evidence as _veritas_evidence_models  # noqa: F40
 from app.routes.veritas_evidence import router as veritas_evidence_router
 app.include_router(veritas_evidence_router)
 
+from app.models import sentinelx_risk as _sentinelx_risk_models  # noqa: F401
+from app.routes.sentinelx_risk import router as sentinelx_risk_router
+app.include_router(sentinelx_risk_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

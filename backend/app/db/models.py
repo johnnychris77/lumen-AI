@@ -138,6 +138,9 @@ from app.models.veritas_evidence import (  # noqa: F401
     VeritasEvidenceProvenanceRecord, VeritasEvidenceReadinessAssessment, VeritasFeedback,
     VeritasTrainingDatasetEntry,
 )
+from app.models.sentinelx_risk import (  # noqa: F401
+    SentinelXPatientSafetyAlert, SentinelXRiskAssessment, SentinelXSupervisorOverride,
+)
 
 
 class TenantMembership(Base):
