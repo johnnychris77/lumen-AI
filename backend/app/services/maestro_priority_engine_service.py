@@ -34,8 +34,26 @@ from app.services.sentinelx_dashboard_service import risk_dashboard_summary
 from app.services.sentinelx_supervisor_workspace_service import supervisor_workspace_summary
 
 
-def _highest_risk_instrument(db: Session, tenant_id: str) -> dict | None:
-    top = supervisor_workspace_summary(db, tenant_id, limit=1)["highest_risk_instruments"][:1]
+def _cached_supervisor_workspace_summary(db: Session, tenant_id: str, cache: dict) -> dict:
+    if "supervisor_workspace_summary" not in cache:
+        cache["supervisor_workspace_summary"] = supervisor_workspace_summary(db, tenant_id, limit=1)
+    return cache["supervisor_workspace_summary"]
+
+
+def _cached_risk_dashboard_summary(db: Session, tenant_id: str, cache: dict) -> dict:
+    if "risk_dashboard_summary" not in cache:
+        cache["risk_dashboard_summary"] = risk_dashboard_summary(db, tenant_id)
+    return cache["risk_dashboard_summary"]
+
+
+def _cached_open_gaps(db: Session, tenant_id: str, cache: dict) -> list[dict]:
+    if "open_gaps" not in cache:
+        cache["open_gaps"] = list_gaps(db, tenant_id, status="open")
+    return cache["open_gaps"]
+
+
+def _highest_risk_instrument(db: Session, tenant_id: str, cache: dict) -> dict | None:
+    top = _cached_supervisor_workspace_summary(db, tenant_id, cache)["highest_risk_instruments"][:1]
     if not top:
         return None
     item = top[0]
@@ -48,8 +66,8 @@ def _highest_risk_instrument(db: Session, tenant_id: str) -> dict | None:
     }
 
 
-def _highest_risk_workflow(db: Session, tenant_id: str) -> dict | None:
-    workflow = risk_dashboard_summary(db, tenant_id)["workflow_risk"]
+def _highest_risk_workflow(db: Session, tenant_id: str, cache: dict) -> dict | None:
+    workflow = _cached_risk_dashboard_summary(db, tenant_id, cache)["workflow_risk"]
     count = workflow.get("process_variation_flagged_count") or 0
     if count <= 0:
         return None
@@ -62,8 +80,8 @@ def _highest_risk_workflow(db: Session, tenant_id: str) -> dict | None:
     }
 
 
-def _highest_risk_facility(db: Session, tenant_id: str) -> dict | None:
-    facilities = risk_dashboard_summary(db, tenant_id)["facility_risk"]
+def _highest_risk_facility(db: Session, tenant_id: str, cache: dict) -> dict | None:
+    facilities = _cached_risk_dashboard_summary(db, tenant_id, cache)["facility_risk"]
     if not facilities:
         return None
     top = facilities[0]
@@ -76,8 +94,8 @@ def _highest_risk_facility(db: Session, tenant_id: str) -> dict | None:
     }
 
 
-def _highest_risk_technician_education_need(db: Session, tenant_id: str) -> dict | None:
-    gaps = list_gaps(db, tenant_id, status="open")
+def _highest_risk_technician_education_need(db: Session, tenant_id: str, cache: dict) -> dict | None:
+    gaps = _cached_open_gaps(db, tenant_id, cache)
     if not gaps:
         return None
     top = max(gaps, key=lambda g: g["occurrence_count"])
@@ -90,7 +108,7 @@ def _highest_risk_technician_education_need(db: Session, tenant_id: str) -> dict
     }
 
 
-def _highest_risk_equipment(db: Session, tenant_id: str) -> dict | None:
+def _highest_risk_equipment(db: Session, tenant_id: str, cache: dict) -> dict | None:
     rows = (
         db.query(VulcanReliabilityAssessment)
         .filter(VulcanReliabilityAssessment.tenant_id == tenant_id)
@@ -114,7 +132,7 @@ def _highest_risk_equipment(db: Session, tenant_id: str) -> dict | None:
     }
 
 
-def _highest_priority_capa(db: Session, tenant_id: str) -> dict | None:
+def _highest_priority_capa(db: Session, tenant_id: str, cache: dict) -> dict | None:
     suggestions = generate_capa_suggestions(db, tenant_id)
     if not suggestions:
         return None
@@ -128,8 +146,8 @@ def _highest_priority_capa(db: Session, tenant_id: str) -> dict | None:
     }
 
 
-def _highest_priority_inspection(db: Session, tenant_id: str) -> dict | None:
-    top = supervisor_workspace_summary(db, tenant_id, limit=1)["highest_risk_inspections"][:1]
+def _highest_priority_inspection(db: Session, tenant_id: str, cache: dict) -> dict | None:
+    top = _cached_supervisor_workspace_summary(db, tenant_id, cache)["highest_risk_inspections"][:1]
     if not top:
         return None
     item = top[0]
@@ -142,7 +160,7 @@ def _highest_priority_inspection(db: Session, tenant_id: str) -> dict | None:
     }
 
 
-def _highest_priority_repair(db: Session, tenant_id: str) -> dict | None:
+def _highest_priority_repair(db: Session, tenant_id: str, cache: dict) -> dict | None:
     rows = (
         db.query(RepairRequest)
         .filter(RepairRequest.tenant_id == tenant_id, RepairRequest.status == REPAIR_PENDING)
@@ -168,7 +186,7 @@ def _highest_priority_repair(db: Session, tenant_id: str) -> dict | None:
 _RISK_TIER_RANK = {"critical": 3, "high": 2, "medium": 1, "low": 0}
 
 
-def _highest_priority_executive_issue(db: Session, tenant_id: str) -> dict | None:
+def _highest_priority_executive_issue(db: Session, tenant_id: str, cache: dict) -> dict | None:
     rows = (
         db.query(ExecutiveRiskSignal)
         .filter(ExecutiveRiskSignal.tenant_id == tenant_id, ExecutiveRiskSignal.human_review_status == "pending")
@@ -208,18 +226,28 @@ def compute_priorities(db: Session, tenant_id: str) -> list[MaestroPriorityItem]
     category that has real data (categories with nothing to report are
     skipped, never fabricated), and ranks the result across categories by
     `priority_score`."""
+    cache: dict = {}
     candidates = []
     for category, resolver in _CATEGORY_RESOLVERS.items():
-        result = resolver(db, tenant_id)
+        result = resolver(db, tenant_id, cache)
         if result is not None:
             candidates.append((category, result))
 
     candidates.sort(key=lambda c: c[1]["priority_score"], reverse=True)
 
+    # Stamped once and passed explicitly to every row in this batch --
+    # each row's `created_at` default is otherwise evaluated independently
+    # at flush time, so two rows from the very same compute_priorities()
+    # call can land microseconds apart and never compare equal, which
+    # would make latest_priorities() below return only one row instead of
+    # the whole batch.
+    batch_created_at = datetime.now(timezone.utc)
+
     rows = []
     for rank, (category, result) in enumerate(candidates, start=1):
         row = MaestroPriorityItem(
             tenant_id=tenant_id,
+            created_at=batch_created_at,
             category=category,
             subject=result["subject"][:300],
             priority_score=result["priority_score"],

@@ -170,10 +170,13 @@ def _assess_sentinelx(db: Session, tenant_id: str, case: CouncilCase) -> dict:
             evidence_limitations="No instrument is attached to this Council Case for Sentinel-X to risk-score.",
         )
     inspection_id = _first(case.inspection_ids_json)
-    row = run_risk_assessment(
-        db, tenant_id, str(instrument_identity),
-        inspection_id=int(inspection_id) if inspection_id is not None else None,
-    )
+    try:
+        row = run_risk_assessment(
+            db, tenant_id, str(instrument_identity),
+            inspection_id=int(inspection_id) if inspection_id is not None else None,
+        )
+    except ValueError as exc:
+        return _base(_INSUFFICIENT_DATA, confidence="low", evidence_limitations=str(exc))
     result = to_dict(row)
     return _base(
         f"Clinical risk: {result['risk_level']} ({result['risk_score']}/100).",
@@ -257,7 +260,10 @@ def _assess_maestro(db: Session, tenant_id: str, case: CouncilCase) -> dict:
     match = next((p for p in priorities if instrument_identity and str(instrument_identity) in p["subject"]), None)
     top = match or (priorities[0] if priorities else None)
     if top is None:
-        return _base("No current operational priority ranking available.", confidence="low")
+        return _base(
+            _INSUFFICIENT_DATA, confidence="low",
+            evidence_limitations="No current operational priority ranking is available for Maestro to reference.",
+        )
     return _base(
         f"Ranked priority: {top['subject']} (#{top['rank']}, category {top['category']}).",
         confidence="moderate",

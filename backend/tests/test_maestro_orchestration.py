@@ -300,3 +300,40 @@ def test_orchestration_and_workspace_routes():
     r5 = client.get("/api/maestro/timeline", headers=_headers(AUTH_ADMIN, tenant_id))
     assert r5.status_code == 200
     assert "horizons" in r5.json()
+
+
+# ── Regression: post-implementation review fixes ──────────────────────────
+
+def test_latest_priorities_returns_the_full_batch_not_just_one_row():
+    """Regression: MaestroPriorityItem rows in the same compute_priorities()
+    batch previously got independently-evaluated created_at timestamps, so
+    latest_priorities()'s exact-equality filter matched only 1 of up to 9
+    rows. All rows from one run must now share one batch timestamp."""
+    tenant_id = uid("maestro-t")
+    db = SessionLocal()
+    try:
+        _seed_all(db, tenant_id)
+        rows = maestro_priority_engine_service.compute_priorities(db, tenant_id)
+        assert len(rows) >= 2
+
+        latest = maestro_priority_engine_service.latest_priorities(db, tenant_id)
+        assert len(latest) == len(rows)
+    finally:
+        db.close()
+
+
+def test_run_daily_orchestration_does_not_duplicate_priority_batch():
+    """Regression: run_daily_orchestration() used to call compute_priorities()
+    directly and then generate_recommendations() (which also called
+    compute_priorities() internally), persisting two full batches per run."""
+    tenant_id = uid("maestro-t")
+    db = SessionLocal()
+    try:
+        _seed_all(db, tenant_id)
+        result = maestro_orchestration_service.run_daily_orchestration(db, tenant_id)
+
+        from app.models.maestro_orchestration import MaestroPriorityItem
+        total_rows = db.query(MaestroPriorityItem).filter(MaestroPriorityItem.tenant_id == tenant_id).count()
+        assert total_rows == result["priority_item_count"]
+    finally:
+        db.close()

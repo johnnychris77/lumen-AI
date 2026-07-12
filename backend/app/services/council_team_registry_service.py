@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.models.council_leadership import (
     COUNCIL_TEAM_KEYS,
     DEFAULT_TEAM_DEFINITIONS,
+    KNOWN_SPECIALISTS,
     SAFETY_VETO_SPECIALISTS,
     CouncilTeamConfig,
 )
@@ -110,10 +111,23 @@ def update_team_config(
     if current is None:
         raise ValueError(f"Unknown Council team '{team_key}' for this tenant")
 
-    new_required = required_specialists if required_specialists is not None else json.loads(current.required_specialists_json)
-    missing_safety = SAFETY_VETO_SPECIALISTS - set(new_required) if any(
-        s in json.loads(current.required_specialists_json) for s in SAFETY_VETO_SPECIALISTS
-    ) else set()
+    current_required = json.loads(current.required_specialists_json)
+    new_required = required_specialists if required_specialists is not None else current_required
+
+    unknown_specialists = set(new_required) - KNOWN_SPECIALISTS
+    if unknown_specialists:
+        raise ValueError(
+            f"Unknown specialist key(s) {sorted(unknown_specialists)} -- Council has no assessor for "
+            "these and cases requiring them could never reach a human decision",
+        )
+
+    # Only the safety specialists that were actually required by the
+    # *current* config can be "removed" -- checking against the full
+    # SAFETY_VETO_SPECIALISTS set regardless of what was previously
+    # required would wrongly block edits to teams (Operations, Executive,
+    # Education) that only ever required one of the two.
+    previously_required_safety = SAFETY_VETO_SPECIALISTS & set(current_required)
+    missing_safety = previously_required_safety - set(new_required)
     if missing_safety:
         raise ValueError(
             f"Cannot remove mandatory safety/evidence specialist(s) {sorted(missing_safety)} from a required Council review",

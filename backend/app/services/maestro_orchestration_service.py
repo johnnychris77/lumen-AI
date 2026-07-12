@@ -32,7 +32,7 @@ def run_daily_orchestration(db: Session, tenant_id: str) -> dict:
     per tenant; every downstream artifact this produces is independently
     queryable afterward."""
     priority_items = maestro_priority_engine_service.compute_priorities(db, tenant_id)
-    specific_recommendations = maestro_recommendation_engine_service.generate_recommendations(db, tenant_id)
+    specific_recommendations = maestro_recommendation_engine_service.generate_recommendations(db, tenant_id, priority_items)
     strategic_recommendations = maestro_recommendation_engine_service.generate_strategic_recommendations(db, tenant_id)
     health = compute_operational_health(db, tenant_id)
     brief = maestro_daily_brief_service.generate_brief(db, tenant_id, BRIEF_MORNING)

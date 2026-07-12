@@ -73,6 +73,15 @@ def record_council_decision(
     Council Case, its specialist agreement/dissent, the human decision,
     and lessons learned into Maestro's existing leadership learning
     dataset."""
+    if not leader_decision.strip():
+        # Checked here, before _ensure_maestro_recommendation commits its
+        # row, rather than relying solely on maestro_decision_journal_
+        # service.record_decision's own check -- that check fires after
+        # the MaestroRecommendation row is already committed, which would
+        # otherwise leave a permanent orphan recommendation behind on
+        # every rejected/empty submission.
+        raise ValueError("leader_decision is required for an auditable journal entry")
+
     recommendation = _ensure_maestro_recommendation(db, tenant_id, council_case_id)
     entry = maestro_decision_journal_service.record_decision(
         db, tenant_id, recommendation.id, leader_decision=leader_decision, decided_by=decided_by,

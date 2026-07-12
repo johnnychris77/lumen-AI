@@ -19,6 +19,7 @@ from app.models.council_leadership import (
     CASE_STATUS_AWAITING_DECISION,
     CASE_STATUS_AWAITING_EVIDENCE,
     CASE_STATUS_OPEN,
+    CASE_STATUS_RESOLVED,
     CASE_TYPE_DEFAULT_TEAM,
     CONSENSUS_INSUFFICIENT_EVIDENCE,
     CONSENSUS_SAFETY_DISSENT,
@@ -54,6 +55,14 @@ def open_case(
     """Section 3: creates the typed Council Case and assigns its
     leadership team -- agents have not yet assessed anything at this
     point (independence is preserved)."""
+    for field_name, value in (
+        ("inspection_ids", inspection_ids), ("instrument_ids", instrument_ids), ("digital_twin_refs", digital_twin_refs),
+    ):
+        if value is not None and not isinstance(value, list):
+            raise ValueError(f"{field_name} must be a list if provided, got {type(value).__name__}")
+    if evidence_package is not None and not isinstance(evidence_package, dict):
+        raise ValueError(f"evidence_package must be an object if provided, got {type(evidence_package).__name__}")
+
     team_key, required_specialists = select_specialists_for_case(db, tenant_id, case_type)
 
     row = CouncilCase(
@@ -81,12 +90,21 @@ def open_case(
 def convene(db: Session, tenant_id: str, council_case_id: int) -> CouncilCase:
     """Runs the full Council cycle for a case: independent assessments,
     consensus classification, dissent recording, and decision-option
-    generation. Safe to call more than once -- each call runs a fresh
-    round of independent assessments (specialists never see each other's
-    prior-round conclusions when forming a new one)."""
+    generation. Safe to call more than once while the case is still open
+    -- each call runs a fresh round of independent assessments
+    (specialists never see each other's prior-round conclusions when
+    forming a new one). Once a human decision has resolved the case, it
+    can no longer be silently re-convened -- doing so would overwrite an
+    already-decided case's status with no new decision on record and no
+    audit trail of the reopening."""
     case = db.query(CouncilCase).filter(CouncilCase.tenant_id == tenant_id, CouncilCase.id == council_case_id).first()
     if case is None:
         raise ValueError(f"Council Case {council_case_id} not found for this tenant")
+    if case.status == CASE_STATUS_RESOLVED:
+        raise ValueError(
+            f"Council Case {council_case_id} is already resolved with a recorded human decision; "
+            "it cannot be re-convened without an explicit reopen action",
+        )
 
     required_specialists = json.loads(case.participating_specialists_json)
     council_specialist_assessment_service.run_independent_assessments(db, tenant_id, case, required_specialists)
