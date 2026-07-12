@@ -118,6 +118,7 @@ def _force_import_models():
         "app.models.nova_agent_platform",
         "app.models.vulcan_reliability",
         "app.models.sage_education",
+        "app.models.veritas_evidence",
     ]:
         try:
             importlib.import_module(model_path)

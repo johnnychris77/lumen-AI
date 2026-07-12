@@ -1097,6 +1097,10 @@ from app.models import sage_education as _sage_education_models  # noqa: F401
 from app.routes.sage_education import router as sage_education_router
 app.include_router(sage_education_router)
 
+from app.models import veritas_evidence as _veritas_evidence_models  # noqa: F401
+from app.routes.veritas_evidence import router as veritas_evidence_router
+app.include_router(veritas_evidence_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

@@ -133,6 +133,11 @@ from app.models.sage_education import (  # noqa: F401
     SageAssessment, SageEducationImageEntry, SageEffectivenessAssessment, SageFeedback,
     SageKnowledgeGap, SageLearningPlan, SageMicrolearningModule,
 )
+from app.models.veritas_evidence import (  # noqa: F401
+    VeritasBaselineGovernanceAction, VeritasBaselineResolution, VeritasEvidenceConflict,
+    VeritasEvidenceProvenanceRecord, VeritasEvidenceReadinessAssessment, VeritasFeedback,
+    VeritasTrainingDatasetEntry,
+)
 
 
 class TenantMembership(Base):
