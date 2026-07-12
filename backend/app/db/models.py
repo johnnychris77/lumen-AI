@@ -149,6 +149,11 @@ from app.models.council_leadership import (  # noqa: F401
     CouncilCase, CouncilDecisionOption, CouncilDissentRecord, CouncilHumanDecision,
     CouncilMeetingNotes, CouncilOutcomeReview, CouncilSpecialistAssessment, CouncilTeamConfig,
 )
+from app.models.governed_action import (  # noqa: F401
+    GovernedAction, GovernedActionAuditEvent, GovernedActionOutcomeReview,
+    GovernedActionResidualRiskReview, GovernedActionRollout, GovernedActionUnintendedConsequence,
+    GovernedActionVerification,
+)
 
 
 class TenantMembership(Base):
