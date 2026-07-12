@@ -141,6 +141,10 @@ from app.models.veritas_evidence import (  # noqa: F401
 from app.models.sentinelx_risk import (  # noqa: F401
     SentinelXPatientSafetyAlert, SentinelXRiskAssessment, SentinelXSupervisorOverride,
 )
+from app.models.maestro_orchestration import (  # noqa: F401
+    MaestroDailyBrief, MaestroDecisionJournalEntry, MaestroOperationalHealthSnapshot,
+    MaestroPriorityItem, MaestroRecommendation,
+)
 
 
 class TenantMembership(Base):

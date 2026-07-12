@@ -1105,6 +1105,10 @@ from app.models import sentinelx_risk as _sentinelx_risk_models  # noqa: F401
 from app.routes.sentinelx_risk import router as sentinelx_risk_router
 app.include_router(sentinelx_risk_router)
 
+from app.models import maestro_orchestration as _maestro_orchestration_models  # noqa: F401
+from app.routes.maestro_orchestration import router as maestro_orchestration_router
+app.include_router(maestro_orchestration_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
