@@ -6,9 +6,9 @@ Consolidates the findings across `ENTERPRISE_OPERATIONS.md`, `BENCHMARKING_GUIDE
 
 **Nearly every capability this brief asks for already exists in real, working code — built during an earlier phase of this platform's development (Projects Atlas, Vanguard, Horizon, Beacon, Olympus) — but it is fragmented across modules with overlapping scope, inconsistently wired to its own frontend, and in one important case, guarded by an authorization check that was built but never connected.** This mirrors the exact pattern found in every prior phase of this multi-phase review program: LumenAI's problem is consolidation and completion, not a shortage of underlying capability.
 
-## Stage 0 — Security (must precede any other Version 1.3 work in this area)
+## Stage 0 — Security (must precede any other Version 1.3 work in this area) — **complete**
 
-**Close the `system_id` cross-organization authorization gap** documented in `ENTERPRISE_OPERATIONS.md`. Every Atlas enterprise route currently authorizes only on role, never on organizational membership, meaning any authenticated user with an allowed role can view another health system's enterprise data. The fix (wiring the already-built `EnterpriseRoleAssignment`/`atlas_rbac_service` membership check into the actual data-serving routes) is scoped and does not require new architecture — but it is a security-sensitive change and should go through its own dedicated, reviewed patch before any other Version 1.3 enterprise feature ships, since every other item in this roadmap builds on the same routes.
+**Closed the `system_id` cross-organization authorization gap** documented in `ENTERPRISE_OPERATIONS.md`. Every Atlas enterprise route previously authorized only on role, never on organizational membership, meaning any authenticated user with an allowed role could view another health system's enterprise data. The fix — wiring the already-built `EnterpriseRoleAssignment`/`atlas_rbac_service` membership check into every data-serving route (Sections 2-9), plus an escalation-prevention check on the role-grant endpoint itself — has been implemented, tested (`TestSystemAccessEnforcement` in `test_atlas_enterprise.py`), and merged. See `ENTERPRISE_OPERATIONS.md`'s "Fixed" section for the full technical detail. Every other item in this roadmap can now safely build on these routes.
 
 ## Stage 1 — Fix confirmed runtime bugs (small, isolated, high-value)
 
@@ -38,12 +38,12 @@ Consolidates the findings across `ENTERPRISE_OPERATIONS.md`, `BENCHMARKING_GUIDE
 | Item | Status |
 |---|---|
 | ✓ Enterprise dashboards function | **Not yet** — confirmed broken (`/enterprise`'s system_id bug, `NetworkDashboardPage.tsx`'s dead API call) until Stage 1 is complete |
-| ✓ Benchmarking respects tenant isolation | **Partially** — Horizon's cross-org benchmarking is correctly anonymized; Atlas's within-org benchmarking is correct in its math but sits behind the Stage 0 authorization gap |
+| ✓ Benchmarking respects tenant isolation | **Yes** — Horizon's cross-org benchmarking is correctly anonymized; Atlas's within-org benchmarking is correct in its math and now sits behind the Stage 0 authorization fix |
 | ✓ Executive reports generate correctly | **Yes, for the 4 real packet types** — PDF/Excel/PPTX generation is genuinely working; 2-3 of the brief's 6 named report types don't exist yet |
-| ✓ Facility comparisons remain accurate | **Yes, mathematically** — Atlas's facility-comparison logic is real and correct; accessible only to authorized users once Stage 0 closes the gap |
-| ✓ Permissions enforced | **No — this is Stage 0's exact finding** |
+| ✓ Facility comparisons remain accurate | **Yes** — Atlas's facility-comparison logic is real and correct, and now only accessible to callers holding a real organizational scope grant |
+| ✓ Permissions enforced | **Yes — Stage 0's authorization gap is fixed and tested** |
 | ✓ Performance scales across enterprise deployments | Not evaluated in this review — no enterprise-scale load testing exists anywhere in this codebase (consistent with Phase 1's Production Readiness Scorecard finding of zero load-test infrastructure) |
 
 ## Definition of Done — honest status
 
-This program's Definition of Done states Version 1.3 should enable "healthcare systems to operate LumenAI as a coordinated enterprise platform while maintaining security, privacy, governance, and organizational data ownership." **As of this review, the security/data-ownership half of that statement is not yet true** — the `system_id` authorization gap means organizational data ownership is not currently enforced at the code level, only assumed. Every other capability this brief describes is either already real (in fragmented form) or clearly scoped as new work. Closing Stage 0 is the genuine prerequisite for calling any part of this roadmap "enterprise-ready."
+This program's Definition of Done states Version 1.3 should enable "healthcare systems to operate LumenAI as a coordinated enterprise platform while maintaining security, privacy, governance, and organizational data ownership." **The security/data-ownership half of that statement is now true at the code level** — the `system_id`/`facility_id` authorization gap has been closed and is covered by explicit tests proving both that access is denied without a grant and that it succeeds once one is issued. Every other capability this brief describes is either already real (in fragmented form) or clearly scoped as new work; Stage 0 being complete is what makes it safe to build the rest of this roadmap on these routes.
