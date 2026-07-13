@@ -45,8 +45,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function confidenceColor(level: string): string {
-  if (level === "strong") return "text-emerald-700";
-  if (level === "moderate") return "text-amber-700";
+  if (level === "strong") return "text-success";
+  if (level === "moderate") return "text-warning";
   return "text-slate-500";
 }
 
@@ -304,7 +304,7 @@ export default function OracleWorkspace() {
           <button
             key={t}
             onClick={() => setActiveTab(t)}
-            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}
           >
             {t}
           </button>
@@ -358,13 +358,13 @@ export default function OracleWorkspace() {
                 <input className="mt-1 block w-full rounded border border-slate-200 p-1 text-sm" value={newStatement} onChange={(e) => setNewStatement(e.target.value)} />
               </label>
             </div>
-            <button onClick={createHypothesis} className="mt-2 rounded bg-indigo-600 px-3 py-1 text-sm text-white">Record Hypothesis</button>
+            <button onClick={createHypothesis} className="mt-2 rounded bg-primary px-3 py-1 text-sm text-white">Record Hypothesis</button>
           </Section>
 
           <div className="flex flex-wrap gap-1">
-            <button onClick={() => setStageFilter("")} className={`rounded px-2 py-1 text-xs ${stageFilter === "" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>all</button>
+            <button onClick={() => setStageFilter("")} className={`rounded px-2 py-1 text-xs ${stageFilter === "" ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>all</button>
             {VALIDATION_STAGES.map((s) => (
-              <button key={s} onClick={() => setStageFilter(s)} className={`rounded px-2 py-1 text-xs ${stageFilter === s ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>{s}</button>
+              <button key={s} onClick={() => setStageFilter(s)} className={`rounded px-2 py-1 text-xs ${stageFilter === s ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{s}</button>
             ))}
           </div>
 
@@ -394,12 +394,12 @@ export default function OracleWorkspace() {
                       <h4 className="text-xs font-semibold text-slate-600">Advance Validation Stage</h4>
                       <div className="flex gap-2">
                         <input className="flex-1 rounded border border-slate-200 p-1 text-xs" placeholder="Gate-check notes (required to promote to production knowledge)..." value={gateNotes} onChange={(e) => setGateNotes(e.target.value)} />
-                        <button onClick={advanceStage} className="rounded bg-indigo-600 px-2 py-1 text-xs text-white">Advance</button>
+                        <button onClick={advanceStage} className="rounded bg-primary px-2 py-1 text-xs text-white">Advance</button>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <button onClick={() => closeOut("rejected")} className="rounded bg-red-100 px-2 py-1 text-xs text-red-700">Reject</button>
+                        <button onClick={() => closeOut("rejected")} className="rounded bg-danger-subtle px-2 py-1 text-xs text-danger">Reject</button>
                         <button onClick={() => closeOut("withdrawn")} className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">Withdraw</button>
-                        <button onClick={() => closeOut("inconclusive")} className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">Mark Inconclusive</button>
+                        <button onClick={() => closeOut("inconclusive")} className="rounded bg-warning-subtle px-2 py-1 text-xs text-warning">Mark Inconclusive</button>
                       </div>
                     </div>
                   )}
@@ -424,7 +424,7 @@ export default function OracleWorkspace() {
                 Metric name
                 <input className="mt-1 block rounded border border-slate-200 p-1 text-sm" value={trendMetric} onChange={(e) => setTrendMetric(e.target.value)} />
               </label>
-              <button onClick={detectTrend} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white">Detect Trend</button>
+              <button onClick={detectTrend} className="rounded bg-primary px-3 py-1 text-sm text-white">Detect Trend</button>
             </div>
           </Section>
           <Section title="Trend Observations">
@@ -439,7 +439,7 @@ export default function OracleWorkspace() {
                     <p className="mt-1 text-slate-500">{t.notes as string}</p>
                     {!t.promoted_to_hypothesis_id ? (
                       <button onClick={() => promoteTrend(t.id as number)} className="mt-1 rounded bg-slate-200 px-2 py-1 text-xs text-slate-700">Promote to Hypothesis</button>
-                    ) : <span className="text-emerald-700">promoted → #{t.promoted_to_hypothesis_id as number}</span>}
+                    ) : <span className="text-success">promoted → #{t.promoted_to_hypothesis_id as number}</span>}
                   </li>
                 ))}
               </ul>
@@ -452,9 +452,9 @@ export default function OracleWorkspace() {
         <div className="space-y-4">
           <Section title="Record Digital Twin Research">
             <div className="flex flex-wrap items-end gap-2">
-              <button onClick={recordApolloInsight} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white">Record Apollo Governance-Health Insight</button>
+              <button onClick={recordApolloInsight} className="rounded bg-primary px-3 py-1 text-sm text-white">Record Apollo Governance-Health Insight</button>
               <input className="rounded border border-slate-200 p-1 text-sm" placeholder="instrument identity (e.g. barcode:ABC123)" value={instrumentIdentity} onChange={(e) => setInstrumentIdentity(e.target.value)} />
-              <button onClick={recordVulcanInsight} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white">Record Vulcan Progression Insight</button>
+              <button onClick={recordVulcanInsight} className="rounded bg-primary px-3 py-1 text-sm text-white">Record Vulcan Progression Insight</button>
             </div>
           </Section>
           <Section title="Digital Twin Insights">
@@ -469,7 +469,7 @@ export default function OracleWorkspace() {
                     <p className="mt-1 text-slate-500">{i.insight_summary as string}</p>
                     {!i.promoted_to_hypothesis_id ? (
                       <button onClick={() => promoteTwin(i.id as number)} className="mt-1 rounded bg-slate-200 px-2 py-1 text-xs text-slate-700">Promote to Hypothesis</button>
-                    ) : <span className="text-emerald-700">promoted → #{i.promoted_to_hypothesis_id as number}</span>}
+                    ) : <span className="text-success">promoted → #{i.promoted_to_hypothesis_id as number}</span>}
                   </li>
                 ))}
               </ul>
@@ -481,7 +481,7 @@ export default function OracleWorkspace() {
       {activeTab === "Model Observatory" && (
         <div className="space-y-4">
           <Section title="AI Model Observatory">
-            <button onClick={recordModelObservation} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white">Record Model Health Snapshot</button>
+            <button onClick={recordModelObservation} className="rounded bg-primary px-3 py-1 text-sm text-white">Record Model Health Snapshot</button>
           </Section>
           <Section title="Model Observations">
             {modelObs.length ? (
@@ -490,7 +490,7 @@ export default function OracleWorkspace() {
                   <li key={m.id as number} className="rounded border border-slate-100 p-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-slate-700">{m.observation_type as string}</span>
-                      <span className={m.reviewed ? "text-slate-400" : "text-amber-700"}>{m.reviewed ? "reviewed" : "needs review"}</span>
+                      <span className={m.reviewed ? "text-slate-400" : "text-warning"}>{m.reviewed ? "reviewed" : "needs review"}</span>
                     </div>
                     <p className="mt-1 text-slate-500">{m.summary as string}</p>
                     {!m.promoted_to_hypothesis_id && (
@@ -528,7 +528,7 @@ export default function OracleWorkspace() {
                 </select>
               </label>
             </div>
-            <button onClick={createSuggestion} className="mt-2 rounded bg-indigo-600 px-3 py-1 text-sm text-white">Submit Suggestion</button>
+            <button onClick={createSuggestion} className="mt-2 rounded bg-primary px-3 py-1 text-sm text-white">Submit Suggestion</button>
           </Section>
           <Section title="Knowledge Suggestions (governance-gated)">
             {suggestions.length ? (
@@ -542,8 +542,8 @@ export default function OracleWorkspace() {
                     <p className="mt-1 text-slate-500">{s.rationale as string}</p>
                     {s.status === "pending" && (
                       <div className="mt-1 flex gap-2">
-                        <button onClick={() => approveSuggestion(s.id as number)} className="rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Approve</button>
-                        <button onClick={() => rejectSuggestion(s.id as number)} className="rounded bg-red-100 px-2 py-1 text-xs text-red-700">Reject</button>
+                        <button onClick={() => approveSuggestion(s.id as number)} className="rounded bg-success-subtle px-2 py-1 text-xs text-success">Approve</button>
+                        <button onClick={() => rejectSuggestion(s.id as number)} className="rounded bg-danger-subtle px-2 py-1 text-xs text-danger">Reject</button>
                       </div>
                     )}
                   </li>

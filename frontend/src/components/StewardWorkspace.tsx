@@ -52,8 +52,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function riskColor(risk: string): string {
-  if (risk === "critical") return "text-red-700";
-  if (risk === "high") return "text-amber-700";
+  if (risk === "critical") return "text-danger";
+  if (risk === "high") return "text-warning";
   return "text-slate-500";
 }
 
@@ -127,7 +127,7 @@ function VerificationList({ items }: { items: Json[] }) {
     <ul className="space-y-1">
       {items.map((v) => (
         <li key={v.id as number} className="text-xs">
-          <span className={v.sufficient ? "text-emerald-700" : "text-red-700"}>{v.sufficient ? "sufficient" : "insufficient"}</span>
+          <span className={v.sufficient ? "text-success" : "text-danger"}>{v.sufficient ? "sufficient" : "insufficient"}</span>
           {" — "}{v.evidence_type as string}{v.insufficiency_reason ? `: ${v.insufficiency_reason as string}` : ""}
         </li>
       ))}
@@ -154,7 +154,7 @@ function ConsequenceList({ items }: { items: Json[] }) {
   return (
     <ul className="space-y-1">
       {items.map((c) => (
-        <li key={c.id as number} className={`text-xs ${c.reviewed ? "text-slate-500" : "text-amber-700"}`}>
+        <li key={c.id as number} className={`text-xs ${c.reviewed ? "text-slate-500" : "text-warning"}`}>
           {c.consequence_type as string}: {c.description as string} {c.reviewed ? "(reviewed)" : "(needs review)"}
         </li>
       ))}
@@ -280,7 +280,7 @@ export default function StewardWorkspace() {
           <button
             key={t}
             onClick={() => setActiveTab(t)}
-            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}
           >
             {t}
           </button>
@@ -351,13 +351,13 @@ export default function StewardWorkspace() {
                 </select>
               </label>
             </div>
-            <button onClick={createAction} className="mt-2 rounded bg-indigo-600 px-3 py-1 text-sm text-white">Create Governed Action</button>
+            <button onClick={createAction} className="mt-2 rounded bg-primary px-3 py-1 text-sm text-white">Create Governed Action</button>
           </Section>
 
           <div className="flex flex-wrap gap-1">
-            <button onClick={() => setStatusFilter("")} className={`rounded px-2 py-1 text-xs ${statusFilter === "" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>all</button>
+            <button onClick={() => setStatusFilter("")} className={`rounded px-2 py-1 text-xs ${statusFilter === "" ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>all</button>
             {STATUSES.map((s) => (
-              <button key={s} onClick={() => setStatusFilter(s)} className={`rounded px-2 py-1 text-xs ${statusFilter === s ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>{s}</button>
+              <button key={s} onClick={() => setStatusFilter(s)} className={`rounded px-2 py-1 text-xs ${statusFilter === s ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{s}</button>
             ))}
           </div>
 
@@ -410,7 +410,7 @@ export default function StewardWorkspace() {
         <div className="space-y-4">
           <div className="flex flex-wrap gap-1">
             {BOARD_ROLES.map((r) => (
-              <button key={r} onClick={() => setBoardRole(r)} className={`rounded px-3 py-1 text-sm capitalize ${boardRole === r ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>{r}</button>
+              <button key={r} onClick={() => setBoardRole(r)} className={`rounded px-3 py-1 text-sm capitalize ${boardRole === r ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{r}</button>
             ))}
           </div>
           {board && (
@@ -434,7 +434,7 @@ export default function StewardWorkspace() {
           </Section>
           <Section title="Escalations">
             {escalations.length ? (
-              <ul className="space-y-1">{escalations.map((e, i) => <li key={i} className="text-xs text-amber-700">{e.message as string} <span className="text-slate-400">→ {e.next_accountable_role as string}</span></li>)}</ul>
+              <ul className="space-y-1">{escalations.map((e, i) => <li key={i} className="text-xs text-warning">{e.message as string} <span className="text-slate-400">→ {e.next_accountable_role as string}</span></li>)}</ul>
             ) : <p className="text-xs text-slate-400">No escalations.</p>}
           </Section>
         </div>

@@ -79,7 +79,7 @@ function AssessmentList({ items }: { items: Json[] }) {
           <p className="mt-1 text-xs text-slate-600">{a.conclusion as string}</p>
           {(a.significance as string) ? <p className="mt-1 text-xs text-slate-500">{a.significance as string}</p> : null}
           {(a.recommended_action as string) ? <p className="mt-1 text-xs text-slate-500">Recommends: {a.recommended_action as string}</p> : null}
-          {(a.evidence_limitations as string) ? <p className="mt-1 text-xs text-amber-600">Limitations: {a.evidence_limitations as string}</p> : null}
+          {(a.evidence_limitations as string) ? <p className="mt-1 text-xs text-warning">Limitations: {a.evidence_limitations as string}</p> : null}
           <p className="mt-1 text-xs text-slate-400">urgency: {a.urgency as string} · approver: {a.human_role_required as string}</p>
         </li>
       ))}
@@ -106,7 +106,7 @@ function AgreementMapView({ data }: { data: Json | null | undefined }) {
         </thead>
         <tbody>
           {Object.entries(matrix).map(([specialist, row]) => (
-            <tr key={specialist} className={dissenting.has(specialist) ? "text-amber-700" : "text-slate-600"}>
+            <tr key={specialist} className={dissenting.has(specialist) ? "text-warning" : "text-slate-600"}>
               <td className="pr-2 py-1">{specialist}{dissenting.has(specialist) ? " (dissenting)" : ""}</td>
               <td className="pr-2 py-1">{(row as Json).position as string}</td>
               <td className="py-1">{(row as Json).confidence as string}</td>
@@ -123,15 +123,15 @@ function DissentList({ items }: { items: Json[] }) {
   return (
     <ol className="space-y-2">
       {items.map((d) => (
-        <li key={d.id as number} className="rounded border border-amber-200 bg-amber-50 p-2">
+        <li key={d.id as number} className="rounded border border-warning/30 bg-warning-subtle p-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-amber-900">{d.dissenting_specialist as string}</span>
-            <span className="text-xs text-amber-700">{d.escalation_level as string}</span>
+            <span className="text-sm font-medium text-warning-hover">{d.dissenting_specialist as string}</span>
+            <span className="text-xs text-warning">{d.escalation_level as string}</span>
           </div>
-          <p className="mt-1 text-xs text-amber-800">Disputes: {d.disputed_conclusion as string}</p>
-          {(d.risk_if_ignored as string) ? <p className="mt-1 text-xs text-amber-700">Risk if ignored: {d.risk_if_ignored as string}</p> : null}
-          {(d.proposed_alternative_action as string) ? <p className="mt-1 text-xs text-amber-700">Proposed alternative: {d.proposed_alternative_action as string}</p> : null}
-          {(d.additional_evidence_required as string) ? <p className="mt-1 text-xs text-amber-600">Evidence required: {d.additional_evidence_required as string}</p> : null}
+          <p className="mt-1 text-xs text-warning-hover">Disputes: {d.disputed_conclusion as string}</p>
+          {(d.risk_if_ignored as string) ? <p className="mt-1 text-xs text-warning">Risk if ignored: {d.risk_if_ignored as string}</p> : null}
+          {(d.proposed_alternative_action as string) ? <p className="mt-1 text-xs text-warning">Proposed alternative: {d.proposed_alternative_action as string}</p> : null}
+          {(d.additional_evidence_required as string) ? <p className="mt-1 text-xs text-warning">Evidence required: {d.additional_evidence_required as string}</p> : null}
         </li>
       ))}
     </ol>
@@ -148,8 +148,8 @@ function DecisionOptionList({ items }: { items: Json[] }) {
             <span className="text-sm font-medium text-slate-800">Option {o.option_label as string} — {o.option_title as string}</span>
             <span className="text-xs text-slate-400">{o.required_authority as string}</span>
           </div>
-          <p className="mt-1 text-xs text-emerald-700">Benefits: {o.benefits as string}</p>
-          <p className="mt-1 text-xs text-red-700">Risks: {o.risks as string}</p>
+          <p className="mt-1 text-xs text-success">Benefits: {o.benefits as string}</p>
+          <p className="mt-1 text-xs text-danger">Risks: {o.risks as string}</p>
           <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-400">
             <span>clinical risk: {o.clinical_risk as string}</span>
             <span>reversibility: {o.reversibility as string}</span>
@@ -167,13 +167,13 @@ function HumanDecisionList({ items }: { items: Json[] }) {
   return (
     <ol className="space-y-2">
       {items.map((d) => (
-        <li key={d.id as number} className="rounded border border-indigo-100 bg-indigo-50 p-2">
+        <li key={d.id as number} className="rounded border border-primary/20 bg-primary-subtle p-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-indigo-900">{d.decision as string}</span>
-            <span className="text-xs text-indigo-600">{d.approver as string} ({d.approver_role as string})</span>
+            <span className="text-sm font-medium text-primary-active">{d.decision as string}</span>
+            <span className="text-xs text-primary">{d.approver as string} ({d.approver_role as string})</span>
           </div>
-          {(d.rationale as string) ? <p className="mt-1 text-xs text-indigo-800">{d.rationale as string}</p> : null}
-          {(d.conditions as string) ? <p className="mt-1 text-xs text-indigo-700">Conditions: {d.conditions as string}</p> : null}
+          {(d.rationale as string) ? <p className="mt-1 text-xs text-primary-active">{d.rationale as string}</p> : null}
+          {(d.conditions as string) ? <p className="mt-1 text-xs text-primary">Conditions: {d.conditions as string}</p> : null}
         </li>
       ))}
     </ol>
@@ -347,7 +347,7 @@ export default function CouncilWorkspace() {
             Instrument identity
             <input className="mt-1 block rounded border border-slate-200 p-1 text-sm" value={newInstrumentIdentity} onChange={(e) => setNewInstrumentIdentity(e.target.value)} />
           </label>
-          <button onClick={openAndConvene} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white">
+          <button onClick={openAndConvene} className="rounded bg-primary px-3 py-1 text-sm text-white">
             Open &amp; Convene
           </button>
         </div>
@@ -358,7 +358,7 @@ export default function CouncilWorkspace() {
           <button
             key={t}
             onClick={() => setActiveTab(t)}
-            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`rounded px-3 py-1 text-sm ${activeTab === t ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}
           >
             {t}
           </button>

@@ -186,21 +186,21 @@ function WeeklyPulseSurvey() {
   ];
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+    <div className="rounded-xl border border-primary/20 bg-primary-subtle p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-blue-900">Weekly Pulse Survey</p>
-          <p className="text-xs text-blue-700 mt-0.5">Takes 30 seconds — helps us improve the pilot</p>
+          <p className="text-sm font-semibold text-primary-active">Weekly Pulse Survey</p>
+          <p className="text-xs text-primary mt-0.5">Takes 30 seconds — helps us improve the pilot</p>
         </div>
-        <button onClick={dismiss} className="text-blue-400 hover:text-blue-600 text-xs">Dismiss</button>
+        <button onClick={dismiss} className="text-primary/50 hover:text-primary text-xs">Dismiss</button>
       </div>
       {submitted ? (
-        <p className="mt-3 text-sm text-green-700 font-medium">Thanks for your feedback!</p>
+        <p className="mt-3 text-sm text-success font-medium">Thanks for your feedback!</p>
       ) : (
         <div className="mt-3 space-y-3">
           {questions.map(({ key, label }) => (
             <div key={key}>
-              <p className="text-xs text-blue-800 mb-1">{label}</p>
+              <p className="text-xs text-primary-active mb-1">{label}</p>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -208,14 +208,14 @@ function WeeklyPulseSurvey() {
                     onClick={() => setRatings((r) => ({ ...r, [key]: n }))}
                     className={`w-8 h-8 rounded text-xs font-medium border transition-colors ${
                       ratings[key] === n
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-blue-700 border-blue-300 hover:border-blue-500"
+                        ? "bg-primary text-white border-primary"
+                        : "bg-white text-primary border-primary/30 hover:border-primary"
                     }`}
                   >
                     {n}
                   </button>
                 ))}
-                <span className="ml-2 text-xs text-blue-500 self-center">
+                <span className="ml-2 text-xs text-primary/60 self-center">
                   {ratings[key] > 0 ? `${ratings[key]}/5` : "—"}
                 </span>
               </div>
@@ -224,7 +224,7 @@ function WeeklyPulseSurvey() {
           <button
             onClick={submit}
             disabled={Object.values(ratings).some((v) => v === 0)}
-            className="mt-1 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-1 rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Submit
           </button>
@@ -370,7 +370,7 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Operational KPIs</h3>
-          <Link to="/intake-history" className="text-xs text-blue-600 hover:underline">Full history →</Link>
+          <Link to="/intake-history" className="text-xs text-primary hover:underline">Full history →</Link>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
@@ -405,7 +405,7 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Contamination KPIs</h3>
-          <Link to="/findings" className="text-xs text-blue-600 hover:underline">View findings queue →</Link>
+          <Link to="/findings" className="text-xs text-primary hover:underline">View findings queue →</Link>
         </div>
         <Card>
           <CardHeader className="pb-3">
@@ -429,8 +429,8 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pilot KPIs</h3>
           <div className="flex gap-3">
-            <Link to="/baseline-review" className="text-xs text-blue-600 hover:underline">Review queue →</Link>
-            <Link to="/vendor-baseline-portal" className="text-xs text-blue-600 hover:underline">Vendor portal →</Link>
+            <Link to="/baseline-review" className="text-xs text-primary hover:underline">Review queue →</Link>
+            <Link to="/vendor-baseline-portal" className="text-xs text-primary hover:underline">Vendor portal →</Link>
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -468,8 +468,8 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Baseline Coverage</h3>
           <div className="flex gap-3">
-            <Link to="/demo-image-library" className="text-xs text-blue-600 hover:underline">Image library →</Link>
-            <Link to="/baseline-image-upload" className="text-xs text-blue-600 hover:underline">Upload baseline →</Link>
+            <Link to="/demo-image-library" className="text-xs text-primary hover:underline">Image library →</Link>
+            <Link to="/baseline-image-upload" className="text-xs text-primary hover:underline">Upload baseline →</Link>
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -505,7 +505,7 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recent Inspection Activity</h3>
-          <Link to="/intake-history" className="text-xs text-blue-600 hover:underline">Full history →</Link>
+          <Link to="/intake-history" className="text-xs text-primary hover:underline">Full history →</Link>
         </div>
         <Card>
           <CardContent className="p-0">
@@ -517,7 +517,7 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-slate-600">No inspection records yet</p>
                 <p className="text-xs text-slate-400 mt-1">
                   Submit your first inspection via{" "}
-                  <Link to="/vendor-intake" className="text-blue-600 hover:underline">Vendor Intake</Link>.
+                  <Link to="/vendor-intake" className="text-primary hover:underline">Vendor Intake</Link>.
                 </p>
               </div>
             ) : (
