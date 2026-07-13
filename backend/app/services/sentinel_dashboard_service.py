@@ -50,7 +50,10 @@ def _compute_enterprise_risk_score(db: Session, tenant_id: str, ai_health: dict)
 
     factors = {}
     if quality_score is not None:
-        factors["quality_risk"] = 100 - quality_score
+        # quality_score can fall outside 0-100 (e.g. repeat_rate > 100% when
+        # repeated-error events outnumber supervisor-correction events), so
+        # clamp like every other factor to keep the composite score in range.
+        factors["quality_risk"] = max(0, min(100, 100 - quality_score))
     factors["watchlist_pressure"] = min(100, watchlist_count * 10)
     factors["alert_pressure"] = min(100, high_critical_alerts * 15)
     factors["drift_risk"] = 100 if ai_health.get("drift_detected") else 0
