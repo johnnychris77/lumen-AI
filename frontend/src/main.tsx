@@ -104,6 +104,7 @@ const RiskDashboardPage = lazy(() => import("./pages/RiskDashboardPage"));
 const MaestroWorkspacePage = lazy(() => import("./pages/MaestroWorkspacePage"));
 const CouncilWorkspacePage = lazy(() => import("./pages/CouncilWorkspacePage"));
 const StewardWorkspacePage = lazy(() => import("./pages/StewardWorkspacePage"));
+const OracleWorkspacePage = lazy(() => import("./pages/OracleWorkspacePage"));
 const CIOSDashboard = lazy(() => import("./pages/CIOSDashboard"));
 const EnterpriseDashboard = lazy(() => import("./pages/EnterpriseDashboard"));
 const CommercialConsole = lazy(() => import("./pages/CommercialConsole"));
@@ -448,6 +449,7 @@ function App() {
                       <Route path="/maestro" element={<Page name="Maestro"><MaestroWorkspacePage /></Page>} />
                       <Route path="/council" element={<Page name="Council"><CouncilWorkspacePage /></Page>} />
                       <Route path="/steward" element={<Page name="Steward"><StewardWorkspacePage /></Page>} />
+                      <Route path="/oracle" element={<Page name="Oracle"><OracleWorkspacePage /></Page>} />
                       <Route path="/cios-dashboard" element={<Page name="CIOSDashboard"><CIOSDashboard /></Page>} />
                       <Route path="/enterprise" element={<Page name="Enterprise"><EnterpriseDashboard /></Page>} />
                       <Route path="/commercial" element={<Page name="Commercial"><CommercialConsole /></Page>} />

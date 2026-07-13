@@ -29,6 +29,13 @@ from app.models.packet_release_override import PacketReleaseOverride  # noqa: F4
 # `/governance-console/summary` route references `models.RetentionPolicy`,
 # also never imported here.
 from app.models.retention_policy import RetentionPolicy  # noqa: F401
+# Same pre-existing gap again: `governance_approvals.py`, `governance_execution.py`,
+# `governance_reconciliation.py`, `approval_escalation_service.py`, `executive_reporting.py`,
+# `briefing_generator.py`, `automation_engine.py`, `approval_notifications.py`, and
+# `trust_center.py` all reference `models.GovernanceApproval` and/or
+# `models.KnowledgeArticle`, neither of which was ever imported here.
+from app.models.governance_approval import GovernanceApproval  # noqa: F401
+from app.models.knowledge import KnowledgeArticle  # noqa: F401
 from app.models.patient_safety import (  # noqa: F401
     InstrumentQualitySignal,
     PatientSafetyEventLink,
@@ -153,6 +160,10 @@ from app.models.governed_action import (  # noqa: F401
     GovernedAction, GovernedActionAuditEvent, GovernedActionOutcomeReview,
     GovernedActionResidualRiskReview, GovernedActionRollout, GovernedActionUnintendedConsequence,
     GovernedActionVerification,
+)
+from app.models.oracle_discovery import (  # noqa: F401
+    OracleDigitalTwinInsight, OracleHypothesis, OracleKnowledgeSuggestion, OracleModelObservation,
+    OracleStageTransition, OracleTrendObservation,
 )
 
 

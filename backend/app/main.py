@@ -1117,6 +1117,10 @@ from app.models import governed_action as _governed_action_models  # noqa: F401
 from app.routes.governed_action import router as governed_action_router
 app.include_router(governed_action_router)
 
+from app.models import oracle_discovery as _oracle_discovery_models  # noqa: F401
+from app.routes.oracle_discovery import router as oracle_discovery_router
+app.include_router(oracle_discovery_router)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
