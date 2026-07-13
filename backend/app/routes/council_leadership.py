@@ -94,22 +94,27 @@ def post_open_case(payload: dict, current_user: dict = Depends(require_tenant_ro
     case_type = payload.get("case_type", "")
     if case_type not in CASE_TYPES:
         raise HTTPException(status_code=422, detail=f"Unknown case_type '{case_type}'")
-    row = council_orchestration_service.open_case(
-        db, _tenant(current_user), case_type=case_type, source_event=payload.get("source_event", ""),
-        inspection_ids=payload.get("inspection_ids"), instrument_ids=payload.get("instrument_ids"),
-        digital_twin_refs=payload.get("digital_twin_refs"), evidence_package=payload.get("evidence_package"),
-        risk_level=payload.get("risk_level", ""), urgency=payload.get("urgency", "routine"),
-        requested_decision=payload.get("requested_decision", ""), facility_id=payload.get("facility_id", ""),
-    )
+    try:
+        row = council_orchestration_service.open_case(
+            db, _tenant(current_user), case_type=case_type, source_event=payload.get("source_event", ""),
+            inspection_ids=payload.get("inspection_ids"), instrument_ids=payload.get("instrument_ids"),
+            digital_twin_refs=payload.get("digital_twin_refs"), evidence_package=payload.get("evidence_package"),
+            risk_level=payload.get("risk_level", ""), urgency=payload.get("urgency", "routine"),
+            requested_decision=payload.get("requested_decision", ""), facility_id=payload.get("facility_id", ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return council_orchestration_service.to_dict(row)
 
 
 @router.post("/cases/{council_case_id}/convene")
 def post_convene(council_case_id: int, current_user: dict = Depends(require_tenant_roles(*_LEADERSHIP_ROLES)), db: Session = Depends(get_db)):
+    if council_orchestration_service.get_case(db, _tenant(current_user), council_case_id) is None:
+        raise HTTPException(status_code=404, detail="Council Case not found")
     try:
         row = council_orchestration_service.convene(db, _tenant(current_user), council_case_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return council_orchestration_service.to_dict(row)
 
 

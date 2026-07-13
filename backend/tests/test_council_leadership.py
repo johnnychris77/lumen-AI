@@ -449,3 +449,125 @@ def test_open_convene_and_workspace_routes():
 
     r5 = client.get("/api/council/teams", headers=_headers(AUTH_ADMIN, tenant_id))
     assert r5.status_code == 200
+
+
+# ── Regression: post-implementation review fixes ──────────────────────────
+
+def test_update_team_config_allows_edits_to_teams_missing_one_safety_specialist():
+    """Regression: the safety-veto guard used to check the new required
+    list against the FULL SAFETY_VETO_SPECIALISTS set regardless of which
+    ones the team actually required, so any edit to Operations/Executive/
+    Education (which only ever require one of sentinelx/veritas, not both)
+    was wrongly rejected even when nothing was removed."""
+    tenant_id = uid("council-t")
+    db = SessionLocal()
+    try:
+        council_team_registry_service.ensure_default_teams(db, tenant_id)
+        updated = council_team_registry_service.update_team_config(
+            db, tenant_id, "operations", decision_scope="Updated scope text.",
+        )
+        assert updated.version == 2
+        assert updated.decision_scope == "Updated scope text."
+    finally:
+        db.close()
+
+
+def test_update_team_config_rejects_unknown_specialist_key():
+    """Regression: update_team_config previously accepted any string as a
+    required specialist key with no validation, so a typo'd key would
+    silently never submit an assessment and permanently force
+    INSUFFICIENT_EVIDENCE with no error surfaced anywhere."""
+    tenant_id = uid("council-t")
+    db = SessionLocal()
+    try:
+        council_team_registry_service.ensure_default_teams(db, tenant_id)
+        raised = False
+        try:
+            council_team_registry_service.update_team_config(
+                db, tenant_id, "reliability", required_specialists=["vulcan", "veritas", "sentinelx", "not_a_real_specialist"],
+            )
+        except ValueError:
+            raised = True
+        assert raised
+    finally:
+        db.close()
+
+
+def test_convene_rejects_reconvening_a_resolved_case():
+    """Regression: convene() had no guard against a CASE_STATUS_RESOLVED
+    case, so calling it again after a human decision silently reopened the
+    case with no new decision on record and no audit trail."""
+    tenant_id = uid("council-t")
+    db = SessionLocal()
+    try:
+        case = _open_and_convene_reliability_case(db, tenant_id)
+        council_human_decision_service.finalize_decision(
+            db, tenant_id, case.id, approver="admin@local.dev", approver_role="admin", decision="Proceed.",
+        )
+        raised = False
+        try:
+            council_orchestration_service.convene(db, tenant_id, case.id)
+        except ValueError:
+            raised = True
+        assert raised
+    finally:
+        db.close()
+
+
+def test_open_case_rejects_non_list_ids():
+    """Regression: non-list inspection_ids/instrument_ids used to pass
+    validation-free into json.dumps() at case-open time, then crash with an
+    uncaught TypeError deep inside convene() instead of failing fast with a
+    clear validation error."""
+    tenant_id = uid("council-t")
+    db = SessionLocal()
+    try:
+        raised = False
+        try:
+            council_orchestration_service.open_case(db, tenant_id, case_type="repair_recurrence", inspection_ids=5)
+        except ValueError:
+            raised = True
+        assert raised
+    finally:
+        db.close()
+
+
+def test_consensus_ignores_abstentions_as_false_agreement():
+    """Regression: a blank recommended_action (whether from genuine
+    insufficient data or a read-only specialist like Phoenix that never
+    proposes an action) used to be bucketed into the same synthetic
+    'no_action_recommended' position, so a case where every specialist
+    abstained for unrelated reasons could read as UNANIMOUS."""
+    assessments = [
+        {"specialist_key": "phoenix", "recommended_action": "", "confidence": "moderate", "urgency": "routine", "evidence_limitations": ""},
+        {"specialist_key": "maestro", "recommended_action": "", "confidence": "low", "urgency": "routine", "evidence_limitations": "No current operational priority ranking is available."},
+    ]
+    result = council_consensus_service.classify_consensus(assessments, ["phoenix", "maestro"])
+    assert result["status"] == CONSENSUS_INSUFFICIENT_EVIDENCE
+
+
+def test_journal_empty_leader_decision_leaves_no_orphan_recommendation():
+    """Regression: _ensure_maestro_recommendation used to commit a new
+    MaestroRecommendation row before record_decision's own leader_decision
+    validation ran, so every empty/failed journal submission left a
+    permanent orphan row polluting Maestro's Leadership Workspace."""
+    tenant_id = uid("council-t")
+    db = SessionLocal()
+    try:
+        case = _open_and_convene_reliability_case(db, tenant_id)
+
+        from app.models.maestro_orchestration import MaestroRecommendation
+        before_count = db.query(MaestroRecommendation).filter(MaestroRecommendation.tenant_id == tenant_id).count()
+
+        from app.services.council_decision_journal_service import record_council_decision
+        raised = False
+        try:
+            record_council_decision(db, tenant_id, case.id, leader_decision="", decided_by="admin@local.dev")
+        except ValueError:
+            raised = True
+        assert raised
+
+        after_count = db.query(MaestroRecommendation).filter(MaestroRecommendation.tenant_id == tenant_id).count()
+        assert after_count == before_count
+    finally:
+        db.close()

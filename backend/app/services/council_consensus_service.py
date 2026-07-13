@@ -57,8 +57,24 @@ def classify_consensus(assessments: list[dict], required_specialists: list[str])
             "dissenting_specialists": [b["specialist_key"] for b in blocking],
         }
 
+    # Specialists with a blank recommended_action have abstained -- whether
+    # because they genuinely have no relevant data (an insufficient-data
+    # fallback) or because they are a read-only reference specialist that
+    # never proposes an action (e.g. Phoenix). Either way, an abstention is
+    # not a vote for "no action" and must never be pooled with other
+    # abstentions into a false shared position -- doing so previously let
+    # cases where nobody proposed anything actionable read as UNANIMOUS.
+    voting = [a for a in assessments if a["recommended_action"].strip()]
+    if not voting:
+        return {
+            "status": CONSENSUS_INSUFFICIENT_EVIDENCE,
+            "reason": "No specialist proposed a concrete recommended action.",
+            "majority_position": "",
+            "dissenting_specialists": [],
+        }
+
     positions: dict[str, list[str]] = defaultdict(list)
-    for a in assessments:
+    for a in voting:
         positions[_normalize_action(a["recommended_action"])].append(a["specialist_key"])
 
     if len(positions) == 1:
@@ -70,8 +86,8 @@ def classify_consensus(assessments: list[dict], required_specialists: list[str])
         }
 
     majority_position, majority_members = max(positions.items(), key=lambda kv: len(kv[1]))
-    majority_pct = len(majority_members) / len(assessments)
-    dissenters = [a for a in assessments if a["specialist_key"] not in majority_members]
+    majority_pct = len(majority_members) / len(voting)
+    dissenters = [a for a in voting if a["specialist_key"] not in majority_members]
 
     safety_dissenters = [
         d for d in dissenters if d["specialist_key"] in SAFETY_VETO_SPECIALISTS and d["urgency"] == "urgent"

@@ -13,6 +13,7 @@ fastapi==0.136.3
 uvicorn
 
 sqlalchemy
+alembic
 
 python-multipart==0.0.32
 
@@ -27,7 +28,7 @@ rq
 apscheduler
 boto3
 
-Pillow==12.2.0
+Pillow==12.3.0
 # Identifier decode (barcode/QR/UDI). The Python wrapper installs cleanly; real
 # decoding additionally needs the ZBar native lib (Debian/Ubuntu: `libzbar0`).
 # Decoding degrades gracefully to "declared identifiers" if ZBar is absent, so

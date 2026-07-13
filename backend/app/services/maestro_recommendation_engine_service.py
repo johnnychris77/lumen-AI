@@ -42,6 +42,7 @@ from app.models.maestro_orchestration import (
     TIMELINE_QUARTER,
     TIMELINE_THIS_WEEK,
     TIMELINE_TODAY,
+    MaestroPriorityItem,
     MaestroRecommendation,
 )
 from app.models.veritas_evidence import VeritasEvidenceConflict
@@ -193,11 +194,17 @@ def _publish_baseline_recommendation(db: Session, tenant_id: str) -> MaestroReco
     )
 
 
-def generate_recommendations(db: Session, tenant_id: str) -> list[MaestroRecommendation]:
-    """Section 3: runs the Priority Engine, then converts each real
-    priority item (plus any pending Veritas baseline conflict) into one
-    specific, evidence-linked leadership recommendation."""
-    priority_items = maestro_priority_engine_service.compute_priorities(db, tenant_id)
+def generate_recommendations(
+    db: Session, tenant_id: str, priority_items: list[MaestroPriorityItem] | None = None,
+) -> list[MaestroRecommendation]:
+    """Section 3: converts each real priority item (plus any pending
+    Veritas baseline conflict) into one specific, evidence-linked
+    leadership recommendation. Runs the Priority Engine itself only if
+    `priority_items` isn't already supplied by the caller -- callers that
+    already have a fresh batch (e.g. `run_daily_orchestration`) must pass
+    it in rather than triggering a second, duplicate Priority Engine run."""
+    if priority_items is None:
+        priority_items = maestro_priority_engine_service.compute_priorities(db, tenant_id)
 
     recommendations: list[MaestroRecommendation] = []
     for item in priority_items:

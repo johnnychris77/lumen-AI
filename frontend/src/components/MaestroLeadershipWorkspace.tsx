@@ -29,8 +29,172 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function JsonView({ data }: { data: unknown }) {
-  return <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-slate-600">{JSON.stringify(data, null, 2)}</pre>;
+function ScoreRow({ label, value }: { label: string; value: unknown }) {
+  const num = typeof value === "number" ? value : null;
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-slate-500">{label}</span>
+      <span className={num === null ? "text-slate-300" : "font-medium text-slate-700"}>{num === null ? "no data" : num}</span>
+    </div>
+  );
+}
+
+function HealthView({ data }: { data: Json | null | undefined }) {
+  if (!data) return <p className="text-xs text-slate-400">No operational health snapshot yet.</p>;
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="text-2xl font-bold text-slate-800">{(data.overall_score as number) ?? "—"}</span>
+        <span className="text-xs text-slate-400">overall operational health</span>
+      </div>
+      <div className="space-y-1">
+        <ScoreRow label="Quality" value={data.quality_score} />
+        <ScoreRow label="Workflow" value={data.workflow_score} />
+        <ScoreRow label="Education" value={data.education_score} />
+        <ScoreRow label="Equipment" value={data.equipment_score} />
+        <ScoreRow label="Digital twins" value={data.digital_twin_score} />
+        <ScoreRow label="Knowledge" value={data.knowledge_score} />
+        <ScoreRow label="Enterprise" value={data.enterprise_score} />
+      </div>
+    </div>
+  );
+}
+
+function RiskHeatRow({ item }: { item: Json }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-slate-600">{item.key as string}</span>
+      <span className="text-slate-400">avg {item.average_risk_score as number} · n={item.count as number}</span>
+    </div>
+  );
+}
+
+function OpenRisksView({ data }: { data: Json | null | undefined }) {
+  if (!data) return <p className="text-xs text-slate-400">No risk data yet.</p>;
+  const enterprise = (data.enterprise_risk as Json) || {};
+  const facilities = (data.top_facility_risk as Json[]) || [];
+  const anatomy = (data.top_anatomy_risk as Json[]) || [];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline gap-2">
+        <span className="text-lg font-semibold text-slate-800">{(enterprise.average_risk_score as number) ?? "—"}</span>
+        <span className="text-xs text-slate-400">avg enterprise risk score · {(enterprise.high_or_critical_pct as number) ?? "—"}% high/critical</span>
+      </div>
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Top facility risk</p>
+        {facilities.length ? facilities.map((f, i) => <RiskHeatRow key={i} item={f} />) : <p className="text-xs text-slate-300">No facility data.</p>}
+      </div>
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Top anatomy risk</p>
+        {anatomy.length ? anatomy.map((a, i) => <RiskHeatRow key={i} item={a} />) : <p className="text-xs text-slate-300">No anatomy data.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ShiftReadinessView({ data }: { data: Json | null | undefined }) {
+  if (!data) return <p className="text-xs text-slate-400">No shift readiness data yet.</p>;
+  const trends = (data.escalating_trends as Json[]) || [];
+  return (
+    <div className="space-y-2">
+      <ScoreRow label="Pending reviews" value={data.pending_reviews} />
+      <ScoreRow label="Open patient safety alerts" value={data.open_patient_safety_alerts} />
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Escalating trends</p>
+        {trends.length ? (
+          <ul className="space-y-1">
+            {trends.map((t, i) => (
+              <li key={i} className="text-xs text-slate-600">{t.instrument_identity as string} — {t.declining_count as number} declining assessment(s)</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-300">No escalating trends.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EnterpriseStatusView({ data }: { data: Json | null | undefined }) {
+  if (!data) return <p className="text-xs text-slate-400">No enterprise status yet.</p>;
+  return (
+    <div className="space-y-1">
+      <ScoreRow label="Overall operational health" value={data.overall_operational_health} />
+      <ScoreRow label="Average risk score" value={data.average_risk_score} />
+      <ScoreRow label="High/critical risk %" value={data.high_or_critical_risk_pct} />
+    </div>
+  );
+}
+
+function TimelineView({ horizons }: { horizons: Json | null | undefined }) {
+  if (!horizons) return <p className="text-xs text-slate-400">No timeline data yet.</p>;
+  const entries = Object.entries(horizons);
+  return (
+    <div className="space-y-4">
+      {entries.map(([horizon, items]) => (
+        <div key={horizon}>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{horizon.replace(/_/g, " ")}</p>
+          <RecommendationList items={(items as Json[]) || []} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function JournalView({ items }: { items: Json[] }) {
+  if (!items.length) return <p className="text-xs text-slate-400">No decision journal entries yet.</p>;
+  return (
+    <ol className="space-y-2">
+      {items.map((entry) => (
+        <li key={entry.id as number} className="rounded border border-slate-100 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-800">Recommendation #{entry.recommendation_id as number}</span>
+            <span className="text-xs text-slate-400">{entry.decided_by as string} ({entry.decided_role as string})</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-600">{entry.leader_decision as string}</p>
+          {(entry.outcome as string) ? <p className="mt-1 text-xs text-slate-500">Outcome: {entry.outcome as string}</p> : null}
+          {(entry.lessons_learned as string) ? <p className="mt-1 text-xs text-slate-400">Lessons: {entry.lessons_learned as string}</p> : null}
+          <p className="mt-1 text-xs text-slate-400">confidence: {entry.confidence as string} · specialists: {((entry.specialists_consulted as string[]) || []).join(", ") || "none"}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function BriefContentView({ content }: { content: Json | null | undefined }) {
+  if (!content) return null;
+  const priorities = (content.top_priorities as Json[]) || [];
+  const pending = (content.pending_recommendations as Json[]) || [];
+  const alerts = (content.open_patient_safety_alerts as Json[]) || [];
+  const health = content.operational_health as Json | undefined;
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Top priorities</p>
+        <PriorityList items={priorities} />
+      </div>
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Pending recommendations</p>
+        <RecommendationList items={pending} />
+      </div>
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Operational health</p>
+        <HealthView data={health} />
+      </div>
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Open patient safety alerts ({alerts.length})</p>
+        {alerts.length ? (
+          <ul className="space-y-1">
+            {alerts.map((a) => (
+              <li key={a.id as number} className="text-xs text-slate-600">{a.alert_type as string} — {a.instrument_identity as string} ({a.severity as string})</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-300">No open alerts.</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PriorityList({ items }: { items: Json[] }) {
@@ -140,10 +304,10 @@ export default function MaestroLeadershipWorkspace() {
             <PriorityList items={(workspace.top_priorities as Json[]) || []} />
           </Section>
           <Section title="Operational Health">
-            <JsonView data={workspace.operational_health} />
+            <HealthView data={workspace.operational_health as Json} />
           </Section>
           <Section title="Open Risks">
-            <JsonView data={workspace.open_risks} />
+            <OpenRisksView data={workspace.open_risks as Json} />
           </Section>
           <Section title="Today's Recommendations">
             <RecommendationList items={(workspace.todays_recommendations as Json[]) || []} />
@@ -152,10 +316,10 @@ export default function MaestroLeadershipWorkspace() {
             <RecommendationList items={(workspace.pending_executive_decisions as Json[]) || []} />
           </Section>
           <Section title="Shift Readiness">
-            <JsonView data={workspace.shift_readiness} />
+            <ShiftReadinessView data={workspace.shift_readiness as Json} />
           </Section>
           <Section title="Enterprise Status">
-            <JsonView data={workspace.enterprise_status} />
+            <EnterpriseStatusView data={workspace.enterprise_status as Json} />
           </Section>
         </div>
       )}
@@ -174,13 +338,13 @@ export default function MaestroLeadershipWorkspace() {
 
       {activeTab === "Strategy Timeline" && timeline && (
         <Section title="Strategy Timeline (by horizon)">
-          <JsonView data={timeline.horizons} />
+          <TimelineView horizons={timeline.horizons as Json} />
         </Section>
       )}
 
       {activeTab === "Decision Journal" && (
         <Section title="Decision Journal">
-          <JsonView data={journal} />
+          <JournalView items={journal} />
         </Section>
       )}
 
@@ -203,7 +367,7 @@ export default function MaestroLeadershipWorkspace() {
           {brief ? (
             <div>
               <p className="mb-2 text-sm text-slate-700">{brief.narrative as string}</p>
-              <JsonView data={brief.content} />
+              <BriefContentView content={brief.content as Json} />
             </div>
           ) : (
             <p className="text-xs text-slate-400">No brief generated yet.</p>

@@ -88,6 +88,7 @@ def to_dict(row: MaestroDailyBrief) -> dict:
         "brief_type": row.brief_type,
         "content": json.loads(row.content_json or "{}"),
         "narrative": row.narrative,
+        "human_review_required": row.human_review_required,
     }
 
 

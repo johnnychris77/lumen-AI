@@ -199,6 +199,7 @@ class MaestroDailyBrief(Base):
     brief_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     content_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     narrative: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    human_review_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
 class MaestroOperationalHealthSnapshot(Base):

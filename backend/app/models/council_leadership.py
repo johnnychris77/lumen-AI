@@ -88,6 +88,17 @@ SPECIALIST_PHOENIX = "phoenix"
 SPECIALIST_MAESTRO = "maestro"
 SPECIALIST_RESEARCH_AGENT = "research_agent"
 
+# Every specialist key Council knows how to run an independent assessment
+# for (see `council_specialist_assessment_service._ASSESSORS`). Team
+# configuration must only ever reference keys from this set -- an unknown
+# key would silently never submit an assessment, permanently forcing
+# CONSENSUS_INSUFFICIENT_EVIDENCE for every case that team ever convenes.
+KNOWN_SPECIALISTS = {
+    SPECIALIST_VERITAS, SPECIALIST_AEGIS, SPECIALIST_VULCAN, SPECIALIST_SAGE, SPECIALIST_SENTINELX,
+    SPECIALIST_APOLLO, SPECIALIST_ATHENA, SPECIALIST_PULSE, SPECIALIST_PHOENIX, SPECIALIST_MAESTRO,
+    SPECIALIST_RESEARCH_AGENT,
+}
+
 # Specialists whose unresolved dissent can never be majority-overridden
 # (Section 5, 16) -- the safety- and evidence-integrity specialists.
 SAFETY_VETO_SPECIALISTS = {SPECIALIST_SENTINELX, SPECIALIST_VERITAS}

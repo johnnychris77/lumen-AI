@@ -30,6 +30,7 @@ def supervisor_brief(db: Session, tenant_id: str, council_case_id: int) -> dict:
         "specialist_recommendation": case.recommended_action,
         "dissent": dissent,
         "required_next_action": case.recommended_action or "Await additional evidence before proceeding.",
+        "human_review_required": True,
     }
 
 
@@ -43,6 +44,7 @@ def manager_brief(db: Session, tenant_id: str, council_case_id: int) -> dict:
         "staffing_workflow_considerations": next((a["conclusion"] for a in assessments if a["specialist_key"] == "pulse"), ""),
         "quality_implications": next((a["conclusion"] for a in assessments if a["specialist_key"] == "apollo"), ""),
         "recommended_owner": case.required_human_approver,
+        "human_review_required": True,
     }
 
 
@@ -57,4 +59,5 @@ def executive_brief(db: Session, tenant_id: str, council_case_id: int) -> dict:
         "trend": next((a["conclusion"] for a in assessments if a["specialist_key"] == "aegis"), ""),
         "resource_impact": next((a["conclusion"] for a in assessments if a["specialist_key"] == "pulse"), ""),
         "recommended_strategic_action": case.recommended_action,
+        "human_review_required": True,
     }
