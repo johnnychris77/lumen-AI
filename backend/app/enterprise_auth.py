@@ -183,45 +183,96 @@ def _require_oidc_auth_context(
     issuer = get_oidc_issuer()
     audience = get_oidc_audience()
 
+    token = _extract_bearer_token(request)
+    oidc_error: HTTPException | None = None
+
+    if issuer and audience:
+        try:
+            claims = validate_jwt_signature_with_jwks(token)
+            validated_claims = validate_jwt_claims(
+                claims,
+                expected_issuer=issuer,
+                expected_audience=audience,
+            )
+            payload = map_claims_to_auth_context_payload(validated_claims)
+
+            if db is not None:
+                require_enabled_tenant_membership(
+                    db,
+                    tenant_id=payload["tenant_id"],
+                    user_email=payload["actor"],
+                )
+
+            return build_oidc_auth_context(
+                actor=payload["actor"],
+                role=payload["role"],
+                tenant_id=payload["tenant_id"],
+                tenant_name=payload["tenant_name"],
+                subject=payload["subject"],
+                issuer=payload["issuer"],
+                raw_claims=payload["raw_claims"],
+            )
+        except (JWKSSignatureValidationError, JWTValidationError) as exc:
+            # Not a token issued by the configured OIDC provider -- remember
+            # the specific reason and check whether it's instead a real
+            # per-user JWT issued by /auth/login, below. If that check also
+            # fails, this original OIDC error is what gets raised, so a
+            # genuinely malformed/malicious OIDC token still gets a precise
+            # rejection reason rather than a generic one.
+            oidc_error = HTTPException(status_code=401, detail=str(exc))
+
+    # A real per-user JWT issued by /auth/login. Without this fallback, a
+    # deployment running AUTH_MODE=oidc rejects every logged-in user's own
+    # token the instant a request reaches a route that resolves auth via
+    # get_auth_context (e.g. the Atlas enterprise audit routes) -- even
+    # though /auth/login just issued that exact token and every other route
+    # (app/deps.py's get_current_user) accepts it fine. That mismatch is what
+    # silently signs a user back out moments after a successful login: the
+    # dashboard's other widgets succeed, one of these routes 401s, and the
+    # frontend's global 401 handler tears down an otherwise-valid session.
+    # This still requires a signature verified against the app's own signing
+    # secret (see app.deps._decode_jwt) -- it does not weaken OIDC's own
+    # verification, it only recognizes a second, already-real credential the
+    # same way _require_dev_auth_context already does for AUTH_MODE=dev.
+    from app.deps import _decode_jwt
+
+    fallback_payload = _decode_jwt(token)
+    if fallback_payload and fallback_payload.get("sub"):
+        username = str(fallback_payload["sub"])
+        role = "viewer"
+        try:
+            from app.routers.auth_simple import _user_role
+
+            role = _user_role(username) or "viewer"
+        except Exception:
+            pass
+
+        tenant_id = get_request_tenant_id(request)
+
+        if db is not None:
+            require_enabled_tenant_membership(
+                db,
+                tenant_id=tenant_id,
+                user_email=username,
+            )
+
+        return build_dev_auth_context(
+            actor=username,
+            role=role,
+            tenant_id=tenant_id,
+            tenant_name=get_request_tenant_name(request),
+        )
+
+    if oidc_error is not None:
+        raise oidc_error
+
     if not issuer or not audience:
         raise HTTPException(
             status_code=500,
             detail="OIDC authentication mode requires OIDC_ISSUER_URL and OIDC_AUDIENCE.",
         )
 
-    token = _extract_bearer_token(request)
-
-    try:
-        claims = validate_jwt_signature_with_jwks(token)
-    except JWKSSignatureValidationError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    try:
-        validated_claims = validate_jwt_claims(
-            claims,
-            expected_issuer=issuer,
-            expected_audience=audience,
-        )
-        payload = map_claims_to_auth_context_payload(validated_claims)
-    except JWTValidationError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    if db is not None:
-        require_enabled_tenant_membership(
-            db,
-            tenant_id=payload["tenant_id"],
-            user_email=payload["actor"],
-        )
-
-    return build_oidc_auth_context(
-        actor=payload["actor"],
-        role=payload["role"],
-        tenant_id=payload["tenant_id"],
-        tenant_name=payload["tenant_name"],
-        subject=payload["subject"],
-        issuer=payload["issuer"],
-        raw_claims=payload["raw_claims"],
-    )
+    raise HTTPException(status_code=401, detail="Invalid or unrecognized authentication token.")
 
 
 def get_auth_context(

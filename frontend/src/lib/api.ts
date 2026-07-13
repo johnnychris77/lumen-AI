@@ -83,6 +83,13 @@ export interface ApiFetchOptions extends Omit<RequestInit, "body"> {
   auth?: boolean;
   /** Return the raw Response instead of parsed JSON (downloads, streaming). */
   raw?: boolean;
+  /**
+   * Set false for best-effort/background calls (widget KPIs, notifications)
+   * whose own 401 shouldn't sign out a session other concurrent calls just
+   * proved valid -- e.g. an endpoint gated by a different auth path than the
+   * one that issued the token. Default true.
+   */
+  signOutOn401?: boolean;
 }
 
 function isPlainJsonBody(body: unknown): boolean {
@@ -120,7 +127,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T | Response> {
-  const { body, auth = true, raw = false, headers, ...rest } = options;
+  const { body, auth = true, raw = false, signOutOn401 = true, headers, ...rest } = options;
 
   const finalHeaders = new Headers(headers as HeadersInit | undefined);
 
@@ -157,7 +164,7 @@ export async function apiFetch<T = unknown>(
     body: jsonBody ? JSON.stringify(body) : (body as BodyInit | null | undefined),
   });
 
-  if (res.status === 401 && auth) {
+  if (res.status === 401 && auth && signOutOn401) {
     // Central sign-out on expired/invalid session, instead of 43 local handlers.
     try {
       onUnauthorized?.();

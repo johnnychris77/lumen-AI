@@ -34,7 +34,7 @@ export default function AiModelPerformanceCard() {
 
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch(`/api/model-performance/ai-summary`, { raw: true, headers: headers() });
+      const res = await apiFetch(`/api/model-performance/ai-summary`, { raw: true, headers: headers(), signOutOn401: false });
       if (res.status === 403) { setHidden(true); return; }
       if (!res.ok) return;
       setData(await res.json());

@@ -87,7 +87,7 @@ export function PilotDashboardCards() {
 
     KPI_CONFIGS.forEach(async (cfg, i) => {
       try {
-        const res = await apiFetch(`${cfg.endpoint}`, { raw: true, headers: hdrs });
+        const res = await apiFetch(`${cfg.endpoint}`, { raw: true, headers: hdrs, signOutOn401: false });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const count = extractCount(data, cfg.countKey);

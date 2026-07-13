@@ -305,7 +305,7 @@ export default function Dashboard() {
     Promise.all(
       MODULES.map(async (m) => {
         try {
-          const r = await apiFetch(`${m.endpoint}`, { raw: true, headers: hdrs });
+          const r = await apiFetch(`${m.endpoint}`, { raw: true, headers: hdrs, signOutOn401: false });
           return {
             ...m,
             status: r.ok ? "online" : [401, 403, 422].includes(r.status) ? "protected" : "offline",

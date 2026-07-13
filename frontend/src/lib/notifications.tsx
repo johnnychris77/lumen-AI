@@ -172,8 +172,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
     try {
       const [kpiRes, pwrRes] = await Promise.allSettled([
-        apiFetch("/api/analytics/kpi-summary", { raw: true }),
-        apiFetch("/api/analytics/powerbi", { raw: true }),
+        apiFetch("/api/analytics/kpi-summary", { raw: true, signOutOn401: false }),
+        apiFetch("/api/analytics/powerbi", { raw: true, signOutOn401: false }),
       ]);
       const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
       const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};
