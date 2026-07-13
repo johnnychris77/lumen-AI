@@ -1155,6 +1155,21 @@ function AIPredictionPanel({
           </div>
         )}
 
+        {/* The backend already flags every finding from this pathway as
+            placeholder-scored (a deterministic, SHA-256-seeded heuristic --
+            not a trained computer-vision model); surface that instead of
+            silently discarding it, so every KPI/finding below this banner is
+            read in that context rather than as verified image-based
+            detection. */}
+        {prediction.analysis?.placeholder_scoring && (
+          <div className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700 space-y-1">
+            <p className="font-semibold">ℹ Placeholder scoring model — not a trained computer-vision model.</p>
+            <p className="text-xs text-slate-600">
+              {prediction.analysis.model_label ?? "Baseline Comparison Scoring Model (pilot)"} generates every finding below from a deterministic, image-hash-seeded heuristic plus any findings you declared yourself — no pixels are analyzed by a trained model yet. Treat every category and confidence figure as illustrative, not as verified detection.
+            </p>
+          </div>
+        )}
+
         {/* Prediction grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <PredictionField label="Predicted Findings" value={

@@ -175,12 +175,20 @@ def get_benchmarks(request: Request, db: Session = Depends(get_db)):
 
     benchmarks = compute_industry_benchmarks(db)
     participant_count = db.query(NetworkParticipant).filter(NetworkParticipant.is_active == True).count()  # noqa: E712
+    any_fabricated = any(b.get("data_source") == "fabricated_demo" for b in benchmarks)
 
     return {
         "status": "success",
         "benchmarks": benchmarks,
         "network_participant_count": participant_count,
-        "note": "All values include differential privacy noise. Cohorts with N<5 suppressed.",
+        "note": (
+            "Some or all of these benchmarks are fabricated demo values (see each entry's data_source) "
+            "because no real IndustryBenchmark data has been recorded yet -- they are not derived from "
+            "network participant activity. Differential privacy noise is still applied for entries marked "
+            "'real'. Cohorts with N<5 suppressed."
+            if any_fabricated else
+            "All values include differential privacy noise. Cohorts with N<5 suppressed."
+        ),
     }
 
 

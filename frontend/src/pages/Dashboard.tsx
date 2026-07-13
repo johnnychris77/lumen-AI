@@ -410,7 +410,10 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>
-              AI-detected contamination types across all enterprise inspections.
+              Contamination types recorded across all enterprise inspections, matched by keyword from intake/finding records —
+              not live AI image detection. The deployed inspection-scoring model currently only distinguishes
+              "debris" and "corrosion" as real findings; every other category shown here reflects what technicians
+              or bulk-intake data reported, not a verified image-based detection.
               Red (!) flags are clinically significant residues requiring immediate review.
             </CardDescription>
           </CardHeader>

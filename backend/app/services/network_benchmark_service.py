@@ -75,10 +75,17 @@ def compute_industry_benchmarks(db: Session) -> list[dict[str, Any]]:
                 "mean": existing.mean,
                 "noise_added": existing.noise_added,
                 "suppressed": existing.n_facilities < MIN_FACILITIES,
+                "data_source": "real",
             })
             continue
 
-        # Seeded mock fallback
+        # Seeded mock fallback -- reached whenever no real IndustryBenchmark
+        # row exists yet for this metric (which is always, today: nothing in
+        # this codebase currently writes one). These values are generated
+        # from a deterministic RNG seed, not read from any NetworkParticipant
+        # activity -- `data_source: "fabricated_demo"` makes that explicit to
+        # every caller instead of looking identical to a real, noised
+        # cross-organization statistic.
         effective_n = max(n, MIN_FACILITIES)
         rng = _seed(f"benchmark:{metric_name}:{month_salt}")
         values = sorted([rng.uniform(0.6, 0.99) for _ in range(effective_n)])
@@ -100,6 +107,7 @@ def compute_industry_benchmarks(db: Session) -> list[dict[str, Any]]:
             "mean": mean_val,
             "noise_added": True,
             "suppressed": False,
+            "data_source": "fabricated_demo",
         })
 
     return results
@@ -112,6 +120,10 @@ def get_tenant_percentile(db: Session, tenant_id: str, metric_name: str) -> dict
     if not bm or bm.get("suppressed"):
         return {"metric_name": metric_name, "percentile": None, "suppressed": True}
 
+    # No per-tenant metric is ever read here -- this value is generated from
+    # a deterministic RNG seed, the same as compute_industry_benchmarks()'s
+    # fallback above. Always mark it fabricated rather than letting it read
+    # as this tenant's real computed standing.
     rng = _seed(f"percentile:{tenant_id}:{metric_name}")
     tenant_value = round(rng.uniform(0.70, 0.98), 4)
 
@@ -137,4 +149,5 @@ def get_tenant_percentile(db: Session, tenant_id: str, metric_name: str) -> dict
         "percentile_band": percentile_band,
         "network_p50": p50,
         "suppressed": False,
+        "data_source": "fabricated_demo",
     }
