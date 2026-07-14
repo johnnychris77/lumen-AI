@@ -617,6 +617,10 @@ from app.models import shadow_validation as _shadow_validation_models  # noqa: F
 from app.routes.shadow_validation import router as shadow_validation_router
 app.include_router(shadow_validation_router, prefix=settings.API_PREFIX)
 
+from app.models import advisory_pilot as _advisory_pilot_models  # noqa: F401
+from app.routes.advisory_pilot import router as advisory_pilot_router
+app.include_router(advisory_pilot_router, prefix=settings.API_PREFIX)
+
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
 app.include_router(stream_router, prefix=settings.API_PREFIX)

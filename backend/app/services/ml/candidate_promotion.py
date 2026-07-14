@@ -30,6 +30,10 @@ from sqlalchemy.orm import Session
 from app.models.dataset_governance import DatasetRegistryEntry, DatasetVersion
 from app.models.model_registry import ModelRegistryEntry
 from app.models.shadow_prediction import ShadowPrediction
+from app.models.supervisor_review import SupervisorReview
+from app.services.advisory_safety_service import safety_objectives_achieved
+from app.services.advisory_workflow_impact_service import adoption_rate
+from app.services.ml.pilot_validation import go_no_go as advisory_go_no_go
 from app.services.ml.shadow_clinical_review_board import board_approved
 from app.services.ml.shadow_validation_metrics import shadow_go_no_go
 from app.services.sentinel_ai_health_service import _detect_drift
@@ -57,6 +61,22 @@ VALIDATED_CANDIDATE_CHECKLIST_ITEMS = [
 ]
 
 _STAGES_REQUIRING_SHADOW_EVIDENCE = {"Validated Candidate", "Pilot", "Production"}
+
+# Advisor (Phase 7) §13 — additional items required only to advance to
+# Production, on top of (never instead of) the base 8 + Shadow's 4.
+# governance_approval and clinical_review_board_approved are already
+# covered by the cumulative checklists above (CHECKLIST_ITEMS's
+# governance_review_completed, and Shadow's clinical_review_board_approved
+# respectively) — this adds only what those don't already check.
+PRODUCTION_CHECKLIST_ITEMS = [
+    "safety_objectives_achieved",
+    "performance_thresholds_met",
+    "user_adoption_targets_met",
+    "customer_approval",
+]
+
+_STAGES_REQUIRING_PILOT_EVIDENCE = {"Production"}
+_MIN_ADOPTION_RATE = 0.6
 
 
 def _dataset_frozen(db: Session, model: ModelRegistryEntry) -> bool:
@@ -118,6 +138,27 @@ def evaluate_validated_candidate_checklist(db: Session, model: ModelRegistryEntr
     }
 
 
+def evaluate_production_checklist(db: Session, model: ModelRegistryEntry) -> dict[str, bool]:
+    """Advisor §13 — the 4 additional items required to advance from Pilot
+    to Production. ``performance_thresholds_met`` reuses
+    ``pilot_validation.go_no_go()`` over real ``SupervisorReview`` rows
+    (the Advisory-pilot's real, visible-recommendation evidence) —
+    distinct from Shadow's ``shadow_go_no_go()`` over silent shadow
+    predictions, since by the Pilot stage the model's recommendations are
+    actually visible and generating real supervisor reviews."""
+    reviews = db.query(SupervisorReview).filter(SupervisorReview.tenant_id == model.tenant_id).all()
+    gng = advisory_go_no_go(reviews)
+    adoption = adoption_rate(db, model.tenant_id, model_id=model.model_id)
+    return {
+        "safety_objectives_achieved": safety_objectives_achieved(db, model.tenant_id),
+        "performance_thresholds_met": gng["decision"] == "GO",
+        "user_adoption_targets_met": (
+            adoption["adoption_rate"] is not None and adoption["adoption_rate"] >= _MIN_ADOPTION_RATE
+        ),
+        "customer_approval": model.customer_approved,
+    }
+
+
 def evaluate_candidate_promotion(
     db: Session, *, model: ModelRegistryEntry, target_stage: str, approver: str | None = None,
 ) -> dict[str, Any]:
@@ -147,6 +188,8 @@ def evaluate_candidate_promotion(
     checklist = evaluate_candidate_checklist(db, model)
     if target_stage in _STAGES_REQUIRING_SHADOW_EVIDENCE:
         checklist.update(evaluate_validated_candidate_checklist(db, model))
+    if target_stage in _STAGES_REQUIRING_PILOT_EVIDENCE:
+        checklist.update(evaluate_production_checklist(db, model))
     unmet = [item for item, ok in checklist.items() if not ok]
     if not approver:
         unmet.append("approver_required")

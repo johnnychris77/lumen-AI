@@ -126,3 +126,11 @@ class ClinicalReviewBoardSession(Base):
     approved: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     decided_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Advisor (Phase 7) §11 — the pilot continuation decision, distinct
+    # from `approved` (which gates the Validated Candidate promotion
+    # checklist). A single review session can carry both: e.g. approved
+    # for promotion purposes while the board also decides whether the
+    # pilot itself should continue/expand/pause/terminate.
+    # continue | expand | pause | terminate | "" (not yet decided)
+    pilot_decision: Mapped[str] = mapped_column(String(20), default="", nullable=False)

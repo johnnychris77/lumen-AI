@@ -90,3 +90,11 @@ class ModelRegistryEntry(Base):
     calibration_report: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     error_analysis_report: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     artifact_path: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+
+    # Advisor (Phase 7 — Supervised Advisory Pilot & Human-AI Collaboration)
+    # §13 — the customer-approval evidence item for the Pilot -> Production
+    # gate, distinct from governance_review_completed (internal governance)
+    # and clinical_review_board_approved (clinical sign-off). Never
+    # defaulted true.
+    customer_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    customer_approved_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)

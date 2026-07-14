@@ -40,6 +40,21 @@ class PilotStatus(Base):
     quality_lead: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     validation_coordinator: Mapped[str] = mapped_column(String(255), nullable=False, default="")
 
+    # Advisor (Phase 7 — Supervised Advisory Pilot & Human-AI Collaboration)
+    # §2 — the remaining pilot-governance roles/fields §2 requires that
+    # weren't already covered by Shadow's additions above. success_criteria
+    # is a distinct, structured narrative field — not a substitute for the
+    # pre-existing agreed_kpis JSON (which is purely numeric target/actual
+    # tracking). pilot_duration_days is the planned/target duration,
+    # editable independently of the actual pilot_start_date/pilot_end_date
+    # (e.g. when a pilot is extended, the dates change but the originally
+    # agreed duration is worth keeping for reference).
+    pilot_sponsor: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    product_owner: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    engineering_lead: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    success_criteria: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    pilot_duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     def get_agreed_kpis(self) -> dict:
         try:
             return json.loads(self.agreed_kpis)
