@@ -165,6 +165,9 @@ from app.models.oracle_discovery import (  # noqa: F401
     OracleDigitalTwinInsight, OracleHypothesis, OracleKnowledgeSuggestion, OracleModelObservation,
     OracleStageTransition, OracleTrendObservation,
 )
+from app.models.lumen_decision_engine import (  # noqa: F401
+    BaselineDecisionPolicy, LumenDecisionRecord, UnknownFindingReview,
+)
 
 
 class TenantMembership(Base):

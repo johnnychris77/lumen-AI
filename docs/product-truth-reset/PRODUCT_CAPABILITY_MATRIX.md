@@ -189,6 +189,20 @@ Every entry below is checked against currently running code (not documentation, 
 
 ---
 
+## Lumen Decision Engine & Observation Doctrine
+
+|---|---|
+| **Capability** | Governed, policy-aware recommendation layer sitting on top of the existing inspection-scoring pipeline: probability-based observation taxonomy, org-configurable Baseline Decision Policy with a resolution hierarchy, an unconditional contamination-safety override, exception-based supervisor escalation, an unknown-finding learning loop, and a persisted, immutable Result Contract |
+| **Owner** | Backend: `app/services/lumen_decision_engine.py`, `app/services/observation_taxonomy.py`, `app/services/policy_resolution_service.py`, `app/services/baseline_decision_policy_service.py`, `app/services/policy_simulation_service.py`, `app/services/unknown_finding_service.py`, `app/models/lumen_decision_engine.py`, `app/routes/lumen_decision_engine.py`; Frontend: `frontend/src/components/DecisionEnginePanel.tsx` |
+| **Status** | **Pilot** |
+| **Implementation evidence** | (1) Wired into the real inspection-submission path — `POST /api/inspections` calls `build_decision()` immediately after `analyze_inspection()` and returns `response["decision"]`. (2) Persisted — `LumenDecisionRecord` rows, immutable original-observation fields, separate `technician_*`/`supervisor_*` follow-through columns. (3) Policy governance is real and role-gated — `admin`/`spd_manager` only, draft→pending_approval→approved→active lifecycle, verified 403 for `operator`/`viewer`. (4) Policy resolution hierarchy is real — model → instrument_family → anatomy_zone → department → facility → health_system → LumenAI default, cross-tenant isolated. (5) Contamination safety override is unconditional in code, not policy data — verified against a policy with a 0.01 pass threshold. (6) Unknown-finding loop opens a real `UnknownFindingReview` row and forces supervisor review. (7) Policy simulation is read-only — verified record count unchanged before/after. (8) Audit — every decision and every human follow-through writes a `record_enterprise_audit_event` row. (9) Automated tests — `backend/tests/test_lumen_decision_engine.py` (19 tests covering all of Section 18's 22 checklist items, several items covered by more than one test). |
+| **Tests** | `backend/tests/test_lumen_decision_engine.py` |
+| **Production availability** | Live on the same inspection-submission path every real inspection already runs |
+| **Known limitations** | "Condition remains after recleaning" is not yet an automated re-check hook (see `docs/decision-engine/SUPERVISOR_ESCALATION_MODEL.md`); Digital Twin trend is honestly reported as `not_available` rather than wired to a real trend computation; the frontend 4-panel view is additive alongside the pre-existing `ClinicalDecisionPanel`, not a replacement of it |
+| **Next validation requirement** | A human reviewer walks a real inspection through both the new `DecisionEnginePanel` and the policy-publish workflow end-to-end before this is considered pilot-ready UI, not just backend-verified |
+
+---
+
 ## Findings Register — carried forward, not yet fixed
 
 These are real findings from this pass's evidence-gathering that don't yet have a corresponding fix, listed here for traceability per the Definition of Done ("a reviewer can identify... its actual maturity status" even where the status is "known gap, not yet addressed"):

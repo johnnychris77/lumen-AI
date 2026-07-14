@@ -126,6 +126,7 @@ def _force_import_models():
         "app.models.oracle_discovery",
         "app.models.shadow_validation",
         "app.models.advisory_pilot",
+        "app.models.lumen_decision_engine",
         # The following were audited and added because they were previously
         # missing from this list entirely -- they only worked by accident,
         # via incidental import ordering elsewhere in the test session (see

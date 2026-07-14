@@ -80,6 +80,25 @@ here is new; it is gathered into one place per Section 11's requirement.
   exists.**
 - **No on-call rotation exists.**
 
+## Lumen Decision Engine & Observation Doctrine limitations
+
+- **"Condition remains after recleaning" is not yet an automated
+  re-check.** The Decision Engine records an `escalation_condition`
+  string describing when supervisor review would be required, but there
+  is no automated hook today that re-evaluates a specific inspection
+  because a prior recleaning of the same physical instrument didn't
+  resolve a finding.
+- **Digital Twin trend is honestly reported as `not_available`** in the
+  Result Contract's assessment layer — no real trend computation is wired
+  in yet; this is not fabricated as "stable" or any other value.
+- **The 4-panel Decision Engine frontend view is additive**, shown
+  alongside the pre-existing `ClinicalDecisionPanel`, not a replacement —
+  a human reviewer has not yet walked a real inspection through it
+  end-to-end in a browser.
+- **Policy simulation's `false_escalation_estimate` is a simple ratio**,
+  not a validated statistical estimate — reported only when historical
+  decision records exist to compute it from.
+
 ## What is NOT a limitation — verified strengths
 
 - Real bcrypt/JWT/OIDC authentication and consistently enforced RBAC.

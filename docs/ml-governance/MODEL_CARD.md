@@ -43,3 +43,18 @@ trigger, pre-existing) — but for candidate-pipeline models, the card is
 also generated **automatically** as the final step of
 `run_full_candidate_pipeline()`, satisfying Section 3's "no manual
 intervention after training begins."
+
+## Lumen Decision Engine addendum
+
+The model itself is unchanged by the Lumen Decision Engine work — see
+`docs/decision-engine/LUMEN_DECISION_ENGINE.md` for the architectural
+separation this program formalized: the vision model (this card's
+subject) only observes; baseline comparison, organizational policy
+resolution, and the recommendation are all handled by separate, later
+layers (`app/services/policy_resolution_service.py`,
+`app/services/lumen_decision_engine.py`). "Supported findings" in this
+card continues to be the single source of truth
+(`SUPPORTED_MODEL_CATEGORIES`) for which observation-taxonomy categories
+the Decision Engine is permitted to score — an unsupported signal is
+never silently reported as a category; it opens an
+`UnknownFindingReview` instead (`docs/decision-engine/UNKNOWN_FINDING_LEARNING_LOOP.md`).

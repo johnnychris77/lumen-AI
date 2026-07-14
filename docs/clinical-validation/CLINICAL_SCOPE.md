@@ -31,3 +31,17 @@ LumenAI is designed to sit inside the inspection step of a broader SPD reprocess
 - **No FDA clearance or regulatory approval is claimed anywhere** (a non-negotiable constraint in this repository's `CLAUDE.md`, independently verified by this review — the codebase's own regulatory-tracking service explicitly refuses to fabricate FDA submission status when no real submission record exists).
 - **Root-cause categorization is deliberately human-only**, never AI-inferred (`app/models/root_cause.py`: "guessing 'why' a finding occurred without a human judgment would be a fabricated causal claim").
 - **Oracle's research hypotheses remain outside production clinical guidance** at every stage short of its final, human-gated `PRODUCTION_KNOWLEDGE` stage (tier-2-or-above authorization plus recorded gate-check notes required) — an Oracle hypothesis is never itself a clinical recommendation.
+
+## Lumen Decision Engine & Observation Doctrine (foundational update)
+
+This scope statement is now formalized as the permanent operating
+philosophy in `docs/clinical/LUMENAI_OBSERVATION_DOCTRINE.md`. In
+particular: LumenAI observes probable visual findings, compares them
+against a resolved baseline, applies the organization's own governed
+policy, and recommends a next action — it does not make a lab-confirmed
+identification or an autonomous, irreversible decision. Every observation
+is reported using the probability-based taxonomy in
+`app/services/observation_taxonomy.py` (e.g. "probable blood-like organic
+residue," never "confirmed blood"), and supervisor review is
+exception-based, not required for every inspection — see
+`docs/decision-engine/SUPERVISOR_ESCALATION_MODEL.md`.

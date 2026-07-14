@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import ClinicalDecisionPanel from "@/components/ClinicalDecisionPanel";
+import DecisionEnginePanel, { type DecisionContract } from "@/components/DecisionEnginePanel";
 import InstrumentIntelligencePanel, { InstrumentIntel } from "@/components/InstrumentIntelligencePanel";
 import GuidedCapturePanel from "@/components/GuidedCapturePanel";
 import CoverageOverridePanel from "@/components/CoverageOverridePanel";
@@ -148,6 +149,8 @@ type AIPrediction = {
   confidence: number;
   instrument_type: string;
   analysis: Analysis | null;
+  // Lumen Decision Engine — Observation Doctrine result contract.
+  decision?: DecisionContract;
   // v1.2 — Guided Capture coverage gate
   coverage_gate_status?: "ready" | "draft" | "blocked_pending_override";
   is_draft?: boolean;
@@ -1251,6 +1254,9 @@ function AIPredictionPanel({
               : prediction.baseline_status.replace(/_/g, " ")
           } />
         </div>
+
+        {/* Lumen Decision Engine — Observation Doctrine (Section 15, 4-panel view) */}
+        {prediction.decision && <DecisionEnginePanel decision={prediction.decision} />}
 
         {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
         {prediction.analysis?.clinical_decision && (

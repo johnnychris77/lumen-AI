@@ -1133,6 +1133,10 @@ from app.models import oracle_discovery as _oracle_discovery_models  # noqa: F40
 from app.routes.oracle_discovery import router as oracle_discovery_router
 app.include_router(oracle_discovery_router)
 
+from app.models import lumen_decision_engine as _lumen_decision_engine_models  # noqa: F401
+from app.routes.lumen_decision_engine import router as lumen_decision_engine_router
+app.include_router(lumen_decision_engine_router, prefix=settings.API_PREFIX)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():

@@ -693,6 +693,21 @@ async def create_inspection(
     if analysis is not None:
         # Attach the full explainable AI analysis output (placeholder scoring).
         response["analysis"] = analysis
+
+        # Lumen Decision Engine — Observation Doctrine result contract
+        # (observation / assessment / policy / recommendation), persisted
+        # once at submission time and never recomputed/overwritten later.
+        from app.services.lumen_decision_engine import build_decision
+
+        response["decision"] = build_decision(
+            db,
+            inspection_id=row.id,
+            tenant_id=tenant_id,
+            facility_name=body.facility_name or "",
+            department=body.department or "",
+            instrument_type=body.instrument_type,
+            analysis=analysis,
+        )
     response["coverage_readiness"] = readiness
 
     # v1.9 — Data Quality Guardrails: surface clear, actionable gaps
