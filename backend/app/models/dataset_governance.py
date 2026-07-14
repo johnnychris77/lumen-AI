@@ -153,6 +153,35 @@ class DatasetRegistryEntry(Base):
     # Duplicate detection support (image identity, not row identity).
     image_sha256: Mapped[str] = mapped_column(String(64), default="", nullable=False, index=True)
 
+    # LCID Sprint 1 — permanent, human-readable Dataset ID (LCID-YYYY-NNNNNNNNN).
+    # Generated once at registration by app.services.ml.lcid_service and never
+    # changed — archiving an entry does not reassign or reuse its LCID.
+    lcid: Mapped[str] = mapped_column(String(32), default="", nullable=False, unique=True, index=True)
+
+    # Digital Twin linkage (Section 9). Reuses the same barcode/UDI-based
+    # physical-instrument identity already computed by
+    # app.services.pre_sterilization_command_center_service._instrument_identity
+    # rather than inventing a second, disconnected twin concept.
+    digital_twin_id: Mapped[str] = mapped_column(String(255), default="", nullable=False, index=True)
+    # References app.models.baseline_library.BaselineLibraryEntry.id — the
+    # approved baseline this image's instrument was compared against, when
+    # known. Not a hard FK (baseline_library predates this table and lives in
+    # a separately-migrated module) but validated for orphans in
+    # dataset_validation_service.
+    baseline_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+
+class LcidSequenceCounter(Base):
+    """Per-year atomic counter backing LCID generation (Section 2). A
+    dedicated row per calendar year avoids any race between
+    count-the-table-and-add-one and a concurrent registration."""
+
+    __tablename__ = "lcid_sequence_counters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    last_sequence: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
 
 class AnnotationEvent(Base):
     """Append-only annotation lifecycle log (Section 3) — the current state

@@ -29,6 +29,8 @@ from app.models.retained_image import RetainedImage
 from app.services.ml import annotation_workflow, dataset_builder, dataset_registry, double_blind_review, image_quality
 from app.services.ml.candidate_training import DatasetInvalidError, run_full_candidate_pipeline
 from app.services.ml.training_config import TrainingConfig
+from app.services.ml import dataset_export_service, dataset_validation_service, lcid_service
+from app.services import unknown_finding_service
 
 router = APIRouter(tags=["dataset-registry"])
 
@@ -122,6 +124,8 @@ class RegisterImageIn(BaseModel):
     operator: str = Field("", max_length=255)
     usage_rights: str = Field("", max_length=100)
     phi_verification: str = Field("pending", max_length=20)
+    instrument_barcode: str = Field("", max_length=255)
+    instrument_udi: str = Field("", max_length=255)
 
 
 @router.post("/dataset-registry/images", status_code=201)
@@ -139,7 +143,8 @@ def register_image(
             anatomy_zone=body.anatomy_zone, capture_device=body.capture_device,
             image_resolution=body.image_resolution, lighting_condition=body.lighting_condition,
             facility=body.facility, operator=body.operator, usage_rights=body.usage_rights,
-            phi_verification=body.phi_verification,
+            phi_verification=body.phi_verification, instrument_barcode=body.instrument_barcode,
+            instrument_udi=body.instrument_udi,
         )
     except dataset_registry.DatasetVersionNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -183,6 +188,7 @@ def _entry_view(row: DatasetRegistryEntry) -> dict:
         "split_assignment": row.split_assignment, "usage_rights": row.usage_rights,
         "phi_verification": row.phi_verification, "training_eligibility": row.training_eligibility,
         "retention_status": row.retention_status,
+        "lcid": row.lcid, "digital_twin_id": row.digital_twin_id, "baseline_id": row.baseline_id,
     }
 
 
@@ -471,3 +477,95 @@ def run_candidate_training_endpoint(
         "error_analysis_report": json.loads(model.error_analysis_report or "{}"),
         "calibration_report": json.loads(model.calibration_report or "{}"),
     }
+
+
+# ── LCID Sprint 1 — Digital Twin linkage (Section 9) ────────────────────────
+
+@router.get("/dataset-registry/digital-twin/{digital_twin_id:path}/history")
+def digital_twin_history(
+    digital_twin_id: str, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*_READ_ROLES)),
+):
+    tenant_id = _tenant(current_user, request)
+    return lcid_service.digital_twin_history(db, tenant_id=tenant_id, digital_twin_id=digital_twin_id)
+
+
+# ── LCID Sprint 1 — Export (Section 11) ─────────────────────────────────────
+
+class ExportRequestIn(BaseModel):
+    export_format: str = Field(..., description=f"One of {dataset_export_service.EXPORT_FORMATS}")
+
+
+@router.post("/dataset-registry/versions/{version_id}/export")
+def export_version(
+    version_id: int, body: ExportRequestIn, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*_WRITE_ROLES)),
+):
+    tenant_id = _tenant(current_user, request)
+    try:
+        manifest = dataset_export_service.export_dataset(
+            db, tenant_id=tenant_id, dataset_version_id=version_id, export_format=body.export_format,
+        )
+    except dataset_export_service.UnsupportedExportFormatError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", ""), action_type="dataset_exported",
+        resource_type="dataset_version", resource_id=str(version_id),
+        details={"export_format": body.export_format, "record_count": manifest["record_count"]},
+    )
+    return manifest
+
+
+# ── LCID Sprint 1 — Validation (Section 12) ─────────────────────────────────
+
+@router.get("/dataset-registry/validation-report")
+def validation_report(
+    request: Request, dataset_version_id: int | None = None, db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*_READ_ROLES)),
+):
+    tenant_id = _tenant(current_user, request)
+    return dataset_validation_service.validate_registry(
+        db, tenant_id=tenant_id, dataset_version_id=dataset_version_id,
+    )
+
+
+# ── LCID Sprint 1 — Unknown-finding to candidate dataset (Section 8) ───────
+
+class PromoteUnknownFindingIn(BaseModel):
+    dataset_version_id: int
+    retained_image_id: int
+    image_sha256: str = Field(..., min_length=8, max_length=64)
+    facility: str = Field("", max_length=255)
+    operator: str = Field("", max_length=255)
+    manufacturer: str = Field("", max_length=100)
+    capture_device: str = Field("", max_length=100)
+    image_resolution: str = Field("", max_length=20)
+
+
+@router.post("/dataset-registry/unknown-findings/{review_id}/promote", status_code=201)
+def promote_unknown_finding(
+    review_id: int, body: PromoteUnknownFindingIn, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*_WRITE_ROLES)),
+):
+    from app.models.lumen_decision_engine import UnknownFindingReview
+
+    tenant_id = _tenant(current_user, request)
+    review = db.query(UnknownFindingReview).filter(UnknownFindingReview.id == review_id).first()
+    if not review or review.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail="Unknown-finding review not found")
+
+    try:
+        entry = unknown_finding_service.promote_to_candidate_dataset(
+            db, review, dataset_version_id=body.dataset_version_id,
+            retained_image_id=body.retained_image_id, image_sha256=body.image_sha256,
+            facility=body.facility, operator=body.operator, manufacturer=body.manufacturer,
+            capture_device=body.capture_device, image_resolution=body.image_resolution,
+        )
+    except unknown_finding_service.NotEligibleForDatasetError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except dataset_registry.DuplicateImageError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return _entry_view(entry)

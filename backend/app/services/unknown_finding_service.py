@@ -103,6 +103,7 @@ class NotEligibleForDatasetError(ValueError):
 def promote_to_candidate_dataset(
     db: Session, review: UnknownFindingReview, *, dataset_version_id: int, retained_image_id: int,
     image_sha256: str, facility: str = "", operator: str = "",
+    manufacturer: str = "", capture_device: str = "", image_resolution: str = "",
 ):
     """LCID Sprint 1 (Section 8) — the second, later half of the unknown-
     finding workflow: once a supervisor-classified, second-reviewed unknown
@@ -135,6 +136,9 @@ def promote_to_candidate_dataset(
         inspection_id=review.inspection_id,
         instrument_family=review.instrument_family,
         anatomy_zone=review.anatomy_zone,
+        manufacturer=manufacturer,
+        capture_device=capture_device,
+        image_resolution=image_resolution,
         facility=facility,
         operator=operator,
         usage_rights=review.usage_rights,

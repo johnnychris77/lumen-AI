@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.dataset_governance import DatasetRegistryEntry, DatasetVersion, UNLABELED
+from app.services.ml.lcid_service import generate_lcid, instrument_digital_twin_id, resolve_baseline_id
 
 # Required, non-empty on every registered image (Section 1's field list,
 # minus the ones populated later in the lifecycle — current_label/reviewer/
@@ -135,6 +136,10 @@ def register_image(
     usage_rights: str = "",
     phi_verification: str = "pending",
     retention_status: str = "active",
+    instrument_barcode: str = "",
+    instrument_udi: str = "",
+    digital_twin_id: str = "",
+    baseline_id: int | None = None,
 ) -> DatasetRegistryEntry:
     """Register one image into the governed dataset registry (Section 1).
 
@@ -167,7 +172,19 @@ def register_image(
     if duplicate is not None:
         raise DuplicateImageError(image_sha256, duplicate.id)
 
+    lcid = generate_lcid(db)
+    resolved_twin_id = digital_twin_id or instrument_digital_twin_id(
+        instrument_barcode=instrument_barcode, instrument_udi=instrument_udi,
+        instrument_type=instrument_family, inspection_id=inspection_id,
+    )
+    resolved_baseline_id = baseline_id if baseline_id is not None else resolve_baseline_id(
+        db, instrument_type=instrument_family, manufacturer=manufacturer,
+    )
+
     row = DatasetRegistryEntry(
+        lcid=lcid,
+        digital_twin_id=resolved_twin_id,
+        baseline_id=resolved_baseline_id,
         tenant_id=tenant_id,
         dataset_version_id=dataset_version_id,
         dataset_version_label=version.version_label,
