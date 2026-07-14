@@ -168,6 +168,9 @@ from app.models.oracle_discovery import (  # noqa: F401
 from app.models.lumen_decision_engine import (  # noqa: F401
     BaselineDecisionPolicy, LumenDecisionRecord, UnknownFindingReview,
 )
+from app.models.annotation_database import (  # noqa: F401
+    Annotation, AnnotationReview, AnnotationSequenceCounter, AnnotationVersion,
+)
 
 
 class TenantMembership(Base):

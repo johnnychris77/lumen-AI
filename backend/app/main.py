@@ -1137,6 +1137,10 @@ from app.models import lumen_decision_engine as _lumen_decision_engine_models  #
 from app.routes.lumen_decision_engine import router as lumen_decision_engine_router
 app.include_router(lumen_decision_engine_router, prefix=settings.API_PREFIX)
 
+from app.models import annotation_database as _annotation_database_models  # noqa: F401
+from app.routes.annotation_database import router as annotation_database_router
+app.include_router(annotation_database_router, prefix=settings.API_PREFIX)
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
