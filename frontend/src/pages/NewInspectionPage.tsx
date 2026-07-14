@@ -1163,7 +1163,7 @@ function AIPredictionPanel({
             detection. */}
         {prediction.analysis?.placeholder_scoring && (
           <div className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700 space-y-1">
-            <p className="font-semibold">ℹ Placeholder scoring model — not a trained computer-vision model.</p>
+            <p className="font-semibold">ℹ Experimental — Not Validated: not a trained computer-vision model.</p>
             <p className="text-xs text-slate-600">
               {prediction.analysis.model_label ?? "Baseline Comparison Scoring Model (pilot)"} generates every finding below from a deterministic, image-hash-seeded heuristic plus any findings you declared yourself — no pixels are analyzed by a trained model yet. Treat every category and confidence figure as illustrative, not as verified detection.
             </p>

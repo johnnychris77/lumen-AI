@@ -192,7 +192,7 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
       {usesMockProvider && (
         <Alert variant="warning">
           <AlertDescription>
-            <strong>Demo data:</strong> these counts come from the mock CV provider (deterministic pseudo-random findings, not real image analysis) — no onnx/vision provider is configured for this deployment. See <code>CV_PROVIDER</code> in provider settings to connect a real model.
+            <strong>Demonstration Data — Simulated:</strong> these counts come from the mock CV provider (deterministic pseudo-random findings, not real image analysis) — no onnx/vision provider is configured for this deployment. See <code>CV_PROVIDER</code> in provider settings to connect a real model.
           </AlertDescription>
         </Alert>
       )}

@@ -11,6 +11,10 @@
 
 ---
 
+> **Capability status note (added by the Product Truth Reset program):** No trained computer-vision model shipped at v1.0, and none ships today. Every "Computer Vision" / "AI image analysis" / "contamination detection" / "damage detection" / "AI confidence" reference below describes a deterministic, image-hash-seeded scoring pipeline (`baseline_comparison_scoring_service.py`, self-documented as "NOT PRODUCTION COMPUTER VISION"), not a trained model. See `docs/product-truth-reset/PRODUCT_CAPABILITY_MATRIX.md` for the current, evidence-backed maturity status of every capability this document describes.
+
+---
+
 # Vision
 
 To become the world's leading AI-powered Clinical Intelligence Platform for Sterile Processing by preventing contaminated, damaged, or clinically unsafe surgical instruments from progressing to packaging and sterilization.

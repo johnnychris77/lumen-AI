@@ -193,10 +193,10 @@ def baseline_stats(request: Request, db: Session = Depends(get_db)):
     return {
         "status": "success",
         "stats": {
-            "total": total or 342,
-            "approved": approved or 315,
-            "pending": pending or 27,
-            "data_source": "real" if total > 0 else "mock",
+            "total": total,
+            "approved": approved,
+            "pending": pending,
+            "data_source": "real" if total > 0 else "insufficient_data",
         },
     }
 

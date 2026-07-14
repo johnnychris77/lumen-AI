@@ -1,7 +1,11 @@
 # LumenAI™
 ## AI-Powered Pre-Sterilization Clinical Intelligence Platform for Sterile Processing
 
-> **LumenAI™ is an AI-powered Pre-Sterilization Clinical Intelligence Platform that combines computer vision, instrument intelligence, anatomy-aware reasoning, manufacturer baselines, and human expertise to prevent contaminated, damaged, or clinically unsafe surgical instruments from progressing to packaging and sterilization.**
+> **LumenAI™ is a Pre-Sterilization Clinical Intelligence Platform, built around a deterministic scoring pipeline designed for future computer-vision integration, plus instrument intelligence, anatomy-aware reasoning, manufacturer baselines, and human expertise, to help prevent contaminated, damaged, or clinically unsafe surgical instruments from progressing to packaging and sterilization.**
+
+---
+
+> **Capability status note:** No trained computer-vision model ships in this repository today. Every "AI finding" in the current build is produced by a deterministic, image-hash-seeded scoring pipeline (`baseline_comparison_scoring_service.py`, self-documented as "NOT PRODUCTION COMPUTER VISION"), not a trained model. See `docs/product-truth-reset/PRODUCT_CAPABILITY_MATRIX.md` for the current, evidence-backed maturity status of every capability referenced below, and treat any "Production Validated" / "Customer-Ready" / "Investor Ready" status banner elsewhere in this document as describing a demo-environment validation snapshot, not completed production customer deployments, unless the matrix says otherwise.
 
 ---
 
@@ -21,7 +25,7 @@ Unlike traditional computer vision platforms, LumenAI reasons like an experience
 
 - 🧠 Instrument Intelligence
 - 🔬 Anatomy Intelligence
-- 📷 AI Computer Vision
+- 📷 Computer Vision (planned — see capability status note above; current build uses a deterministic placeholder scorer)
 - 📚 Manufacturer & Vendor Baselines
 - 🩺 Clinical Reasoning
 - 👩‍⚕️ Supervisor Validation
@@ -109,12 +113,12 @@ Enterprise Intelligence
 
 ## Core Platform Capabilities
 
-- AI-assisted clinical inspection
+- AI-assisted clinical inspection (currently deterministic-placeholder scoring, not yet trained-model computer vision — see capability status note above)
 - Instrument registry and passport
 - Manufacturer baseline management
 - Vendor baseline management
 - Anatomy-aware inspection guidance
-- Zone-aware contamination and damage assessment
+- Zone-aware contamination and damage assessment (same placeholder-scoring caveat as above)
 - Explainable clinical recommendations
 - Supervisor review and validation
 - Knowledge Graph-powered reasoning
@@ -381,6 +385,8 @@ This project demonstrates enterprise workflow automation, healthcare operations 
 ### Vendor Intelligence and Model Performance
 
 ![LumenAI Vendor Intelligence and Model Performance](docs/assets/screenshots/lumenai-vendor-model-performance.png)
+
+*Cross-organization benchmark figures shown here are seeded-random placeholders pending real cross-organization data (see the capability status note above); `horizon_benchmark_service.py` is this platform's genuinely real, k-anonymized cross-org benchmarking engine.*
 
 
 ---

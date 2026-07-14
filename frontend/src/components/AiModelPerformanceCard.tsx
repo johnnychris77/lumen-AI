@@ -94,8 +94,8 @@ export default function AiModelPerformanceCard() {
           inferenceStatus.mode === "trained_model" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"
         }`}>
           {inferenceStatus.mode === "trained_model"
-            ? "✓ Running a trained computer-vision model."
-            : "⚠ Running the deterministic placeholder scorer — no trained computer-vision model is loaded on this deployment yet."}
+            ? "✓ Production — running a trained computer-vision model."
+            : "⚠ Experimental — Not Validated: running the deterministic placeholder scorer, no trained computer-vision model is loaded on this deployment yet."}
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

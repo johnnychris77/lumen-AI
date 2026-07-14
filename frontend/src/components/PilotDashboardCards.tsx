@@ -60,7 +60,19 @@ function extractCount(data: unknown, countKey?: string): number {
   return 0;
 }
 
-function KpiCard({ label, value }: { label: string; value: KpiValue }) {
+// /api/network/baselines and /api/network/baselines/stats both label their
+// own fallback content with a data_source field ("mock"/"insufficient_data")
+// when no real BaselineLibraryEntry rows exist yet -- surface that instead
+// of letting a demo count render identically to a real one.
+function extractDataSource(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const stats = d.stats && typeof d.stats === "object" ? (d.stats as Record<string, unknown>) : null;
+  const source = (d.data_source ?? stats?.data_source) as unknown;
+  return typeof source === "string" && source !== "real" ? source : null;
+}
+
+function KpiCard({ label, value, demoDataSource }: { label: string; value: KpiValue; demoDataSource?: string | null }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 flex flex-col gap-1 shadow-sm">
       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
@@ -71,6 +83,9 @@ function KpiCard({ label, value }: { label: string; value: KpiValue }) {
       ) : (
         <span className="text-2xl font-bold text-gray-900">{value}</span>
       )}
+      {demoDataSource && (
+        <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600">Demonstration Data</span>
+      )}
     </div>
   );
 }
@@ -80,6 +95,7 @@ function KpiCard({ label, value }: { label: string; value: KpiValue }) {
 export function PilotDashboardCards() {
   const { headers } = useAuth();
   const [kpis, setKpis] = useState<KpiValue[]>(KPI_CONFIGS.map(() => null));
+  const [demoSources, setDemoSources] = useState<(string | null)[]>(KPI_CONFIGS.map(() => null));
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +107,11 @@ export function PilotDashboardCards() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const count = extractCount(data, cfg.countKey);
-        if (!cancelled) setKpis((prev) => { const n = [...prev]; n[i] = count; return n; });
+        const demoSource = extractDataSource(data);
+        if (!cancelled) {
+          setKpis((prev) => { const n = [...prev]; n[i] = count; return n; });
+          setDemoSources((prev) => { const n = [...prev]; n[i] = demoSource; return n; });
+        }
       } catch {
         if (!cancelled) setKpis((prev) => { const n = [...prev]; n[i] = -1; return n; });
       }
@@ -130,7 +150,7 @@ export function PilotDashboardCards() {
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {KPI_CONFIGS.map((cfg, i) => (
-            <KpiCard key={cfg.label} label={cfg.label} value={kpis[i]} />
+            <KpiCard key={cfg.label} label={cfg.label} value={kpis[i]} demoDataSource={demoSources[i]} />
           ))}
         </div>
       </section>

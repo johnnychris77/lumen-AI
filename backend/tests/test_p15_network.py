@@ -70,19 +70,14 @@ class TestIndustryBenchmarks:
         assert "benchmarks" in data
         assert len(data["benchmarks"]) > 0
 
-    def test_benchmarks_has_percentiles(self):
+    def test_benchmarks_have_data_source_field(self):
         r = client.get("/api/network/benchmarks", headers=HEADERS)
         assert r.status_code == 200
         bm = r.json()["benchmarks"][0]
         assert "p25" in bm
         assert "p50" in bm
         assert "p75" in bm
-
-    def test_benchmarks_has_noise_flag(self):
-        r = client.get("/api/network/benchmarks", headers=HEADERS)
-        assert r.status_code == 200
-        bm = r.json()["benchmarks"][0]
-        assert bm["noise_added"] is True
+        assert "data_source" in bm
 
     def test_my_percentile_returns_200(self):
         r = client.get("/api/network/benchmarks/my-percentile", headers=HEADERS)
@@ -90,17 +85,21 @@ class TestIndustryBenchmarks:
         data = r.json()
         assert "percentiles" in data
 
-    def test_benchmarks_are_labeled_fabricated_when_no_real_data_exists(self):
-        """No code anywhere writes a real IndustryBenchmark row, so this
-        fallback path is what every deployment actually returns today --
-        the response must say so rather than looking identical to a real,
-        noised cross-organization statistic."""
+    def test_benchmarks_report_insufficient_data_when_none_is_real(self):
+        """No code anywhere writes a real IndustryBenchmark row, so this is
+        what every deployment actually returns today. Values must read as
+        genuinely absent (None, suppressed) rather than as a fabricated
+        number dressed up with real differential-privacy noise."""
         r = client.get("/api/network/benchmarks", headers=HEADERS)
         assert r.status_code == 200
         data = r.json()
         for bm in data["benchmarks"]:
-            assert bm["data_source"] == "fabricated_demo"
-        assert "fabricated demo" in data["note"]
+            assert bm["data_source"] == "insufficient_data"
+            assert bm["suppressed"] is True
+            assert bm["p25"] is None
+            assert bm["p50"] is None
+            assert bm["noise_added"] is False
+        assert "insufficient data" in data["note"]
 
     def test_benchmarks_labeled_real_when_a_real_row_exists(self):
         from datetime import datetime
@@ -110,28 +109,37 @@ class TestIndustryBenchmarks:
 
         db = SessionLocal()
         try:
-            db.add(IndustryBenchmark(
+            row = IndustryBenchmark(
                 benchmark_date=datetime.utcnow(), period="monthly", metric_name="contamination_rate",
                 cohort="all", n_facilities=12, p25=0.1, p50=0.2, p75=0.3, p90=0.4, mean=0.22, noise_added=True,
-            ))
+            )
+            db.add(row)
             db.commit()
+
+            r = client.get("/api/network/benchmarks", headers=HEADERS)
+            assert r.status_code == 200
+            by_metric = {b["metric_name"]: b for b in r.json()["benchmarks"]}
+            assert by_metric["contamination_rate"]["data_source"] == "real"
+            assert by_metric["contamination_rate"]["p50"] == 0.2
         finally:
+            # This is a fixed METRICS-enum row (not a uid()-randomized one --
+            # METRICS is a closed list), so it must be cleaned up here or it
+            # leaks into every other test in this class that asserts all 6
+            # metrics are "insufficient_data".
+            db.query(IndustryBenchmark).filter(IndustryBenchmark.id == row.id).delete()
+            db.commit()
             db.close()
 
-        r = client.get("/api/network/benchmarks", headers=HEADERS)
-        assert r.status_code == 200
-        by_metric = {b["metric_name"]: b for b in r.json()["benchmarks"]}
-        assert by_metric["contamination_rate"]["data_source"] == "real"
-
-    def test_my_percentile_is_labeled_fabricated(self):
-        """get_tenant_percentile() never reads a real per-tenant metric --
-        every value is a deterministic RNG draw, so it must always be
-        labeled fabricated, never presented as this tenant's real standing."""
+    def test_my_percentile_reports_insufficient_data(self):
+        """get_tenant_percentile() has no real per-tenant metric to read --
+        it must report insufficient_data rather than a fabricated
+        percentile standing."""
         r = client.get("/api/network/benchmarks/my-percentile", headers=HEADERS)
         assert r.status_code == 200
         for p in r.json()["percentiles"]:
-            if not p.get("suppressed"):
-                assert p["data_source"] == "fabricated_demo"
+            assert p["suppressed"] is True
+            assert p["data_source"] == "insufficient_data"
+            assert p["percentile"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +257,35 @@ class TestBaselineLibrary:
         assert r.status_code == 200
         data = r.json()
         assert "stats" in data
+
+    def test_baseline_stats_reports_real_counts_not_fabricated_fallback(self):
+        """baseline_stats() previously fell back to hardcoded 342/315/27 via
+        `total or 342` whenever the table was empty -- a fabricated count
+        indistinguishable from a real one. It must now report the real
+        (DB-matching) counts and label the response honestly."""
+        from app.db.session import SessionLocal
+        from app.models.baseline_library import BaselineLibraryEntry
+
+        db = SessionLocal()
+        try:
+            real_total = db.query(BaselineLibraryEntry).count()
+            real_approved = db.query(BaselineLibraryEntry).filter(
+                BaselineLibraryEntry.approval_status == "approved"
+            ).count()
+            real_pending = db.query(BaselineLibraryEntry).filter(
+                BaselineLibraryEntry.approval_status == "pending"
+            ).count()
+        finally:
+            db.close()
+
+        r = client.get("/api/network/baselines/stats", headers=HEADERS)
+        assert r.status_code == 200
+        stats = r.json()["stats"]
+        assert stats["total"] == real_total
+        assert stats["approved"] == real_approved
+        assert stats["pending"] == real_pending
+        if real_total == 0:
+            assert stats["data_source"] == "insufficient_data"
 
     def test_baseline_approve_returns_200(self):
         # Submit one first

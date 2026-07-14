@@ -726,7 +726,7 @@ function PassportImageGallery({
         Pilot Images ({images.length})
       </p>
       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
-        Demo/reference images from the pilot image library, matched by instrument identifier or type — not this specific instrument's own capture history.
+        Demonstration Data: reference images from the pilot image library, matched by instrument identifier or type — not this specific instrument's own capture history.
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {images.map((img) => (

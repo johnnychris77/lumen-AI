@@ -1,10 +1,21 @@
-"""P15: National SPD Intelligence Network — benchmark engine service."""
+"""P15: National SPD Intelligence Network — benchmark engine service.
+
+compute_industry_benchmarks() only ever returns a real, computed value for a
+metric once something has written a real IndustryBenchmark row for it --
+nothing in this codebase does that yet, so every metric today reports
+data_source="insufficient_data" rather than a fabricated number. This
+mechanism previously filled that gap with a seeded-random value dressed up
+with real Laplace noise, which made a fabricated statistic indistinguishable
+from a genuine cross-organization one. Per the Product Truth Reset program,
+a dead/fabricated mechanism must be wired fully, disabled visibly, or
+removed -- computing 6 real cross-tenant metrics correctly is new work
+outside this program's "no new features" scope, so this is disabled
+visibly instead.
+"""
 from __future__ import annotations
 
-import hashlib
 import math
 import random
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -23,19 +34,14 @@ METRICS = [
 MIN_FACILITIES = 5  # k-anonymity minimum
 
 
-def _seed(s: str) -> random.Random:
-    h = hashlib.md5(s.encode()).hexdigest()[:8]
-    return random.Random(int(h, 16))
-
-
-def _anonymize_facility_id(facility_id: str, month_salt: str) -> str:
-    """SHA-256 pseudonymization with monthly salt rotation."""
-    digest = hashlib.sha256(f"{facility_id}{month_salt}".encode()).hexdigest()
-    return digest[:12]
-
-
 def _add_laplace_noise(value: float, sensitivity: float = 0.01, epsilon: float = 0.1) -> float:
-    """Add Laplace noise for differential privacy."""
+    """Add Laplace noise for differential privacy.
+
+    Kept here (rather than moved) because horizon_benchmark_service.py --
+    the real, wired cross-org benchmarking engine -- imports this directly
+    to reuse the exact same noise mechanism on its genuinely-computed
+    per-tenant values.
+    """
     scale = sensitivity / epsilon
     rng = random.Random()
     u = rng.uniform(-0.4999, 0.4999)
@@ -49,7 +55,6 @@ def compute_industry_benchmarks(db: Session) -> list[dict[str, Any]]:
         db.query(NetworkParticipant).filter(NetworkParticipant.is_active == True).all()  # noqa: E712
     )
     n = len(participants)
-    month_salt = datetime.utcnow().strftime("%Y-%m")
 
     results = []
     for metric_name in METRICS:
@@ -79,75 +84,61 @@ def compute_industry_benchmarks(db: Session) -> list[dict[str, Any]]:
             })
             continue
 
-        # Seeded mock fallback -- reached whenever no real IndustryBenchmark
-        # row exists yet for this metric (which is always, today: nothing in
-        # this codebase currently writes one). These values are generated
-        # from a deterministic RNG seed, not read from any NetworkParticipant
-        # activity -- `data_source: "fabricated_demo"` makes that explicit to
-        # every caller instead of looking identical to a real, noised
-        # cross-organization statistic.
-        effective_n = max(n, MIN_FACILITIES)
-        rng = _seed(f"benchmark:{metric_name}:{month_salt}")
-        values = sorted([rng.uniform(0.6, 0.99) for _ in range(effective_n)])
-
-        p25 = round(_add_laplace_noise(values[int(0.25 * len(values))]), 4)
-        p50 = round(_add_laplace_noise(values[int(0.50 * len(values))]), 4)
-        p75 = round(_add_laplace_noise(values[int(0.75 * len(values))]), 4)
-        p90 = round(_add_laplace_noise(values[int(0.90 * len(values))]), 4)
-        mean_val = round(_add_laplace_noise(sum(values) / len(values)), 4)
-
+        # No real IndustryBenchmark row exists yet for this metric (true for
+        # every metric today -- nothing in this codebase writes one). This
+        # mechanism previously filled the gap with a seeded-random value
+        # dressed up with real Laplace noise, making a fabricated number
+        # indistinguishable from a genuine cross-organization statistic.
+        # Disabled visibly instead: report the real participant count and an
+        # honest "insufficient_data" status rather than fabricating values.
         results.append({
             "metric_name": metric_name,
             "cohort": "all",
-            "n_facilities": effective_n,
-            "p25": p25,
-            "p50": p50,
-            "p75": p75,
-            "p90": p90,
-            "mean": mean_val,
-            "noise_added": True,
-            "suppressed": False,
-            "data_source": "fabricated_demo",
+            "n_facilities": n,
+            "p25": None,
+            "p50": None,
+            "p75": None,
+            "p90": None,
+            "mean": None,
+            "noise_added": False,
+            "suppressed": True,
+            "data_source": "insufficient_data",
         })
 
     return results
 
 
 def get_tenant_percentile(db: Session, tenant_id: str, metric_name: str) -> dict[str, Any]:
-    """Return where this tenant falls in the distribution without revealing other tenants."""
+    """Return where this tenant falls in the distribution without revealing other tenants.
+
+    No per-tenant metric computation exists yet for any of these 6 metrics,
+    so this always reports "insufficient_data" today rather than a
+    fabricated percentile -- there is no real tenant_value to rank against
+    a (also not-yet-real) network distribution. tenant_id is accepted (and
+    will be needed once real per-tenant computation exists) but currently
+    unused, which is why it isn't referenced below.
+    """
     benchmarks = compute_industry_benchmarks(db)
     bm = next((b for b in benchmarks if b["metric_name"] == metric_name), None)
     if not bm or bm.get("suppressed"):
-        return {"metric_name": metric_name, "percentile": None, "suppressed": True}
+        return {
+            "metric_name": metric_name,
+            "percentile": None,
+            "suppressed": True,
+            "data_source": "insufficient_data",
+        }
 
-    # No per-tenant metric is ever read here -- this value is generated from
-    # a deterministic RNG seed, the same as compute_industry_benchmarks()'s
-    # fallback above. Always mark it fabricated rather than letting it read
-    # as this tenant's real computed standing.
-    rng = _seed(f"percentile:{tenant_id}:{metric_name}")
-    tenant_value = round(rng.uniform(0.70, 0.98), 4)
-
-    p25 = bm["p25"] or 0
-    p50 = bm["p50"] or 0
-    p75 = bm["p75"] or 0
-    p90 = bm["p90"] or 0
-
-    if tenant_value < p25:
-        percentile_band = "below_p25"
-    elif tenant_value < p50:
-        percentile_band = "p25_to_p50"
-    elif tenant_value < p75:
-        percentile_band = "p50_to_p75"
-    elif tenant_value < p90:
-        percentile_band = "p75_to_p90"
-    else:
-        percentile_band = "above_p90"
-
+    # Reachable only once a real, non-suppressed IndustryBenchmark row
+    # exists for this metric (nothing writes one today, so this doesn't
+    # execute against current data). No per-tenant value computation exists
+    # yet even in that case, so tenant_value/percentile_band stay honestly
+    # null rather than being filled with a fabricated number.
+    p50 = bm["p50"]
     return {
         "metric_name": metric_name,
-        "tenant_value": tenant_value,
-        "percentile_band": percentile_band,
+        "tenant_value": None,
+        "percentile_band": None,
         "network_p50": p50,
         "suppressed": False,
-        "data_source": "fabricated_demo",
+        "data_source": "insufficient_data",
     }

@@ -108,7 +108,7 @@ export default function NetworkDashboardPage() {
       {unavailable ? (
         <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
           <Building2 className="mx-auto h-8 w-8 text-slate-400 mb-3" />
-          <p className="text-sm font-semibold text-slate-700">Network view is not yet available</p>
+          <p className="text-sm font-semibold text-slate-700">Not Available in Current Model — Network view is not yet available</p>
           <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto">
             This dashboard requires a cross-tenant enterprise network-snapshot API that has not been implemented on the backend yet. No facility data is shown here until that API exists.
           </p>
