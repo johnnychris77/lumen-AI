@@ -9,6 +9,11 @@ build/
 cookies.txt
 sample.bin
 
+# ML training artifacts (backend/app/services/ml/candidate_training.py) —
+# generated model weight exports, never committed source.
+model_artifacts/
+backend/model_artifacts/
+
 
 # Python
 __pycache__/

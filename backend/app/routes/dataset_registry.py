@@ -8,6 +8,8 @@ duplicating them.
 """
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -25,6 +27,8 @@ from app.models.dataset_governance import (
 )
 from app.models.retained_image import RetainedImage
 from app.services.ml import annotation_workflow, dataset_builder, dataset_registry, double_blind_review, image_quality
+from app.services.ml.candidate_training import DatasetInvalidError, run_full_candidate_pipeline
+from app.services.ml.training_config import TrainingConfig
 
 router = APIRouter(tags=["dataset-registry"])
 
@@ -381,3 +385,89 @@ def build_training_dataset(
         resource_type="dataset_version", resource_id=str(version_id),
     )
     return result
+
+
+# ── Genesis: candidate model training (Sections 1-3) ────────────────────────
+
+class RunCandidateTrainingIn(BaseModel):
+    model_id: str = Field(..., min_length=1, max_length=100)
+    model_version: str = Field(..., min_length=1, max_length=50)
+    seed: int = Field(42)
+    epochs: int = Field(500, ge=1, le=5000)
+    learning_rate: float = Field(0.3, gt=0, le=5.0)
+
+
+def _sample_from_entry(db: Session, entry: DatasetRegistryEntry, retained: RetainedImage) -> dict:
+    quality = (
+        db.query(ImageQualityAssessment)
+        .filter(ImageQualityAssessment.dataset_entry_id == entry.id)
+        .order_by(ImageQualityAssessment.id.desc())
+        .first()
+    )
+    review = (
+        db.query(DoubleBlindReview)
+        .filter(DoubleBlindReview.dataset_entry_id == entry.id)
+        .order_by(DoubleBlindReview.id.desc())
+        .first()
+    )
+    return {
+        "id": entry.id,
+        "image_bytes": retained.image_bytes,
+        "label": entry.current_label,
+        "inspection_id": entry.inspection_id,
+        "instrument_family": entry.instrument_family,
+        "manufacturer": entry.manufacturer,
+        "facility": entry.facility,
+        "anatomy_zone": entry.anatomy_zone,
+        "image_sha256": entry.image_sha256,
+        "blur_flag": quality.blur_flag if quality else None,
+        "focus_flag": quality.focus_flag if quality else None,
+        "lighting_flag": quality.lighting_flag if quality else None,
+        "exposure_flag": quality.exposure_flag if quality else None,
+        "cropping_flag": quality.cropping_flag if quality else None,
+        "annotation_disagreement": (review.agreement is False) if review else False,
+    }
+
+
+@router.post("/dataset-registry/versions/{version_id}/run-candidate-training", status_code=201)
+def run_candidate_training_endpoint(
+    version_id: int, body: RunCandidateTrainingIn, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*_WRITE_ROLES)),
+):
+    """Genesis Section 3 — the full candidate training pipeline, triggered
+    over the real dataset registry: eligible entries -> real retained image
+    bytes -> dataset validation -> training -> evaluation -> error analysis
+    -> calibration -> artifact export -> registration -> model card. One
+    call; no manual intervention after it starts."""
+    tenant_id = _tenant(current_user, request)
+    eligible, _excluded = dataset_builder.eligible_entries(db, tenant_id=tenant_id, dataset_version_id=version_id)
+
+    samples = []
+    for entry in eligible:
+        retained = db.query(RetainedImage).filter(RetainedImage.id == entry.retained_image_id).first()
+        if retained is not None and retained.image_bytes:
+            samples.append(_sample_from_entry(db, entry, retained))
+
+    config = TrainingConfig(seed=body.seed, epochs=body.epochs, learning_rate=body.learning_rate)
+    try:
+        model = run_full_candidate_pipeline(
+            db, tenant_id=tenant_id, samples=samples, config=config,
+            model_id=body.model_id, model_version=body.model_version, dataset_version_id=version_id,
+        )
+    except DatasetInvalidError as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "report": exc.report}) from exc
+
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", ""), action_type="candidate_model_trained",
+        resource_type="model", resource_id=f"{model.model_id}:{model.model_version}",
+        details={"training_status": model.training_status, "candidate_stage": model.candidate_stage},
+    )
+    return {
+        "id": model.id, "model_id": model.model_id, "model_version": model.model_version,
+        "training_status": model.training_status, "candidate_stage": model.candidate_stage,
+        "artifact_path": model.artifact_path, "training_run_id": model.training_run_id,
+        "evaluation_metrics": json.loads(model.evaluation_metrics or "{}"),
+        "error_analysis_report": json.loads(model.error_analysis_report or "{}"),
+        "calibration_report": json.loads(model.calibration_report or "{}"),
+    }

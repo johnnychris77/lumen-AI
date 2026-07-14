@@ -67,3 +67,26 @@ class ModelRegistryEntry(Base):
     clinical_review_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     metrics_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     model_card_markdown: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    # Genesis (Production Model Training, Scientific Validation & Model
+    # Governance) — additive fields for the Candidate/Validated Candidate
+    # promotion ladder, distinct from the approval_status ladder above
+    # (experimental/pilot/validated/deprecated governs whether a model may
+    # drive a clinical recommendation; candidate_stage below governs where a
+    # model sits in the training->validation->deployment pipeline itself).
+    training_run_id: Mapped[str] = mapped_column(String(64), default="", nullable=False, index=True)
+    reviewer: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    # pending | approved | rejected
+    clinical_review_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    # not_deployed | shadow | deployed
+    deployment_status: Mapped[str] = mapped_column(String(20), default="not_deployed", nullable=False)
+    # Experimental | Candidate | Validated Candidate | Pilot | Production
+    candidate_stage: Mapped[str] = mapped_column(String(30), default="Experimental", nullable=False, index=True)
+
+    error_analysis_reviewed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reproducible_training_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    governance_review_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    calibration_report: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    error_analysis_report: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    artifact_path: Mapped[str] = mapped_column(String(500), default="", nullable=False)

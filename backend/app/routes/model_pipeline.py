@@ -20,7 +20,7 @@ from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.model_registry import ModelRegistryEntry
 from app.models.shadow_prediction import ShadowPrediction
-from app.services.ml import model_promotion, shadow_mode
+from app.services.ml import candidate_promotion, model_promotion, shadow_mode
 from app.services.ml.deployment_gates import (
     APPROVAL_STAGES, GATE_CAPABILITIES, capabilities, evaluate_promotion,
 )
@@ -424,3 +424,130 @@ def shadow_perf(
     tenant_id = _tenant(current_user, request)
     rows = db.query(ShadowPrediction).filter(ShadowPrediction.tenant_id == tenant_id).all()
     return shadow_mode.shadow_performance(rows)
+
+
+# ── Genesis: Candidate promotion ladder (Section 11) ────────────────────────
+
+def _get_model_or_404(db: Session, tenant_id: str, model_db_id: int) -> ModelRegistryEntry:
+    row = (
+        db.query(ModelRegistryEntry)
+        .filter(ModelRegistryEntry.id == model_db_id, ModelRegistryEntry.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+    return row
+
+
+@router.get("/model-pipeline/models/{model_db_id}/candidate-checklist")
+def candidate_checklist(
+    model_db_id: int, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Read-only view of the 8-item Section 11 checklist against this
+    model's current state — never changes anything."""
+    tenant_id = _tenant(current_user, request)
+    row = _get_model_or_404(db, tenant_id, model_db_id)
+    return {
+        "candidate_stage": row.candidate_stage,
+        "checklist": candidate_promotion.evaluate_candidate_checklist(db, row),
+    }
+
+
+class CandidateFlagsIn(BaseModel):
+    reviewer: str | None = Field(None, max_length=255)
+    clinical_review_status: str | None = Field(None, description="pending | approved | rejected")
+    deployment_status: str | None = Field(None, description="not_deployed | shadow | deployed")
+    error_analysis_reviewed: bool | None = None
+    reproducible_training_confirmed: bool | None = None
+    governance_review_completed: bool | None = None
+
+
+@router.patch("/model-pipeline/models/{model_db_id}/candidate-flags")
+def set_candidate_flags(
+    model_db_id: int, body: CandidateFlagsIn, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Human-recorded Section 9/11 fields — reviewer assignment, clinical
+    review status, deployment status, and the three boolean gates
+    (error analysis reviewed, reproducible training confirmed, governance
+    review completed). Never defaulted true."""
+    tenant_id = _tenant(current_user, request)
+    row = _get_model_or_404(db, tenant_id, model_db_id)
+
+    if body.reviewer is not None:
+        row.reviewer = body.reviewer
+    if body.clinical_review_status is not None:
+        row.clinical_review_status = body.clinical_review_status
+    if body.deployment_status is not None:
+        row.deployment_status = body.deployment_status
+    if body.error_analysis_reviewed is not None:
+        row.error_analysis_reviewed = body.error_analysis_reviewed
+    if body.reproducible_training_confirmed is not None:
+        row.reproducible_training_confirmed = body.reproducible_training_confirmed
+    if body.governance_review_completed is not None:
+        row.governance_review_completed = body.governance_review_completed
+    db.commit()
+    db.refresh(row)
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", ""), action_type="candidate_flags_updated",
+        resource_type="model", resource_id=f"{row.model_id}:{row.model_version}",
+    )
+    return _model_view(row)
+
+
+class CandidatePromoteIn(BaseModel):
+    target_stage: str = Field(..., description=f"One of {candidate_promotion.CANDIDATE_STAGES}")
+
+
+@router.post("/model-pipeline/models/{model_db_id}/candidate-promotion")
+def promote_candidate_model(
+    model_db_id: int, body: CandidatePromoteIn, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Advance a model along the Candidate -> Validated Candidate -> Pilot
+    -> Production ladder (Section 11). Never auto-promotes; refuses with
+    409 and the unmet checklist until every item is satisfied."""
+    tenant_id = _tenant(current_user, request)
+    row = _get_model_or_404(db, tenant_id, model_db_id)
+
+    decision = candidate_promotion.promote_candidate(
+        db, model=row, target_stage=body.target_stage, approver=_actor(current_user),
+    )
+    if not decision.get("promoted"):
+        raise HTTPException(status_code=409, detail={"message": "Candidate promotion blocked.", **decision})
+
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", ""), action_type="candidate_model_promoted",
+        resource_type="model", resource_id=f"{row.model_id}:{row.model_version}->{body.target_stage}",
+    )
+    return {**decision, "model": _model_view(row)}
+
+
+@router.get("/model-pipeline/models/{model_db_id}/validation-package")
+def validation_package(
+    model_db_id: int, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Section 12 — the full Validation Package assembled from this
+    registry entry: Training Report, Evaluation Report, Error Analysis
+    Report, Calibration Report, Model Card, and the Approval Checklist.
+    Every field is read directly from stored registry data — nothing here
+    is recomputed or re-derived at request time."""
+    tenant_id = _tenant(current_user, request)
+    row = _get_model_or_404(db, tenant_id, model_db_id)
+    return {
+        "model": _model_view(row),
+        "training_report": json.loads(row.training_metrics or "{}"),
+        "evaluation_report": json.loads(row.evaluation_metrics or "{}"),
+        "error_analysis_report": json.loads(row.error_analysis_report or "{}"),
+        "calibration_report": json.loads(row.calibration_report or "{}"),
+        "model_card": row.model_card_markdown,
+        "approval_checklist": candidate_promotion.evaluate_candidate_checklist(db, row),
+        "dataset_summary": {
+            "dataset_version_id": row.dataset_version_id,
+            "dataset_version": row.dataset_version,
+        },
+    }
