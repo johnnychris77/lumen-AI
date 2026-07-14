@@ -30,6 +30,16 @@ class PilotStatus(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
+    # Shadow (Phase 6 — Prospective Shadow-Mode Clinical Validation) §2 —
+    # pilot site configuration fields, additive to the pre-existing P14
+    # pilot-conversion row. Blank/"" for pilots started before this pass.
+    organization: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    department: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    clinical_lead: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    technical_lead: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    quality_lead: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    validation_coordinator: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+
     def get_agreed_kpis(self) -> dict:
         try:
             return json.loads(self.agreed_kpis)

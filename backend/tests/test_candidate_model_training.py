@@ -17,7 +17,9 @@ from app.main import app
 from app.models.dataset_governance import DatasetRegistryEntry
 from app.models.model_registry import ModelRegistryEntry
 from app.models.retained_image import RetainedImage
+from app.models.shadow_prediction import ShadowPrediction
 from app.services.ml import candidate_promotion, dataset_registry
+from app.services.ml import shadow_clinical_review_board
 from app.services.ml.candidate_training import (
     DatasetInvalidError,
     export_artifact,
@@ -289,6 +291,27 @@ class TestPromotionRules:
         frozen = dataset_registry.freeze_dataset_version(db, tenant_id=TENANT, dataset_version_id=version.id, frozen_by="admin")
         return frozen
 
+    def _satisfy_shadow_evidence(self, db, *, model_id: str, model_version: str):
+        """Shadow §14 — supplies the 4 additional items required to reach
+        Validated Candidate: 30+ reconciled, agreeing shadow predictions
+        (inspection volume + performance targets) and an approved clinical
+        review board session. No SupervisorReview rows exist in this test,
+        so sentinel_ai_health_service._detect_drift honestly reports no
+        drift (insufficient data), satisfying model_drift_acceptable too."""
+        for i in range(30):
+            db.add(ShadowPrediction(
+                tenant_id=TENANT, model_id=model_id, model_version=model_version,
+                model_type="candidate_finding_multiclass", predicted_label="debris",
+                predicted_confidence="0.9", supervisor_final_label="debris",
+                agreed_with_human=True, comparison_category="agreement", revealed=True,
+            ))
+        db.commit()
+        shadow_clinical_review_board.record_review_session(
+            db, tenant_id=TENANT, model_id=model_id, model_version=model_version,
+            reviewers=[{"name": "r1", "role": "clinical_advisor"}],
+            readiness_assessment="Ready.", approved=True, decided_by="board",
+        )
+
     def test_checklist_blocked_until_all_items_true(self, tmp_path):
         db = SessionLocal()
         try:
@@ -313,11 +336,25 @@ class TestPromotionRules:
             )
             assert decision["allowed"] is False
             assert "reproducible_training_confirmed" in decision["unmet"]
+            # Shadow §14 — the 4 pilot-evidence items also gate Validated
+            # Candidate, on top of the base 8.
+            assert "inspection_volume_achieved" in decision["unmet"]
+            assert "clinical_review_board_approved" in decision["unmet"]
 
             model.reproducible_training_confirmed = True
             model.error_analysis_reviewed = True
             model.governance_review_completed = True
             db.commit()
+
+            # Still blocked: the base 8 are satisfied, but no shadow-mode
+            # pilot evidence exists yet for this model.
+            decision_partial = candidate_promotion.evaluate_candidate_promotion(
+                db, model=model, target_stage="Validated Candidate", approver="reviewer1",
+            )
+            assert decision_partial["allowed"] is False
+            assert "inspection_volume_achieved" in decision_partial["unmet"]
+
+            self._satisfy_shadow_evidence(db, model_id=model.model_id, model_version=model.model_version)
 
             decision2 = candidate_promotion.evaluate_candidate_promotion(
                 db, model=model, target_stage="Validated Candidate", approver="reviewer1",
@@ -438,6 +475,27 @@ class TestApiEndToEnd:
             },
             headers=AUTH_ADMIN,
         )
+        # Shadow §14 — supply the pilot-evidence items (inspection volume,
+        # performance targets, clinical review board approval) the
+        # Validated Candidate gate additionally requires.
+        db = SessionLocal()
+        try:
+            for i in range(30):
+                db.add(ShadowPrediction(
+                    tenant_id=TENANT, model_id="genesis-api-model", model_version="0.1.0",
+                    model_type="candidate_finding_multiclass", predicted_label="debris",
+                    predicted_confidence="0.9", supervisor_final_label="debris",
+                    agreed_with_human=True, comparison_category="agreement", revealed=True,
+                ))
+            db.commit()
+            shadow_clinical_review_board.record_review_session(
+                db, tenant_id=TENANT, model_id="genesis-api-model", model_version="0.1.0",
+                reviewers=[{"name": "r1", "role": "clinical_advisor"}],
+                readiness_assessment="Ready.", approved=True, decided_by="board",
+            )
+        finally:
+            db.close()
+
         promoted = client.post(
             f"/api/model-pipeline/models/{mid}/candidate-promotion",
             json={"target_stage": "Validated Candidate"}, headers=AUTH_ADMIN,

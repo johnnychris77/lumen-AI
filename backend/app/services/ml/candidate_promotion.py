@@ -9,6 +9,17 @@ may drive a clinical recommendation at all. This ladder governs where a
 model sits in its own training -> validation -> deployment lifecycle.
 Models are never auto-promoted here either — every advance requires an
 explicit approver.
+
+Shadow (Phase 6 — Prospective Shadow-Mode Clinical Validation) §14 adds a
+SECOND, stage-scoped checklist that only applies once a model is moving
+*beyond* Candidate (to Validated Candidate or later) — the original 8-item
+``CHECKLIST_ITEMS`` above is left completely unchanged so the
+Experimental -> Candidate transition Genesis's own tests exercise is
+unaffected. Every new item reuses an existing, real evidence source rather
+than reimplementing one: inspection volume/performance targets from
+``shadow_validation_metrics.shadow_go_no_go()``, drift from
+``sentinel_ai_health_service._detect_drift()``, and clinical sign-off from
+``shadow_clinical_review_board.board_approved()``.
 """
 from __future__ import annotations
 
@@ -18,6 +29,10 @@ from sqlalchemy.orm import Session
 
 from app.models.dataset_governance import DatasetRegistryEntry, DatasetVersion
 from app.models.model_registry import ModelRegistryEntry
+from app.models.shadow_prediction import ShadowPrediction
+from app.services.ml.shadow_clinical_review_board import board_approved
+from app.services.ml.shadow_validation_metrics import shadow_go_no_go
+from app.services.sentinel_ai_health_service import _detect_drift
 
 CANDIDATE_STAGES = ["Experimental", "Candidate", "Validated Candidate", "Pilot", "Production"]
 
@@ -31,6 +46,17 @@ CHECKLIST_ITEMS = [
     "error_analysis_reviewed",
     "governance_review_completed",
 ]
+
+# Shadow §14 — additional items required only for Validated Candidate and
+# beyond, on top of (never instead of) the 8 items above.
+VALIDATED_CANDIDATE_CHECKLIST_ITEMS = [
+    "inspection_volume_achieved",
+    "performance_targets_met",
+    "model_drift_acceptable",
+    "clinical_review_board_approved",
+]
+
+_STAGES_REQUIRING_SHADOW_EVIDENCE = {"Validated Candidate", "Pilot", "Production"}
 
 
 def _dataset_frozen(db: Session, model: ModelRegistryEntry) -> bool:
@@ -69,6 +95,29 @@ def evaluate_candidate_checklist(db: Session, model: ModelRegistryEntry) -> dict
     }
 
 
+def _shadow_rows(db: Session, model: ModelRegistryEntry) -> list[ShadowPrediction]:
+    return (
+        db.query(ShadowPrediction)
+        .filter(ShadowPrediction.tenant_id == model.tenant_id, ShadowPrediction.model_id == model.model_id)
+        .all()
+    )
+
+
+def evaluate_validated_candidate_checklist(db: Session, model: ModelRegistryEntry) -> dict[str, bool]:
+    """Shadow §14 — the 4 additional items required to advance beyond
+    Candidate, each read from a real, already-computed evidence source."""
+    gng = shadow_go_no_go(_shadow_rows(db, model))
+    drift_detected, _ = _detect_drift(db, model.tenant_id)
+    return {
+        "inspection_volume_achieved": gng["inspection_volume_achieved"],
+        "performance_targets_met": gng["performance_targets_met"],
+        "model_drift_acceptable": not drift_detected,
+        "clinical_review_board_approved": board_approved(
+            db, tenant_id=model.tenant_id, model_id=model.model_id, model_version=model.model_version
+        ),
+    }
+
+
 def evaluate_candidate_promotion(
     db: Session, *, model: ModelRegistryEntry, target_stage: str, approver: str | None = None,
 ) -> dict[str, Any]:
@@ -91,8 +140,13 @@ def evaluate_candidate_promotion(
     # a model already at "Candidate" moving to "Validated Candidate" (and
     # beyond) must still satisfy every item, since none of them are
     # inherently one-time; e.g. governance review must cover the specific
-    # stage being entered.
+    # stage being entered. Validated Candidate and beyond additionally
+    # require Shadow §14's 4-item pilot-evidence checklist (unchanged for
+    # Experimental -> Candidate, so Genesis's own promotion tests are
+    # unaffected).
     checklist = evaluate_candidate_checklist(db, model)
+    if target_stage in _STAGES_REQUIRING_SHADOW_EVIDENCE:
+        checklist.update(evaluate_validated_candidate_checklist(db, model))
     unmet = [item for item, ok in checklist.items() if not ok]
     if not approver:
         unmet.append("approver_required")

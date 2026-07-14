@@ -613,6 +613,10 @@ app.include_router(dataset_registry_router, prefix=settings.API_PREFIX)
 from app.routes.pilot_validation import router as pilot_validation_router
 app.include_router(pilot_validation_router, prefix=settings.API_PREFIX)
 
+from app.models import shadow_validation as _shadow_validation_models  # noqa: F401
+from app.routes.shadow_validation import router as shadow_validation_router
+app.include_router(shadow_validation_router, prefix=settings.API_PREFIX)
+
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
 app.include_router(stream_router, prefix=settings.API_PREFIX)

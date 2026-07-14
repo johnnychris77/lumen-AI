@@ -51,6 +51,11 @@ def _per_class(y_true: list[str], y_pred: list[str], labels: list[str]) -> dict[
             # recomputing anything.
             "sensitivity": recall,
             "specificity": specificity,
+            # PPV/NPV (Shadow §10) — PPV is precision under another name,
+            # exposed alongside it; NPV is the specificity-side counterpart
+            # precision doesn't cover (TN / (TN + FN)).
+            "positive_predictive_value": precision,
+            "negative_predictive_value": _safe_div(tn, tn + fn),
             "f1": f1,
             "false_positive_rate": _safe_div(fp, fp + tn),
             "false_negative_rate": _safe_div(fn, fn + tp),

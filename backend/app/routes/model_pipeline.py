@@ -18,6 +18,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
+from app.models.inspection import Inspection
 from app.models.model_registry import ModelRegistryEntry
 from app.models.shadow_prediction import ShadowPrediction
 from app.services.ml import candidate_promotion, model_promotion, shadow_mode
@@ -426,6 +427,40 @@ def shadow_perf(
     return shadow_mode.shadow_performance(rows)
 
 
+class ShadowRevealIn(BaseModel):
+    final_label: str = Field(..., max_length=100)
+
+
+@router.post("/model-pipeline/shadow-predictions/{shadow_id}/reveal")
+def reveal_shadow_prediction(
+    shadow_id: int, body: ShadowRevealIn, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Shadow §1 — attempt to reveal a shadow prediction against the human
+    final decision. A no-op (still hidden) unless the prediction's
+    inspection has reached a terminal workflow state (Completed/Cancelled)
+    — the technician's finding and the supervisor's review must already be
+    locked. See app.services.ml.shadow_mode.reveal_if_finalized."""
+    tenant_id = _tenant(current_user, request)
+    row = (
+        db.query(ShadowPrediction)
+        .filter(ShadowPrediction.id == shadow_id, ShadowPrediction.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Shadow prediction not found.")
+
+    insp = None
+    if row.inspection_id is not None:
+        insp = (
+            db.query(Inspection)
+            .filter(Inspection.id == row.inspection_id, Inspection.tenant_id == tenant_id)
+            .first()
+        )
+    row = shadow_mode.reveal_if_finalized(db, row, insp=insp, final_label=body.final_label)
+    return shadow_mode.public_view(row)
+
+
 # ── Genesis: Candidate promotion ladder (Section 11) ────────────────────────
 
 def _get_model_or_404(db: Session, tenant_id: str, model_db_id: int) -> ModelRegistryEntry:
@@ -451,6 +486,23 @@ def candidate_checklist(
     return {
         "candidate_stage": row.candidate_stage,
         "checklist": candidate_promotion.evaluate_candidate_checklist(db, row),
+    }
+
+
+@router.get("/model-pipeline/models/{model_db_id}/validated-candidate-checklist")
+def validated_candidate_checklist(
+    model_db_id: int, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
+):
+    """Shadow §14 — read-only preview of the 4 additional items required
+    to advance beyond Candidate (inspection volume, performance targets,
+    drift, clinical review board), on top of the base 8-item checklist."""
+    tenant_id = _tenant(current_user, request)
+    row = _get_model_or_404(db, tenant_id, model_db_id)
+    return {
+        "candidate_stage": row.candidate_stage,
+        "base_checklist": candidate_promotion.evaluate_candidate_checklist(db, row),
+        "validated_candidate_checklist": candidate_promotion.evaluate_validated_candidate_checklist(db, row),
     }
 
 

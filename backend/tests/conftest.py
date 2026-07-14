@@ -124,6 +124,7 @@ def _force_import_models():
         "app.models.council_leadership",
         "app.models.governed_action",
         "app.models.oracle_discovery",
+        "app.models.shadow_validation",
         # The following were audited and added because they were previously
         # missing from this list entirely -- they only worked by accident,
         # via incidental import ordering elsewhere in the test session (see
