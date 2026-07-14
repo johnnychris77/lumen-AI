@@ -27,11 +27,17 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.ai.inference import SUPPORTED_MODEL_CATEGORIES
 from app.services.instrument_anatomy import resolve_family
 from app.services.instrument_zones import is_high_retention, zone_fields
 from app.services.zone_intelligence import typical_findings_for_legacy_zone
 
 logger = logging.getLogger(__name__)
+
+# Version identifier for THIS deterministic-placeholder scoring pipeline —
+# distinct from app.ai.inference.LumenAIModel's own model_version, since the
+# two are separate placeholder implementations, not the same model.
+MODEL_VERSION = "baseline-comparison-placeholder-1.0"
 
 # This entire module is the deterministic placeholder described in the module
 # docstring above — every call to analyze_inspection() produces its findings
@@ -116,6 +122,85 @@ def status_from_probability(p: float) -> str:
     if pct <= 60:
         return "review"
     return "escalate"
+
+
+# All KPI categories this scoring service knows about, regardless of whether
+# the currently-deployed model actually supports them (see SUPPORTED_MODEL_CATEGORIES).
+_ALL_KPIS = CONTAMINATION_KPIS + CONDITION_KPIS
+_UNSUPPORTED_KPIS = [k for k in _ALL_KPIS if k not in SUPPORTED_MODEL_CATEGORIES]
+
+
+def _build_model_result(
+    predicted_findings: list[dict[str, Any]],
+    *,
+    baseline_found: bool,
+    analysis_status: str,
+) -> dict[str, Any]:
+    """Honest, scope-limited result contract (Product Truth Reset — Core
+    Inspection Workflow Closure). Additive to the broader KPI heuristic above:
+    it does not replace predicted_findings/kpi_summary (still used by
+    reports, dashboards, and their own existing tests), it narrows what is
+    PRESENTED as a model finding to only the categories the deployed model
+    (app.ai.inference.LumenAIModel) actually supports today, and it never
+    reports a probability for a category the model does not evaluate.
+    """
+    limitations = [
+        "Current model evaluates debris and corrosion only, via a deterministic "
+        "placeholder pipeline — no other category is scored by a trained "
+        "computer-vision model on this deployment.",
+        "Image quality is not automatically assessed by the current model.",
+        "Result requires human review.",
+    ]
+    if not baseline_found:
+        limitations.insert(
+            0, "No approved baseline found; scoring is withheld pending supervisor review.",
+        )
+        return {
+            "model_status": "experimental",
+            "model_version": MODEL_VERSION,
+            "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+            "findings": [],
+            "unsupported_categories": list(_UNSUPPORTED_KPIS),
+            "limitations": limitations,
+            "baseline_status": "no_approved_baseline",
+            "image_quality_status": "not_assessed",
+            "human_review_required": True,
+        }
+
+    if analysis_status != "completed":
+        limitations.insert(0, "AI analysis did not complete successfully for this submission.")
+        return {
+            "model_status": "experimental",
+            "model_version": MODEL_VERSION,
+            "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+            "findings": [],
+            "unsupported_categories": list(_UNSUPPORTED_KPIS),
+            "limitations": limitations,
+            "baseline_status": analysis_status,
+            "image_quality_status": "not_assessed",
+            "human_review_required": True,
+        }
+
+    findings = [
+        {
+            "category": f["type"],
+            "confidence": f["confidence"],
+            "status": "model_observation",
+        }
+        for f in predicted_findings
+        if f["type"] in SUPPORTED_MODEL_CATEGORIES
+    ]
+    return {
+        "model_status": "experimental",
+        "model_version": MODEL_VERSION,
+        "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+        "findings": findings,
+        "unsupported_categories": list(_UNSUPPORTED_KPIS),
+        "limitations": limitations,
+        "baseline_status": "approved_baseline_found",
+        "image_quality_status": "not_assessed",
+        "human_review_required": True,
+    }
 
 
 def _severity_index(p: float) -> int:
@@ -1039,6 +1124,9 @@ def analyze_inspection(
             "human_review_required": True,
             "placeholder_scoring": True,
         }
+        no_baseline["model_result"] = _build_model_result(
+            [], baseline_found=False, analysis_status="supervisor_review_required",
+        )
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
 
@@ -1383,6 +1471,9 @@ def analyze_inspection(
         "model_label": "Baseline Comparison Scoring Model (pilot)",
         "production_validated": False,
     }
+    result["model_result"] = _build_model_result(
+        predicted_findings, baseline_found=True, analysis_status="completed",
+    )
     # Phase 13: Explainable Clinical Decision Support payload.
     result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)
     return result

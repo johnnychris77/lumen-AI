@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
@@ -10,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
+from app.ai.inference import SUPPORTED_MODEL_CATEGORIES
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db, get_current_user
@@ -18,6 +20,8 @@ from app.enterprise_auth import get_request_tenant_id
 from app.analytics.risk_engine import calculate_risk
 from app.cv.identifier_decoder import decode_from_image_bytes
 from app.services.baseline_comparison_scoring_service import analyze_inspection
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["inspections"])
 
@@ -323,15 +327,21 @@ def inspection_response(row: models.Inspection) -> dict:
 @router.get("/inspections/{inspection_id}")
 async def get_inspection(
     inspection_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
 ):
-    tenant_id = getattr(current_user, "tenant_id", None)
+    # Falls back to the request's tenant header when the authenticated user
+    # object itself carries no tenant_id (true for every dev-auth identity) —
+    # without this fallback the tenant filter below was silently skipped,
+    # allowing any authenticated non-admin caller to read any tenant's
+    # inspection by ID.
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
 
     query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
 
     # Scope to the caller's tenant unless platform admin
-    if tenant_id and getattr(current_user, "role", "") != "admin":
+    if getattr(current_user, "role", "") != "admin":
         query = query.filter(models.Inspection.tenant_id == tenant_id)
 
     row = query.first()
@@ -422,22 +432,61 @@ async def create_inspection(
 
     image_view_tags_dicts = [t.model_dump() for t in (body.image_view_tags or [])]
 
+    analysis_failed = False
     if body.has_image:
-        analysis = analyze_inspection(
-            db,
-            instrument_type=body.instrument_type,
-            tenant_id=tenant_id,
-            has_image=True,
-            image_sha256=body.image_sha256,
-            declared_findings=declared,
-            instrument_barcode=body.instrument_barcode,
-            instrument_udi=body.instrument_udi,
-            keydot_id=body.keydot_id,
-            decoder_backend=body.identifier_source or "declared",
-            inspected_zones=body.inspected_zones,
-            training_mode=body.training_mode,
-            image_view_tags=image_view_tags_dicts,
-        )
+        try:
+            analysis = analyze_inspection(
+                db,
+                instrument_type=body.instrument_type,
+                tenant_id=tenant_id,
+                has_image=True,
+                image_sha256=body.image_sha256,
+                declared_findings=declared,
+                instrument_barcode=body.instrument_barcode,
+                instrument_udi=body.instrument_udi,
+                keydot_id=body.keydot_id,
+                decoder_backend=body.identifier_source or "declared",
+                inspected_zones=body.inspected_zones,
+                training_mode=body.training_mode,
+                image_view_tags=image_view_tags_dicts,
+            )
+        except Exception:
+            # Analysis must never crash the request or silently advance the
+            # workflow as if it succeeded — degrade to an honest, flagged
+            # result and let the inspection persist for manual review.
+            logger.exception(
+                "AI analysis raised an unexpected exception (instrument_type=%s, tenant=%s)",
+                body.instrument_type, tenant_id,
+            )
+            analysis_failed = True
+            analysis = {
+                "analysis_status": "analysis_unavailable",
+                "risk_level": None,
+                "recommended_action": "Supervisor review required — AI analysis was unavailable.",
+                "overall_cleaning_assessment": None,
+                "clinical_decision": {},
+                "inspection_coverage": {},
+                "confidence": None,
+                "baseline_source": None,
+                "predicted_findings": [],
+                "human_review_required": True,
+                "placeholder_scoring": True,
+                "model_label": "Baseline Comparison Scoring Model (pilot)",
+                "message": "AI analysis failed unexpectedly. This inspection has been saved and requires manual supervisor review.",
+                "model_result": {
+                    "model_status": "experimental",
+                    "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+                    "findings": [],
+                    "unsupported_categories": [],
+                    "limitations": [
+                        "AI analysis did not complete successfully for this submission.",
+                        "Result requires human review.",
+                    ],
+                    "baseline_status": "analysis_unavailable",
+                    "image_quality_status": "not_assessed",
+                    "human_review_required": True,
+                },
+            }
         # Persist the SPD verdict regardless of completion state so history and
         # the dashboard show what the analysis concluded.
         risk_level_val = analysis.get("risk_level")
@@ -454,6 +503,11 @@ async def create_inspection(
             # inspection_score is 0–100 quality; risk_score is 0–100 risk (inverse).
             risk_score_val = 100 - int(analysis["inspection_score"])
             score_status = "scored"
+        elif analysis_failed:
+            baseline_status = "analysis_unavailable"
+            supervisor_review_required = True
+            score_status = "supervisor_review_required"
+            risk_score_val = 0
         else:
             baseline_status = "no_approved_baseline"
             supervisor_review_required = True
@@ -612,6 +666,28 @@ async def create_inspection(
         resource_type="inspection",
         resource_id=str(row.id),
     )
+
+    if body.has_image:
+        if analysis_failed:
+            analysis_action_type = "inspection_analysis_failed"
+        elif analysis is not None and analysis.get("analysis_status") == "completed":
+            analysis_action_type = "inspection_analysis_succeeded"
+        else:
+            analysis_action_type = "inspection_analysis_requested"
+        log_audit_event(
+            db,
+            tenant_id=tenant_id,
+            tenant_name=tenant_name,
+            actor_email=actor,
+            actor_role=getattr(current_user, "role", "viewer"),
+            action_type=analysis_action_type,
+            resource_type="inspection",
+            resource_id=str(row.id),
+            details={
+                "analysis_status": analysis.get("analysis_status") if analysis else None,
+                "model_version": (analysis or {}).get("model_result", {}).get("model_version"),
+            },
+        )
 
     response = inspection_response(row)
     if analysis is not None:
@@ -833,6 +909,11 @@ async def upload_inspection_images(
                 detail=f"File '{img.filename}' has unsupported type '{content_type}'. Allowed: {sorted(_ALLOWED_TYPES)}",
             )
         data = await img.read()
+        if len(data) == 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"File '{img.filename}' is empty.",
+            )
         if len(data) > _MAX_IMAGE_BYTES:
             raise HTTPException(
                 status_code=413,
@@ -867,7 +948,22 @@ async def upload_inspection_images(
         if retained is not None:
             entry["retained"] = True
             entry["retained_image_id"] = retained.id
+            entry["duplicate_of_existing_retained_image"] = bool(
+                getattr(retained, "_lumenai_dedup_hit", False),
+            )
         results.append(entry)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=getattr(current_user, "tenant_name", "") or tenant_id,
+        actor_email=actor,
+        actor_role=getattr(current_user, "role", "viewer"),
+        action_type="inspection_image_uploaded",
+        resource_type="inspection_image",
+        resource_id=",".join(r["sha256"] for r in results),
+        details={"count": len(results), "instrument_type": instrument_type},
+    )
 
     return {
         "uploaded": len(results),

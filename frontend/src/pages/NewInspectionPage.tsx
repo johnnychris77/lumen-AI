@@ -115,6 +115,19 @@ type Analysis = {
   placeholder_scoring?: boolean;
   model_label?: string;
   production_validated?: boolean;
+  // Honest, scope-limited result contract (Core Inspection Workflow Closure) —
+  // restricted to the categories the deployed model actually supports.
+  model_result?: {
+    model_status: string;
+    model_version?: string;
+    supported_categories: string[];
+    findings: { category: string; confidence: number | null; status: string }[];
+    unsupported_categories: string[];
+    limitations: string[];
+    baseline_status: string;
+    image_quality_status: string;
+    human_review_required: boolean;
+  };
   // Phase 13 — Explainable Clinical Decision Support payload.
   clinical_decision?: Parameters<typeof ClinicalDecisionPanel>[0]["cd"];
   // Phase 15 — anatomy-aware intelligence (coverage, risk map, guidance).
@@ -1167,6 +1180,44 @@ function AIPredictionPanel({
             <p className="text-xs text-slate-600">
               {prediction.analysis.model_label ?? "Baseline Comparison Scoring Model (pilot)"} generates every finding below from a deterministic, image-hash-seeded heuristic plus any findings you declared yourself — no pixels are analyzed by a trained model yet. Treat every category and confidence figure as illustrative, not as verified detection.
             </p>
+          </div>
+        )}
+
+        {/* Honest, scope-limited model result — only the categories the
+            deployed model actually supports get a finding/confidence; every
+            other category is explicitly marked not evaluated, never scored
+            with a fabricated probability. */}
+        {prediction.analysis?.model_result && (
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Model Result — {prediction.analysis.model_result.model_status}
+              {prediction.analysis.model_result.model_version ? ` (v${prediction.analysis.model_result.model_version.replace(/^baseline-comparison-placeholder-/, "")})` : ""}
+            </p>
+            <div>
+              <span className="text-xs text-slate-500">Supported categories: </span>
+              <span className="font-medium">{prediction.analysis.model_result.supported_categories.join(", ")}</span>
+            </div>
+            {prediction.analysis.model_result.findings.length > 0 ? (
+              <ul className="space-y-1">
+                {prediction.analysis.model_result.findings.map((f) => (
+                  <li key={f.category} className="flex items-center gap-2">
+                    <span className="font-medium capitalize">{f.category}</span>
+                    <span className="text-xs text-slate-500">
+                      {f.confidence != null ? `${Math.round(f.confidence * 100)}% confidence` : "no confidence available"} — {f.status.replace(/_/g, " ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No supported-category findings yet.</p>
+            )}
+            <div>
+              <span className="text-xs text-slate-500">Not evaluated by current model: </span>
+              <span className="text-xs text-slate-600">{prediction.analysis.model_result.unsupported_categories.join(", ") || "none"}</span>
+            </div>
+            <ul className="text-xs text-slate-500 list-disc list-inside">
+              {prediction.analysis.model_result.limitations.map((l, i) => <li key={i}>{l}</li>)}
+            </ul>
           </div>
         )}
 

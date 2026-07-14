@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 interface EvidencePanel {
@@ -59,11 +59,24 @@ export default function ReadinessDispositionPanel({ inspectionId }: { inspection
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!inspectionId) return;
-    apiFetch<EvidencePanel>(`/api/inspections/${inspectionId}/evidence-panel`).then(setEvidence);
-    apiFetch<RiskStratification>(`/api/inspections/${inspectionId}/risk-stratification`).then(setRisk);
+    setLoading(true);
+    setLoadError(null);
+    Promise.all([
+      apiFetch<EvidencePanel>(`/api/inspections/${inspectionId}/evidence-panel`).then(setEvidence),
+      apiFetch<RiskStratification>(`/api/inspections/${inspectionId}/risk-stratification`).then(setRisk),
+    ])
+      .catch((err) => {
+        const message =
+          err instanceof ApiError ? err.message : "Unable to reach the server.";
+        setLoadError(message);
+      })
+      .finally(() => setLoading(false));
   }, [inspectionId]);
 
   useEffect(() => { load(); }, [load]);
@@ -78,6 +91,7 @@ export default function ReadinessDispositionPanel({ inspectionId }: { inspection
   async function submitAction() {
     if (!inspectionId || !evidence) return;
     setBusy(true);
+    setSubmitError(null);
     try {
       await apiFetch(`/api/inspections/${inspectionId}/disposition-action`, {
         method: "POST",
@@ -90,6 +104,10 @@ export default function ReadinessDispositionPanel({ inspectionId }: { inspection
       setSubmitted(true);
       setReason("");
       load();
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : "Unable to reach the server. The action was not recorded.",
+      );
     } finally {
       setBusy(false);
     }
@@ -105,7 +123,34 @@ export default function ReadinessDispositionPanel({ inspectionId }: { inspection
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
-  if (!inspectionId || !evidence) return null;
+  if (!inspectionId) return null;
+
+  if (loading && !evidence) {
+    return (
+      <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-4 text-sm text-teal-700">
+        Loading clinical service readiness…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-2">
+        <p className="text-sm text-red-700">Unable to load clinical service readiness: {loadError}</p>
+        <button onClick={load} className="text-xs font-semibold text-red-700 underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!evidence) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+        No readiness data available for this inspection yet.
+      </div>
+    );
+  }
 
   const reasonRequired = action !== "approve";
 
@@ -188,6 +233,7 @@ export default function ReadinessDispositionPanel({ inspectionId }: { inspection
             {busy ? "Submitting…" : "Submit"}
           </button>
           {submitted && <p className="text-xs text-emerald-700">Disposition action recorded.</p>}
+          {submitError && <p className="text-xs text-red-700">{submitError}</p>}
         </div>
       )}
     </div>

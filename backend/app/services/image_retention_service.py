@@ -89,6 +89,17 @@ def retain_image(
     clean_bytes, stripped = strip_exif(data, content_type)
     sha256 = hashlib.sha256(clean_bytes).hexdigest()
 
+    # Upload retries (same bytes re-submitted) must not create a duplicate
+    # retained-image record for the same tenant.
+    existing = (
+        db.query(RetainedImage)
+        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.sha256 == sha256)
+        .first()
+    )
+    if existing is not None:
+        existing._lumenai_dedup_hit = True
+        return existing
+
     if seq is None:
         seq = (
             db.query(RetainedImage)
