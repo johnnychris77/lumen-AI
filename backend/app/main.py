@@ -606,6 +606,10 @@ app.include_router(guided_capture_router, prefix=settings.API_PREFIX)
 from app.routes.model_pipeline import router as model_pipeline_router
 app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)
 
+from app.models import dataset_governance as _dataset_governance_models  # noqa: F401
+from app.routes.dataset_registry import router as dataset_registry_router
+app.include_router(dataset_registry_router, prefix=settings.API_PREFIX)
+
 from app.routes.pilot_validation import router as pilot_validation_router
 app.include_router(pilot_validation_router, prefix=settings.API_PREFIX)
 

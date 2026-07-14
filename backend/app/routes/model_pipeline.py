@@ -20,10 +20,11 @@ from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.model_registry import ModelRegistryEntry
 from app.models.shadow_prediction import ShadowPrediction
-from app.services.ml import shadow_mode
+from app.services.ml import model_promotion, shadow_mode
 from app.services.ml.deployment_gates import (
     APPROVAL_STAGES, GATE_CAPABILITIES, capabilities, evaluate_promotion,
 )
+from app.services.ml.model_card import generate_model_card
 from app.services.ml.model_tasks import MODEL_TASKS, SAFETY_CRITICAL_FINDINGS, is_valid_task
 from app.services.ml.training_pipeline import prepare_training_run
 
@@ -213,15 +214,164 @@ def _model_view(row: ModelRegistryEntry) -> dict:
         "model_version": row.model_version,
         "model_type": row.model_type,
         "dataset_version": row.dataset_version,
+        "dataset_version_id": row.dataset_version_id,
         "training_status": row.training_status,
         "evaluation_metrics": json.loads(row.evaluation_metrics or "{}"),
         "known_limitations": row.known_limitations,
         "approval_status": row.approval_status,
         "approved_by": row.approved_by,
         "release_notes": row.release_notes,
+        "architecture": row.architecture,
+        "framework": row.framework,
+        "hyperparameters": json.loads(row.hyperparameters or "{}"),
+        "git_commit": row.git_commit,
+        "training_metrics": json.loads(row.training_metrics or "{}"),
+        "documentation_complete": row.documentation_complete,
+        "clinical_review_complete": row.clinical_review_complete,
+        "metrics_approved": row.metrics_approved,
+        "model_card_generated": bool(row.model_card_markdown),
         "capabilities": caps,
         "human_review_required": True,
     }
+
+
+class RecordTrainingResultIn(BaseModel):
+    architecture: str = Field("", max_length=100)
+    framework: str = Field("", max_length=60)
+    hyperparameters: dict = Field(default_factory=dict)
+    git_commit: str = Field("", max_length=64)
+    dataset_version_id: int | None = None
+    training_status: str = Field("trained", description="trained | failed | insufficient_data")
+    training_metrics: dict = Field(default_factory=dict)
+    evaluation_metrics: dict = Field(default_factory=dict)
+
+
+@router.post("/model-pipeline/models/{model_db_id}/record-training-result")
+def record_training_result(
+    model_db_id: int,
+    body: RecordTrainingResultIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Attach the outcome of a real training run (Section 10) to an existing
+    registry entry — the reproducible link between ``app.services.ml.
+    training_execution.run_training_pipeline`` and this registry row."""
+    tenant_id = _tenant(current_user, request)
+    row = (
+        db.query(ModelRegistryEntry)
+        .filter(ModelRegistryEntry.id == model_db_id, ModelRegistryEntry.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+
+    row.architecture = body.architecture
+    row.framework = body.framework
+    row.hyperparameters = json.dumps(body.hyperparameters)
+    row.git_commit = body.git_commit
+    row.dataset_version_id = body.dataset_version_id
+    row.training_status = body.training_status
+    row.training_metrics = json.dumps(body.training_metrics)
+    row.evaluation_metrics = json.dumps(body.evaluation_metrics)
+    db.commit()
+    db.refresh(row)
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", ""), action_type="model_training_result_recorded",
+        resource_type="model", resource_id=f"{row.model_id}:{row.model_version}",
+    )
+    return _model_view(row)
+
+
+@router.post("/model-pipeline/models/{model_db_id}/generate-model-card")
+def generate_and_store_model_card(
+    model_db_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Generate the Model Card (Section 9) from this entry's own fields and
+    persist it — required before ``model_card_generated`` can pass in the
+    Section 12 promotion gate."""
+    tenant_id = _tenant(current_user, request)
+    row = (
+        db.query(ModelRegistryEntry)
+        .filter(ModelRegistryEntry.id == model_db_id, ModelRegistryEntry.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+
+    card = generate_model_card(row)
+    row.model_card_markdown = card
+    db.commit()
+    db.refresh(row)
+    return {"model_card": card, "model": _model_view(row)}
+
+
+class GovernanceFlagsIn(BaseModel):
+    documentation_complete: bool | None = None
+    clinical_review_complete: bool | None = None
+    metrics_approved: bool | None = None
+
+
+@router.patch("/model-pipeline/models/{model_db_id}/governance-flags")
+def set_governance_flags(
+    model_db_id: int,
+    body: GovernanceFlagsIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Human-recorded governance sign-off flags (Section 12) — never
+    defaulted true, only ever set explicitly by an authorized reviewer."""
+    tenant_id = _tenant(current_user, request)
+    row = (
+        db.query(ModelRegistryEntry)
+        .filter(ModelRegistryEntry.id == model_db_id, ModelRegistryEntry.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+
+    if body.documentation_complete is not None:
+        row.documentation_complete = body.documentation_complete
+    if body.clinical_review_complete is not None:
+        row.clinical_review_complete = body.clinical_review_complete
+    if body.metrics_approved is not None:
+        row.metrics_approved = body.metrics_approved
+    db.commit()
+    db.refresh(row)
+    log_audit_event(
+        db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", ""), action_type="model_governance_flags_updated",
+        resource_type="model", resource_id=f"{row.model_id}:{row.model_version}",
+    )
+    return _model_view(row)
+
+
+@router.get("/model-pipeline/models/{model_db_id}/promotion-readiness")
+def promotion_readiness(
+    model_db_id: int,
+    target_stage: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Read-only preview of the full Section 12 promotion gate (dataset
+    frozen, evaluation complete, metrics approved, clinical review complete,
+    documentation complete, model card generated, registry updated) — never
+    changes state; call ``/promote`` to actually advance a stage."""
+    tenant_id = _tenant(current_user, request)
+    row = (
+        db.query(ModelRegistryEntry)
+        .filter(ModelRegistryEntry.id == model_db_id, ModelRegistryEntry.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+    return model_promotion.evaluate_full_promotion_readiness(db, model=row, target_stage=target_stage)
 
 
 # ── Shadow mode ──────────────────────────────────────────────────────────────

@@ -157,6 +157,7 @@ def _force_import_models():
         "app.models.governance_rollback",
         "app.models.implementation_readiness_item",
         "app.models.inspection_finding",
+        "app.models.dataset_governance",
         "app.models.instrument_knowledge",
         "app.models.invoice_line_item",
         "app.models.knowledge",

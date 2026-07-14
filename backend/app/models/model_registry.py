@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -45,3 +45,25 @@ class ModelRegistryEntry(Base):
     )
     approved_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     release_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    # Dataset Registry & AI Model Development Foundation — additive fields.
+    # Reproducibility: what was trained, how, on what code, and from what
+    # frozen dataset (dataset_version above stays the free-text fingerprint;
+    # dataset_version_id is the new first-class, freezable entity when one
+    # was used).
+    architecture: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    framework: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    hyperparameters: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    git_commit: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    dataset_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    training_metrics: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+
+    # Promotion-readiness flags (Section 12) — each must be true, on top of
+    # the existing deployment-gate checklist, before app.services.ml.
+    # model_promotion.evaluate_full_promotion_readiness() allows a model out
+    # of "experimental". Never set true by default; a human/service records
+    # them explicitly.
+    documentation_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    clinical_review_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    metrics_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    model_card_markdown: Mapped[str] = mapped_column(Text, default="", nullable=False)

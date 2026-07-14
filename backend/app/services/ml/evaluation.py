@@ -97,6 +97,50 @@ def evaluate(y_true: list[str], y_pred: list[str], labels: list[str],
     }
 
 
+def roc_curve(y_true: list[int], y_scores: list[float]) -> dict[str, Any]:
+    """Standard ROC curve (Section 11) for a binary 0/1 ground truth against
+    continuous predicted scores — distinct from ``evaluate()`` above, which
+    operates on discrete predicted labels. Requires both classes present in
+    ``y_true``; otherwise TPR/FPR are undefined and this says so rather than
+    fabricating a curve."""
+    if len(y_true) != len(y_scores):
+        raise ValueError("y_true and y_scores must be the same length")
+    total_pos = sum(1 for t in y_true if t == 1)
+    total_neg = len(y_true) - total_pos
+    if total_pos == 0 or total_neg == 0:
+        return {"points": [], "auc": None, "note": "ROC requires both positive and negative examples in y_true."}
+
+    pairs = sorted(zip(y_scores, y_true), key=lambda p: p[0], reverse=True)
+    points = [{"threshold": None, "tpr": 0.0, "fpr": 0.0}]
+    tp = fp = 0
+    prev_score = None
+    for score, label in pairs:
+        if prev_score is not None and score != prev_score:
+            points.append({"threshold": prev_score, "tpr": round(tp / total_pos, 4), "fpr": round(fp / total_neg, 4)})
+        if label == 1:
+            tp += 1
+        else:
+            fp += 1
+        prev_score = score
+    points.append({"threshold": prev_score, "tpr": round(tp / total_pos, 4), "fpr": round(fp / total_neg, 4)})
+
+    return {"points": points, "auc": _trapezoid_auc(points)}
+
+
+def _trapezoid_auc(points: list[dict[str, float]]) -> float:
+    pts = sorted(points, key=lambda p: p["fpr"])
+    area = 0.0
+    for i in range(1, len(pts)):
+        x0, y0 = pts[i - 1]["fpr"], pts[i - 1]["tpr"]
+        x1, y1 = pts[i]["fpr"], pts[i]["tpr"]
+        area += (x1 - x0) * (y0 + y1) / 2
+    return round(area, 4)
+
+
+def roc_auc(y_true: list[int], y_scores: list[float]) -> float | None:
+    return roc_curve(y_true, y_scores)["auc"]
+
+
 def safety_metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
     """Critical false-negative rates: a missed contamination/defect is the most
     dangerous error in SPD. FNR = missed / actual-present for each critical class."""
