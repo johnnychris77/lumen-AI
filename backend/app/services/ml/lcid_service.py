@@ -96,6 +96,18 @@ def digital_twin_history(db: Session, *, tenant_id: str, digital_twin_id: str) -
         "historical_image_lcids": [e.lcid for e in dataset_images],
         "inspection_history_count": len(inspections),
         "repair_history_count": repair_history_count,
+        # Project Canvas Section 15 — the same linked images, ordered
+        # chronologically with enough detail (image_type/review state) for a
+        # timeline view; never a second Digital Twin identity or dataset.
+        "timeline": [
+            {
+                "id": e.id, "lcid": e.lcid, "image_type": e.image_type,
+                "capture_date": e.inspection_date.isoformat() if e.inspection_date else None,
+                "review_status": e.review_status, "baseline_id": e.baseline_id,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in dataset_images
+        ],
     }
 
 

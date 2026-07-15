@@ -99,6 +99,36 @@ here is new; it is gathered into one place per Section 11's requirement.
   not a validated statistical estimate — reported only when historical
   decision records exist to compute it from.
 
+## Project Canvas — Annotation Workspace limitations
+
+- **No dedicated thumbnail pipeline.** The image library, upload results
+  table, and detail viewer all load the same full-resolution, auth-gated
+  bytes endpoint (`GET /api/ml/images/{id}/bytes`) via a shared
+  `AuthenticatedImage` component, fetched lazily per card rather than all
+  at once — there is no separate, smaller thumbnail asset generated or
+  stored anywhere.
+- **No freehand/canvas annotation drawing tool.** Bounding boxes are
+  entered as four numeric fields; polygon and segmentation-mask regions
+  are entered as raw JSON coordinate text, not drawn on the image.
+- **No fabricated due dates, workload estimates, or SLA figures.**
+  Reviewer queues (`/review/primary`, `/review/secondary`,
+  `/review/disagreements`, `/ground-truth`) show only counts of real,
+  currently-queued items computed at request time — never an invented
+  turnaround estimate.
+- **A confirmation-banner UX defect was found and fixed via live browser
+  testing, not caught by backend unit tests**: the primary/secondary/
+  adjudication review workspaces previously unmounted their own success
+  banner the instant the just-reviewed item emptied the queue (the whole
+  two-column layout was gated on `queue.length > 0`). Fixed by gating on
+  `queue.length > 0 || selected` and no longer clearing the selected
+  item/context on a successful submission. See
+  `docs/annotation-workspace/PRIMARY_REVIEW_GUIDE.md`.
+- **The manual acceptance script
+  (`docs/annotation-workspace/MANUAL_ACCEPTANCE_TEST.md`) has not yet been
+  walked end-to-end by a human reviewer** — see
+  `docs/product-truth-reset/PRODUCT_CAPABILITY_MATRIX.md` Section 11 for
+  the Pilot-status rationale.
+
 ## What is NOT a limitation — verified strengths
 
 - Real bcrypt/JWT/OIDC authentication and consistently enforced RBAC.

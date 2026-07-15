@@ -67,6 +67,34 @@ IMAGE_QUALITY_LEVELS = [
     QUALITY_EXCELLENT, QUALITY_GOOD, QUALITY_MARGINAL, QUALITY_POOR, QUALITY_REJECT,
 ]
 
+# Project Canvas — Section 3 image types (context the image was captured under).
+IMAGE_TYPE_BASELINE_REFERENCE = "baseline_reference"
+IMAGE_TYPE_AFTER_USE = "after_use"
+IMAGE_TYPE_AFTER_CLEANING = "after_cleaning"
+IMAGE_TYPE_AFTER_RECLEANING = "after_recleaning"
+IMAGE_TYPE_POST_REPAIR = "post_repair"
+IMAGE_TYPE_UNKNOWN_CONTEXT = "unknown_context"
+IMAGE_TYPE_RESEARCH_REFERENCE = "research_reference"
+
+IMAGE_TYPES = [
+    IMAGE_TYPE_BASELINE_REFERENCE, IMAGE_TYPE_AFTER_USE, IMAGE_TYPE_AFTER_CLEANING,
+    IMAGE_TYPE_AFTER_RECLEANING, IMAGE_TYPE_POST_REPAIR, IMAGE_TYPE_UNKNOWN_CONTEXT,
+    IMAGE_TYPE_RESEARCH_REFERENCE,
+]
+
+# Project Canvas — Section 16 dataset eligibility states (computed, never a
+# UI-settable bypass — see app.services.dataset_eligibility_service).
+ELIGIBILITY_NOT_REVIEWED = "not_reviewed"
+ELIGIBILITY_REVIEW_IN_PROGRESS = "review_in_progress"
+ELIGIBILITY_GROUND_TRUTH_APPROVED = "ground_truth_approved"
+ELIGIBILITY_EXCLUDED = "excluded_from_training"
+ELIGIBILITY_TRAINING = "eligible_for_training"
+ELIGIBILITY_VALIDATION = "eligible_for_validation"
+ELIGIBILITY_TESTING = "eligible_for_testing"
+ELIGIBILITY_RESEARCH_ONLY = "research_only"
+ELIGIBILITY_RIGHTS_RESTRICTED = "rights_restricted"
+ELIGIBILITY_ARCHIVED = "archived"
+
 
 class DatasetVersion(Base):
     """An immutable, named dataset snapshot (Section 2).
@@ -169,6 +197,16 @@ class DatasetRegistryEntry(Base):
     # a separately-migrated module) but validated for orphans in
     # dataset_validation_service.
     baseline_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+    # Project Canvas (Section 3) — the remaining minimum-registration-form
+    # fields not already covered above. instrument_id is a free-text/serial
+    # identity distinct from the barcode/UDI-based digital_twin_id (an org
+    # may track a serial number that isn't itself a scannable barcode).
+    instrument_id: Mapped[str] = mapped_column(String(255), default="", nullable=False, index=True)
+    catalog_number: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    inspection_region: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    image_type: Mapped[str] = mapped_column(String(30), default="", nullable=False, index=True)
+    reviewer_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
 
 class LcidSequenceCounter(Base):

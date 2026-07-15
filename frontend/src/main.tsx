@@ -166,6 +166,19 @@ const AnatomyLibraryPage = lazy(() => import("./pages/AnatomyLibraryPage"));
 const InspectionZonesPage = lazy(() => import("./pages/InspectionZonesPage"));
 const CoverageDashboardPage = lazy(() => import("./pages/CoverageDashboardPage"));
 
+// Project Canvas — Image Ingestion, Annotation & Ground-Truth Workspace.
+const DatasetImageLibraryPage = lazy(() => import("./pages/DatasetImageLibraryPage"));
+const DatasetImageUploadPage = lazy(() => import("./pages/DatasetImageUploadPage"));
+const DatasetImageDetailPage = lazy(() => import("./pages/DatasetImageDetailPage"));
+const AnnotationsListPage = lazy(() => import("./pages/AnnotationsListPage"));
+const AnnotationDetailPage = lazy(() => import("./pages/AnnotationDetailPage"));
+const PrimaryReviewWorkspacePage = lazy(() => import("./pages/PrimaryReviewWorkspacePage"));
+const SecondaryReviewWorkspacePage = lazy(() => import("./pages/SecondaryReviewWorkspacePage"));
+const DisagreementQueuePage = lazy(() => import("./pages/DisagreementQueuePage"));
+const AdjudicationWorkspacePage = lazy(() => import("./pages/AdjudicationWorkspacePage"));
+const GroundTruthWorkspacePage = lazy(() => import("./pages/GroundTruthWorkspacePage"));
+const DatasetReleaseBuilderPage = lazy(() => import("./pages/DatasetReleaseBuilderPage"));
+
 // ─── Loading spinner shown during lazy chunk loads ────────────────────────────
 
 function PageLoader() {
@@ -503,6 +516,20 @@ function App() {
                       <Route path="/anatomy-library" element={<Page name="AnatomyLibrary"><AnatomyLibraryPage /></Page>} />
                       <Route path="/inspection-zones" element={<Page name="InspectionZones"><InspectionZonesPage /></Page>} />
                       <Route path="/coverage-dashboard" element={<Page name="CoverageDashboard"><CoverageDashboardPage /></Page>} />
+
+                      {/* Project Canvas — Image Ingestion, Annotation & Ground-Truth Workspace */}
+                      <Route path="/dataset/images" element={<Page name="DatasetImageLibrary"><DatasetImageLibraryPage /></Page>} />
+                      <Route path="/dataset/images/upload" element={<Page name="DatasetImageUpload"><DatasetImageUploadPage /></Page>} />
+                      <Route path="/dataset/images/:imageId" element={<Page name="DatasetImageDetail"><DatasetImageDetailPage /></Page>} />
+                      <Route path="/annotations" element={<Page name="Annotations"><AnnotationsListPage /></Page>} />
+                      <Route path="/annotations/:annotationId" element={<Page name="AnnotationDetail"><AnnotationDetailPage /></Page>} />
+                      <Route path="/review/primary" element={<Page name="PrimaryReview"><PrimaryReviewWorkspacePage /></Page>} />
+                      <Route path="/review/secondary" element={<Page name="SecondaryReview"><SecondaryReviewWorkspacePage /></Page>} />
+                      <Route path="/review/disagreements" element={<Page name="Disagreements"><DisagreementQueuePage /></Page>} />
+                      <Route path="/review/adjudication" element={<Page name="Adjudication"><AdjudicationWorkspacePage /></Page>} />
+                      <Route path="/ground-truth" element={<Page name="GroundTruth"><GroundTruthWorkspacePage /></Page>} />
+                      <Route path="/dataset/releases" element={<Page name="DatasetReleases"><DatasetReleaseBuilderPage /></Page>} />
+
                       <Route path="/legacy" element={<Page name="Legacy"><DashboardApp /></Page>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

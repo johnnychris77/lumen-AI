@@ -140,6 +140,11 @@ def register_image(
     instrument_udi: str = "",
     digital_twin_id: str = "",
     baseline_id: int | None = None,
+    instrument_id: str = "",
+    catalog_number: str = "",
+    inspection_region: str = "",
+    image_type: str = "",
+    reviewer_notes: str = "",
 ) -> DatasetRegistryEntry:
     """Register one image into the governed dataset registry (Section 1).
 
@@ -201,6 +206,11 @@ def register_image(
         image_quality=image_quality,
         facility=facility,
         operator=operator,
+        instrument_id=instrument_id,
+        catalog_number=catalog_number,
+        inspection_region=inspection_region,
+        image_type=image_type,
+        reviewer_notes=reviewer_notes,
         review_status=UNLABELED,
         usage_rights=usage_rights,
         phi_verification=phi_verification,

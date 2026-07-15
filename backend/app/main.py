@@ -610,6 +610,21 @@ from app.models import dataset_governance as _dataset_governance_models  # noqa:
 from app.routes.dataset_registry import router as dataset_registry_router
 app.include_router(dataset_registry_router, prefix=settings.API_PREFIX)
 
+from app.routes.dataset_ingestion import router as dataset_ingestion_router
+app.include_router(dataset_ingestion_router, prefix=settings.API_PREFIX)
+
+from app.routes.reviewer_queues import router as reviewer_queues_router
+app.include_router(reviewer_queues_router, prefix=settings.API_PREFIX)
+
+from app.routes.dataset_eligibility import router as dataset_eligibility_router
+app.include_router(dataset_eligibility_router, prefix=settings.API_PREFIX)
+
+from app.routes.review_workspace import router as review_workspace_router
+app.include_router(review_workspace_router, prefix=settings.API_PREFIX)
+
+from app.routes.dataset_release import router as dataset_release_router
+app.include_router(dataset_release_router, prefix=settings.API_PREFIX)
+
 from app.routes.pilot_validation import router as pilot_validation_router
 app.include_router(pilot_validation_router, prefix=settings.API_PREFIX)
 

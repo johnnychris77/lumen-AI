@@ -294,6 +294,26 @@ def adjudicate_review(
     return _review_view(review)
 
 
+@router.get("/annotations/{annotation_id}/review")
+def get_annotation_review(
+    annotation_id: int, request: Request, db: Session = Depends(get_db),
+    current_user=Depends(require_roles(*ROLES_MAY_FINALIZE_GROUND_TRUTH)),
+):
+    """Project Canvas Sections 11-13 — non-blind review detail for
+    disagreement comparison, adjudication, and Ground Truth eligibility
+    display. Restricted to the adjudicator/Ground-Truth-finalizer roles
+    (never `ROLES_MAY_REVIEW`'s plain Reviewer role), so a reviewer who
+    hasn't yet submitted their own independent review can never use this
+    endpoint to see the other side early — Section 10's blindness guarantee
+    is enforced by role, not by trusting the frontend to hide a link."""
+    tenant_id = _tenant(current_user, request)
+    _get_owned_annotation(db, annotation_id, tenant_id)
+    review = annotation_review_service.get_review(db, tenant_id=tenant_id, annotation_id=annotation_id)
+    if review is None:
+        raise HTTPException(status_code=404, detail="No review record exists for this annotation.")
+    return _review_view(review)
+
+
 # ── Ground Truth (Section 6) ─────────────────────────────────────────────────
 
 @router.post("/annotations/{annotation_id}/promote-ground-truth")

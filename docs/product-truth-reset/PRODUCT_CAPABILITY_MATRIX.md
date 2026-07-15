@@ -203,6 +203,21 @@ Every entry below is checked against currently running code (not documentation, 
 
 ---
 
+## 11. Project Canvas — Annotation & Ground-Truth Workspace
+
+| Field | Value |
+|---|---|
+| **Capability** | User-facing workspace to ingest, review, annotate, compare, adjudicate, and approve real borescope images through the pre-existing LCID (`docs/lcid/`) and Annotation Database (`docs/annotation-database/`) infrastructure |
+| **Owner** | Backend: `app/routes/dataset_ingestion.py`, `app/routes/reviewer_queues.py`, `app/routes/dataset_eligibility.py`, `app/routes/review_workspace.py`, `app/routes/dataset_release.py`, plus one addition to `app/routes/annotation_database.py` (`GET /annotations/{id}/review`); Frontend: 11 routes under `/dataset/images*`, `/annotations*`, `/review/*`, `/ground-truth`, `/dataset/releases` |
+| **Status** | **Pilot** |
+| **Implementation evidence** | Every write path composes a pre-existing, already-Production service (`image_retention_service.retain_image()`, `dataset_registry.register_image()`/`find_duplicate()`, `annotation_service.create_annotation()`, `annotation_review_service.submit_primary()`/`submit_secondary()`/`adjudicate()`, `annotation_ground_truth_service.promote_to_ground_truth()`, `annotation_export_service.export_annotations()`, `dataset_builder`/`dataset_split`, `lcid_service`) — no second annotation model, dataset registry, review workflow, baseline concept, or Digital Twin identity was created. Blind secondary review is backend-enforced (`app/services/annotation_blind_review_service.py` never serializes any `AnnotationReview` field); the adjudicator-only `GET /annotations/{id}/review` endpoint is deliberately excluded from `ROLES_MAY_REVIEW` so a plain Reviewer cannot use it to defeat blindness |
+| **Tests** | `backend/tests/test_dataset_ingestion.py` (8), `test_reviewer_queues.py` (3), `test_dataset_eligibility.py` (9), `test_review_workspace.py` (6), `test_dataset_release.py` (6), `test_project_canvas_checklist.py` (8) — cross-tenant isolation, primary-review persistence, adjudication-requires-rationale, AI-cannot-self-promote-to-Ground-Truth, rights/quality gates excluding Ground-Truth-approved images from release, frozen-version ingestion rejection. Frontend verified via `npm run build` plus a live Playwright drive of the full golden path (upload → annotate → primary review → blind secondary review → agreement/disagreement → adjudication → Ground Truth promotion → release preview → export preview) |
+| **Production availability** | Live — all 11 routes and 5 new route modules are wired into `app/main.py` and reachable by role-appropriate users today |
+| **Known limitations** | No dedicated thumbnail pipeline exists — `AuthenticatedImage` loads the same full-resolution, auth-gated bytes endpoint per card/viewer rather than a separate thumbnail service (an honest simplification, not a hidden one). Polygon/segmentation region entry is via a raw JSON coordinate textarea, not freehand drawing — there is no canvas-based annotation drawing tool in this sprint. No due dates, workload estimates, or SLA figures are shown anywhere in the reviewer queues — only counts of real, currently-queued items. A UI defect was found and fixed during this sprint via live browser testing (not caught by backend unit tests): the primary/secondary/adjudication review workspaces previously unmounted their own success confirmation banner the instant the just-reviewed item emptied the queue, because the entire two-column layout was gated on `queue.length > 0` rather than `queue.length > 0 \|\| selected` |
+| **Next validation requirement** | A human reviewer walks `docs/annotation-workspace/MANUAL_ACCEPTANCE_TEST.md`'s 12 scenarios end-to-end and checks off pass/fail for each before this moves to Production |
+
+---
+
 ## Findings Register — carried forward, not yet fixed
 
 These are real findings from this pass's evidence-gathering that don't yet have a corresponding fix, listed here for traceability per the Definition of Done ("a reviewer can identify... its actual maturity status" even where the status is "known gap, not yet addressed"):
