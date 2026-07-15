@@ -44,6 +44,21 @@ also generated **automatically** as the final step of
 `run_full_candidate_pipeline()`, satisfying Section 3's "no manual
 intervention after training begins."
 
+## Project Lens addendum
+
+The first real (though synthetic-experimental-data-only) model this
+codebase has ever registered under `model_type =
+"lens_hierarchical_observation_classifier"` — see
+`docs/model-development/MODEL_CARD_REAL_V1.md` for the full narrative card
+and `docs/model-development/FIRST_MODEL_SCOPE.md` for why its training
+data is synthetic. `generate_model_card()` itself required no changes:
+its existing fallback (deriving "Supported findings" from the real
+evaluation report's per-class keys when `model_type` isn't a static
+`MODEL_TASKS` entry) already handles this new model type correctly,
+exactly as it already does for `candidate_finding_multiclass` models
+above. This model's `candidate_stage` is `Experimental` and will remain so
+until real governed clinical Ground Truth exists to train against.
+
 ## Lumen Decision Engine addendum
 
 The model itself is unchanged by the Lumen Decision Engine work — see

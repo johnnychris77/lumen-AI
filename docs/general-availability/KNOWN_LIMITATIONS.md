@@ -99,6 +99,48 @@ here is new; it is gathered into one place per Section 11's requirement.
   not a validated statistical estimate — reported only when historical
   decision records exist to compute it from.
 
+## Project Lens — First Real Computer-Vision Model limitations
+
+- **This sprint's registered model was trained exclusively on synthetic
+  images.** This environment's real database contains zero real
+  facility-sourced ACTIVE Ground Truth annotations
+  (`docs/model-development/TRAINING_ELIGIBILITY_REPORT.md`) — the model
+  was trained and evaluated against one declared experimental run of
+  synthetic, class-correlated images pushed through the real governed
+  review/Ground-Truth pipeline, per the sprint's own explicit "declared
+  experimental run" allowance. It is registered `candidate_stage =
+  "Experimental"` and can never be promoted to `"Candidate"` by this
+  sprint's own registration code while trained on synthetic data.
+- **The live inference adapter reports every real inspection as
+  `not_promoted`/`unavailable` today** — by design, since no model has
+  ever been trained on real clinical evidence. The deterministic
+  placeholder (`baseline_comparison_scoring_service.analyze_inspection()`)
+  remains the disclosed, active scoring path for this pre-pilot
+  deployment; the new `live_model_result` key is additive and does not
+  replace it.
+- **No GPU-capable ML framework is installed in this environment** —
+  torch, tensorflow, onnxruntime, scikit-learn, and numpy all fail to
+  import (verified directly). The trained classifier is a pure-Python
+  linear model (logistic regression) over 3 hand-engineered Pillow
+  features (brightness, sharpness, aspect ratio), not a learned-visual-
+  feature CNN.
+- **The feature-based baseline comparator (`image_similarity_service.py`)
+  is a real, first-stage perceptual hash (aHash), not a learned
+  embedding** — appropriate as a first stage per the sprint's own
+  guidance, but a coarser signal than a trained embedding model would
+  provide.
+- **`error_analysis.py`'s hardcoded negative-label constant
+  (`"no_actionable_finding"`) does not match Project Lens's new taxonomy's
+  negative label (`"no_observable_abnormality"`)** — every error this
+  sprint's run produced was therefore categorized as
+  `misclassification_between_findings` rather than correctly recognizing
+  false-positive/false-negative cases against the new taxonomy. Disclosed
+  in `docs/model-development/ERROR_ANALYSIS_REPORT.md`; not yet fixed.
+- **`TrainingConfig.class_weighting = "balanced"` is recorded in every
+  training run's configuration but not actually applied** by the
+  pure-Python logistic-regression trainer — a real, disclosed gap between
+  declared policy and implementation.
+
 ## Project Canvas — Annotation Workspace limitations
 
 - **No dedicated thumbnail pipeline.** The image library, upload results

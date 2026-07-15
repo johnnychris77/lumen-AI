@@ -98,3 +98,18 @@ class ModelRegistryEntry(Base):
     # defaulted true.
     customer_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     customer_approved_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
+    # Project Lens — real-artifact live-inference integrity checks
+    # (Section 11/15). SHA-256 of the exact bytes written to
+    # ``artifact_path`` at export time, stored on the registry row rather
+    # than inside the artifact file itself (avoids the circular-hash
+    # problem of a file hashing its own contents). The live inference
+    # adapter re-hashes the file at load time and refuses to use it if the
+    # checksum no longer matches — a real integrity check, not a formality.
+    artifact_checksum: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    # The taxonomy/label-map version this artifact's weights were trained
+    # against (see app.services.ml.lens_training_pipeline.PREPROCESSING_VERSION
+    # for the matching preprocessing-contract version) — the adapter refuses
+    # to load an artifact whose preprocessing/label-map version it doesn't
+    # recognize rather than silently misapplying stale weights.
+    preprocessing_version: Mapped[str] = mapped_column(String(60), default="", nullable=False)

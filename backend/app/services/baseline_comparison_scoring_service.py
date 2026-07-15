@@ -203,6 +203,26 @@ def _build_model_result(
     }
 
 
+def _live_model_result(
+    db: Session, *, tenant_id: str, image_bytes: Optional[bytes], instrument_type: str,
+) -> dict[str, Any]:
+    """Project Lens (Section 15) — additive integration only. Populates a
+    NEW top-level key (``live_model_result``) with whatever the real live
+    inference adapter reports (a genuine trained-model prediction, or a
+    safe, honestly-labeled unavailable state per Section 16) — it never
+    modifies ``predicted_findings``/``kpi_summary``/``model_result`` above,
+    which the Decision Engine, reports, and dashboards still read
+    unchanged. By default, with no promoted model artifact registered
+    (this repository's state today — see FIRST_MODEL_SCOPE.md), this
+    always returns the honest ``not_promoted`` unavailable contract; it
+    never falls back to this module's own deterministic-placeholder
+    scoring above to manufacture a result.
+    """
+    from app.services.ml.live_inference_adapter import predict as live_predict
+
+    return live_predict(db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_family=instrument_type)
+
+
 def _severity_index(p: float) -> int:
     """0–10% → 0, 11–30% → 1, 31–60% → 2, 61%+ → 3."""
     pct = p * 100
@@ -1071,6 +1091,7 @@ def analyze_inspection(
     inspected_zones: Optional[list[str]] = None,
     training_mode: bool = False,
     image_view_tags: Optional[list[dict]] = None,
+    image_bytes: Optional[bytes] = None,
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -1126,6 +1147,9 @@ def analyze_inspection(
         }
         no_baseline["model_result"] = _build_model_result(
             [], baseline_found=False, analysis_status="supervisor_review_required",
+        )
+        no_baseline["live_model_result"] = _live_model_result(
+            db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
         )
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
@@ -1473,6 +1497,9 @@ def analyze_inspection(
     }
     result["model_result"] = _build_model_result(
         predicted_findings, baseline_found=True, analysis_status="completed",
+    )
+    result["live_model_result"] = _live_model_result(
+        db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
     )
     # Phase 13: Explainable Clinical Decision Support payload.
     result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)

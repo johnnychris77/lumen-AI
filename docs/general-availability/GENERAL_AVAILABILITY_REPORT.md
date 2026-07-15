@@ -196,6 +196,27 @@ unproven.
 
 ---
 
+## Addendum — Project Lens (post-GA-review sprint)
+
+The clinical-readiness finding above ("nothing a real patient's instrument
+inspection currently uses actually runs [the trained model]") is **partly
+addressed, not resolved**: Project Lens built a real live inference
+adapter and wired it additively into `analyze_inspection()` (the actual
+live inspection-scoring path — the correct one; the GA report's citation
+of `app/ai/inference.py::LumenAIModel` was a separate, unrelated dormant
+code path). The wiring is real, tested (`test_project_lens.py`, 13 tests,
+real image fixtures), and non-breaking (full 3614-test regression suite
+unchanged). **This does not change the release decision**: the model this
+sprint registered was trained exclusively on synthetic data (one declared
+experimental run — see `docs/model-development/FIRST_MODEL_SCOPE.md`),
+stays `candidate_stage = "Experimental"` by the registration code's own
+design, and the live adapter therefore reports every real inspection as
+`not_promoted` today. Clinical readiness remains **NO GO** until a real
+facility pilot produces real ACTIVE Ground Truth for this pipeline to
+train against — this sprint closes the "never wired in" architectural gap
+but does not, and could not honestly, close the "no real training data"
+gap alongside it.
+
 ## Summary
 
 LumenAI Version 1.0 is architecturally sound, extensively documented, and

@@ -434,6 +434,22 @@ async def create_inspection(
 
     analysis_failed = False
     if body.has_image:
+        # Project Lens — real image bytes are only ever available server-side
+        # when opt-in retention (RETAIN_INSPECTION_IMAGES) + consent produced a
+        # RetainedImage row at upload time; this is a read-only lookup, never a
+        # new retention decision. When absent, live_model_result honestly
+        # reports unavailable rather than fabricating a prediction from bytes
+        # that don't exist.
+        retained_image_bytes = None
+        if body.image_sha256:
+            from app.models.retained_image import RetainedImage as _RetainedImage
+            retained_row = (
+                db.query(_RetainedImage)
+                .filter(_RetainedImage.tenant_id == tenant_id, _RetainedImage.sha256 == body.image_sha256)
+                .first()
+            )
+            if retained_row is not None:
+                retained_image_bytes = retained_row.image_bytes
         try:
             analysis = analyze_inspection(
                 db,
@@ -449,6 +465,7 @@ async def create_inspection(
                 inspected_zones=body.inspected_zones,
                 training_mode=body.training_mode,
                 image_view_tags=image_view_tags_dicts,
+                image_bytes=retained_image_bytes,
             )
         except Exception:
             # Analysis must never crash the request or silently advance the

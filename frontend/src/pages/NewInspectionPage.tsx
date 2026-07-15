@@ -129,6 +129,36 @@ type Analysis = {
     image_quality_status: string;
     human_review_required: boolean;
   };
+  // Project Lens — the real live-inference adapter's result, additive
+  // alongside model_result above (which remains the deterministic-
+  // placeholder heuristic's own honest, scope-limited summary). Present
+  // exactly once a real trained model artifact is registered and promoted
+  // — analysis_status is "ai_unavailable" until then, which is the
+  // expected state for this deployment today (see KNOWN_LIMITATIONS.md).
+  live_model_result?: {
+    analysis_status: "completed" | "ai_unavailable";
+    model: {
+      model_id: string;
+      model_version: string | null;
+      status: string;
+      preprocessing_version: string | null;
+      calibration_version: string | null;
+    };
+    image_quality: { status: string; grade?: string } | null;
+    observation: {
+      category: string;
+      display_label: string;
+      raw_probability: number | null;
+      calibrated_confidence: number | null;
+      abstained: boolean;
+      abstention_reason: string | null;
+    } | null;
+    supported_categories: string[];
+    unsupported_categories: string[];
+    baseline_comparison: { status: string; similarity: number | null; method: string } | null;
+    limitations: string[];
+    human_review_required: boolean;
+  };
   // Phase 13 — Explainable Clinical Decision Support payload.
   clinical_decision?: Parameters<typeof ClinicalDecisionPanel>[0]["cd"];
   // Phase 15 — anatomy-aware intelligence (coverage, risk map, guidance).
@@ -1221,6 +1251,66 @@ function AIPredictionPanel({
             <ul className="text-xs text-slate-500 list-disc list-inside">
               {prediction.analysis.model_result.limitations.map((l, i) => <li key={i}>{l}</li>)}
             </ul>
+          </div>
+        )}
+
+        {/* Project Lens — the real trained-model live inference result.
+            Additive to the panel above: this is a genuinely trained
+            classifier's output (or an honest unavailable state), never the
+            deterministic placeholder. Until the model is promoted past
+            Experimental, this always reports ai_unavailable today — that is
+            expected, disclosed behavior, not a bug. */}
+        {prediction.analysis?.live_model_result && (
+          <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+              Trained Model — {prediction.analysis.live_model_result.model.status || "unavailable"}
+              {prediction.analysis.live_model_result.model.model_version ? ` (v${prediction.analysis.live_model_result.model.model_version})` : ""}
+            </p>
+            {prediction.analysis.live_model_result.analysis_status === "ai_unavailable" ? (
+              <p className="text-xs text-purple-800">
+                AI analysis unavailable — {prediction.analysis.live_model_result.limitations.slice(-1)[0] ?? "no eligible trained model is registered."}
+                {" "}Manual inspection and supervisor workflow continue unaffected.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs font-semibold text-purple-900">Experimental / Candidate Model — Human Decision Required</p>
+                {prediction.analysis.live_model_result.observation && (
+                  <div>
+                    <span className="font-medium">{prediction.analysis.live_model_result.observation.display_label}</span>
+                    {prediction.analysis.live_model_result.observation.abstained ? (
+                      <span className="text-xs text-purple-700 ml-2">
+                        (abstained — {prediction.analysis.live_model_result.observation.abstention_reason?.replace(/_/g, " ")})
+                      </span>
+                    ) : (
+                      <span className="text-xs text-purple-700 ml-2">
+                        {prediction.analysis.live_model_result.observation.calibrated_confidence != null
+                          ? `${Math.round(prediction.analysis.live_model_result.observation.calibrated_confidence * 100)}% calibrated confidence`
+                          : "no confidence available"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <span className="text-xs text-purple-700">Supported categories: </span>
+                  <span className="text-xs text-purple-900">{prediction.analysis.live_model_result.supported_categories.join(", ") || "none"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-purple-700">Not evaluated by current model: </span>
+                  <span className="text-xs text-purple-900">{prediction.analysis.live_model_result.unsupported_categories.join(", ") || "none"}</span>
+                </div>
+                {prediction.analysis.live_model_result.baseline_comparison && (
+                  <div className="text-xs text-purple-700">
+                    Baseline comparison: {prediction.analysis.live_model_result.baseline_comparison.status.replace(/_/g, " ")}
+                    {prediction.analysis.live_model_result.baseline_comparison.similarity != null
+                      ? ` (${Math.round(prediction.analysis.live_model_result.baseline_comparison.similarity * 100)}% similarity, ${prediction.analysis.live_model_result.baseline_comparison.method})`
+                      : ""}
+                  </div>
+                )}
+                <ul className="text-xs text-purple-700 list-disc list-inside">
+                  {prediction.analysis.live_model_result.limitations.map((l, i) => <li key={i}>{l}</li>)}
+                </ul>
+              </>
+            )}
           </div>
         )}
 
