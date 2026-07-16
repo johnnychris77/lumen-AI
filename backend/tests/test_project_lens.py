@@ -8,6 +8,7 @@ import hashlib
 import io
 import itertools
 import os
+import uuid as _uuid
 
 import pytest
 from PIL import Image
@@ -368,6 +369,27 @@ def test_same_filename_different_bytes_is_distinct_identity():
 
 # ── 21 — live baseline comparator wiring (Atlas → live path) ───────────────
 
+def _nonce_img(brightness: int, stripe_period: int = 8) -> bytes:
+    # A random PNG text chunk guarantees a unique SHA-256 across pytest
+    # invocations sharing the same persistent SQLite test DB — without it,
+    # the LCID duplicate gate rejects re-registering last run's identical
+    # bytes (same mitigation as tests/test_baseline_image_library.py::_img).
+    from PIL import PngImagePlugin
+
+    img = Image.new("RGB", (300, 300), (brightness, brightness, brightness))
+    if stripe_period:
+        px = img.load()
+        inverse = 255 - brightness
+        for x in range(0, 300, stripe_period):
+            for y in range(300):
+                px[x, y] = (inverse, inverse, inverse)
+    buf = io.BytesIO()
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text("test-nonce", _uuid.uuid4().hex)
+    img.save(buf, format="PNG", pnginfo=meta)
+    return buf.getvalue()
+
+
 def _make_active_baseline_link(db, *, tenant_id: str, instrument_family: str, image_data: bytes):
     """Create an ACTIVE, governed-consensus baseline image link through the
     real Atlas lifecycle (link → review → activate) — the only resolution
@@ -430,8 +452,9 @@ def test_live_baseline_comparison_no_approved_baseline():
 
     db = SessionLocal()
     try:
+        family = f"lens-no-baseline-{_uuid.uuid4().hex[:8]}"
         result = _live_model_result(
-            db, tenant_id=TENANT, image_bytes=_img(120), instrument_type="lens-no-baseline-family",
+            db, tenant_id=TENANT, image_bytes=_img(120), instrument_type=family,
         )
         comparison = result["baseline_comparison"]
         assert comparison is not None
@@ -450,8 +473,8 @@ def test_live_baseline_comparison_with_active_baseline_produces_similarity():
 
     db = SessionLocal()
     try:
-        family = "lens-live-baseline-family"
-        baseline_bytes = _img(120)
+        family = f"lens-live-baseline-{_uuid.uuid4().hex[:8]}"
+        baseline_bytes = _nonce_img(120)
         _make_active_baseline_link(db, tenant_id=TENANT, instrument_family=family, image_data=baseline_bytes)
         result = _live_model_result(db, tenant_id=TENANT, image_bytes=baseline_bytes, instrument_type=family)
         comparison = result["baseline_comparison"]
@@ -470,8 +493,8 @@ def test_live_baseline_comparison_never_alters_observation():
 
     db = SessionLocal()
     try:
-        family = "lens-separation-family"
-        probe = _img(150, stripe_period=10)
+        family = f"lens-separation-{_uuid.uuid4().hex[:8]}"
+        probe = _nonce_img(150, stripe_period=10)
         without_baseline = _live_model_result(db, tenant_id=TENANT, image_bytes=probe, instrument_type=family)
         _make_active_baseline_link(db, tenant_id=TENANT, instrument_family=family, image_data=probe)
         with_baseline = _live_model_result(db, tenant_id=TENANT, image_bytes=probe, instrument_type=family)

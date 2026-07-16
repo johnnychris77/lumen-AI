@@ -233,6 +233,21 @@ statement: the candidate is ready for independent validation and
 prospective shadow-mode evaluation — not clinically validated, pilot-ready,
 or production-ready.
 
+### Addendum update — Project Launch Sprint 5 (Controlled Production Readiness Review)
+
+**The release decision above is unchanged.** The Controlled Production
+Readiness Review was attempted and **gated at entry**: 7 of its 12 entry
+criteria are not met (no validated-candidate model, no completed pilot, no
+pilot final report, no human response data, no ACTIVE image-backed
+baselines in any persistent environment, no tested support ownership, no
+exercised rollback), so the review was not convened and
+**NOT_READY_FOR_PRODUCTION_REVIEW** was issued — see
+`docs/controlled-production/ENTRY_CRITERIA.md` and
+`docs/controlled-production/FINAL_RELEASE_DECISION.md` for the
+per-criterion evidence and the dependency-ordered path to reconvening.
+This independently corroborates this report's Engineering and Clinical
+NO GO findings; it produces no new evidence for a different decision.
+
 ## Summary
 
 LumenAI Version 1.0 is architecturally sound, extensively documented, and
