@@ -14,6 +14,11 @@ sample.bin
 model_artifacts/
 backend/model_artifacts/
 
+# Generated dataset export manifests (app.services.ml.dataset_export_service) —
+# see dataset/exports/README.md; the folder + README are tracked, the
+# generated *_{format}.json files it writes are not.
+dataset/exports/*/
+
 
 # Python
 __pycache__/
