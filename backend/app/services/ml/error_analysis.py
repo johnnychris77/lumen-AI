@@ -20,10 +20,14 @@ never guessed:
     explains the error.
 
 Each error also gets an ``error_type`` (false_positive / false_negative /
-misclassification_between_findings), using "no_actionable_finding" as the
-negative class — a missed real finding (false_negative) is flagged as the
-more dangerous error, consistent with ``app.services.ml.evaluation.
-safety_metrics``.
+misclassification_between_findings). The negative class defaults to
+"no_actionable_finding" (the Genesis/candidate-training taxonomy) but is a
+parameter, because Project Lens uses a different negative label
+("no_observable_abnormality") — before this was parameterized, every Lens
+false negative/positive was miscategorized as
+misclassification_between_findings. A missed real finding (false_negative)
+is flagged as the more dangerous error, consistent with
+``app.services.ml.evaluation.safety_metrics``.
 """
 from __future__ import annotations
 
@@ -39,10 +43,10 @@ ROOT_CAUSES = (
 )
 
 
-def _error_type(true_label: str, predicted_label: str) -> str:
-    if true_label == NEGATIVE_LABEL and predicted_label != NEGATIVE_LABEL:
+def _error_type(true_label: str, predicted_label: str, negative_label: str) -> str:
+    if true_label == negative_label and predicted_label != negative_label:
         return "false_positive"
-    if true_label != NEGATIVE_LABEL and predicted_label == NEGATIVE_LABEL:
+    if true_label != negative_label and predicted_label == negative_label:
         return "false_negative"
     return "misclassification_between_findings"
 
@@ -64,9 +68,11 @@ def _root_cause(sample: dict[str, Any]) -> str:
     return "unknown_pattern"
 
 
-def classify_error(sample: dict[str, Any]) -> dict[str, Any] | None:
+def classify_error(sample: dict[str, Any], *, negative_label: str = NEGATIVE_LABEL) -> dict[str, Any] | None:
     """Classify one sample's prediction. Returns ``None`` if the prediction
-    was correct (not an error)."""
+    was correct (not an error). ``negative_label`` is the taxonomy's
+    no-finding class — pass the caller's own label when it differs from the
+    Genesis default (e.g. Project Lens's "no_observable_abnormality")."""
     true_label = sample.get("true_label")
     predicted_label = sample.get("predicted_label")
     if true_label == predicted_label:
@@ -76,18 +82,18 @@ def classify_error(sample: dict[str, Any]) -> dict[str, Any] | None:
         "true_label": true_label,
         "predicted_label": predicted_label,
         "confidence": sample.get("confidence"),
-        "error_type": _error_type(true_label, predicted_label),
+        "error_type": _error_type(true_label, predicted_label, negative_label),
         "root_cause": _root_cause(sample),
     }
 
 
-def analyze_errors(samples: list[dict[str, Any]]) -> dict[str, Any]:
+def analyze_errors(samples: list[dict[str, Any]], *, negative_label: str = NEGATIVE_LABEL) -> dict[str, Any]:
     """Classify every error in ``samples`` and rank failure modes by
     frequency. Each ``sample`` dict: ``{id, true_label, predicted_label,
     confidence, blur_flag, focus_flag, lighting_flag, exposure_flag,
     cropping_flag, anatomy_zone, annotation_disagreement}`` (all optional
-    except the two labels)."""
-    errors = [e for e in (classify_error(s) for s in samples) if e is not None]
+    except the two labels). ``negative_label`` follows ``classify_error``."""
+    errors = [e for e in (classify_error(s, negative_label=negative_label) for s in samples) if e is not None]
     error_type_counts = Counter(e["error_type"] for e in errors)
     root_cause_counts = Counter(e["root_cause"] for e in errors)
 

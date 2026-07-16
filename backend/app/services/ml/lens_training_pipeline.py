@@ -32,7 +32,13 @@ from app.services.ml.evaluation import evaluate
 from app.services.ml.lcid_service import is_untracked_twin
 from app.services.ml.lens_calibration import calibrated_confidences, fit_temperature, resolve_abstention_threshold
 from app.services.ml.training_config import TrainingConfig
-from app.services.ml.training_execution import _feature_vector, _predict_proba, _train_logistic_regression, git_commit
+from app.services.ml.training_execution import (
+    _feature_vector,
+    _predict_proba,
+    _train_logistic_regression,
+    balanced_sample_weights,
+    git_commit,
+)
 
 NEGATIVE_LABEL = "no_observable_abnormality"
 PREPROCESSING_VERSION = "lens-pillow-features-v1"  # brightness/sharpness/aspect, see training_execution._feature_vector
@@ -172,14 +178,21 @@ def run_lens_training(
     y_train_bin = _binary_labels(train_samples)
     stage_b_weights: list[float] | None = None
     if has_negative_class and len(set(y_train_bin)) >= 2:
-        stage_b_weights = _train_logistic_regression(X_train, y_train_bin, epochs=cfg.epochs, learning_rate=cfg.learning_rate)
+        stage_b_sample_weights = balanced_sample_weights(y_train_bin) if cfg.class_weighting == "balanced" else None
+        stage_b_weights = _train_logistic_regression(
+            X_train, y_train_bin, epochs=cfg.epochs, learning_rate=cfg.learning_rate,
+            sample_weights=stage_b_sample_weights,
+        )
 
     # ── Stage C — category classifier (multiclass one-vs-rest), abnormal-only ──
     abnormal_train = [s for s in train_samples if s["label"] != NEGATIVE_LABEL]
     X_abnormal = [features_by_id[s["id"]] for s in abnormal_train]
     y_abnormal = [s["label"] for s in abnormal_train]
     stage_c_weights = (
-        _train_one_vs_rest(X_abnormal, y_abnormal, eligible_classes, epochs=cfg.epochs, learning_rate=cfg.learning_rate)
+        _train_one_vs_rest(
+            X_abnormal, y_abnormal, eligible_classes, epochs=cfg.epochs, learning_rate=cfg.learning_rate,
+            class_weighting=cfg.class_weighting,
+        )
         if eligible_classes and len(abnormal_train) >= 2 else {}
     )
 
@@ -233,7 +246,11 @@ def run_lens_training(
     abstention_threshold, threshold_is_data_derived = resolve_abstention_threshold(reliability)
 
     error_source = test_errors or val_errors
-    error_analysis = analyze_errors(error_source) if error_source else None
+    # Pass Lens's own negative label — error_analysis's default is the
+    # Genesis taxonomy's "no_actionable_finding", which no Lens sample ever
+    # carries, so without this every Lens false negative/positive was
+    # miscategorized as misclassification_between_findings.
+    error_analysis = analyze_errors(error_source, negative_label=NEGATIVE_LABEL) if error_source else None
 
     return {
         "training_status": "trained",

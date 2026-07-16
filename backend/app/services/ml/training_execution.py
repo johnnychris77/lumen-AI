@@ -71,21 +71,39 @@ def _sigmoid(z: float) -> float:
     return 1.0 / (1.0 + math.exp(-z))
 
 
+def balanced_sample_weights(y: list[int]) -> list[float]:
+    """Per-sample weights implementing ``class_weighting="balanced"`` for a
+    binary label vector, using the standard n / (n_classes * n_c) convention:
+    each class contributes equally to the loss regardless of its frequency.
+    Returns all-1.0 weights when only one class is present (nothing to
+    balance — the caller's own single-class guard applies)."""
+    n = len(y)
+    pos = sum(y)
+    neg = n - pos
+    if pos == 0 or neg == 0:
+        return [1.0] * n
+    w_pos = n / (2.0 * pos)
+    w_neg = n / (2.0 * neg)
+    return [w_pos if yi == 1 else w_neg for yi in y]
+
+
 def _train_logistic_regression(
     X: list[list[float]], y: list[int], *, epochs: int, learning_rate: float,
+    sample_weights: list[float] | None = None,
 ) -> list[float]:
     n_features = len(X[0])
     weights = [0.0] * (n_features + 1)  # index 0 is the bias term
-    n = len(X)
+    sw = sample_weights if sample_weights is not None else [1.0] * len(X)
+    total_weight = sum(sw)
     for _ in range(epochs):
         grads = [0.0] * (n_features + 1)
-        for xi, yi in zip(X, y):
+        for xi, yi, wi in zip(X, y, sw):
             z = weights[0] + sum(w * x for w, x in zip(weights[1:], xi))
-            error = _sigmoid(z) - yi
+            error = wi * (_sigmoid(z) - yi)
             grads[0] += error
             for j, x in enumerate(xi):
                 grads[j + 1] += error * x
-        weights = [w - learning_rate * (g / n) for w, g in zip(weights, grads)]
+        weights = [w - learning_rate * (g / total_weight) for w, g in zip(weights, grads)]
     return weights
 
 
