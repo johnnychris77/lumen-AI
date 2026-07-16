@@ -254,10 +254,92 @@ def _live_model_result(
     """
     from app.services.ml.live_inference_adapter import predict as live_predict
 
-    return live_predict(
+    result = live_predict(
         db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_family=instrument_type,
         inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
     )
+    # Section 17 — the baseline comparator is a SEPARATE governed channel,
+    # populated here by the caller (never inside the adapter). It answers
+    # "how does this image differ from the approved reference?", not "what
+    # observation is present?" — nothing below reads it back into the
+    # observation, so a high similarity can never cancel a probable
+    # contamination, and a missing baseline never blocks inference.
+    result["baseline_comparison"] = _live_baseline_comparison(
+        db, tenant_id=tenant_id, instrument_type=instrument_type, image_bytes=image_bytes,
+    )
+    return result
+
+
+def _live_baseline_comparison(
+    db: Session, *, tenant_id: str, instrument_type: str, image_bytes: Optional[bytes],
+) -> dict[str, Any]:
+    """Compatibility-first baseline-image comparison for the live path,
+    composed entirely from Project Atlas + Project Lens infrastructure:
+    resolve the best ACTIVE baseline image for this instrument context
+    (5-level hierarchy), verify the stored bytes' hash on access, and only
+    then compute a perceptual similarity. Every failure mode returns an
+    honest status with ``similarity: None`` — never a fabricated number."""
+    from app.models.baseline_image_library import COMPATIBLE, BaselineImageLink
+    from app.services.baseline_compatibility_service import (
+        CandidateContext,
+        check_compatibility,
+        resolve_baseline_image,
+    )
+    from app.services.baseline_image_library_service import (
+        ImageIdentityMismatchError,
+        load_and_verify_baseline_bytes,
+    )
+    from app.services.ml.image_similarity_service import compare_against_baseline
+
+    candidate = CandidateContext(tenant_id=tenant_id, instrument_family=instrument_type)
+    resolution = resolve_baseline_image(db, candidate=candidate)
+
+    if resolution.baseline_image_link_id is None:
+        comparison = compare_against_baseline(
+            image_bytes=None, baseline_image_bytes=None,
+            candidate_instrument_family=instrument_type, baseline_instrument_family="",
+            baseline_available=False,
+        )
+        comparison["resolution_scope"] = resolution.resolution_scope
+        comparison["resolution_reason"] = resolution.resolution_reason
+        return comparison
+
+    link = db.query(BaselineImageLink).filter(BaselineImageLink.id == resolution.baseline_image_link_id).first()
+    compatibility = check_compatibility(candidate=candidate, baseline_link=link)
+    if compatibility != COMPATIBLE:
+        # Compatibility failed AFTER resolution (e.g. the link was suspended
+        # between queries, or quality gates apply) — report the named
+        # outcome, never a numeric similarity (Atlas Section 7).
+        return {
+            "status": compatibility, "similarity": None,
+            "method": "average_hash_hamming",
+            "baseline_id": link.id if link is not None else None,
+            "baseline_version": resolution.version,
+            "resolution_scope": resolution.resolution_scope,
+            "resolution_reason": resolution.resolution_reason,
+        }
+
+    try:
+        baseline_bytes = load_and_verify_baseline_bytes(db, link=link, accessed_by="live_inference_path")
+    except ImageIdentityMismatchError as exc:
+        return {
+            "status": "BASELINE_INTEGRITY_FAILED", "similarity": None,
+            "method": "average_hash_hamming",
+            "baseline_id": link.id, "baseline_version": resolution.version,
+            "resolution_scope": resolution.resolution_scope,
+            "resolution_reason": str(exc),
+        }
+
+    comparison = compare_against_baseline(
+        image_bytes=image_bytes, baseline_image_bytes=baseline_bytes,
+        candidate_instrument_family=instrument_type,
+        baseline_instrument_family=link.instrument_family or "",
+        baseline_available=True,
+        baseline_id=link.id, baseline_version=resolution.version,
+    )
+    comparison["resolution_scope"] = resolution.resolution_scope
+    comparison["resolution_reason"] = resolution.resolution_reason
+    return comparison
 
 
 def _severity_index(p: float) -> int:

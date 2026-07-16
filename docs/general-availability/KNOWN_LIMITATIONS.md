@@ -129,17 +129,26 @@ here is new; it is gathered into one place per Section 11's requirement.
   embedding** — appropriate as a first stage per the sprint's own
   guidance, but a coarser signal than a trained embedding model would
   provide.
-- **`error_analysis.py`'s hardcoded negative-label constant
+- ~~**`error_analysis.py`'s hardcoded negative-label constant
   (`"no_actionable_finding"`) does not match Project Lens's new taxonomy's
-  negative label (`"no_observable_abnormality"`)** — every error this
-  sprint's run produced was therefore categorized as
-  `misclassification_between_findings` rather than correctly recognizing
-  false-positive/false-negative cases against the new taxonomy. Disclosed
-  in `docs/model-development/ERROR_ANALYSIS_REPORT.md`; not yet fixed.
-- **`TrainingConfig.class_weighting = "balanced"` is recorded in every
-  training run's configuration but not actually applied** by the
-  pure-Python logistic-regression trainer — a real, disclosed gap between
-  declared policy and implementation.
+  negative label (`"no_observable_abnormality"`)**~~ — **fixed
+  (post-Sprint-2 follow-up)**: the negative label is now a parameter
+  (`analyze_errors(..., negative_label=...)`, default unchanged for the
+  Genesis pipeline), and `run_lens_training()` passes Lens's own label, so
+  Lens false negatives/positives are now correctly categorized instead of
+  all landing in `misclassification_between_findings`. Pinned by
+  `test_custom_negative_label_recognizes_lens_taxonomy`. Note that
+  `ERROR_ANALYSIS_REPORT.md`'s recorded run predates this fix — its
+  error-type counts reflect the old, miscategorized behavior.
+- ~~**`TrainingConfig.class_weighting = "balanced"` is recorded in every
+  training run's configuration but not actually applied**~~ — **fixed
+  (post-Sprint-2 follow-up)**: the trainer now supports per-sample weights
+  (`training_execution.balanced_sample_weights`, standard
+  n / (n_classes · n_c) convention) and both the Lens Stage B/C and
+  Genesis one-vs-rest trainers apply them when
+  `class_weighting == "balanced"`. Pinned by `TestClassWeightingUnit`.
+  Prior recorded runs (including the registered experimental artifact)
+  were trained WITHOUT balancing despite their config recording it.
 - **(Project Vision Sprint 2) `settings.ai_strict_no_placeholder` exists
   but defaults to `False` in every environment, including real
   production** — it is a new, opt-in switch that, when explicitly turned
@@ -189,13 +198,30 @@ full design. What changed and what remains true:
   `DatasetRegistryEntry` → `RetainedImage.image_bytes`. Only `ACTIVE`,
   reviewed, hash-verified images may participate — DRAFT/PENDING_REVIEW/
   APPROVED/SUSPENDED/REJECTED/ARCHIVED images cannot.
-- **`image_similarity_service.compare_against_baseline()` (Project Lens) is
-  still not wired into the live per-inspection scoring path.** This sprint
-  builds the compatibility contract and resolution hierarchy that would
-  feed such a comparator a real, governed baseline image — it deliberately
-  does not call the comparator itself ("do not implement a trained vision
-  model in this sprint," mission constraint). Wiring an actual numeric
-  image comparison into the live disposition path remains future work.
+- ~~**`image_similarity_service.compare_against_baseline()` (Project Lens) is
+  still not wired into the live per-inspection scoring path.**~~ — **wired
+  (post-Sprint-2 follow-up)**, with honest limits:
+  `_live_baseline_comparison()` in
+  `baseline_comparison_scoring_service.py` now populates
+  `live_model_result.baseline_comparison` on every live inspection by
+  composing the Atlas pieces end-to-end — `resolve_baseline_image()` (the
+  5-level hierarchy) → `check_compatibility()` (never a similarity number
+  on an incompatible outcome) → `load_and_verify_baseline_bytes()`
+  (SHA-256 re-verified on every access; a mismatch reports
+  `BASELINE_INTEGRITY_FAILED`, never a score) →
+  `compare_against_baseline()` (aHash similarity). It remains a SEPARATE
+  evidence channel: nothing reads it back into the model observation or
+  the Decision Engine's disposition, so high similarity can never cancel
+  a probable contamination, and a missing baseline never blocks inference
+  (pinned by `test_live_baseline_comparison_never_alters_observation`).
+  **Real limits**: at live-inspection time only the instrument family is
+  known (no anatomy zone, model, or Digital Twin identity is captured on
+  the inspection submission today), so resolution can only ever reach
+  hierarchy level 4 (governed consensus by instrument family) — exact
+  Digital-Twin and manufacturer/model/zone baselines are unreachable from
+  this path until richer capture context is collected; and the aHash
+  collision limitation below still applies to the similarity number
+  itself.
 - **Pre-existing metadata-only `BaselineLibraryEntry` rows are not
   automatically backfilled with an image.** They are classified via `GET
   /api/baseline-library/legacy-report` and marked

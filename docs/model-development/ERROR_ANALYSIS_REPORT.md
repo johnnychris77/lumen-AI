@@ -62,3 +62,12 @@ class. This is disclosed here rather than silently producing a
 mislabeled `error_type` — a future sprint should either parameterize
 `error_analysis.py`'s negative label or give Project Lens its own thin
 wrapper that translates labels before calling it.
+
+**Update (post-Sprint-2 follow-up): fixed.** `analyze_errors()` /
+`classify_error()` now take a `negative_label` parameter (default
+unchanged for the Genesis pipeline) and `run_lens_training()` passes
+Lens's own `"no_observable_abnormality"` — pinned by
+`test_custom_negative_label_recognizes_lens_taxonomy`. The run recorded
+ABOVE predates the fix, so its `error_type_counts` still reflect the
+old, miscategorized behavior; the next training run will report real
+false_positive/false_negative counts.

@@ -39,6 +39,7 @@ from app.services.ml.training_execution import (
     _feature_vector,
     _predict_proba,
     _train_logistic_regression,
+    balanced_sample_weights,
     git_commit,
 )
 
@@ -70,13 +71,17 @@ def resolve_candidate_classes(samples: list[dict[str, Any]]) -> list[str]:
 
 def _train_one_vs_rest(
     X: list[list[float]], y: list[str], classes: list[str], *, epochs: int, learning_rate: float,
+    class_weighting: str = "none",
 ) -> dict[str, list[float]]:
     weights_by_class = {}
     for cls in classes:
         y_bin = [1 if label == cls else 0 for label in y]
         if len(set(y_bin)) < 2:
             continue  # cannot fit a one-vs-rest head with only one class present in the split
-        weights_by_class[cls] = _train_logistic_regression(X, y_bin, epochs=epochs, learning_rate=learning_rate)
+        sample_weights = balanced_sample_weights(y_bin) if class_weighting == "balanced" else None
+        weights_by_class[cls] = _train_logistic_regression(
+            X, y_bin, epochs=epochs, learning_rate=learning_rate, sample_weights=sample_weights,
+        )
     return weights_by_class
 
 
@@ -174,7 +179,10 @@ def run_candidate_training(
             "note": "The training split does not contain enough distinct classes after leakage-safe grouping. No metrics fabricated.",
         }
 
-    weights_by_class = _train_one_vs_rest(X_train, y_train, classes, epochs=cfg.epochs, learning_rate=cfg.learning_rate)
+    weights_by_class = _train_one_vs_rest(
+        X_train, y_train, classes, epochs=cfg.epochs, learning_rate=cfg.learning_rate,
+        class_weighting=cfg.class_weighting,
+    )
 
     def _predict_split(split_samples: list[dict]) -> tuple[list[str], list[str], list[float]]:
         y_true = [s["label"] if s["label"] in classes else NEGATIVE_LABEL for s in split_samples]

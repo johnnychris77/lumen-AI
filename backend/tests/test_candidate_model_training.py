@@ -29,6 +29,7 @@ from app.services.ml.candidate_training import (
 )
 from app.services.ml.error_analysis import analyze_errors
 from app.services.ml.evaluation import calibration_report
+from app.services.ml.training_execution import _train_logistic_regression, balanced_sample_weights
 from app.services.ml.explainability import explain_prediction
 from app.services.ml.training_config import TrainingConfig
 
@@ -184,6 +185,47 @@ class TestErrorAnalysisUnit:
         report = analyze_errors(samples)
         assert report["total_errors"] == 3
         assert report["error_type_counts"]["false_negative"] == 2
+
+    def test_custom_negative_label_recognizes_lens_taxonomy(self):
+        # Project Lens's negative class differs from the Genesis default —
+        # a missed contamination against "no_observable_abnormality" must
+        # be a false_negative, never misclassification_between_findings.
+        samples = [
+            {"id": 1, "true_label": "probable_retained_debris", "predicted_label": "no_observable_abnormality", "confidence": 0.9, "anatomy_zone": "hinge"},
+            {"id": 2, "true_label": "no_observable_abnormality", "predicted_label": "probable_corrosion_like_degradation", "confidence": 0.9, "anatomy_zone": "hinge"},
+        ]
+        report = analyze_errors(samples, negative_label="no_observable_abnormality")
+        assert report["error_type_counts"] == {"false_negative": 1, "false_positive": 1}
+        # And the old, unparameterized behavior is exactly the bug this fixes:
+        legacy = analyze_errors(samples)
+        assert legacy["error_type_counts"] == {"misclassification_between_findings": 2}
+
+
+class TestClassWeightingUnit:
+    def test_balanced_weights_equalize_class_contribution(self):
+        # 3 positives, 9 negatives — each class's total weight must be equal
+        # (n / 2 each), per the standard balanced convention.
+        y = [1, 1, 1] + [0] * 9
+        w = balanced_sample_weights(y)
+        pos_total = sum(wi for wi, yi in zip(w, y) if yi == 1)
+        neg_total = sum(wi for wi, yi in zip(w, y) if yi == 0)
+        assert abs(pos_total - neg_total) < 1e-9
+        assert abs(pos_total - len(y) / 2) < 1e-9
+
+    def test_single_class_returns_unit_weights(self):
+        assert balanced_sample_weights([1, 1, 1]) == [1.0, 1.0, 1.0]
+
+    def test_balanced_weighting_changes_trained_model_on_imbalanced_data(self):
+        # TrainingConfig.class_weighting="balanced" was recorded but never
+        # applied before this fix — this pins that it now genuinely alters
+        # the fit on imbalanced data.
+        X = [[0.1, 0.1, 1.0]] * 2 + [[0.9, 0.9, 1.0]] * 10
+        y = [1] * 2 + [0] * 10
+        unweighted = _train_logistic_regression(X, y, epochs=200, learning_rate=0.3)
+        weighted = _train_logistic_regression(
+            X, y, epochs=200, learning_rate=0.3, sample_weights=balanced_sample_weights(y),
+        )
+        assert unweighted != weighted
 
 
 class TestCalibrationUnit:

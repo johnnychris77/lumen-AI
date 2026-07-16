@@ -8,6 +8,7 @@ import hashlib
 import io
 import itertools
 import os
+import uuid as _uuid
 
 import pytest
 from PIL import Image
@@ -362,6 +363,145 @@ def test_same_filename_different_bytes_is_distinct_identity():
         assert result_a["image"]["sha256"] == sha_a
         assert result_b["image"]["sha256"] == sha_b
         assert result_a["image"]["sha256"] != result_b["image"]["sha256"]
+    finally:
+        db.close()
+
+
+# ── 21 — live baseline comparator wiring (Atlas → live path) ───────────────
+
+def _nonce_img(brightness: int, stripe_period: int = 8) -> bytes:
+    # A random PNG text chunk guarantees a unique SHA-256 across pytest
+    # invocations sharing the same persistent SQLite test DB — without it,
+    # the LCID duplicate gate rejects re-registering last run's identical
+    # bytes (same mitigation as tests/test_baseline_image_library.py::_img).
+    from PIL import PngImagePlugin
+
+    img = Image.new("RGB", (300, 300), (brightness, brightness, brightness))
+    if stripe_period:
+        px = img.load()
+        inverse = 255 - brightness
+        for x in range(0, 300, stripe_period):
+            for y in range(300):
+                px[x, y] = (inverse, inverse, inverse)
+    buf = io.BytesIO()
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text("test-nonce", _uuid.uuid4().hex)
+    img.save(buf, format="PNG", pnginfo=meta)
+    return buf.getvalue()
+
+
+def _make_active_baseline_link(db, *, tenant_id: str, instrument_family: str, image_data: bytes):
+    """Create an ACTIVE, governed-consensus baseline image link through the
+    real Atlas lifecycle (link → review → activate) — the only resolution
+    level reachable when the live path knows just the instrument family."""
+    import uuid as _uuid
+
+    from app.models.baseline_library import BaselineLibraryEntry
+    from app.models.baseline_image_library import (
+        IMAGE_TYPE_MANUFACTURER_BASELINE,
+        SOURCE_GOVERNED_CONSENSUS_REFERENCE,
+    )
+    from app.models.retained_image import RetainedImage
+    from app.services import baseline_image_library_service as bil
+    from app.services.ml import dataset_registry
+
+    retained = RetainedImage(
+        tenant_id=tenant_id, deident_name="lens-baseline", instrument_type=instrument_family,
+        content_type="image/png", size_bytes=len(image_data),
+        sha256=hashlib.sha256(image_data).hexdigest(), exif_stripped=True, source="test",
+        consent_recorded=True, uploaded_by="tester", image_bytes=image_data,
+    )
+    db.add(retained)
+    db.commit()
+    db.refresh(retained)
+    version = dataset_registry.create_dataset_version(db, tenant_id=tenant_id, version_label=f"lens-bl-{_uuid.uuid4().hex[:8]}")
+    lcid_entry = dataset_registry.register_image(
+        db, tenant_id=tenant_id, dataset_version_id=version.id, retained_image_id=retained.id,
+        image_sha256=retained.sha256, instrument_family=instrument_family, instrument_model="X1",
+        manufacturer="Acme", anatomy_zone="tip", capture_device="phone", image_resolution="300x300",
+        facility="Test Hospital", operator="tech1", usage_rights="internal_use", phi_verification="verified",
+    )
+    lcid_entry.image_quality = "Good"
+    db.commit()
+    baseline_entry = BaselineLibraryEntry(
+        instrument_category=instrument_family, manufacturer_name="Acme", model_name="X1",
+        baseline_type="manufacturer", approval_status="approved",
+    )
+    db.add(baseline_entry)
+    db.commit()
+    db.refresh(baseline_entry)
+    link = bil.link_lcid_image_to_baseline(
+        db, tenant_id=tenant_id, baseline_library_entry_id=baseline_entry.id, lcid_image_id=lcid_entry.id,
+        anatomy_zone="tip", inspection_view="lateral", image_type=IMAGE_TYPE_MANUFACTURER_BASELINE,
+        source_type=SOURCE_GOVERNED_CONSENSUS_REFERENCE, created_by="ingest@test",
+    )
+    link = bil.submit_for_review(db, link=link, actor="ingest@test")
+    bil.review_baseline_image(
+        db, link=link, reviewer="reviewer@test", reviewer_role="spd_manager", decision="approve",
+        rationale="Reference consensus image.", anatomy_compatibility_confirmed=True,
+        image_quality_assessment="Good",
+    )
+    db.refresh(link)
+    bil.activate_baseline_image(db, link=link, actor="admin@test", actor_role="admin")
+    db.refresh(link)
+    return link
+
+
+def test_live_baseline_comparison_no_approved_baseline():
+    from app.services.baseline_comparison_scoring_service import _live_model_result
+
+    db = SessionLocal()
+    try:
+        family = f"lens-no-baseline-{_uuid.uuid4().hex[:8]}"
+        result = _live_model_result(
+            db, tenant_id=TENANT, image_bytes=_img(120), instrument_type=family,
+        )
+        comparison = result["baseline_comparison"]
+        assert comparison is not None
+        assert comparison["status"] == "no_approved_baseline"
+        assert comparison["similarity"] is None
+        # The model's own channel is untouched — a missing baseline never
+        # blocks inference (Section 17); the adapter still reports its own
+        # honest state independently.
+        assert result["analysis_status"] in ("completed", "ai_unavailable")
+    finally:
+        db.close()
+
+
+def test_live_baseline_comparison_with_active_baseline_produces_similarity():
+    from app.services.baseline_comparison_scoring_service import _live_model_result
+
+    db = SessionLocal()
+    try:
+        family = f"lens-live-baseline-{_uuid.uuid4().hex[:8]}"
+        baseline_bytes = _nonce_img(120)
+        _make_active_baseline_link(db, tenant_id=TENANT, instrument_family=family, image_data=baseline_bytes)
+        result = _live_model_result(db, tenant_id=TENANT, image_bytes=baseline_bytes, instrument_type=family)
+        comparison = result["baseline_comparison"]
+        assert comparison["status"] in ("exact_match", "comparable")
+        assert comparison["similarity"] == 1.0
+        assert comparison["resolution_scope"]
+    finally:
+        db.close()
+
+
+def test_live_baseline_comparison_never_alters_observation():
+    # High baseline similarity must never cancel or change the model's
+    # observation channel — populate both from the same call and assert the
+    # observation is byte-identical to a run with no baseline registered.
+    from app.services.baseline_comparison_scoring_service import _live_model_result
+
+    db = SessionLocal()
+    try:
+        family = f"lens-separation-{_uuid.uuid4().hex[:8]}"
+        probe = _nonce_img(150, stripe_period=10)
+        without_baseline = _live_model_result(db, tenant_id=TENANT, image_bytes=probe, instrument_type=family)
+        _make_active_baseline_link(db, tenant_id=TENANT, instrument_family=family, image_data=probe)
+        with_baseline = _live_model_result(db, tenant_id=TENANT, image_bytes=probe, instrument_type=family)
+        assert with_baseline["baseline_comparison"]["similarity"] == 1.0
+        assert without_baseline["baseline_comparison"]["status"] == "no_approved_baseline"
+        assert with_baseline["observation"] == without_baseline["observation"]
+        assert with_baseline["analysis_status"] == without_baseline["analysis_status"]
     finally:
         db.close()
 
