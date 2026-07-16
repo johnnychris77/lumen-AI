@@ -4,8 +4,10 @@ Uses real image fixtures (real PNG-encoded bytes via Pillow, not mocked
 prediction objects) throughout, matching this codebase's established
 convention (tests/test_candidate_model_training.py::_img()).
 """
+import hashlib
 import io
 import itertools
+import os
 
 import pytest
 from PIL import Image
@@ -266,5 +268,131 @@ def test_analyze_inspection_live_model_result_is_additive_only():
             if key == "live_model_result":
                 continue
             assert with_bytes[key] == without_bytes[key], f"key {key!r} changed when only image_bytes was added"
+    finally:
+        db.close()
+
+
+# ── 16 — settings.ai_strict_no_placeholder disables placeholder scoring ─────
+
+def test_strict_no_placeholder_disables_deterministic_placeholder_finding(monkeypatch):
+    monkeypatch.setenv("AI_STRICT_NO_PLACEHOLDER", "true")
+    db = SessionLocal()
+    try:
+        result = analyze_inspection(
+            db, instrument_type="scissors", tenant_id=TENANT, has_image=True, image_sha256="b" * 64,
+        )
+        assert result["model_result"]["model_status"] == "unavailable"
+        assert result["model_result"]["findings"] == []
+        assert any(
+            "Strict no-placeholder mode is enabled" in limitation
+            for limitation in result["model_result"]["limitations"]
+        )
+    finally:
+        db.close()
+
+
+def test_strict_no_placeholder_defaults_off(monkeypatch):
+    monkeypatch.delenv("AI_STRICT_NO_PLACEHOLDER", raising=False)
+    db = SessionLocal()
+    try:
+        result = analyze_inspection(
+            db, instrument_type="scissors", tenant_id=TENANT, has_image=True, image_sha256="c" * 64,
+        )
+        assert result["model_result"]["model_status"] == "experimental"
+        assert not any(
+            "Strict no-placeholder mode is enabled" in limitation
+            for limitation in result["model_result"]["limitations"]
+        )
+    finally:
+        db.close()
+
+
+# ── 17 — missing artifact file returns safe unavailable state ───────────────
+
+def test_missing_artifact_file_returns_artifact_missing():
+    db = SessionLocal()
+    try:
+        tenant = "lens-artifact-missing-tenant"
+        model, _run = _train_and_register(db, tenant_id=tenant, candidate_stage="Candidate")
+        os.remove(model.artifact_path)
+        result = live_inference_adapter.predict(db, tenant_id=tenant, image_bytes=_img(100))
+        assert result["analysis_status"] == "ai_unavailable"
+        assert result["model"]["status"] == live_inference_adapter.HEALTH_ARTIFACT_MISSING
+        assert result["observation"] is None
+    finally:
+        db.close()
+
+
+# ── 18 — corrupted artifact / checksum mismatch blocks loading ──────────────
+
+def test_checksum_mismatch_blocks_loading():
+    db = SessionLocal()
+    try:
+        tenant = "lens-checksum-mismatch-tenant"
+        model, _run = _train_and_register(db, tenant_id=tenant, candidate_stage="Candidate")
+        with open(model.artifact_path, "ab") as f:
+            f.write(b"corrupted-tail-bytes")
+        result = live_inference_adapter.predict(db, tenant_id=tenant, image_bytes=_img(100))
+        assert result["analysis_status"] == "ai_unavailable"
+        assert result["model"]["status"] == live_inference_adapter.HEALTH_CHECKSUM_FAILED
+        assert result["observation"] is None
+    finally:
+        db.close()
+
+
+# ── 19 — same filename, different bytes: identity is content-hash based ─────
+
+def test_same_filename_different_bytes_is_distinct_identity():
+    # The live adapter and analyze_inspection() never receive or key off a
+    # filename — identity is always the actual image bytes / their sha256.
+    # Two uploads sharing a filename (a common accidental-reuse scenario)
+    # must never be treated as the same image.
+    bytes_a = _img(40)
+    bytes_b = _img(220)
+    assert bytes_a != bytes_b
+    sha_a = hashlib.sha256(bytes_a).hexdigest()
+    sha_b = hashlib.sha256(bytes_b).hexdigest()
+    assert sha_a != sha_b
+
+    db = SessionLocal()
+    try:
+        model, _run = _train_and_register(db, tenant_id="lens-filename-collision-tenant", candidate_stage="Candidate")
+        result_a = live_inference_adapter.predict(db, tenant_id="lens-filename-collision-tenant", image_bytes=bytes_a, image_sha256=sha_a)
+        result_b = live_inference_adapter.predict(db, tenant_id="lens-filename-collision-tenant", image_bytes=bytes_b, image_sha256=sha_b)
+        assert result_a["image"]["sha256"] == sha_a
+        assert result_b["image"]["sha256"] == sha_b
+        assert result_a["image"]["sha256"] != result_b["image"]["sha256"]
+    finally:
+        db.close()
+
+
+# ── 20 — Decision Engine receives the model observation unchanged ──────────
+
+def test_decision_engine_receives_observation_unchanged():
+    # The Decision Engine's contract observation.confidence must be exactly
+    # the confidence analyze_inspection() produced for the primary finding —
+    # never re-derived, rounded, or recalculated on the way into the contract.
+    from app.models.baseline_library import BaselineLibraryEntry
+    from app.services import lumen_decision_engine
+
+    db = SessionLocal()
+    try:
+        itype = "lens-decision-passthrough-instrument"
+        db.add(BaselineLibraryEntry(
+            instrument_category=itype, manufacturer_name="Acme", model_name="Test",
+            baseline_type="manufacturer", approval_status="approved",
+        ))
+        db.commit()
+        analysis = analyze_inspection(
+            db, instrument_type=itype, tenant_id=TENANT, has_image=True, image_sha256="d" * 64,
+            declared_findings=["debris"],
+        )
+        assert analysis["analysis_status"] == "completed"
+        original_confidence = next(f["confidence"] for f in analysis["predicted_findings"] if f["type"] == "debris")
+        contract = lumen_decision_engine.build_decision(
+            db, inspection_id=999999, tenant_id=TENANT, facility_name="Test Hospital",
+            department="CSSD", instrument_type=itype, analysis=analysis, persist=False,
+        )
+        assert contract["observation"]["confidence"] == original_confidence
     finally:
         db.close()

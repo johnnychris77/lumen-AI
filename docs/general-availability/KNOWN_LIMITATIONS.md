@@ -140,6 +140,17 @@ here is new; it is gathered into one place per Section 11's requirement.
   training run's configuration but not actually applied** by the
   pure-Python logistic-regression trainer — a real, disclosed gap between
   declared policy and implementation.
+- **(Project Vision Sprint 2) `settings.ai_strict_no_placeholder` exists
+  but defaults to `False` in every environment, including real
+  production** — it is a new, opt-in switch that, when explicitly turned
+  on, makes `_build_model_result()` report an honest `"unavailable"` state
+  instead of the deterministic-placeholder score. It was deliberately not
+  turned on by default and not tied to `settings.is_production`, because
+  `APP_ENV=production` is already set in this codebase's real deployment
+  configs today — flipping it on is a distinct decision, not something
+  this sprint changes silently. Until it is explicitly enabled, the
+  placeholder limitation above (production mode still runs the
+  deterministic placeholder) remains accurate.
 
 ## False-PASS Remediation limitations (see `docs/model-development/FALSE_PASS_ROOT_CAUSE.md`)
 

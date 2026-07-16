@@ -380,6 +380,7 @@ async def inspection_clinical_report(
         image_sha256=row.image_sha256,
         instrument_barcode=row.instrument_barcode,
         instrument_udi=row.instrument_udi,
+        inspection_id=row.id,
     )
     pdf = build_clinical_report_pdf(row, analysis)
     return StreamingResponse(
@@ -441,6 +442,7 @@ async def create_inspection(
         # reports unavailable rather than fabricating a prediction from bytes
         # that don't exist.
         retained_image_bytes = None
+        retained_image_id = None
         if body.image_sha256:
             from app.models.retained_image import RetainedImage as _RetainedImage
             retained_row = (
@@ -448,6 +450,8 @@ async def create_inspection(
                 .filter(_RetainedImage.tenant_id == tenant_id, _RetainedImage.sha256 == body.image_sha256)
                 .first()
             )
+            if retained_row is not None:
+                retained_image_id = retained_row.id
             if retained_row is not None and retained_row.image_bytes is not None:
                 # False-PASS remediation, Section 2 — reload the stored bytes
                 # and recompute their hash before trusting them for analysis.
@@ -486,6 +490,7 @@ async def create_inspection(
                 training_mode=body.training_mode,
                 image_view_tags=image_view_tags_dicts,
                 image_bytes=retained_image_bytes,
+                retained_image_id=retained_image_id,
             )
         except Exception:
             # Analysis must never crash the request or silently advance the
@@ -617,6 +622,13 @@ async def create_inspection(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    # Project Vision Sprint 2 (Section 16) — the result contract's
+    # inspection_id isn't known until the Inspection row is committed above;
+    # backfill it onto the already-computed live_model_result rather than
+    # re-running inference a second time now that the ID exists.
+    if analysis is not None and analysis.get("live_model_result") is not None:
+        analysis["live_model_result"]["inspection_id"] = row.id
 
     # v1.5 — Quality Intelligence: log each actionable finding (severity >= 1)
     # for real trend/anatomy-risk/instrument-family aggregation. Only findings

@@ -258,6 +258,18 @@ comparison.
 | **Known limitations** | Zero real training data exists in this environment (disclosed extensively in `docs/model-development/TRAINING_ELIGIBILITY_REPORT.md`). The classifier is a linear model over 3 hand-engineered scalar features (brightness/sharpness/aspect), not a learned-visual-feature CNN — no GPU-capable ML framework (torch/tensorflow/onnxruntime/scikit-learn) is installed in this environment (verified directly). `error_analysis.py`'s hardcoded negative-label constant doesn't match Project Lens's new taxonomy (disclosed in `ERROR_ANALYSIS_REPORT.md`). `TrainingConfig.class_weighting` is recorded but not actually applied by the trainer. The baseline comparator's real-image-bytes wiring into `live_inference_adapter`'s `baseline_comparison` field is built and tested standalone but not yet threaded into the live contract end-to-end (see `BASELINE_COMPARATOR_VALIDATION.md`) |
 | **Next validation requirement** | A qualified human reviewer repeats `docs/model-development/MANUAL_MODEL_ACCEPTANCE.md`'s 10-case walkthrough against real, expert-reviewed images once a real facility pilot produces real ACTIVE Ground Truth; only then can this model genuinely reach `"Candidate"` |
 
+**Project Vision Sprint 2 addendum** (still **Experimental** — no change to the
+status above): the live-inference result contract now includes
+`inspection_id` and `image{lcid_image_id, sha256, width, height}` (Section
+16), matching the mission's exact contract shape; the frontend disclosure
+panel now shows the image identity alongside model name/version/maturity;
+and a new, separate, opt-in `settings.ai_strict_no_placeholder` flag
+(default `False` everywhere, including real production) exists so the
+deterministic-placeholder score can be withheld entirely once a real
+promoted model exists — see `docs/model-development/LIVE_INFERENCE_INTEGRATION.md`.
+No capability, status, or maturity level changed; these are contract and
+disclosure additions only.
+
 ---
 
 ## Findings Register — carried forward, not yet fixed

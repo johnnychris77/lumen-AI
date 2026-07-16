@@ -28,6 +28,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.ai.inference import SUPPORTED_MODEL_CATEGORIES
+from app.config import get_settings
 from app.services.instrument_anatomy import resolve_family
 from app.services.instrument_zones import is_high_retention, zone_fields
 from app.services.zone_intelligence import typical_findings_for_legacy_zone
@@ -150,6 +151,7 @@ def _build_model_result(
     *,
     baseline_found: bool,
     analysis_status: str,
+    strict_no_placeholder: bool = False,
 ) -> dict[str, Any]:
     """Honest, scope-limited result contract (Product Truth Reset — Core
     Inspection Workflow Closure). Additive to the broader KPI heuristic above:
@@ -158,6 +160,14 @@ def _build_model_result(
     PRESENTED as a model finding to only the categories the deployed model
     (app.ai.inference.LumenAIModel) actually supports today, and it never
     reports a probability for a category the model does not evaluate.
+
+    ``strict_no_placeholder`` (Project Vision Sprint 2, Section 15 —
+    ``settings.ai_strict_no_placeholder``, off by default everywhere
+    including real production): when True, even the debris/corrosion
+    categories this deployment's deterministic placeholder scores are
+    withheld rather than presented as a "model_observation" — since no
+    real trained model backs them either, "experimental" is not honest
+    enough once this flag is deliberately turned on.
     """
     limitations = [
         "Current model evaluates debris and corrosion only, via a deterministic "
@@ -166,12 +176,20 @@ def _build_model_result(
         "Image quality is not automatically assessed by the current model.",
         "Result requires human review.",
     ]
+    model_status = "unavailable" if strict_no_placeholder else "experimental"
+    if strict_no_placeholder:
+        limitations.insert(
+            0, "Strict no-placeholder mode is enabled: no deterministic-placeholder score is "
+               "presented as a model finding; AI analysis is reported unavailable pending a real "
+               "promoted model.",
+        )
+
     if not baseline_found:
         limitations.insert(
             0, "No approved baseline found; scoring is withheld pending supervisor review.",
         )
         return {
-            "model_status": "experimental",
+            "model_status": model_status,
             "model_version": MODEL_VERSION,
             "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
             "findings": [],
@@ -185,7 +203,7 @@ def _build_model_result(
     if analysis_status != "completed":
         limitations.insert(0, "AI analysis did not complete successfully for this submission.")
         return {
-            "model_status": "experimental",
+            "model_status": model_status,
             "model_version": MODEL_VERSION,
             "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
             "findings": [],
@@ -196,7 +214,7 @@ def _build_model_result(
             "human_review_required": True,
         }
 
-    findings = [
+    findings = [] if strict_no_placeholder else [
         {
             "category": f["type"],
             "confidence": f["confidence"],
@@ -206,7 +224,7 @@ def _build_model_result(
         if f["type"] in SUPPORTED_MODEL_CATEGORIES
     ]
     return {
-        "model_status": "experimental",
+        "model_status": model_status,
         "model_version": MODEL_VERSION,
         "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
         "findings": findings,
@@ -220,6 +238,7 @@ def _build_model_result(
 
 def _live_model_result(
     db: Session, *, tenant_id: str, image_bytes: Optional[bytes], instrument_type: str,
+    inspection_id: Optional[int] = None, image_sha256: Optional[str] = None, retained_image_id: Optional[int] = None,
 ) -> dict[str, Any]:
     """Project Lens (Section 15) — additive integration only. Populates a
     NEW top-level key (``live_model_result``) with whatever the real live
@@ -235,7 +254,10 @@ def _live_model_result(
     """
     from app.services.ml.live_inference_adapter import predict as live_predict
 
-    return live_predict(db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_family=instrument_type)
+    return live_predict(
+        db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_family=instrument_type,
+        inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+    )
 
 
 def _severity_index(p: float) -> int:
@@ -1195,6 +1217,8 @@ def analyze_inspection(
     training_mode: bool = False,
     image_view_tags: Optional[list[dict]] = None,
     image_bytes: Optional[bytes] = None,
+    inspection_id: Optional[int] = None,
+    retained_image_id: Optional[int] = None,
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -1250,9 +1274,11 @@ def analyze_inspection(
         }
         no_baseline["model_result"] = _build_model_result(
             [], baseline_found=False, analysis_status="supervisor_review_required",
+            strict_no_placeholder=get_settings().ai_strict_no_placeholder,
         )
         no_baseline["live_model_result"] = _live_model_result(
             db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
+            inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
         )
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
@@ -1620,9 +1646,11 @@ def analyze_inspection(
     }
     result["model_result"] = _build_model_result(
         predicted_findings, baseline_found=True, analysis_status="completed",
+        strict_no_placeholder=get_settings().ai_strict_no_placeholder,
     )
     result["live_model_result"] = _live_model_result(
         db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
+        inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
     )
     # Phase 13: Explainable Clinical Decision Support payload.
     result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)

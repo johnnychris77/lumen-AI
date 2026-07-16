@@ -217,6 +217,22 @@ train against — this sprint closes the "never wired in" architectural gap
 but does not, and could not honestly, close the "no real training data"
 gap alongside it.
 
+### Addendum update — Project Vision Sprint 2
+
+No new supporting evidence exists for a different release decision, so
+**the release decision above is unchanged.** Sprint 2 extended the same
+Experimental, synthetic-data-only Project Lens candidate with: an exact
+Section 16 result-contract shape (`inspection_id`, `image` identity block),
+a new opt-in `settings.ai_strict_no_placeholder` switch (default `False`
+everywhere, including production — see the Known Limitations addendum),
+frontend disclosure of the image identity, and additional automated test
+coverage (missing-artifact, checksum-mismatch, same-filename-distinct-
+identity, and Decision-Engine-observation-pass-through cases in
+`tests/test_project_lens.py`). Per this sprint's own correct-completion
+statement: the candidate is ready for independent validation and
+prospective shadow-mode evaluation — not clinically validated, pilot-ready,
+or production-ready.
+
 ## Summary
 
 LumenAI Version 1.0 is architecturally sound, extensively documented, and

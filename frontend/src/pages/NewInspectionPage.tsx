@@ -137,13 +137,16 @@ type Analysis = {
   // expected state for this deployment today (see KNOWN_LIMITATIONS.md).
   live_model_result?: {
     analysis_status: "completed" | "ai_unavailable";
+    inspection_id?: number | string | null;
     model: {
       model_id: string;
       model_version: string | null;
       status: string;
+      maturity?: string;
       preprocessing_version: string | null;
       calibration_version: string | null;
     };
+    image?: { lcid_image_id: string | number | null; sha256: string | null; width: number; height: number } | null;
     image_quality: { status: string; grade?: string } | null;
     observation: {
       category: string;
@@ -1303,6 +1306,16 @@ function AIPredictionPanel({
                   <span className="text-xs text-purple-700">Not evaluated by current model: </span>
                   <span className="text-xs text-purple-900">{prediction.analysis.live_model_result.unsupported_categories.join(", ") || "none"}</span>
                 </div>
+                {prediction.analysis.live_model_result.image && (
+                  <div className="text-xs text-purple-700">
+                    Image: {prediction.analysis.live_model_result.image.lcid_image_id != null
+                      ? `LCID ${prediction.analysis.live_model_result.image.lcid_image_id}`
+                      : "not registered in LCID"}
+                    {prediction.analysis.live_model_result.image.sha256
+                      ? ` — sha256 ${prediction.analysis.live_model_result.image.sha256.slice(0, 12)}…`
+                      : ""}
+                  </div>
+                )}
                 {prediction.analysis.live_model_result.baseline_comparison && (
                   <div className="text-xs text-purple-700">
                     Baseline comparison: {prediction.analysis.live_model_result.baseline_comparison.status.replace(/_/g, " ")}

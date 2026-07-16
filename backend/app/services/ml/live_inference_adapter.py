@@ -23,7 +23,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.dataset_governance import QUALITY_POOR, QUALITY_REJECT
+from app.models.dataset_governance import QUALITY_POOR, QUALITY_REJECT, DatasetRegistryEntry
 from app.models.model_registry import ModelRegistryEntry
 from app.services.ml.candidate_promotion import CANDIDATE_STAGES
 from app.services.ml.image_quality import assess_image_bytes
@@ -125,10 +125,40 @@ def _limitations() -> list[str]:
     ]
 
 
-def _unavailable_contract(health: str, reason: str, *, model_id: str = MODEL_ID) -> dict[str, Any]:
+def _image_block(
+    db: Session, *, tenant_id: str, image_sha256: str | None, retained_image_id: int | None,
+    width: int = 0, height: int = 0,
+) -> dict[str, Any] | None:
+    """Project Vision Sprint 2, Section 16 — the result contract's ``image``
+    block. ``lcid_image_id`` is a soft, nullable lookup (an inspection image
+    is not required to have gone through LCID registration) — never
+    fabricated when no matching ``DatasetRegistryEntry`` exists."""
+    if not image_sha256 and not retained_image_id:
+        return None
+    lcid_image_id = None
+    if retained_image_id is not None:
+        entry = (
+            db.query(DatasetRegistryEntry)
+            .filter(DatasetRegistryEntry.tenant_id == tenant_id, DatasetRegistryEntry.retained_image_id == retained_image_id)
+            .order_by(DatasetRegistryEntry.id.desc())
+            .first()
+        )
+        lcid_image_id = entry.id if entry is not None else None
+    return {"lcid_image_id": lcid_image_id, "sha256": image_sha256, "width": width, "height": height}
+
+
+def _unavailable_contract(
+    health: str, reason: str, *, model_id: str = MODEL_ID, inspection_id: int | str | None = None,
+    image: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
+        "inspection_id": inspection_id,
         "analysis_status": "ai_unavailable",
-        "model": {"model_id": model_id, "model_version": None, "status": health, "preprocessing_version": None, "calibration_version": None},
+        "model": {
+            "model_id": model_id, "model_version": None, "maturity": health, "status": health,
+            "preprocessing_version": None, "calibration_version": None,
+        },
+        "image": image,
         "image_quality": None,
         "observation": None,
         "supported_categories": [],
@@ -142,13 +172,17 @@ def _unavailable_contract(health: str, reason: str, *, model_id: str = MODEL_ID)
 
 def predict(
     db: Session, *, tenant_id: str, image_bytes: bytes | None, instrument_family: str = "", model_id: str = MODEL_ID,
+    inspection_id: int | str | None = None, image_sha256: str | None = None, retained_image_id: int | None = None,
 ) -> dict[str, Any]:
     """The real live inference entry point. Never uses the deterministic
     placeholder; returns a safe unavailable contract instead when no
     eligible model or no real image bytes exist for this request."""
     loaded = load_active_model(db, tenant_id=tenant_id, model_id=model_id)
     if loaded["status"] != HEALTH_AVAILABLE:
-        return _unavailable_contract(loaded["status"], loaded["reason"], model_id=model_id)
+        return _unavailable_contract(
+            loaded["status"], loaded["reason"], model_id=model_id, inspection_id=inspection_id,
+            image=_image_block(db, tenant_id=tenant_id, image_sha256=image_sha256, retained_image_id=retained_image_id),
+        )
 
     model, artifact = loaded["model"], loaded["artifact"]
     supported_categories = list(artifact["eligible_classes"])
@@ -161,24 +195,33 @@ def predict(
             HEALTH_UNAVAILABLE,
             "No real image bytes were retained for this submission (retention/consent not enabled) — "
             "a trained model cannot evaluate real pixel content for this request.",
-            model_id=model_id,
+            model_id=model_id, inspection_id=inspection_id,
+            image=_image_block(db, tenant_id=tenant_id, image_sha256=image_sha256, retained_image_id=retained_image_id),
         )
         contract["model"]["model_version"] = model.model_version
         contract["model"]["status"] = "candidate"
+        contract["model"]["maturity"] = "candidate"
         contract["supported_categories"] = supported_categories
         contract["unsupported_categories"] = unsupported_categories
         return contract
 
     quality = assess_image_bytes(image_bytes)
+    image_block = _image_block(
+        db, tenant_id=tenant_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+        width=quality.get("width", 0), height=quality.get("height", 0),
+    )
     model_block = {
-        "model_id": model.model_id, "model_version": model.model_version, "status": model.candidate_stage.lower(),
+        "model_id": model.model_id, "model_version": model.model_version,
+        "status": model.candidate_stage.lower(), "maturity": model.candidate_stage.lower(),
         "preprocessing_version": model.preprocessing_version, "calibration_version": model.training_run_id,
     }
 
     if not quality["decodable"] or quality["overall_quality"] in (QUALITY_REJECT, QUALITY_POOR):
         return {
+            "inspection_id": inspection_id,
             "analysis_status": "completed",
             "model": model_block,
+            "image": image_block,
             "image_quality": {"status": "insufficient_image_quality", "confidence": None, "grade": quality.get("overall_quality")},
             "observation": {
                 "category": "insufficient_image_quality", "display_label": display_label("insufficient_image_quality"),
@@ -196,8 +239,10 @@ def predict(
     vec = _feature_vector(image_bytes)
     if vec is None:
         return {
+            "inspection_id": inspection_id,
             "analysis_status": "completed",
             "model": model_block,
+            "image": image_block,
             "image_quality": {"status": "insufficient_image_quality", "confidence": None, "grade": quality.get("overall_quality")},
             "observation": {
                 "category": "insufficient_image_quality", "display_label": display_label("insufficient_image_quality"),
@@ -230,8 +275,10 @@ def predict(
         abstained, abstention_reason = False, None
 
     return {
+        "inspection_id": inspection_id,
         "analysis_status": "completed",
         "model": model_block,
+        "image": image_block,
         "image_quality": {"status": "sufficient_for_evaluation", "confidence": None, "grade": quality.get("overall_quality")},
         "observation": {
             "category": label if not abstained else "unknown_review_required",

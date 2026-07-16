@@ -77,3 +77,38 @@ POST /api/inspections
             -> result["live_model_result"] = <contract>
        -> [unchanged] build_clinical_decision(), Lumen Decision Engine, etc.
 ```
+
+## Project Vision Sprint 2 additions
+
+Two additive changes on top of everything above, neither of which alters
+any existing consumer's behavior (verified by re-running this file's own
+test coverage plus `test_analyze_inspection_live_model_result_is_additive_only`
+after both changes):
+
+1. **Result contract now matches Sprint 2's Section 16 shape exactly.**
+   `live_model_result` gained a top-level `inspection_id` (backfilled onto
+   the already-computed contract once the `Inspection` row commits, since
+   the row's ID does not exist yet at the point `analyze_inspection()` is
+   called) and an `image{lcid_image_id, sha256, width, height}` block
+   (`lcid_image_id` is a soft, nullable lookup — never fabricated when the
+   image was never registered in the LCID). `model.status` is retained
+   verbatim; `model.maturity` is a new key carrying the identical value, so
+   no existing reader of `model.status` breaks.
+2. **`settings.ai_strict_no_placeholder`** (env var
+   `AI_STRICT_NO_PLACEHOLDER`, default `False` everywhere including real
+   production) is a new, separate, opt-in switch satisfying Section 15's
+   "placeholder inference may exist only in explicit test/demo mode and
+   must never run silently in production." It was deliberately **not**
+   wired to the existing `settings.is_production` property, because
+   `APP_ENV=production` is already set in this codebase's real deployment
+   configs today (`k8s/configmap.yaml`, `docker-compose.prod.example.yml`,
+   `render.yaml`) — gating on it directly would have silently changed
+   already-deployed behavior with no new supporting evidence, which the
+   mission itself prohibits for the GA decision. When set to `true`,
+   `baseline_comparison_scoring_service._build_model_result()` reports
+   `model_status: "unavailable"` with an empty `findings` list instead of
+   the deterministic-placeholder score, for every one of its three return
+   branches (no-baseline, analysis-incomplete, completed). See
+   `test_strict_no_placeholder_disables_deterministic_placeholder_finding`
+   and `test_strict_no_placeholder_defaults_off` in
+   `tests/test_project_lens.py`.

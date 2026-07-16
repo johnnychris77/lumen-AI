@@ -60,6 +60,18 @@ class Settings:
 
     allowed_origins: list[str]
 
+    # Project Vision Sprint 2, Section 15 — "placeholder inference may exist
+    # only in explicit test/demo mode and must never run silently in
+    # production." Defaults to False everywhere, including real production
+    # deployments (APP_ENV=production is already set there today), so
+    # enabling this is a deliberate, separate decision from is_production —
+    # not an automatic consequence of it. When True,
+    # baseline_comparison_scoring_service._build_model_result() reports the
+    # honest "unavailable" state instead of a deterministic-placeholder
+    # probability for any category no real promoted model backs, rather
+    # than presenting a fabricated score as if it were evaluated.
+    ai_strict_no_placeholder: bool
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
@@ -115,6 +127,7 @@ def get_settings() -> Settings:
         enable_enterprise_rbac=_bool_env("ENABLE_ENTERPRISE_RBAC", True),
         require_full_coverage_before_final_decision=_bool_env("REQUIRE_FULL_COVERAGE_BEFORE_FINAL_DECISION", False),
         allowed_origins=allowed_origins,
+        ai_strict_no_placeholder=_bool_env("AI_STRICT_NO_PLACEHOLDER", False),
     )
 
 

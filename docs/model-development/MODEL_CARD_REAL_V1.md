@@ -14,6 +14,9 @@ instruments, for one declared experimental training run's proof of the
 governed training/inference pipeline. **This model has never evaluated a
 real clinical image and is not eligible for any clinical use.**
 
+**This model reports probable visual observations and does not provide
+laboratory confirmation of material identity.**
+
 ## Intended users
 
 Engineering and clinical-governance reviewers validating the Project Lens
