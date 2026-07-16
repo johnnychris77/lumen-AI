@@ -610,6 +610,10 @@ from app.models import dataset_governance as _dataset_governance_models  # noqa:
 from app.routes.dataset_registry import router as dataset_registry_router
 app.include_router(dataset_registry_router, prefix=settings.API_PREFIX)
 
+from app.models import baseline_image_library as _baseline_image_library_models  # noqa: F401
+from app.routes.baseline_image_library import router as baseline_image_library_router
+app.include_router(baseline_image_library_router, prefix=settings.API_PREFIX)
+
 from app.routes.dataset_ingestion import router as dataset_ingestion_router
 app.include_router(dataset_ingestion_router, prefix=settings.API_PREFIX)
 

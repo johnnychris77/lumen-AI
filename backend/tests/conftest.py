@@ -82,6 +82,7 @@ def _force_import_models():
         "app.models.recall_signal",
         "app.models.instrument_registry",
         "app.models.baseline_library",
+        "app.models.baseline_image_library",
         "app.models.external_connector",
         "app.models.patient_safety",
         "app.models.integrations",

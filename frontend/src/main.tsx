@@ -133,6 +133,10 @@ const BaselineReviewPage = lazy(() => import("./pages/BaselineReviewPage"));
 const VendorBaselinePortalPage = lazy(() => import("./pages/VendorBaselinePortalPage"));
 const IntakeHistoryPage = lazy(() => import("./pages/IntakeHistoryPage"));
 const BaselineLibraryPage = lazy(() => import("./pages/BaselineLibraryPage"));
+const BaselineImageNewPage = lazy(() => import("./pages/BaselineImageNewPage"));
+const BaselineImageDetailPage = lazy(() => import("./pages/BaselineImageDetailPage"));
+const BaselineSetDetailPage = lazy(() => import("./pages/BaselineSetDetailPage"));
+const BaselineReviewWorkspacePage = lazy(() => import("./pages/BaselineReviewWorkspacePage"));
 const InstrumentPassportPage = lazy(() => import("./pages/InstrumentPassportPage"));
 const AuditEvidencePage = lazy(() => import("./pages/AuditEvidencePage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
@@ -483,6 +487,11 @@ function App() {
                       <Route path="/knowledge-center" element={<Page name="KnowledgeCenter"><KnowledgeCenterPage /></Page>} />
                       <Route path="/pilot-data-collection" element={<Page name="PilotDataCollection"><RequireRole allowed={["admin", "spd_manager"]}><PilotDataCollectionPage /></RequireRole></Page>} />
                       <Route path="/baseline-library" element={<Page name="BaselineLibrary"><BaselineLibraryPage /></Page>} />
+                      <Route path="/baselines/library" element={<Page name="BaselineImageLibrary"><BaselineLibraryPage /></Page>} />
+                      <Route path="/baselines/library/new" element={<Page name="NewBaselineImage"><BaselineImageNewPage /></Page>} />
+                      <Route path="/baselines/library/:baselineId" element={<Page name="BaselineImageDetail"><BaselineImageDetailPage /></Page>} />
+                      <Route path="/baselines/sets/:baselineSetId" element={<Page name="BaselineSetDetail"><BaselineSetDetailPage /></Page>} />
+                      <Route path="/baselines/review" element={<Page name="BaselineImageReview"><BaselineReviewWorkspacePage /></Page>} />
                       <Route path="/instrument-passport" element={<Page name="InstrumentPassport"><InstrumentPassportPage /></Page>} />
                       <Route path="/executive-command-center" element={<Page name="CommandCenter"><ExecutiveCommandCenterPage /></Page>} />
                       <Route path="/global-registry" element={<Page name="GlobalRegistry"><GlobalRegistryPage /></Page>} />

@@ -45,3 +45,21 @@ is reported using the probability-based taxonomy in
 residue," never "confirmed blood"), and supervisor review is
 exception-based, not required for every inspection — see
 `docs/decision-engine/SUPERVISOR_ESCALATION_MODEL.md`.
+
+## Baseline Image Library (Project Atlas Sprint 1) — scope clarification
+
+"Compares them against a resolved baseline," above, describes the
+Decision Engine's *metadata*-level baseline resolution
+(`BaselineLibraryEntry`), which was already real prior to this update. This
+sprint (`docs/baseline-library/`) adds governed *image* evidence behind
+that same baseline entry — a reviewed, hash-verified, version-controlled
+image (or set of images, across anatomy zones/views) that a human can view
+alongside an inspection. **It does not add image-based similarity scoring
+to any clinical recommendation.** `image_similarity_service.py` (the real,
+tested perceptual-hash comparator) is still not called from the live
+per-inspection scoring path. Until a validated comparator is wired in and
+independently confirmed, no clinical claim should describe LumenAI as
+performing image-based baseline comparison — only image-evidence
+governance (linking, review, activation, and compatibility/resolution
+decisions that never produce a fabricated similarity number) is complete
+as of this sprint.

@@ -127,6 +127,33 @@ Every entry below is checked against currently running code (not documentation, 
 | **Known limitations** | A separate, unrelated admin-browsing endpoint (`GET /api/network/baselines`, `app/routes/baseline_library.py:42-60`) falls back to `_mock_baselines()` seeded data when the table is empty -- this is a display convenience for an admin search UI, not part of the `resolve_baseline()` path that inspection scoring actually uses. It already labels itself `data_source: "mock"`/`"insufficient_data"`, and the one consumer (`PilotDashboardCards.tsx`'s KPI tiles) now surfaces that label as a "Demonstration Data" tag (fixed this pass, along with a separate fabricated `342`/`315`/`27` fallback in `baseline_stats()` that returned hardcoded counts whenever the table was empty -- now returns real, possibly-zero counts) |
 | **Next validation requirement** | None outstanding for this finding |
 
+**Project Atlas Sprint 1 addendum (Baseline Image Library)**: the metadata
+lookup above (`resolve_baseline()`, `BaselineLibraryEntry`) still governs
+whether a real inspection score may be computed at all, and remains
+unchanged. This sprint adds a **separate, additive** capability —
+governed *image* evidence behind a baseline entry — documented in full
+under `docs/baseline-library/`. Summary: `BaselineImageLink`
+(`app/models/baseline_image_library.py`) is a new reverse link from an
+existing `BaselineLibraryEntry` to an existing LCID-registered image
+(`DatasetRegistryEntry`); it never duplicates image bytes and never
+creates a second baseline or image registry. A governed lifecycle (DRAFT →
+PENDING_REVIEW → APPROVED → ACTIVE, plus SUSPENDED/SUPERSEDED/REJECTED/
+ARCHIVED) gates which images may influence comparison; a compatibility
+contract (`baseline_compatibility_service.check_compatibility()`) and a
+5-level resolution hierarchy (`resolve_baseline_image()`) decide whether
+and which image applies, **without computing or fabricating any numeric
+similarity** — `image_similarity_service.py` (Project Lens) is still not
+wired into the live per-inspection scoring path; this sprint only gives
+future comparator work something real to compare against. New workspace:
+`/baselines/library` (`BaselineLibraryPage.tsx` and children). Tests:
+`backend/tests/test_baseline_image_library.py` (21 tests, passing).
+**Known limitation carried forward**: pre-existing metadata-only
+`BaselineLibraryEntry` rows without any `ACTIVE` linked image are reported
+via `GET /api/baseline-library/legacy-report` and marked
+`IMAGE_EVIDENCE_MISSING` — they remain valid for the pre-existing metadata
+resolution path above but cannot participate in any future image-based
+comparison.
+
 ---
 
 ## 7. Supervisor review / disposition action

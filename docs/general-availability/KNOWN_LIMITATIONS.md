@@ -167,6 +167,42 @@ here is new; it is gathered into one place per Section 11's requirement.
   comparator is not wired into any decision path), but is a real, disclosed
   limitation of the comparator itself for any future use.
 
+## Project Atlas Sprint 1 — Baseline Image Library limitations
+
+Addresses the "no baseline image is stored anywhere" gap named directly
+above, without closing it entirely — see `docs/baseline-library/` for the
+full design. What changed and what remains true:
+
+- **`BaselineLibraryEntry` now has a real reverse link to stored image
+  bytes** via `BaselineImageLink` → an existing LCID-registered
+  `DatasetRegistryEntry` → `RetainedImage.image_bytes`. Only `ACTIVE`,
+  reviewed, hash-verified images may participate — DRAFT/PENDING_REVIEW/
+  APPROVED/SUSPENDED/REJECTED/ARCHIVED images cannot.
+- **`image_similarity_service.compare_against_baseline()` (Project Lens) is
+  still not wired into the live per-inspection scoring path.** This sprint
+  builds the compatibility contract and resolution hierarchy that would
+  feed such a comparator a real, governed baseline image — it deliberately
+  does not call the comparator itself ("do not implement a trained vision
+  model in this sprint," mission constraint). Wiring an actual numeric
+  image comparison into the live disposition path remains future work.
+- **Pre-existing metadata-only `BaselineLibraryEntry` rows are not
+  automatically backfilled with an image.** They are classified via `GET
+  /api/baseline-library/legacy-report` and marked
+  `IMAGE_EVIDENCE_MISSING` — visible to reviewers, but no image
+  relationship is fabricated during migration.
+- **Only individual-link resolution is implemented; `BaselineSet`-level
+  resolution is not.** `ResolutionResult.baseline_set_id` is always `None`
+  today — sets exist for governance grouping (Section 6) but resolution
+  currently returns a specific `BaselineImageLink`, not a set.
+- **The eight other pre-existing "baseline" concepts in this codebase
+  (`EnterpriseBaseline`, `EnterpriseInstrumentBaseline`,
+  `EnterpriseVendorBaselineSubscription`, `BaselineDecisionPolicy`,
+  `BaselineGovernanceRecord`, `VendorBaselineExternalRecord`,
+  `VendorBaselineAuditEvent`, `ManufacturerBaselineQuality`) remain
+  untouched and un-unified** — see
+  `docs/baseline-library/BASELINE_CURRENT_STATE_TRACE.md` Section 3 for
+  the full inventory. This sprint intentionally does not merge them.
+
 ## Project Canvas — Annotation Workspace limitations
 
 - **No dedicated thumbnail pipeline.** The image library, upload results
