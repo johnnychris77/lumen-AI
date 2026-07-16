@@ -305,7 +305,7 @@ export default function Dashboard() {
     Promise.all(
       MODULES.map(async (m) => {
         try {
-          const r = await apiFetch(`${m.endpoint}`, { raw: true, headers: hdrs });
+          const r = await apiFetch(`${m.endpoint}`, { raw: true, headers: hdrs, signOutOn401: false });
           return {
             ...m,
             status: r.ok ? "online" : [401, 403, 422].includes(r.status) ? "protected" : "offline",
@@ -410,7 +410,10 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>
-              AI-detected contamination types across all enterprise inspections.
+              Contamination types recorded across all enterprise inspections, matched by keyword from intake/finding records —
+              not live AI image detection. The deployed inspection-scoring model currently only distinguishes
+              "debris" and "corrosion" as real findings; every other category shown here reflects what technicians
+              or bulk-intake data reported, not a verified image-based detection.
               Red (!) flags are clinically significant residues requiring immediate review.
             </CardDescription>
           </CardHeader>

@@ -77,6 +77,7 @@ import app.models.network_benchmark  # noqa: E402, F401
 import app.models.recall_signal  # noqa: E402, F401
 import app.models.instrument_registry  # noqa: E402, F401
 import app.models.baseline_library  # noqa: E402, F401
+import app.models.baseline_image_library  # noqa: E402, F401
 import app.models.external_connector  # noqa: E402, F401
 import app.models.patient_safety  # noqa: E402, F401
 import app.models.integrations  # noqa: E402, F401

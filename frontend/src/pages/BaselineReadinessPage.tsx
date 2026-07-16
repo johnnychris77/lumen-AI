@@ -126,7 +126,7 @@ export default function BaselineReadinessPage() {
           </div>
           <p className="text-sm text-slate-600">
             {score >= 80
-              ? "Baseline coverage meets go-live threshold. Continue adding baselines to improve AI accuracy."
+              ? "Baseline coverage meets go-live threshold. Continue adding baselines to improve baseline-comparison coverage."
               : score >= 55
               ? "Partially ready. Priority: approve pending baselines and add coverage for missing scope types."
               : "Baseline coverage is insufficient for go-live. Minimum: ≥1 approved baseline per active scope type."}

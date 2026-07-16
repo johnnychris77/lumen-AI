@@ -20,11 +20,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.audit import log_audit_event
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
 from app.enterprise_auth import get_request_tenant_id
 from app.models.disposition_override import DISPOSITION_ACTIONS
+from app.services import workflow_state_service
 from app.services.disposition_evidence_service import get_evidence_panel
 from app.services.disposition_workspace_service import (
     InvalidDispositionAction, ReasonRequiredError, list_disposition_actions, submit_disposition_action,
@@ -185,7 +187,19 @@ def post_disposition_action(
     current_user=Depends(require_roles(*_LEADERSHIP_ROLES)),
 ):
     tenant_id = _tenant(current_user, request)
-    _get_inspection(db, tenant_id, inspection_id)
+    insp = _get_inspection(db, tenant_id, inspection_id)
+
+    # An inspection already in a terminal workflow state has been finalized —
+    # reject further disposition actions instead of silently re-finalizing it.
+    current_workflow_state = workflow_state_service.current_state(db, insp)
+    if current_workflow_state in workflow_state_service.TERMINAL_STATES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Inspection {inspection_id} is already finalized (state="
+                f"'{current_workflow_state}'). No further disposition actions are allowed."
+            ),
+        )
 
     try:
         row = submit_disposition_action(
@@ -199,7 +213,6 @@ def post_disposition_action(
     except ReasonRequiredError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    from app.services import workflow_state_service
     from app.services.clinical_case_library_service import save_or_update_case
 
     insp = _get_inspection(db, tenant_id, inspection_id)
@@ -217,6 +230,25 @@ def post_disposition_action(
 
     db.commit()
     db.refresh(row)
+
+    log_audit_event(
+        db,
+        tenant_id=tenant_id,
+        tenant_name=getattr(current_user, "tenant_name", "") or tenant_id,
+        actor_email=_actor(current_user),
+        actor_role=getattr(current_user, "role", "spd_manager"),
+        action_type=f"disposition_action_{body.action}",
+        resource_type="inspection",
+        resource_id=str(inspection_id),
+        details={
+            "action": body.action,
+            "ai_recommended_disposition": body.ai_recommended_disposition,
+            "modified_disposition": body.modified_disposition,
+            "reason": body.reason,
+            "from_state": current_workflow_state,
+        },
+    )
+
     return {
         "id": row.id, "action": row.action, "modified_disposition": row.modified_disposition,
         "reason": row.reason,

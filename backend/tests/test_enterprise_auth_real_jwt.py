@@ -93,3 +93,41 @@ def test_dev_auth_mode_real_jwt_role_defaults_to_viewer_when_unassigned(monkeypa
 
     assert context.actor == "no.role@hospital.org"
     assert context.role == "viewer"
+
+
+def test_oidc_auth_mode_accepts_real_user_jwt_when_not_oidc_issued(monkeypatch):
+    """Same bug class as the dev-mode tests above, but for AUTH_MODE=oidc:
+    a real /auth/login-issued JWT isn't signed by the OIDC provider's JWKS,
+    so it must fall back to the app's own same-secret JWT check instead of
+    being hard-rejected outright -- otherwise a real login succeeds, the
+    dashboard renders, and the first route gated by get_auth_context (rather
+    than app.deps.get_current_user) 401s and signs the user back out."""
+    from app.enterprise_auth import get_auth_context
+
+    monkeypatch.setenv("AUTH_MODE", "oidc")
+    monkeypatch.setenv("OIDC_ISSUER_URL", "https://issuer.example.com/")
+    monkeypatch.setenv("OIDC_AUDIENCE", "lumenai-api")
+    monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
+    _upsert_role("real.user@hospital.org", "spd_manager")
+    token = _mint_token("real.user@hospital.org")
+
+    request = _request([(b"authorization", f"Bearer {token}".encode())])
+    context = get_auth_context(request)
+
+    assert context.actor == "real.user@hospital.org"
+    assert context.role == "spd_manager"
+
+
+def test_oidc_auth_mode_still_rejects_garbage_token(monkeypatch):
+    from app.enterprise_auth import get_auth_context
+
+    monkeypatch.setenv("AUTH_MODE", "oidc")
+    monkeypatch.setenv("OIDC_ISSUER_URL", "https://issuer.example.com/")
+    monkeypatch.setenv("OIDC_AUDIENCE", "lumenai-api")
+    monkeypatch.setenv("OIDC_JWKS_URL", "https://issuer.example.com/.well-known/jwks.json")
+
+    request = _request([(b"authorization", b"Bearer not-a-real-jwt")])
+
+    with pytest.raises(HTTPException) as exc:
+        get_auth_context(request)
+    assert exc.value.status_code == 401

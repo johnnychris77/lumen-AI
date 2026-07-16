@@ -9,6 +9,16 @@ build/
 cookies.txt
 sample.bin
 
+# ML training artifacts (backend/app/services/ml/candidate_training.py) —
+# generated model weight exports, never committed source.
+model_artifacts/
+backend/model_artifacts/
+
+# Generated dataset export manifests (app.services.ml.dataset_export_service) —
+# see dataset/exports/README.md; the folder + README are tracked, the
+# generated *_{format}.json files it writes are not.
+dataset/exports/*/
+
 
 # Python
 __pycache__/
@@ -17,6 +27,9 @@ __pycache__/
 *.pyd
 .env
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Node
 node_modules/

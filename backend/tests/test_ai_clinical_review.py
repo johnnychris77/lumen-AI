@@ -42,10 +42,14 @@ def _analyze(itype, declared=None):
 
 class TestAIClinicalReview:
     def test_pass_reasoning_and_interpretation(self):
+        # No declared findings and no eligible trained model — the false-PASS
+        # remediation means this honestly reports AI-unavailable rather than
+        # a placeholder-generated PASS (see CLEANING_ASSESSMENT_UNAVAILABLE).
         cd = _analyze("retractor")["clinical_decision"]
         review = cd["ai_clinical_review"]
         assert review["outcome"] in (
-            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE"
+            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE",
+            "AI ANALYSIS UNAVAILABLE — MANUAL INSPECTION REQUIRED",
         )
         # Reasoning is grounded (baseline line) and interpretation is non-generic.
         assert any("matched at" in ln for ln in review["reasoning"])
@@ -57,9 +61,12 @@ class TestAIClinicalReview:
         assert cd["recommendation"]["action_text"]
 
     def test_five_action_texts(self):
-        from app.services.baseline_comparison_scoring_service import _ACTION_TEXT
+        from app.services.baseline_comparison_scoring_service import (
+            _ACTION_TEXT, OVERALL_RESULT_AI_UNAVAILABLE,
+        )
         assert set(_ACTION_TEXT) == {
-            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE"
+            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE",
+            OVERALL_RESULT_AI_UNAVAILABLE,
         }
 
 

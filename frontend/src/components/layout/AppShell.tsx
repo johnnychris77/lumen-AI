@@ -44,6 +44,11 @@ import {
   ListChecks,
   ClipboardList,
   BookMarked,
+  FilePlus2,
+  EyeOff,
+  GitCompareArrows,
+  Scale,
+  PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -179,6 +184,20 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/users", label: "Users", icon: Users },
       { to: "/roles", label: "Roles", icon: UserCheck },
       { to: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
+  {
+    label: "Annotation Workspace",
+    items: [
+      { to: "/dataset/images", label: "Image Library", icon: Images },
+      { to: "/dataset/images/upload", label: "Ingest Image", icon: Upload },
+      { to: "/annotations", label: "Annotations", icon: FilePlus2 },
+      { to: "/review/primary", label: "Primary Review", icon: ClipboardCheck },
+      { to: "/review/secondary", label: "Secondary (Blind) Review", icon: EyeOff },
+      { to: "/review/disagreements", label: "Disagreements", icon: GitCompareArrows },
+      { to: "/review/adjudication", label: "Adjudication", icon: Scale, roles: ["admin", "clinical_reviewer"] },
+      { to: "/ground-truth", label: "Ground Truth", icon: ShieldCheck },
+      { to: "/dataset/releases", label: "Dataset Release Builder", icon: PackageCheck, roles: ["admin", "ai_researcher"] },
     ],
   },
 ];

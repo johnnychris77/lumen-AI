@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 # this machine), call app.ai.inference_status.get_inference_status().
 PRODUCTION_INFERENCE_MODE = "deterministic_placeholder"
 
+# The finding categories this deployment's model classes actually cover today
+# ("clean" is an absence label, not a defect category, so it is excluded here).
+# Any category outside this tuple must be reported as not evaluated /
+# unsupported by the current model — never scored as if it had been checked.
+# Single source of truth: other services (e.g.
+# app.services.baseline_comparison_scoring_service) import this rather than
+# redeclaring their own list.
+SUPPORTED_MODEL_CATEGORIES = ("debris", "corrosion")
+
 
 class LumenAIModel:
     _shared_model = None

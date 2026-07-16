@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 import ClinicalDecisionPanel from "@/components/ClinicalDecisionPanel";
+import DecisionEnginePanel, { type DecisionContract } from "@/components/DecisionEnginePanel";
 import InstrumentIntelligencePanel, { InstrumentIntel } from "@/components/InstrumentIntelligencePanel";
 import GuidedCapturePanel from "@/components/GuidedCapturePanel";
 import CoverageOverridePanel from "@/components/CoverageOverridePanel";
@@ -115,6 +116,52 @@ type Analysis = {
   placeholder_scoring?: boolean;
   model_label?: string;
   production_validated?: boolean;
+  // Honest, scope-limited result contract (Core Inspection Workflow Closure) —
+  // restricted to the categories the deployed model actually supports.
+  model_result?: {
+    model_status: string;
+    model_version?: string;
+    supported_categories: string[];
+    findings: { category: string; confidence: number | null; status: string }[];
+    unsupported_categories: string[];
+    limitations: string[];
+    baseline_status: string;
+    image_quality_status: string;
+    human_review_required: boolean;
+  };
+  // Project Lens — the real live-inference adapter's result, additive
+  // alongside model_result above (which remains the deterministic-
+  // placeholder heuristic's own honest, scope-limited summary). Present
+  // exactly once a real trained model artifact is registered and promoted
+  // — analysis_status is "ai_unavailable" until then, which is the
+  // expected state for this deployment today (see KNOWN_LIMITATIONS.md).
+  live_model_result?: {
+    analysis_status: "completed" | "ai_unavailable";
+    inspection_id?: number | string | null;
+    model: {
+      model_id: string;
+      model_version: string | null;
+      status: string;
+      maturity?: string;
+      preprocessing_version: string | null;
+      calibration_version: string | null;
+    };
+    image?: { lcid_image_id: string | number | null; sha256: string | null; width: number; height: number } | null;
+    image_quality: { status: string; grade?: string } | null;
+    observation: {
+      category: string;
+      display_label: string;
+      raw_probability: number | null;
+      calibrated_confidence: number | null;
+      abstained: boolean;
+      abstention_reason: string | null;
+    } | null;
+    supported_categories: string[];
+    unsupported_categories: string[];
+    baseline_comparison: { status: string; similarity: number | null; method: string } | null;
+    limitations: string[];
+    human_review_required: boolean;
+  };
   // Phase 13 — Explainable Clinical Decision Support payload.
   clinical_decision?: Parameters<typeof ClinicalDecisionPanel>[0]["cd"];
   // Phase 15 — anatomy-aware intelligence (coverage, risk map, guidance).
@@ -135,6 +182,8 @@ type AIPrediction = {
   confidence: number;
   instrument_type: string;
   analysis: Analysis | null;
+  // Lumen Decision Engine — Observation Doctrine result contract.
+  decision?: DecisionContract;
   // v1.2 — Guided Capture coverage gate
   coverage_gate_status?: "ready" | "draft" | "blocked_pending_override";
   is_draft?: boolean;
@@ -408,6 +457,11 @@ export default function NewInspectionPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setBanner(null);
+    // False-PASS remediation, Section 3 — never let a prior inspection's
+    // result remain visible while a new analysis is in flight (the form
+    // itself also unmounts once `prediction` is set, but this closes the
+    // window between clicking Submit and that response arriving).
+    setPrediction(null);
     // Viewers are read-only — block and explain, never fail silently.
     if (!canRunInspection) {
       setBanner({ type: "error", message: VIEWER_READONLY_MESSAGE });
@@ -909,7 +963,7 @@ export default function NewInspectionPage() {
                 inputRef={inspectionInputRef}
                 onChange={(e) => handleImages(e, setInspectionImages)}
                 onRemove={(i) => removeImage(i, setInspectionImages)}
-                disabled={!canRunInspection}
+                disabled={!canRunInspection || submitting}
               />
               <FieldError message={fieldErrors.images} />
             </div>
@@ -922,7 +976,7 @@ export default function NewInspectionPage() {
                 inputRef={borescopeInputRef}
                 onChange={(e) => handleImages(e, setBorescopeImages)}
                 onRemove={(i) => removeImage(i, setBorescopeImages)}
-                disabled={!canRunInspection}
+                disabled={!canRunInspection || submitting}
               />
             </div>
             <p className="text-xs text-gray-500">Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
@@ -1155,6 +1209,129 @@ function AIPredictionPanel({
           </div>
         )}
 
+        {/* The backend already flags every finding from this pathway as
+            placeholder-scored (a deterministic, SHA-256-seeded heuristic --
+            not a trained computer-vision model); surface that instead of
+            silently discarding it, so every KPI/finding below this banner is
+            read in that context rather than as verified image-based
+            detection. */}
+        {prediction.analysis?.placeholder_scoring && (
+          <div className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700 space-y-1">
+            <p className="font-semibold">ℹ Experimental — Not Validated: not a trained computer-vision model.</p>
+            <p className="text-xs text-slate-600">
+              {prediction.analysis.model_label ?? "Baseline Comparison Scoring Model (pilot)"} generates every finding below from a deterministic, image-hash-seeded heuristic plus any findings you declared yourself — no pixels are analyzed by a trained model yet. Treat every category and confidence figure as illustrative, not as verified detection.
+            </p>
+          </div>
+        )}
+
+        {/* Honest, scope-limited model result — only the categories the
+            deployed model actually supports get a finding/confidence; every
+            other category is explicitly marked not evaluated, never scored
+            with a fabricated probability. */}
+        {prediction.analysis?.model_result && (
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Model Result — {prediction.analysis.model_result.model_status}
+              {prediction.analysis.model_result.model_version ? ` (v${prediction.analysis.model_result.model_version.replace(/^baseline-comparison-placeholder-/, "")})` : ""}
+            </p>
+            <div>
+              <span className="text-xs text-slate-500">Supported categories: </span>
+              <span className="font-medium">{prediction.analysis.model_result.supported_categories.join(", ")}</span>
+            </div>
+            {prediction.analysis.model_result.findings.length > 0 ? (
+              <ul className="space-y-1">
+                {prediction.analysis.model_result.findings.map((f) => (
+                  <li key={f.category} className="flex items-center gap-2">
+                    <span className="font-medium capitalize">{f.category}</span>
+                    <span className="text-xs text-slate-500">
+                      {f.confidence != null ? `${Math.round(f.confidence * 100)}% confidence` : "no confidence available"} — {f.status.replace(/_/g, " ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No supported-category findings yet.</p>
+            )}
+            <div>
+              <span className="text-xs text-slate-500">Not evaluated by current model: </span>
+              <span className="text-xs text-slate-600">{prediction.analysis.model_result.unsupported_categories.join(", ") || "none"}</span>
+            </div>
+            <ul className="text-xs text-slate-500 list-disc list-inside">
+              {prediction.analysis.model_result.limitations.map((l, i) => <li key={i}>{l}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {/* Project Lens — the real trained-model live inference result.
+            Additive to the panel above: this is a genuinely trained
+            classifier's output (or an honest unavailable state), never the
+            deterministic placeholder. Until the model is promoted past
+            Experimental, this always reports ai_unavailable today — that is
+            expected, disclosed behavior, not a bug. */}
+        {prediction.analysis?.live_model_result && (
+          <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+              Trained Model — {prediction.analysis.live_model_result.model.status || "unavailable"}
+              {prediction.analysis.live_model_result.model.model_version ? ` (v${prediction.analysis.live_model_result.model.model_version})` : ""}
+            </p>
+            {prediction.analysis.live_model_result.analysis_status === "ai_unavailable" ? (
+              <p className="text-xs text-purple-800">
+                AI analysis unavailable — {prediction.analysis.live_model_result.limitations.slice(-1)[0] ?? "no eligible trained model is registered."}
+                {" "}Manual inspection and supervisor workflow continue unaffected.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs font-semibold text-purple-900">Experimental / Candidate Model — Human Decision Required</p>
+                {prediction.analysis.live_model_result.observation && (
+                  <div>
+                    <span className="font-medium">{prediction.analysis.live_model_result.observation.display_label}</span>
+                    {prediction.analysis.live_model_result.observation.abstained ? (
+                      <span className="text-xs text-purple-700 ml-2">
+                        (abstained — {prediction.analysis.live_model_result.observation.abstention_reason?.replace(/_/g, " ")})
+                      </span>
+                    ) : (
+                      <span className="text-xs text-purple-700 ml-2">
+                        {prediction.analysis.live_model_result.observation.calibrated_confidence != null
+                          ? `${Math.round(prediction.analysis.live_model_result.observation.calibrated_confidence * 100)}% calibrated confidence`
+                          : "no confidence available"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <span className="text-xs text-purple-700">Supported categories: </span>
+                  <span className="text-xs text-purple-900">{prediction.analysis.live_model_result.supported_categories.join(", ") || "none"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-purple-700">Not evaluated by current model: </span>
+                  <span className="text-xs text-purple-900">{prediction.analysis.live_model_result.unsupported_categories.join(", ") || "none"}</span>
+                </div>
+                {prediction.analysis.live_model_result.image && (
+                  <div className="text-xs text-purple-700">
+                    Image: {prediction.analysis.live_model_result.image.lcid_image_id != null
+                      ? `LCID ${prediction.analysis.live_model_result.image.lcid_image_id}`
+                      : "not registered in LCID"}
+                    {prediction.analysis.live_model_result.image.sha256
+                      ? ` — sha256 ${prediction.analysis.live_model_result.image.sha256.slice(0, 12)}…`
+                      : ""}
+                  </div>
+                )}
+                {prediction.analysis.live_model_result.baseline_comparison && (
+                  <div className="text-xs text-purple-700">
+                    Baseline comparison: {prediction.analysis.live_model_result.baseline_comparison.status.replace(/_/g, " ")}
+                    {prediction.analysis.live_model_result.baseline_comparison.similarity != null
+                      ? ` (${Math.round(prediction.analysis.live_model_result.baseline_comparison.similarity * 100)}% similarity, ${prediction.analysis.live_model_result.baseline_comparison.method})`
+                      : ""}
+                  </div>
+                )}
+                <ul className="text-xs text-purple-700 list-disc list-inside">
+                  {prediction.analysis.live_model_result.limitations.map((l, i) => <li key={i}>{l}</li>)}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Prediction grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <PredictionField label="Predicted Findings" value={
@@ -1185,6 +1362,9 @@ function AIPredictionPanel({
               : prediction.baseline_status.replace(/_/g, " ")
           } />
         </div>
+
+        {/* Lumen Decision Engine — Observation Doctrine (Section 15, 4-panel view) */}
+        {prediction.decision && <DecisionEnginePanel decision={prediction.decision} />}
 
         {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
         {prediction.analysis?.clinical_decision && (

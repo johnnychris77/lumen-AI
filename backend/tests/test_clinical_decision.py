@@ -52,9 +52,11 @@ class TestClinicalDecisionShape:
             assert key in cd, f"missing {key}"
 
     def test_overall_result_is_one_of_four(self):
+        from app.services.baseline_comparison_scoring_service import OVERALL_RESULT_AI_UNAVAILABLE
         cd = _analyze("scissors")["clinical_decision"]
         assert cd["overall_result"] in (
-            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE"
+            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE",
+            OVERALL_RESULT_AI_UNAVAILABLE,
         )
 
     def test_summary_fields(self):

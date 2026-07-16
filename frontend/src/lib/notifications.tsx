@@ -65,7 +65,7 @@ function generateAlerts(kpi: Record<string, number>, pwr: Record<string, number>
       id: "baseline-coverage-low",
       severity: "critical",
       title: "Baseline coverage below 50%",
-      detail: `Current coverage: ${baselinePct}%. AI inspection accuracy degrades below 60% coverage. Contact vendor to submit missing baselines.`,
+      detail: `Current coverage: ${baselinePct}%. Baseline-comparison confidence degrades below 60% coverage. Contact vendor to submit missing baselines.`,
       route: "/baseline-readiness",
       routeLabel: "View Baseline Readiness",
       ts: now - 1000 * 60 * 60 * 2,
@@ -172,8 +172,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
     try {
       const [kpiRes, pwrRes] = await Promise.allSettled([
-        apiFetch("/api/analytics/kpi-summary", { raw: true }),
-        apiFetch("/api/analytics/powerbi", { raw: true }),
+        apiFetch("/api/analytics/kpi-summary", { raw: true, signOutOn401: false }),
+        apiFetch("/api/analytics/powerbi", { raw: true, signOutOn401: false }),
       ]);
       const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
       const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};

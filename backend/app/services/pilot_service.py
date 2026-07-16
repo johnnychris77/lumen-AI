@@ -14,17 +14,47 @@ def start_pilot(
     tenant_id: str,
     facility_id: str,
     agreed_kpis: dict,
+    *,
+    organization: str = "",
+    department: str = "",
+    clinical_lead: str = "",
+    technical_lead: str = "",
+    quality_lead: str = "",
+    validation_coordinator: str = "",
+    pilot_end_date: datetime | None = None,
+    pilot_sponsor: str = "",
+    product_owner: str = "",
+    engineering_lead: str = "",
+    success_criteria: str = "",
+    pilot_duration_days: int | None = None,
 ) -> PilotStatus:
-    """Create a new PilotStatus row (90-day pilot)."""
+    """Create a new PilotStatus row (90-day pilot by default).
+
+    Shadow (Phase 6) §2 adds the optional organization/department/lead
+    fields and an explicit end date; Advisor (Phase 7) §2 adds the
+    remaining governance roles and success criteria. Existing callers that
+    omit them keep the original 90-day, blank-lead behavior unchanged.
+    """
     now = datetime.now(timezone.utc)
     pilot = PilotStatus(
         tenant_id=tenant_id,
         facility_id=facility_id,
         pilot_start_date=now,
-        pilot_end_date=now + timedelta(days=90),
+        pilot_end_date=pilot_end_date or (now + timedelta(days=90)),
         agreed_kpis=json.dumps(agreed_kpis),
         current_kpis=json.dumps({}),
         conversion_ready=False,
+        organization=organization,
+        department=department,
+        clinical_lead=clinical_lead,
+        technical_lead=technical_lead,
+        quality_lead=quality_lead,
+        validation_coordinator=validation_coordinator,
+        pilot_sponsor=pilot_sponsor,
+        product_owner=product_owner,
+        engineering_lead=engineering_lead,
+        success_criteria=success_criteria,
+        pilot_duration_days=pilot_duration_days,
     )
     db.add(pilot)
     db.commit()

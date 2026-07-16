@@ -90,9 +90,11 @@ export default function ROICenterPage() {
   const { headers } = useAuth();
   const [roi, setRoi] = useState<ROIData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchROI = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const hdrs = headers();
       const [kpiRes, capaRes] = await Promise.allSettled([
@@ -100,31 +102,32 @@ export default function ROICenterPage() {
         apiFetch(`/api/capa?limit=200`, { raw: true, headers: hdrs }),
       ]);
 
-      let inspections = 0;
-      let findings = 0;
-      let criticalFindings = 0;
-      let baselinePct = 0;
-
-      if (kpiRes.status === "fulfilled" && kpiRes.value.ok) {
-        const d = await kpiRes.value.json();
-        inspections = d.total_inspections ?? 0;
-        findings = d.total_findings ?? d.open_findings ?? 0;
-        criticalFindings = d.high_risk_instruments ?? 0;
-        const approved = d.baselines?.approved ?? 0;
-        const total = Math.max(d.baselines?.total ?? 1, 1);
-        baselinePct = Math.round((approved / total) * 100);
+      if (kpiRes.status !== "fulfilled" || !kpiRes.value.ok) {
+        throw new Error("Unable to load KPI data for ROI calculation.");
       }
+
+      const d = await kpiRes.value.json();
+      const inspections = d.total_inspections ?? 0;
+      const findings = d.total_findings ?? d.open_findings ?? 0;
+      const criticalFindings = d.high_risk_instruments ?? 0;
+      const approved = d.baselines?.approved ?? 0;
+      const total = Math.max(d.baselines?.total ?? 1, 1);
+      const baselinePct = Math.round((approved / total) * 100);
 
       let capasCompleted = 0;
       if (capaRes.status === "fulfilled" && capaRes.value.ok) {
-        const d = await capaRes.value.json();
-        const list = Array.isArray(d) ? d : d.items ?? [];
+        const d2 = await capaRes.value.json();
+        const list = Array.isArray(d2) ? d2 : d2.items ?? [];
         capasCompleted = list.filter((c: { status?: string }) => c.status === "closed").length;
       }
 
       setRoi(computeROI(inspections, findings, criticalFindings, capasCompleted, baselinePct));
-    } catch {
-      setRoi(computeROI(247, 42, 12, 8, 78));
+    } catch (e) {
+      // No fabricated fallback numbers here -- an honest error beats a
+      // hardcoded-looking-real ROI figure a customer could screenshot into a
+      // renewal conversation.
+      setRoi(null);
+      setError(e instanceof Error ? e.message : "Unable to load ROI data.");
     } finally {
       setLoading(false);
     }
@@ -199,6 +202,15 @@ export default function ROICenterPage() {
           <Spinner className="h-5 w-5" />
           <span className="text-sm">Computing ROI metrics…</span>
         </div>
+      ) : error ? (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-6 text-center">
+            <ShieldAlert className="mx-auto h-6 w-6 text-amber-500 mb-2" />
+            <p className="text-sm font-medium text-amber-800">Unable to load ROI data</p>
+            <p className="text-xs text-amber-700 mt-1">{error}</p>
+            <p className="text-xs text-slate-500 mt-3">No figures are shown rather than displaying an estimate that isn't based on this tenant's real data.</p>
+          </CardContent>
+        </Card>
       ) : roi ? (
         <>
           {/* Headline Value */}

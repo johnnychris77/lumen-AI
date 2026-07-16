@@ -153,6 +153,15 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
 
   if (!kpi) return null;
 
+  // provider_breakdown's keys are the literal CV_PROVIDER values that
+  // actually produced these records (backend/app/routes/cv.py's
+  // provider_metrics()). "mock" means CVRegistry fell back to
+  // MockCVProvider -- random.Random(hash(image_url))-seeded findings, not
+  // real pixel analysis -- which is the default whenever no onnx/openai/
+  // roboflow provider is configured. Surface that plainly instead of
+  // presenting these counts as if they came from real image inference.
+  const usesMockProvider = Boolean(metrics?.provider_breakdown && "mock" in metrics.provider_breakdown);
+
   const findingBreakdown = [
     { label: "Blood", count: kpi.blood_detections, color: "bg-red-500" },
     { label: "Bone", count: kpi.bone_detections, color: "bg-orange-400" },
@@ -179,6 +188,14 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
+
+      {usesMockProvider && (
+        <Alert variant="warning">
+          <AlertDescription>
+            <strong>Demonstration Data — Simulated:</strong> these counts come from the mock CV provider (deterministic pseudo-random findings, not real image analysis) — no onnx/vision provider is configured for this deployment. See <code>CV_PROVIDER</code> in provider settings to connect a real model.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">

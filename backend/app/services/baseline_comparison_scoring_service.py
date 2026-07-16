@@ -27,11 +27,18 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.ai.inference import SUPPORTED_MODEL_CATEGORIES
+from app.config import get_settings
 from app.services.instrument_anatomy import resolve_family
 from app.services.instrument_zones import is_high_retention, zone_fields
 from app.services.zone_intelligence import typical_findings_for_legacy_zone
 
 logger = logging.getLogger(__name__)
+
+# Version identifier for THIS deterministic-placeholder scoring pipeline —
+# distinct from app.ai.inference.LumenAIModel's own model_version, since the
+# two are separate placeholder implementations, not the same model.
+MODEL_VERSION = "baseline-comparison-placeholder-1.0"
 
 # This entire module is the deterministic placeholder described in the module
 # docstring above — every call to analyze_inspection() produces its findings
@@ -71,6 +78,21 @@ CONDITION_KPIS = ["rust", "discoloration", "corrosion", "pitting", "crack", "ins
 
 # Concrete contamination KPIs that feed the Overall Cleaning Assessment.
 CLEANING_KPIS = ["blood", "bone", "tissue", "other_organic_residue", "debris"]
+
+# Section 6 (false-PASS remediation) — the contamination safety invariant.
+# This deterministic placeholder has no real vision: an UNDECLARED cleaning
+# KPI's "probability" is a SHA-256-of-the-image-hash-seeded number, capped at
+# 12%, with no relationship to what the image actually shows (see
+# _pseudo()/the per-KPI loop in analyze_inspection()). Presenting that as a
+# verified "Clean" finding is exactly the false-PASS defect: a technician
+# never has to declare visible blood/tissue/organic residue/bone/debris for
+# the system to silently call it clean. Declared findings are real,
+# human-sourced evidence and are unaffected by this — only the UNDECLARED
+# portion of the 5 CLEANING_KPIS is marked unevaluated below, so the
+# disposition can honestly say "AI analysis unavailable" instead of
+# fabricating either a clean or a contaminated verdict.
+CLEANING_ASSESSMENT_UNAVAILABLE = "AI analysis unavailable — manual visual inspection required"
+OVERALL_RESULT_AI_UNAVAILABLE = "AI ANALYSIS UNAVAILABLE — MANUAL INSPECTION REQUIRED"
 
 # Human-readable KPI labels for findings summaries.
 KPI_LABELS = {
@@ -116,6 +138,126 @@ def status_from_probability(p: float) -> str:
     if pct <= 60:
         return "review"
     return "escalate"
+
+
+# All KPI categories this scoring service knows about, regardless of whether
+# the currently-deployed model actually supports them (see SUPPORTED_MODEL_CATEGORIES).
+_ALL_KPIS = CONTAMINATION_KPIS + CONDITION_KPIS
+_UNSUPPORTED_KPIS = [k for k in _ALL_KPIS if k not in SUPPORTED_MODEL_CATEGORIES]
+
+
+def _build_model_result(
+    predicted_findings: list[dict[str, Any]],
+    *,
+    baseline_found: bool,
+    analysis_status: str,
+    strict_no_placeholder: bool = False,
+) -> dict[str, Any]:
+    """Honest, scope-limited result contract (Product Truth Reset — Core
+    Inspection Workflow Closure). Additive to the broader KPI heuristic above:
+    it does not replace predicted_findings/kpi_summary (still used by
+    reports, dashboards, and their own existing tests), it narrows what is
+    PRESENTED as a model finding to only the categories the deployed model
+    (app.ai.inference.LumenAIModel) actually supports today, and it never
+    reports a probability for a category the model does not evaluate.
+
+    ``strict_no_placeholder`` (Project Vision Sprint 2, Section 15 —
+    ``settings.ai_strict_no_placeholder``, off by default everywhere
+    including real production): when True, even the debris/corrosion
+    categories this deployment's deterministic placeholder scores are
+    withheld rather than presented as a "model_observation" — since no
+    real trained model backs them either, "experimental" is not honest
+    enough once this flag is deliberately turned on.
+    """
+    limitations = [
+        "Current model evaluates debris and corrosion only, via a deterministic "
+        "placeholder pipeline — no other category is scored by a trained "
+        "computer-vision model on this deployment.",
+        "Image quality is not automatically assessed by the current model.",
+        "Result requires human review.",
+    ]
+    model_status = "unavailable" if strict_no_placeholder else "experimental"
+    if strict_no_placeholder:
+        limitations.insert(
+            0, "Strict no-placeholder mode is enabled: no deterministic-placeholder score is "
+               "presented as a model finding; AI analysis is reported unavailable pending a real "
+               "promoted model.",
+        )
+
+    if not baseline_found:
+        limitations.insert(
+            0, "No approved baseline found; scoring is withheld pending supervisor review.",
+        )
+        return {
+            "model_status": model_status,
+            "model_version": MODEL_VERSION,
+            "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+            "findings": [],
+            "unsupported_categories": list(_UNSUPPORTED_KPIS),
+            "limitations": limitations,
+            "baseline_status": "no_approved_baseline",
+            "image_quality_status": "not_assessed",
+            "human_review_required": True,
+        }
+
+    if analysis_status != "completed":
+        limitations.insert(0, "AI analysis did not complete successfully for this submission.")
+        return {
+            "model_status": model_status,
+            "model_version": MODEL_VERSION,
+            "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+            "findings": [],
+            "unsupported_categories": list(_UNSUPPORTED_KPIS),
+            "limitations": limitations,
+            "baseline_status": analysis_status,
+            "image_quality_status": "not_assessed",
+            "human_review_required": True,
+        }
+
+    findings = [] if strict_no_placeholder else [
+        {
+            "category": f["type"],
+            "confidence": f["confidence"],
+            "status": "model_observation",
+        }
+        for f in predicted_findings
+        if f["type"] in SUPPORTED_MODEL_CATEGORIES
+    ]
+    return {
+        "model_status": model_status,
+        "model_version": MODEL_VERSION,
+        "supported_categories": list(SUPPORTED_MODEL_CATEGORIES),
+        "findings": findings,
+        "unsupported_categories": list(_UNSUPPORTED_KPIS),
+        "limitations": limitations,
+        "baseline_status": "approved_baseline_found",
+        "image_quality_status": "not_assessed",
+        "human_review_required": True,
+    }
+
+
+def _live_model_result(
+    db: Session, *, tenant_id: str, image_bytes: Optional[bytes], instrument_type: str,
+    inspection_id: Optional[int] = None, image_sha256: Optional[str] = None, retained_image_id: Optional[int] = None,
+) -> dict[str, Any]:
+    """Project Lens (Section 15) — additive integration only. Populates a
+    NEW top-level key (``live_model_result``) with whatever the real live
+    inference adapter reports (a genuine trained-model prediction, or a
+    safe, honestly-labeled unavailable state per Section 16) — it never
+    modifies ``predicted_findings``/``kpi_summary``/``model_result`` above,
+    which the Decision Engine, reports, and dashboards still read
+    unchanged. By default, with no promoted model artifact registered
+    (this repository's state today — see FIRST_MODEL_SCOPE.md), this
+    always returns the honest ``not_promoted`` unavailable contract; it
+    never falls back to this module's own deterministic-placeholder
+    scoring above to manufacture a result.
+    """
+    from app.services.ml.live_inference_adapter import predict as live_predict
+
+    return live_predict(
+        db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_family=instrument_type,
+        inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+    )
 
 
 def _severity_index(p: float) -> int:
@@ -167,6 +309,17 @@ def _finding_phrase(label: str, severity_index: int) -> str:
     if severity_index == 2:
         return f"{label.capitalize()} detected"
     return f"Significant {label} detected"
+
+
+def _finding_phrase_for(kpi: str, prob: dict, findings_by_kpi: dict) -> str:
+    """Same phrasing as _finding_phrase(), except an undeclared cleaning KPI
+    (no technician declaration, no eligible model) never claims "No X
+    detected" — that would be the same false-assurance defect as the main
+    disposition, just leaking through a summary/reason bullet instead."""
+    f = findings_by_kpi.get(kpi)
+    if f is not None and kpi in CLEANING_KPIS and not f.get("evaluated", True):
+        return f"{KPI_LABELS[kpi].capitalize()} not evaluated by AI (not declared)"
+    return _finding_phrase(KPI_LABELS[kpi], _severity_index(prob.get(kpi, 0.0)))
 
 # Map technician-declared finding_categories onto KPI keys.
 _DECLARED_TO_KPI = {
@@ -463,6 +616,23 @@ def _risk_level(score: int) -> str:
     return "critical"
 
 
+def _cleaning_actionable(f: dict) -> bool:
+    """True when a cleaning-KPI finding is severe enough to be treated as
+    actionable contamination: moderate+ anywhere, or trace+ in a
+    high-retention zone (serrations, box locks, lumens, hinges, ...).
+
+    This is the SINGLE predicate shared by overall_cleaning_assessment() and
+    _overall_result() — previously each used its own, slightly different
+    threshold (severity_index>=1 vs severity_index>=2-or-zone-escalation),
+    which produced the reported contradiction: "No Critical Findings" +
+    "Residual contamination suspected" + "REPROCESS" appearing together for
+    the same finding. Deriving both from one function makes that
+    inconsistency structurally impossible.
+    """
+    idx = f["severity_index"]
+    return idx >= 2 or (idx >= 1 and is_high_retention(f.get("instrument_zone", "")))
+
+
 def overall_cleaning_assessment(findings_by_kpi: dict[str, dict]) -> str:
     """Derive the Overall Cleaning Assessment from the concrete contamination KPIs
     (blood, bone, tissue, organic residue, debris) — replacing the standalone
@@ -475,14 +645,21 @@ def overall_cleaning_assessment(findings_by_kpi: dict[str, dict]) -> str:
     """
     failure = False
     residual = False
+    unevaluated = False
     for kpi in CLEANING_KPIS:
         f = findings_by_kpi.get(kpi)
         if not f:
             continue
-        idx = f["severity_index"]
-        if idx == 0:
+        if not f.get("evaluated", True):
+            # No technician declaration and no real model backs this KPI —
+            # the placeholder's number must not be read as a verified
+            # "clean" result (see CLEANING_ASSESSMENT_UNAVAILABLE).
+            unevaluated = True
+            continue
+        if not _cleaning_actionable(f):
             continue
         residual = True
+        idx = f["severity_index"]
         if kpi in ("blood", "tissue", "other_organic_residue") and idx >= 2:
             failure = True
         if kpi == "debris" and idx >= 3:
@@ -491,6 +668,8 @@ def overall_cleaning_assessment(findings_by_kpi: dict[str, dict]) -> str:
         return "Cleaning failure"
     if residual:
         return "Residual contamination suspected"
+    if unevaluated:
+        return CLEANING_ASSESSMENT_UNAVAILABLE
     return "Clean"
 
 
@@ -504,12 +683,17 @@ def recommended_action(findings_by_kpi: dict[str, dict], baseline_match_score: f
         return f if f and f["severity_index"] >= 1 else None
 
     def contamination_actionable(kpi: str) -> dict | None:
-        """Moderate+ anywhere, OR trace+ in a high-retention zone (zone-aware)."""
+        """Moderate+ anywhere, OR trace+ in a high-retention zone (zone-aware).
+
+        Only a declared/evaluated finding can drive this — an unevaluated
+        placeholder number must not be read as real evidence of
+        contamination any more than it may be read as evidence of
+        cleanliness (see CLEANING_ASSESSMENT_UNAVAILABLE).
+        """
         f = findings_by_kpi.get(kpi)
-        if not f:
+        if not f or not f.get("evaluated", True):
             return None
-        idx = f["severity_index"]
-        if idx >= 2 or (idx >= 1 and is_high_retention(f.get("instrument_zone", ""))):
+        if _cleaning_actionable(f):
             return f
         return None
 
@@ -544,7 +728,11 @@ def recommended_action(findings_by_kpi: dict[str, dict], baseline_match_score: f
     # SUPERVISOR REVIEW
     supervisor = []
     for kpi in ("debris", "bone"):
-        if present(kpi):
+        # debris/bone are cleaning KPIs — an undeclared (unevaluated)
+        # placeholder number must not leak into this recommendation text
+        # either, for the same reason it must not assert "Clean" above.
+        f = present(kpi)
+        if f and f.get("evaluated", True):
             supervisor.append(KPI_LABELS[kpi])
     for kpi in ("corrosion", "rust"):
         f = present(kpi)
@@ -571,6 +759,18 @@ def recommended_action(findings_by_kpi: dict[str, dict], baseline_match_score: f
             + "). Continue routine processing."
         )
 
+    # AI ANALYSIS UNAVAILABLE — no technician declaration and no eligible
+    # trained model backs any of the 5 cleaning KPIs; the absence of a
+    # placeholder-generated finding is not evidence of cleanliness.
+    if any(
+        not (findings_by_kpi.get(kpi) or {}).get("evaluated", True)
+        for kpi in CLEANING_KPIS
+    ):
+        return (
+            "AI analysis unavailable for non-declared contamination findings — "
+            "manual visual inspection required before release."
+        )
+
     # PASS
     return "Pass — no high-risk findings and baseline match strong. Release for use."
 
@@ -591,7 +791,12 @@ def scoring_explanation(
         idx = f["severity_index"]
         name = KPI_LABELS[kpi]
         if idx == 0:
-            lines.append(f"No {name} detected.")
+            if f.get("evaluated", True):
+                lines.append(f"No {name} detected.")
+            else:
+                # Undeclared cleaning KPI, no eligible model — do not claim
+                # a verified negative for something that was never evaluated.
+                lines.append(f"AI analysis unavailable for {name} — not declared by technician.")
         elif f["spd_risk"] == "low":
             lines.append(
                 f"{f['severity'].capitalize()} {name} was treated as low-risk "
@@ -626,8 +831,9 @@ AI_ROADMAP = [
 
 
 def _overall_result(result: dict) -> str:
-    """Collapse the analysis into one of the five clinical dispositions
-    (PASS / MONITOR / SUPERVISOR REVIEW / REPROCESS / REMOVE FROM SERVICE)."""
+    """Collapse the analysis into one of the six clinical dispositions
+    (PASS / MONITOR / SUPERVISOR REVIEW / REPROCESS / REMOVE FROM SERVICE /
+    AI ANALYSIS UNAVAILABLE — MANUAL INSPECTION REQUIRED)."""
     if result.get("analysis_status") != "completed":
         return "SUPERVISOR REVIEW"
     f = {x["type"]: x for x in result["predicted_findings"]}
@@ -640,18 +846,32 @@ def _overall_result(result: dict) -> str:
     # force the most severe disposition on an otherwise clean, high-score item.
     if any(idx(k) >= 2 for k in _STRUCTURAL_KPIS) or idx("corrosion") >= 3:
         return "REMOVE FROM SERVICE"
-    # Residual contamination → return for cleaning/reprocessing (moderate+).
-    if any(idx(k) >= 2 for k in ("blood", "tissue", "other_organic_residue", "debris", "bone")):
+
+    # Residual contamination → return for cleaning/reprocessing. Read
+    # straight from result["overall_cleaning_assessment"] (computed once, in
+    # analyze_inspection(), by overall_cleaning_assessment()) rather than
+    # re-deriving a second, slightly different threshold here — that
+    # divergence (idx>=2 here vs idx>=1 there) is exactly what previously
+    # produced the reported contradiction ("No Critical Findings" shown
+    # alongside "REPROCESS — residual contamination suspected"). A single
+    # source of truth makes that combination structurally impossible.
+    # Direct callers (and tests) that hand-build a result dict from raw
+    # predicted_findings, rather than going through analyze_inspection(),
+    # won't have this key set yet — derive it the same way in that case so
+    # the single-source-of-truth guarantee holds regardless of caller.
+    if "overall_cleaning_assessment" in result:
+        cleaning = result["overall_cleaning_assessment"]
+    else:
+        cleaning = overall_cleaning_assessment(f)
+    if cleaning in ("Cleaning failure", "Residual contamination suspected"):
         return "REPROCESS"
-    # Zone-aware escalation: contamination in a HIGH-retention zone (serrations,
-    # box locks, lumens, drill-bit flutes, o-ring areas, hinges …) is treated
-    # more aggressively than the same probability on a flat surface — even a
-    # trace signal there warrants reprocessing.
-    for f in result.get("predicted_findings", []):
-        if (f["type"] in ("blood", "tissue", "other_organic_residue", "debris", "bone")
-                and f["severity_index"] >= 1
-                and is_high_retention(f.get("instrument_zone", ""))):
-            return "REPROCESS"
+    if cleaning == CLEANING_ASSESSMENT_UNAVAILABLE:
+        # No technician declaration and no eligible trained model back any of
+        # the 5 cleaning KPIs — the absence of a placeholder-generated
+        # finding is not evidence of cleanliness (Section 8). Structural/
+        # identification findings above still take priority; this is the
+        # honest floor for everything else.
+        return OVERALL_RESULT_AI_UNAVAILABLE
     # Condition change / baseline concern → supervisor review.
     moderate_condition = idx("corrosion") == 2 or idx("rust") == 2
     mismatch = result.get("identification", {}).get("identification_status") == "mismatch"
@@ -670,6 +890,10 @@ _ACTION_TEXT = {
     "SUPERVISOR REVIEW": "Hold instrument pending supervisor review.",
     "REPROCESS": "Return for cleaning/reprocessing.",
     "REMOVE FROM SERVICE": "Remove from service and escalate for repair/replacement.",
+    OVERALL_RESULT_AI_UNAVAILABLE: (
+        "Perform full manual visual inspection — AI contamination screening is "
+        "not available for this result."
+    ),
 }
 
 _INTERPRETATION = {
@@ -693,6 +917,12 @@ _INTERPRETATION = {
     "REMOVE FROM SERVICE": (
         "A structural integrity concern was identified. Remove the instrument from "
         "service and escalate for repair or replacement."
+    ),
+    OVERALL_RESULT_AI_UNAVAILABLE: (
+        "No technician-declared finding and no eligible trained model are available "
+        "to evaluate contamination for this instrument. This is not a clean result — "
+        "it means AI could not evaluate it. A full manual visual inspection is "
+        "required before release."
     ),
 }
 
@@ -986,6 +1216,9 @@ def analyze_inspection(
     inspected_zones: Optional[list[str]] = None,
     training_mode: bool = False,
     image_view_tags: Optional[list[dict]] = None,
+    image_bytes: Optional[bytes] = None,
+    inspection_id: Optional[int] = None,
+    retained_image_id: Optional[int] = None,
 ) -> dict[str, Any]:
     """Run the deterministic baseline-comparison analysis.
 
@@ -1039,6 +1272,14 @@ def analyze_inspection(
             "human_review_required": True,
             "placeholder_scoring": True,
         }
+        no_baseline["model_result"] = _build_model_result(
+            [], baseline_found=False, analysis_status="supervisor_review_required",
+            strict_no_placeholder=get_settings().ai_strict_no_placeholder,
+        )
+        no_baseline["live_model_result"] = _live_model_result(
+            db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
+            inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+        )
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
 
@@ -1062,11 +1303,18 @@ def analyze_inspection(
         present = probability >= 0.5
         kpi_summary[kpi] = present
         spd_tier = spd_risk_tier(kpi, probability)
+        # A CLEANING_KPI the technician did not declare has no real evidence
+        # behind it — the placeholder's low pseudo-random number must not be
+        # read as a verified "clean" result (see CLEANING_ASSESSMENT_UNAVAILABLE
+        # above). Declared findings, and every non-cleaning (condition) KPI,
+        # keep the pre-existing placeholder-scored behavior unchanged.
+        evaluated = (kpi in declared) or (kpi not in CLEANING_KPIS)
         finding = {
             "type": kpi,
             "label": KPI_LABELS.get(kpi, kpi),
             "probability": probability,
             "confidence": confidence,
+            "evaluated": evaluated,
             # KPI-specific severity scale (blood: trace/visible/heavy,
             # rust: surface/moderate/heavy, corrosion: minor/moderate/severe,
             # damage: cosmetic wear/functional concern/structural failure).
@@ -1163,6 +1411,11 @@ def analyze_inspection(
 
     # ── Per-finding probability map for downstream logic ────────────────────
     prob = {f["type"]: f["probability"] for f in predicted_findings}
+    findings_by_kpi = {f["type"]: f for f in predicted_findings}
+    # Single source of truth for the cleaning/contamination verdict — computed
+    # once here so pass_fail, findings_summary, and (later) _overall_result()
+    # can never disagree about it (Section 7 — result consistency).
+    cleaning_assessment = overall_cleaning_assessment(findings_by_kpi)
 
     # ── Critical KPI breaches drive risk + recommendation ───────────────────
     critical_flags = [
@@ -1197,15 +1450,25 @@ def analyze_inspection(
     else:
         risk_level = _risk_level(inspection_score)
 
-    pass_fail = "FAIL" if critical_flags else "PASS"
+    if critical_flags or cleaning_assessment in ("Cleaning failure", "Residual contamination suspected"):
+        pass_fail = "FAIL"
+    elif cleaning_assessment == CLEANING_ASSESSMENT_UNAVAILABLE:
+        pass_fail = "AI_ANALYSIS_UNAVAILABLE"
+    else:
+        pass_fail = "PASS"
 
     # ── Findings summary (one line per key KPI) ─────────────────────────────
     summary_kpis = ["blood", "bone", "tissue", "corrosion", "rust", "discoloration", "crack"]
     findings_summary: list[str] = []
-    if not critical_flags:
+    if cleaning_assessment == CLEANING_ASSESSMENT_UNAVAILABLE:
+        findings_summary.append(
+            "AI analysis unavailable for non-declared contamination findings — "
+            "manual visual inspection required"
+        )
+    elif not critical_flags and cleaning_assessment not in ("Cleaning failure", "Residual contamination suspected"):
         findings_summary.append("No critical contamination detected")
     for kpi in summary_kpis:
-        findings_summary.append(_finding_phrase(KPI_LABELS[kpi], _severity_index(prob.get(kpi, 0.0))))
+        findings_summary.append(_finding_phrase_for(kpi, prob, findings_by_kpi))
 
     # ── Recommendation (no causation language) ──────────────────────────────
     if remove_flags:
@@ -1237,7 +1500,7 @@ def analyze_inspection(
              f"{round(baseline_match_score * 100)}%."
     ]
     for kpi in ["blood", "bone", "tissue", "corrosion", "crack"]:
-        reason.append(_finding_phrase(KPI_LABELS[kpi], _severity_index(prob.get(kpi, 0.0))) + ".")
+        reason.append(_finding_phrase_for(kpi, prob, findings_by_kpi) + ".")
     if critical_flags:
         reason.append(
             "One or more findings exceeded the escalation threshold: "
@@ -1291,7 +1554,6 @@ def analyze_inspection(
     source = resolution["baseline_source"]
 
     # ── SPD-weighted summaries (severity, cleaning, action, explanation) ─────
-    findings_by_kpi = {f["type"]: f for f in predicted_findings}
     severity_by_kpi = {
         f["type"]: {
             "severity": f["severity"],
@@ -1316,7 +1578,6 @@ def analyze_inspection(
             findings_by_zone.setdefault(f["instrument_zone"], []).append(f["label"])
     risk_map = build_risk_map(instrument_type, findings_by_zone, inspected_zones)
 
-    cleaning_assessment = overall_cleaning_assessment(findings_by_kpi)
     action = recommended_action(findings_by_kpi, baseline_match_score)
     explanation = scoring_explanation(findings_by_kpi, baseline_match_score, source)
     top_risk_drivers = risk_drivers
@@ -1383,6 +1644,14 @@ def analyze_inspection(
         "model_label": "Baseline Comparison Scoring Model (pilot)",
         "production_validated": False,
     }
+    result["model_result"] = _build_model_result(
+        predicted_findings, baseline_found=True, analysis_status="completed",
+        strict_no_placeholder=get_settings().ai_strict_no_placeholder,
+    )
+    result["live_model_result"] = _live_model_result(
+        db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
+        inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+    )
     # Phase 13: Explainable Clinical Decision Support payload.
     result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)
     return result

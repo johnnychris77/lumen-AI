@@ -18,7 +18,10 @@ interface RealizationData {
   criticalFindings: number;
   capasCompleted: number;
   baselineCoveragePct: number;
-  activeUsers: number;
+  /** No backend endpoint reports this today (`/api/analytics/kpi-summary` and
+   * `/api/analytics/powerbi` have no active-user field) -- always `null`
+   * rather than a fabricated number. Rendered as "Not available". */
+  activeUsers: number | null;
   timeSavedHrs: number;
   laborValueUsd: number;
   findingAvoidanceUsd: number;
@@ -51,7 +54,7 @@ function computeRealization(
     criticalFindings,
     capasCompleted,
     baselineCoveragePct: baselinePct,
-    activeUsers: 8,
+    activeUsers: null,
     timeSavedHrs,
     laborValueUsd,
     findingAvoidanceUsd,
@@ -79,7 +82,7 @@ function exportReport(d: RealizationData, facility: string) {
     `Critical Findings:          ${d.criticalFindings}`,
     `CAPAs Completed:            ${d.capasCompleted}`,
     `Baseline Coverage:          ${d.baselineCoveragePct}%`,
-    `Active Users:               ${d.activeUsers}`,
+    `Active Users:               ${d.activeUsers ?? "Not available"}`,
     "",
     "── Estimated Value ──────────────────────────",
     `Time Saved:                 ${d.timeSavedHrs} hours`,
@@ -125,7 +128,7 @@ function exportCSV(d: RealizationData, facility: string) {
     ["Critical Findings", d.criticalFindings],
     ["CAPAs Completed", d.capasCompleted],
     ["Baseline Coverage (%)", d.baselineCoveragePct],
-    ["Active Users", d.activeUsers],
+    ["Active Users", d.activeUsers ?? "Not available"],
     [],
     ["Value Category", "Amount (USD)"],
     ["Time Saved (hours)", d.timeSavedHrs],
@@ -151,10 +154,12 @@ function exportCSV(d: RealizationData, facility: string) {
 export default function ValueRealizationPage() {
   const [data, setData] = useState<RealizationData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const facility = "Pilot Facility";
 
   useEffect(() => {
     async function load() {
+      setError(null);
       const token = localStorage.getItem("token") ?? "";
       const h = { Authorization: `Bearer ${token}` };
       try {
@@ -162,15 +167,24 @@ export default function ValueRealizationPage() {
           apiFetch("/api/analytics/kpi-summary", { raw: true, headers: h }),
           apiFetch("/api/analytics/powerbi", { raw: true, headers: h }),
         ]);
-        const kpi = kpiRes.status === "fulfilled" && kpiRes.value.ok ? await kpiRes.value.json() : {};
-        const pwr = pwrRes.status === "fulfilled" && pwrRes.value.ok ? await pwrRes.value.json() : {};
-        const insp = kpi.total_inspections ?? pwr.total_inspections ?? 47;
-        const critical = kpi.high_risk_findings ?? pwr.critical_findings ?? 4;
-        const capas = kpi.completed_capas ?? pwr.completed_capas ?? 1;
-        const baselinePct = kpi.baseline_coverage_pct ?? pwr.baseline_coverage_pct ?? 72;
+        const kpiOk = kpiRes.status === "fulfilled" && kpiRes.value.ok;
+        const pwrOk = pwrRes.status === "fulfilled" && pwrRes.value.ok;
+        if (!kpiOk && !pwrOk) {
+          throw new Error("Unable to load KPI data for the value report.");
+        }
+        const kpi = kpiOk ? await kpiRes.value.json() : {};
+        const pwr = pwrOk ? await pwrRes.value.json() : {};
+        // No `?? <fabricated number>` fallback here -- if neither response
+        // carries a field, the real value is genuinely unknown and must
+        // read as 0, not as a hand-picked "looks real" placeholder.
+        const insp = kpi.total_inspections ?? pwr.total_inspections ?? 0;
+        const critical = kpi.high_risk_findings ?? pwr.critical_findings ?? 0;
+        const capas = kpi.completed_capas ?? pwr.completed_capas ?? 0;
+        const baselinePct = kpi.baseline_coverage_pct ?? pwr.baseline_coverage_pct ?? 0;
         setData(computeRealization(insp, critical, capas, baselinePct));
-      } catch {
-        setData(computeRealization(47, 4, 1, 72));
+      } catch (e) {
+        setData(null);
+        setError(e instanceof Error ? e.message : "Unable to load value realization data.");
       } finally {
         setLoading(false);
       }
@@ -210,6 +224,12 @@ export default function ValueRealizationPage() {
 
       {loading ? (
         <div className="text-center text-slate-400 py-12 text-sm animate-pulse">Calculating value realization…</div>
+      ) : error ? (
+        <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-6 text-center">
+          <p className="text-sm font-medium text-amber-800">Unable to load value realization data</p>
+          <p className="text-xs text-amber-700 mt-1">{error}</p>
+          <p className="text-xs text-slate-500 mt-3">No figures are shown rather than displaying an estimate that isn't based on this facility's real data.</p>
+        </div>
       ) : data ? (
         <>
           {/* Total value hero */}
@@ -272,7 +292,7 @@ export default function ValueRealizationPage() {
                 { label: "Critical Findings", value: data.criticalFindings },
                 { label: "CAPAs Completed", value: data.capasCompleted },
                 { label: "Baseline Coverage", value: `${data.baselineCoveragePct}%` },
-                { label: "Active Users", value: data.activeUsers },
+                { label: "Active Users", value: data.activeUsers ?? "Not available" },
               ].map(m => (
                 <div key={m.label} className="py-3">
                   <div className="text-2xl font-bold text-slate-800">{m.value}</div>

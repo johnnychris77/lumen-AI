@@ -22,6 +22,12 @@ type Summary = {
   cases_requiring_review: number;
 };
 
+type InferenceStatus = {
+  mode: "trained_model" | "deterministic_placeholder";
+  model_weights_present: boolean;
+  ready_for_production: boolean;
+};
+
 function pct(v: number | null): string {
   return v == null ? "—" : `${Math.round(v * 100)}%`;
 }
@@ -30,11 +36,12 @@ export default function AiModelPerformanceCard() {
   const { headers, role } = useAuth();
   const [data, setData] = useState<Summary | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [inferenceStatus, setInferenceStatus] = useState<InferenceStatus | null>(null);
   const canView = role === "admin" || role === "spd_manager";
 
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch(`/api/model-performance/ai-summary`, { raw: true, headers: headers() });
+      const res = await apiFetch(`/api/model-performance/ai-summary`, { raw: true, headers: headers(), signOutOn401: false });
       if (res.status === 403) { setHidden(true); return; }
       if (!res.ok) return;
       setData(await res.json());
@@ -43,7 +50,23 @@ export default function AiModelPerformanceCard() {
     }
   }, [headers]);
 
+  // `/v1/system/inference-status` is admin-only (it's operationally
+  // sensitive: whether this deployment is running a trained model or the
+  // deterministic placeholder). spd_manager will get a 403 here, which is
+  // expected and just leaves this indicator absent for that role.
+  const loadInferenceStatus = useCallback(async () => {
+    if (role !== "admin") return;
+    try {
+      const res = await apiFetch(`/api/v1/system/inference-status`, { raw: true, headers: headers(), signOutOn401: false });
+      if (!res.ok) return;
+      setInferenceStatus(await res.json());
+    } catch {
+      /* non-fatal on a dashboard */
+    }
+  }, [headers, role]);
+
   useEffect(() => { if (canView) load(); }, [canView, load]);
+  useEffect(() => { loadInferenceStatus(); }, [loadInferenceStatus]);
 
   if (!canView || hidden) return null;
 
@@ -66,6 +89,15 @@ export default function AiModelPerformanceCard() {
           {data?.model_version ? `${data.model_version} · ${data.dataset_version}` : "supervisor-verified"}
         </span>
       </div>
+      {inferenceStatus && (
+        <div className={`mb-3 rounded-lg px-3 py-2 text-xs ${
+          inferenceStatus.mode === "trained_model" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"
+        }`}>
+          {inferenceStatus.mode === "trained_model"
+            ? "✓ Production — running a trained computer-vision model."
+            : "⚠ Experimental — Not Validated: running the deterministic placeholder scorer, no trained computer-vision model is loaded on this deployment yet."}
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {cells.map((c) => (
           <div key={c.label} className="rounded-lg bg-slate-50 px-3 py-2">

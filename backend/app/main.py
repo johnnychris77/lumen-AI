@@ -606,8 +606,39 @@ app.include_router(guided_capture_router, prefix=settings.API_PREFIX)
 from app.routes.model_pipeline import router as model_pipeline_router
 app.include_router(model_pipeline_router, prefix=settings.API_PREFIX)
 
+from app.models import dataset_governance as _dataset_governance_models  # noqa: F401
+from app.routes.dataset_registry import router as dataset_registry_router
+app.include_router(dataset_registry_router, prefix=settings.API_PREFIX)
+
+from app.models import baseline_image_library as _baseline_image_library_models  # noqa: F401
+from app.routes.baseline_image_library import router as baseline_image_library_router
+app.include_router(baseline_image_library_router, prefix=settings.API_PREFIX)
+
+from app.routes.dataset_ingestion import router as dataset_ingestion_router
+app.include_router(dataset_ingestion_router, prefix=settings.API_PREFIX)
+
+from app.routes.reviewer_queues import router as reviewer_queues_router
+app.include_router(reviewer_queues_router, prefix=settings.API_PREFIX)
+
+from app.routes.dataset_eligibility import router as dataset_eligibility_router
+app.include_router(dataset_eligibility_router, prefix=settings.API_PREFIX)
+
+from app.routes.review_workspace import router as review_workspace_router
+app.include_router(review_workspace_router, prefix=settings.API_PREFIX)
+
+from app.routes.dataset_release import router as dataset_release_router
+app.include_router(dataset_release_router, prefix=settings.API_PREFIX)
+
 from app.routes.pilot_validation import router as pilot_validation_router
 app.include_router(pilot_validation_router, prefix=settings.API_PREFIX)
+
+from app.models import shadow_validation as _shadow_validation_models  # noqa: F401
+from app.routes.shadow_validation import router as shadow_validation_router
+app.include_router(shadow_validation_router, prefix=settings.API_PREFIX)
+
+from app.models import advisory_pilot as _advisory_pilot_models  # noqa: F401
+from app.routes.advisory_pilot import router as advisory_pilot_router
+app.include_router(advisory_pilot_router, prefix=settings.API_PREFIX)
 
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
@@ -1120,6 +1151,14 @@ app.include_router(governed_action_router)
 from app.models import oracle_discovery as _oracle_discovery_models  # noqa: F401
 from app.routes.oracle_discovery import router as oracle_discovery_router
 app.include_router(oracle_discovery_router)
+
+from app.models import lumen_decision_engine as _lumen_decision_engine_models  # noqa: F401
+from app.routes.lumen_decision_engine import router as lumen_decision_engine_router
+app.include_router(lumen_decision_engine_router, prefix=settings.API_PREFIX)
+
+from app.models import annotation_database as _annotation_database_models  # noqa: F401
+from app.routes.annotation_database import router as annotation_database_router
+app.include_router(annotation_database_router, prefix=settings.API_PREFIX)
 
 from fastapi.openapi.utils import get_openapi
 

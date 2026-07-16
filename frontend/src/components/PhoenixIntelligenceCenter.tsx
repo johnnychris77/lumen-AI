@@ -80,7 +80,7 @@ export default function PhoenixIntelligenceCenter() {
     <div className="space-y-4 p-4">
       <h1 className="text-xl font-bold text-slate-800">Phoenix — Self-Improving Intelligence</h1>
       <p className="text-xs text-slate-400">
-        Continuously analyzes platform performance, knowledge quality, AI accuracy, workflow efficiency, and
+        Continuously analyzes platform performance, knowledge quality, AI output review outcomes, workflow efficiency, and
         operational outcomes. Phoenix never modifies production automatically — every recommendation requires
         human governance and approval at every stage.
       </p>

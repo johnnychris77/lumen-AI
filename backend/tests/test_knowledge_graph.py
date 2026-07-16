@@ -150,10 +150,14 @@ class TestKnowledgeGraphExplorer:
         assert any(r["finding"] == "blood" for r in results)
 
     def test_explore_recommendation_returns_five_outcomes(self):
+        from app.services.baseline_comparison_scoring_service import OVERALL_RESULT_AI_UNAVAILABLE
         res = client.get("/api/knowledge-graph/explore", params={"category": "recommendation"}, headers=AUTH_VIEWER)
         results = res.json()["results"]
         outcomes = {r["outcome"] for r in results}
-        assert outcomes == {"PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE"}
+        assert outcomes == {
+            "PASS", "MONITOR", "SUPERVISOR REVIEW", "REPROCESS", "REMOVE FROM SERVICE",
+            OVERALL_RESULT_AI_UNAVAILABLE,
+        }
 
     def test_explore_unknown_category(self):
         res = client.get("/api/knowledge-graph/explore", params={"category": "nonsense"}, headers=AUTH_VIEWER)

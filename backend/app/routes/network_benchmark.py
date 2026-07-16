@@ -175,12 +175,20 @@ def get_benchmarks(request: Request, db: Session = Depends(get_db)):
 
     benchmarks = compute_industry_benchmarks(db)
     participant_count = db.query(NetworkParticipant).filter(NetworkParticipant.is_active == True).count()  # noqa: E712
+    any_insufficient = any(b.get("data_source") == "insufficient_data" for b in benchmarks)
 
     return {
         "status": "success",
         "benchmarks": benchmarks,
         "network_participant_count": participant_count,
-        "note": "All values include differential privacy noise. Cohorts with N<5 suppressed.",
+        "note": (
+            "Some or all of these metrics have insufficient data (see each entry's data_source) -- no real "
+            "cross-organization benchmark has been computed for them yet, so no value is reported rather than "
+            "an estimated one. Metrics marked data_source='real' include differential privacy noise; cohorts "
+            "with N<5 are suppressed."
+            if any_insufficient else
+            "All values include differential privacy noise. Cohorts with N<5 suppressed."
+        ),
     }
 
 

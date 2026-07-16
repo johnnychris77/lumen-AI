@@ -7,10 +7,12 @@ from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.atlas_enterprise import SCOPE_SYSTEM
 from app.models.enterprise_hierarchy import EnterpriseFacility, EnterpriseMarket, HealthSystem
 from app.models.inspection import Inspection
 from app.models.inspection_finding import InspectionFinding
 from app.models.knowledge import APPROVED, KnowledgeArticle
+from app.services import atlas_rbac_service
 
 client = TestClient(app)
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
@@ -101,8 +103,30 @@ def _make_article(tenant_id: str, **overrides) -> int:
         db.close()
 
 
-def _setup_system() -> tuple[str, str, str, str]:
-    """Returns (system_id, market_id, facility_id, tenant_id) for a fresh, isolated system."""
+def _grant_default_access(system_id: str) -> None:
+    """Dev-auth identities carry no tenant_id and start with zero
+    EnterpriseRoleAssignment rows. Grant them system-level access to this
+    freshly-created test system, mirroring real onboarding, so route tests
+    exercise the underlying business logic rather than tripping the
+    system_id scope-authorization gate itself."""
+    db = SessionLocal()
+    try:
+        for email, role in (
+            ("admin@local.dev", "regional_administrator"),
+            ("spd_manager@local.dev", "facility_director"),
+            ("viewer@local.dev", "viewer"),
+        ):
+            atlas_rbac_service.grant_role(
+                db, user_email=email, role=role, scope_type=SCOPE_SYSTEM, scope_id=system_id, granted_by="test-fixture",
+            )
+    finally:
+        db.close()
+
+
+def _setup_system_raw() -> tuple[str, str, str, str]:
+    """Like _setup_system but grants no EnterpriseRoleAssignment rows —
+    used to prove the system_id scope-authorization gate actually blocks
+    access when the caller holds no role assignment for this system."""
     system_id = uid("sys")
     market_id = uid("mkt")
     facility_id = uid("fac")
@@ -110,6 +134,15 @@ def _setup_system() -> tuple[str, str, str, str]:
     _make_system(system_id)
     _make_market(market_id, system_id)
     _make_facility(facility_id, system_id=system_id, market_id=market_id, tenant_id=tenant_id, facility_name="Test Hospital One")
+    return system_id, market_id, facility_id, tenant_id
+
+
+def _setup_system() -> tuple[str, str, str, str]:
+    """Returns (system_id, market_id, facility_id, tenant_id) for a fresh,
+    isolated system, with the dev-auth identities pre-granted system-level
+    access (mirroring real onboarding)."""
+    system_id, market_id, facility_id, tenant_id = _setup_system_raw()
+    _grant_default_access(system_id)
     return system_id, market_id, facility_id, tenant_id
 
 
@@ -380,3 +413,60 @@ class TestRolePermissions:
             "user_email": "x@x.org", "role": "not_a_real_role", "scope_type": "system", "scope_id": system_id,
         }, headers=AUTH_ADMIN)
         assert res.status_code == 422
+
+
+class TestSystemAccessEnforcement:
+    """Proves the system_id cross-organization authorization gap is closed:
+    holding an allowed role is no longer sufficient by itself — the caller
+    must also hold a real EnterpriseRoleAssignment covering the system_id
+    (or an ancestor of it) named in the request."""
+
+    def test_dashboard_403s_without_a_scope_grant(self):
+        system_id, *_ = _setup_system_raw()
+        res = client.get(f"/api/atlas/dashboard/{system_id}", headers=AUTH_ADMIN)
+        assert res.status_code == 403
+
+    def test_dashboard_succeeds_after_granting_access(self):
+        system_id, *_ = _setup_system_raw()
+        grant = client.post("/api/atlas/roles/grant", json={
+            "user_email": "admin@local.dev", "role": "regional_administrator", "scope_type": "system", "scope_id": system_id,
+        }, headers=AUTH_ADMIN)
+        assert grant.status_code == 200
+
+        res = client.get(f"/api/atlas/dashboard/{system_id}", headers=AUTH_ADMIN)
+        assert res.status_code == 200
+
+    def test_facility_access_granted_via_ancestor_system_grant(self):
+        system_id, market_id, fac_a, tenant_a = _setup_system_raw()
+        blocked = client.get(f"/api/atlas/facility-intelligence/{system_id}/{fac_a}", headers=AUTH_VIEWER)
+        assert blocked.status_code == 403
+
+        client.post("/api/atlas/roles/grant", json={
+            "user_email": "viewer@local.dev", "role": "viewer", "scope_type": "system", "scope_id": system_id,
+        }, headers=AUTH_ADMIN)
+
+        allowed = client.get(f"/api/atlas/facility-intelligence/{system_id}/{fac_a}", headers=AUTH_VIEWER)
+        assert allowed.status_code == 200
+
+    def test_leadership_cannot_grant_into_a_system_they_have_no_access_to(self):
+        system_id, *_ = _setup_system_raw()
+        res = client.post("/api/atlas/roles/grant", json={
+            "user_email": "someone@x.org", "role": "viewer", "scope_type": "system", "scope_id": system_id,
+        }, headers=AUTH_MGR)
+        assert res.status_code == 403
+
+    def test_admin_can_bootstrap_a_brand_new_system(self):
+        system_id, *_ = _setup_system_raw()
+        res = client.post("/api/atlas/roles/grant", json={
+            "user_email": "someone@x.org", "role": "viewer", "scope_type": "system", "scope_id": system_id,
+        }, headers=AUTH_ADMIN)
+        assert res.status_code == 200
+
+    def test_knowledge_share_403s_without_a_scope_grant(self):
+        system_id, market_id, fac_a, tenant_a = _setup_system_raw()
+        article_id = _make_article(tenant_a)
+        res = client.post("/api/atlas/knowledge/share", json={
+            "system_id": system_id, "source_tenant_id": tenant_a, "source_article_id": article_id,
+            "owner": "author@x.org", "sharing_scope": "system_wide",
+        }, headers=AUTH_MGR)
+        assert res.status_code == 403

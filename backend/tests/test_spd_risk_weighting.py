@@ -97,10 +97,12 @@ class TestBioburdenRemoved:
         assert all(f["type"] != "bioburden" for f in out["predicted_findings"])
 
     def test_overall_cleaning_assessment_present(self):
+        from app.services.baseline_comparison_scoring_service import CLEANING_ASSESSMENT_UNAVAILABLE
         out = _analyze("scissors")
         assert out["overall_cleaning_assessment"] in (
             "Clean", "Residual contamination suspected",
             "Cleaning failure", "Supervisor review required",
+            CLEANING_ASSESSMENT_UNAVAILABLE,
         )
 
     def test_clean_when_no_contamination(self):
@@ -141,9 +143,11 @@ class TestRiskOverride:
         assert "crack" in out["spd_critical_drivers"]
 
     def test_normal_wear_does_not_fail(self):
+        # No declared findings and no eligible model — AI_ANALYSIS_UNAVAILABLE
+        # is the honest outcome (false-PASS remediation), never "FAIL".
         out = _analyze("retractor")  # no declared findings
         if not out["critical_flags"] and not out["spd_critical_drivers"]:
-            assert out["pass_fail"] == "PASS"
+            assert out["pass_fail"] in ("PASS", "AI_ANALYSIS_UNAVAILABLE")
 
 
 # ── Explanation + drivers ────────────────────────────────────────────────────

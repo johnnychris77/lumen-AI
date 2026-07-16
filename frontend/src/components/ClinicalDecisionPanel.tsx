@@ -212,6 +212,11 @@ export default function ClinicalDecisionPanel({
         <div className={`px-5 py-4 text-white ${RESULT_STYLE[result] ?? "bg-slate-600"}`}>
           <div className="text-xs uppercase tracking-wide opacity-80">Clinical Decision</div>
           <div className="text-2xl font-extrabold tracking-wide">{result}</div>
+          {!RESULT_STYLE[result] && (
+            <div className="mt-1 text-xs font-normal opacity-90">
+              AI analysis is available only when an eligible model is loaded. Manual inspection remains required.
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 p-4 text-sm">
           <div><div className="text-xs text-slate-500">Score</div><div className="text-xl font-bold text-slate-900">{cd.summary.inspection_score ?? "—"}</div></div>

@@ -14,6 +14,7 @@ from app.services.disposition_engine import (
     recommend_disposition,
 )
 from app.services.readiness_engine import (
+    PENDING_SUPERVISOR_REVIEW,
     READY,
     READY_WITH_SUPERVISOR_APPROVAL,
     REMOVE_FROM_SERVICE_STATUS,
@@ -73,7 +74,14 @@ class TestReadinessScoreCalculation:
             insp = _get_inspection(iid)
             readiness = compute_readiness(db, TENANT, insp, confirmed=False)
             assert readiness["readiness_score"] is None or 0 <= readiness["readiness_score"] <= 100
-            assert readiness["status"] in (READY, READY_WITH_SUPERVISOR_APPROVAL, REQUIRES_RECLEANING_STATUS)
+            # PENDING_SUPERVISOR_REVIEW is the safe, expected outcome for the
+            # new AI-analysis-unavailable disposition (no declared findings,
+            # no eligible model): classify_readiness()'s existing "unrecognized
+            # text — fail safe to human review" branch routes it here.
+            assert readiness["status"] in (
+                READY, READY_WITH_SUPERVISOR_APPROVAL, REQUIRES_RECLEANING_STATUS,
+                PENDING_SUPERVISOR_REVIEW,
+            )
         finally:
             db.close()
 

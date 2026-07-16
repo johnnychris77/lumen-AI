@@ -16,15 +16,6 @@ interface FacilitySnapshot {
   trend: "up" | "flat" | "down";
 }
 
-// Demo multi-facility data — in production this would come from a
-// cross-tenant admin API scoped to the enterprise account.
-const DEMO_FACILITIES: FacilitySnapshot[] = [
-  { id: "f1", name: "Memorial Main Campus", tier: "enterprise", healthScore: 82, healthBand: "green", inspections: 312, criticalFindings: 14, baselineCoveragePct: 88, activeUsers: 18, daysOnPlatform: 94, trend: "up" },
-  { id: "f2", name: "Memorial North Pavilion", tier: "enterprise", healthScore: 67, healthBand: "yellow", inspections: 148, criticalFindings: 6, baselineCoveragePct: 71, activeUsers: 9, daysOnPlatform: 61, trend: "up" },
-  { id: "f3", name: "Regional Surgery Center", tier: "hospital", healthScore: 44, healthBand: "yellow", inspections: 53, criticalFindings: 2, baselineCoveragePct: 58, activeUsers: 5, daysOnPlatform: 28, trend: "flat" },
-  { id: "f4", name: "Westside Ambulatory", tier: "hospital", healthScore: 31, healthBand: "red", inspections: 19, criticalFindings: 0, baselineCoveragePct: 34, activeUsers: 3, daysOnPlatform: 14, trend: "down" },
-];
-
 type SortKey = "healthScore" | "inspections" | "baselineCoveragePct" | "criticalFindings" | "activeUsers";
 
 function bandColor(band: FacilitySnapshot["healthBand"]) {
@@ -49,19 +40,27 @@ export default function NetworkDashboardPage() {
   const [sortKey, setSortKey] = useState<SortKey>("healthScore");
   const [sortAsc, setSortAsc] = useState(false);
   const [loading, setLoading] = useState(true);
+  // `/api/enterprise/network-snapshot` does not exist anywhere in the
+  // backend today -- this page has no real cross-tenant data source yet.
+  // Rather than silently substituting fabricated facility rows (as this
+  // page previously did on every load, since the fetch always 404s), show
+  // that plainly instead of a normal-looking dashboard.
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const token = localStorage.getItem("token") ?? "";
         const res = await apiFetch("/api/enterprise/network-snapshot", { raw: true,
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}` }, signOutOn401: false,
         });
-        if (!res.ok) throw new Error("No network API");
+        if (!res.ok) throw new Error("Network snapshot API not available");
         const data = await res.json();
-        setFacilities(data.facilities ?? DEMO_FACILITIES);
+        if (!Array.isArray(data.facilities)) throw new Error("Network snapshot API returned no facility data");
+        setFacilities(data.facilities);
       } catch {
-        setFacilities(DEMO_FACILITIES);
+        setFacilities([]);
+        setUnavailable(true);
       } finally {
         setLoading(false);
       }
@@ -106,6 +105,18 @@ export default function NetworkDashboardPage() {
         </div>
       </div>
 
+      {unavailable ? (
+        <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <Building2 className="mx-auto h-8 w-8 text-slate-400 mb-3" />
+          <p className="text-sm font-semibold text-slate-700">Not Available in Current Model — Network view is not yet available</p>
+          <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto">
+            This dashboard requires a cross-tenant enterprise network-snapshot API that has not been implemented on the backend yet. No facility data is shown here until that API exists.
+          </p>
+        </div>
+      ) : loading ? (
+        <div className="text-center text-slate-400 py-12 text-sm animate-pulse">Loading network data…</div>
+      ) : (
+      <>
       {/* Network score hero */}
       <div className={`rounded-xl border-2 p-6 flex flex-col md:flex-row items-center gap-8 ${
         netScore >= 70 ? "bg-emerald-50 border-emerald-200" : netScore >= 45 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
@@ -284,6 +295,8 @@ export default function NetworkDashboardPage() {
           </p>
         </div>
       </div>
+      </>
+      )}
 
       <p className="text-xs text-slate-400 text-center">
         Network Dashboard shows health data only for facilities within your enterprise tenant. Facility identities are not shared across enterprise accounts. All AI findings require qualified human review. LumenAI makes no claim of FDA clearance or regulatory approval.
