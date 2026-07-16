@@ -454,6 +454,11 @@ export default function NewInspectionPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setBanner(null);
+    // False-PASS remediation, Section 3 — never let a prior inspection's
+    // result remain visible while a new analysis is in flight (the form
+    // itself also unmounts once `prediction` is set, but this closes the
+    // window between clicking Submit and that response arriving).
+    setPrediction(null);
     // Viewers are read-only — block and explain, never fail silently.
     if (!canRunInspection) {
       setBanner({ type: "error", message: VIEWER_READONLY_MESSAGE });
@@ -955,7 +960,7 @@ export default function NewInspectionPage() {
                 inputRef={inspectionInputRef}
                 onChange={(e) => handleImages(e, setInspectionImages)}
                 onRemove={(i) => removeImage(i, setInspectionImages)}
-                disabled={!canRunInspection}
+                disabled={!canRunInspection || submitting}
               />
               <FieldError message={fieldErrors.images} />
             </div>
@@ -968,7 +973,7 @@ export default function NewInspectionPage() {
                 inputRef={borescopeInputRef}
                 onChange={(e) => handleImages(e, setBorescopeImages)}
                 onRemove={(i) => removeImage(i, setBorescopeImages)}
-                disabled={!canRunInspection}
+                disabled={!canRunInspection || submitting}
               />
             </div>
             <p className="text-xs text-gray-500">Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>

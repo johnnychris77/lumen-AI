@@ -64,7 +64,10 @@ class TestCompletedOutput:
         assert out["findings_summary"], "findings_summary must be populated"
         assert out["confidence"] is not None
         assert out["confidence_level"] in ("High", "Medium", "Low")
-        assert out["pass_fail"] in ("PASS", "FAIL")
+        # AI_ANALYSIS_UNAVAILABLE is the honest outcome when no cleaning KPI
+        # was technician-declared and no eligible trained model backs it —
+        # the false-PASS remediation's contamination safety invariant.
+        assert out["pass_fail"] in ("PASS", "FAIL", "AI_ANALYSIS_UNAVAILABLE")
 
     def test_kpi_findings_have_severity_and_status(self):
         from app.services.baseline_comparison_scoring_service import ALL_SEVERITY_TOKENS
@@ -85,12 +88,12 @@ class TestCompletedOutput:
         assert ex["risk_drivers"]
         assert ex["confidence_level"] == out["confidence_level"]
 
-    def test_clean_instrument_passes(self):
-        # No declared findings → low probabilities → PASS + accept recommendation
+    def test_undeclared_findings_report_ai_unavailable_not_pass(self):
+        # No declared findings and no eligible trained model → the placeholder
+        # must not assert a verified "clean" result (false-PASS remediation).
         out = _analyze("retractor")
-        if not out["critical_flags"]:
-            assert out["pass_fail"] == "PASS"
-            assert "Accept inspection" in out["recommendation"]
+        assert out["pass_fail"] == "AI_ANALYSIS_UNAVAILABLE"
+        assert "AI analysis unavailable" in out["overall_cleaning_assessment"]
 
 
 # ── Critical-threshold escalation ────────────────────────────────────────────

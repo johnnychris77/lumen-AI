@@ -448,8 +448,28 @@ async def create_inspection(
                 .filter(_RetainedImage.tenant_id == tenant_id, _RetainedImage.sha256 == body.image_sha256)
                 .first()
             )
-            if retained_row is not None:
-                retained_image_bytes = retained_row.image_bytes
+            if retained_row is not None and retained_row.image_bytes is not None:
+                # False-PASS remediation, Section 2 — reload the stored bytes
+                # and recompute their hash before trusting them for analysis.
+                # The query above only matched on the *registered* sha256
+                # column; it does not prove the bytes actually on disk/DB
+                # today still hash to that value (row could have been
+                # corrupted or overwritten independently of the hash field).
+                # Rather than silently analyze bytes that no longer match
+                # their own registered identity, fail safe: drop them and
+                # let analyze_inspection() proceed without real image bytes
+                # (the honest AI_ANALYSIS_UNAVAILABLE path), never mismatched
+                # ones.
+                recomputed = hashlib.sha256(retained_row.image_bytes).hexdigest()
+                if recomputed == retained_row.sha256 == body.image_sha256:
+                    retained_image_bytes = retained_row.image_bytes
+                else:
+                    logger.error(
+                        "Image identity mismatch at analysis time: retained_image_id=%s "
+                        "registered_sha256=%s recomputed_sha256=%s claimed_sha256=%s — "
+                        "rejecting stored bytes for this analysis.",
+                        retained_row.id, retained_row.sha256, recomputed, body.image_sha256,
+                    )
         try:
             analysis = analyze_inspection(
                 db,

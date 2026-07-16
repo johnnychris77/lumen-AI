@@ -141,6 +141,32 @@ here is new; it is gathered into one place per Section 11's requirement.
   pure-Python logistic-regression trainer — a real, disclosed gap between
   declared policy and implementation.
 
+## False-PASS Remediation limitations (see `docs/model-development/FALSE_PASS_ROOT_CAUSE.md`)
+
+- **No baseline image is stored anywhere in this schema.**
+  `BaselineLibraryEntry` is metadata only (manufacturer/category/approval
+  status) — there is no image column, no upload endpoint for one, and no
+  stored bytes to compare an inspection image against. The real, tested
+  `image_similarity_service.compare_against_baseline()` (Project Lens) is
+  therefore not wired into the live disposition path — it has nothing to
+  compare against. Adding baseline-image storage was explicitly out of
+  scope for the false-PASS remediation ("do not add features").
+- **The placeholder can no longer assert a false "Clean"/PASS for
+  undeclared contamination (blood, bone, tissue, other organic residue,
+  debris), but it still runs and still drives every other signal**
+  (structural/condition KPIs — corrosion, rust, crack, etc. — and the
+  numeric inspection score) exactly as before. Production mode still runs
+  the deterministic placeholder; it has not been removed or replaced by a
+  real model, because no real, eligible, non-synthetic-trained model
+  exists in this environment (see the Project Lens limitations above).
+- **The average-hash (aHash) comparator can collide on visibly different
+  images with similar brightness/texture statistics** — confirmed directly
+  (`FALSE_PASS_MANUAL_RETEST.md`, Run 4): two deliberately different
+  fixture images hashed identically under this coarse, low-resolution
+  perceptual hash. This does not affect the remediation's fix (the
+  comparator is not wired into any decision path), but is a real, disclosed
+  limitation of the comparator itself for any future use.
+
 ## Project Canvas — Annotation Workspace limitations
 
 - **No dedicated thumbnail pipeline.** The image library, upload results
