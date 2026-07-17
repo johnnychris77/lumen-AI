@@ -41,6 +41,11 @@ use `npm ci` (never bare `npm install`).
 
 ## Known bounds (honest)
 
+* The lock is a faithful freeze of the tested environment and therefore
+  includes development/verification tooling present in it (`pytest`,
+  `ruff`, `pip_audit` and their transitives). Runtime images built from
+  it carry that tooling — reproducible, slightly larger than minimal. A
+  separate slim runtime lock is deliberate follow-up work, not done yet.
 * Pins are exact but not hash-locked; hash-locking (`--require-hashes`
   via pip-tools) is a candidate WS1 follow-up, noted not yet adopted.
 * System-level reproducibility (OS packages such as `libzbar0`,
