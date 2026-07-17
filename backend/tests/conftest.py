@@ -124,6 +124,7 @@ def _force_import_models():
         "app.models.maestro_orchestration",
         "app.models.council_leadership",
         "app.models.governed_action",
+        "app.models.governed_object",
         "app.models.oracle_discovery",
         "app.models.shadow_validation",
         "app.models.advisory_pilot",
@@ -269,6 +270,17 @@ def _seed_enterprise_finding(engine) -> None:
                     human_confirmed=False,
                 ))
                 db.commit()
+                # PostgreSQL: inserting with an explicit id does not advance
+                # the sequence, so the next default-id INSERT would collide
+                # with id=1. SQLite has no sequence to fix up.
+                if engine.dialect.name == "postgresql":
+                    from sqlalchemy import text as _text
+
+                    with engine.begin() as conn:
+                        conn.execute(_text(
+                            "SELECT setval(pg_get_serial_sequence('enterprise_findings', 'id'), "
+                            "(SELECT COALESCE(MAX(id), 1) FROM enterprise_findings))"
+                        ))
     except Exception:
         pass
 

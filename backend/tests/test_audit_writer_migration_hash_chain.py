@@ -40,12 +40,23 @@ def _details(event) -> dict:
     return raw
 
 
-def _set_details(event, details: dict) -> None:
-    raw = getattr(event, "details", {}) or {}
-    if isinstance(raw, str):
-        event.details = json.dumps(details, sort_keys=True, default=str)
-    else:
-        event.details = details
+def _set_details(db, event, details: dict) -> None:
+    """Tamper with a stored audit event OUT-OF-BAND via raw SQL.
+
+    Audit rows are ORM-immutable (GPAE Foundation guards in
+    app.models.audit_log), so the direct-table tampering this test
+    simulates must bypass the ORM — exactly the threat the hash chain
+    exists to detect.
+    """
+    from sqlalchemy import text
+
+    payload = json.dumps(details, sort_keys=True, default=str)
+    db.execute(
+        text("UPDATE audit_logs SET details = :details WHERE id = :id"),
+        {"details": payload, "id": event.id},
+    )
+    db.commit()
+    db.expire(event)
 
 
 class TestLogAuditEventDelegatesToHashChain:
@@ -246,9 +257,7 @@ class TestVerificationDetectsTamperingInMigratedEvents:
             # way an attacker modifying the audit_logs table directly would.
             details = _details(first_event)
             details["finding_count"] = 999
-            _set_details(first_event, details)
-            db.add(first_event)
-            db.commit()
+            _set_details(db, first_event, details)
 
             tampered_result = verify_audit_chain(
                 db,

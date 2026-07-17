@@ -92,7 +92,11 @@ class Inspection(Base):
     # Inspection Coverage Engine's result at submission time, persisted for
     # the same reason (coverage compliance reporting). All nullable/blank for
     # older rows or inspections with no image.
-    disposition: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Widened from 30: the app itself writes dispositions like
+    # "AI ANALYSIS UNAVAILABLE — MANUAL INSPECTION REQUIRED" (52 chars).
+    # SQLite ignores VARCHAR lengths; PostgreSQL enforces them (found by the
+    # GPAE Foundation PostgreSQL verification run).
+    disposition: Mapped[str | None] = mapped_column(String(120), nullable=True)
     coverage_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
     coverage_quality: Mapped[str | None] = mapped_column(String(20), nullable=True)
 

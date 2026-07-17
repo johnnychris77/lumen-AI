@@ -130,6 +130,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.knowledge")               # register v1.8 institutional knowledge tables
     importlib.import_module("app.models.pilot_config")             # register v1.9 pilot site config table
     importlib.import_module("app.models.pilot_error_log")          # register v1.9 pilot error log table
+    importlib.import_module("app.models.governed_object")          # register GPAE governed object registry table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
@@ -1159,6 +1160,9 @@ app.include_router(lumen_decision_engine_router, prefix=settings.API_PREFIX)
 from app.models import annotation_database as _annotation_database_models  # noqa: F401
 from app.routes.annotation_database import router as annotation_database_router
 app.include_router(annotation_database_router, prefix=settings.API_PREFIX)
+
+from app.routes.gpae_monitoring import router as gpae_monitoring_router  # noqa: E402
+app.include_router(gpae_monitoring_router)  # paths already carry /api/gpae/
 
 from fastapi.openapi.utils import get_openapi
 
