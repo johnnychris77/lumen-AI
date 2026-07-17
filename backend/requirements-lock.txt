@@ -1,9 +1,3 @@
-# GENERATED FILE — do not edit by hand.
-# Exact, tested dependency pins (source: backend/requirements-lock.txt,
-# frozen from the environment that passed the full 3,683-test suite on
-# Python 3.11 — matching the python:3.11-slim Docker base images).
-# Direct dependencies are declared in backend/requirements.txt.
-# Regenerate: cp backend/requirements-lock.txt into this file below this header.
 APScheduler==3.11.3
 CacheControl==0.14.4
 Deprecated==1.3.1

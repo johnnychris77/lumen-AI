@@ -1,0 +1,150 @@
+# Pilot Zero — Security and Engineering Gate (Workstream 1).
+#
+# The single authoritative merge gate. Branch protection on `main` should
+# require these jobs (admin action — see
+# docs/pilot-zero/WS1_SECURITY_ENGINEERING_GATE.md; as of 2026-07-17 no
+# workflow in this repository has ever produced a check run on a PR, which
+# indicates Actions is disabled at the repository level and must be enabled
+# by an admin before this gate can enforce anything).
+#
+# Python is pinned to 3.11 — the version the full suite passes on and the
+# version in every Docker base image. Dependencies install from the tested
+# lock (backend/requirements-lock.txt), never from floating ranges.
+
+name: Pilot Zero Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff (backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-lock.txt
+      - run: pip install -r backend/requirements-lock.txt
+      - run: ruff check backend/app backend/tests
+
+  backend-tests-sqlite:
+    name: Backend tests (SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-lock.txt
+      - run: pip install -r backend/requirements-lock.txt
+      - name: Run full suite
+        working-directory: backend
+        run: |
+          rm -f test.db
+          python -m pytest tests -q -p no:cacheprovider
+
+  backend-tests-postgres:
+    # Encodes the Foundation Sprint lesson: the first-ever PostgreSQL run
+    # surfaced 110 defects SQLite masked. This job keeps that class fixed.
+    name: Backend tests (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lumenai
+          POSTGRES_PASSWORD: lumenai
+          POSTGRES_DB: lumenai_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lumenai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-lock.txt
+      - run: pip install -r backend/requirements-lock.txt
+      - name: Alembic chain applies to PostgreSQL
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://lumenai:lumenai@localhost:5432/lumenai_test
+        run: |
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
+      - name: Run full suite on PostgreSQL
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://lumenai:lumenai@localhost:5432/lumenai_test
+        run: python -m pytest tests -q -p no:cacheprovider
+
+  frontend-build:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  dependency-audit:
+    # Report-only for now: findings are surfaced on every PR without
+    # blocking merges, so triage decisions are explicit and recorded.
+    # Promotion to blocking is a WS1 exit decision (see gate doc).
+    name: Dependency audit (report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip-audit (backend lock)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements-lock.txt --no-deps -o pip-audit-report.json -f json || true
+          pip-audit -r backend/requirements-lock.txt --no-deps || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm audit (frontend lock)
+        continue-on-error: true
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-audit-reports
+          path: pip-audit-report.json
+          if-no-files-found: ignore
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
