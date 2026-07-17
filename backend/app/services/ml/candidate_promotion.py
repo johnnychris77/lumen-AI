@@ -211,6 +211,29 @@ def promote_candidate(
     decision = evaluate_candidate_promotion(db, model=model, target_stage=target_stage, approver=approver)
     if not decision["allowed"]:
         return decision
+    if target_stage == "Production":
+        # GPAE Foundation invariant: only one active Production model at a
+        # time. The incumbent must be explicitly rolled back (an audited,
+        # human decision) before another model can be promoted.
+        incumbent = (
+            db.query(ModelRegistryEntry)
+            .filter(
+                ModelRegistryEntry.candidate_stage == "Production",
+                ModelRegistryEntry.id != model.id,
+            )
+            .first()
+        )
+        if incumbent is not None:
+            return {
+                **decision,
+                "allowed": False,
+                "promoted": False,
+                "blocked_reason": (
+                    f"Model id={incumbent.id} ({incumbent.model_id} "
+                    f"{incumbent.model_version}) is already at Production. Roll "
+                    "it back before promoting another model."
+                ),
+            }
     model.candidate_stage = target_stage
     model.approved_by = approver
     db.commit()

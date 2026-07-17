@@ -756,6 +756,11 @@ def promote_to_recall_signal(warning_id: int,
         escalated_to_fda=False,
     )
     db.add(signal)
+    # The contribution row's FK targets recall_signals.signal_id (a non-PK
+    # unique column), which SQLAlchemy's flush ordering does not treat as a
+    # dependency — PostgreSQL then rejects the contribution insert. Flush the
+    # signal first so the referenced row exists.
+    db.flush()
     # Seed an anonymized contribution placeholder so the formal signal carries
     # facility-count provenance without exposing tenant identity.
     db.add(FacilityRecallSignalContribution(

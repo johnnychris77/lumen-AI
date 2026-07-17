@@ -364,7 +364,9 @@ class TestDatasetBuilderAndSplitIntegrity:
             for i in range(20):
                 e = dataset_registry.register_image(
                     db, tenant_id=TENANT, dataset_version_id=version.id, retained_image_id=200 + i,
-                    image_sha256=f"split{i:03d}" + "0" * 58, image_quality="Good", phi_verification="verified",
+                    # Exactly 64 chars — the column is sized for a real SHA-256
+                    # hex digest and PostgreSQL enforces the width.
+                    image_sha256=f"split{i:03d}" + "0" * 56, image_quality="Good", phi_verification="verified",
                     inspection_id=i, **_valid_metadata(),
                 )
                 e.current_label = "debris" if i % 2 == 0 else "none"

@@ -1,0 +1,77 @@
+{
+  "started_at": "2026-07-16T23:54:33.126031+00:00",
+  "steps": [
+    {
+      "step": "seeded",
+      "objects": [
+        {
+          "object_id": "GOBJ-1f470cf037364fd4b6dca22315b646d2",
+          "sha256": "01d1d63668a5bdee80b673ca787abfec24b4b188a69e8b0a5977f74b08ae3ccd"
+        },
+        {
+          "object_id": "GOBJ-9c20c25e97184f098762fb4ce1229b63",
+          "sha256": "f88f79719d5159bce3bfe154620dc9dcb3b265ce031ce9fc8c507ab4eaa665d4"
+        },
+        {
+          "object_id": "GOBJ-9b73b35fa1da471691d61e1361ae00d5",
+          "sha256": "9f43f09352dbd015ea0457636bd4cbda5287b15a4ee20e06e11c852d259444b8"
+        }
+      ],
+      "governed_object_rows": 3,
+      "audit_rows": 3
+    },
+    {
+      "step": "backup_completed",
+      "backup_dir": "/tmp/claude-0/-home-user-lumen-AI/9848bd96-e333-5e5f-906e-c172784b7394/scratchpad/gpae-backups/gpae-backup-20260716T235435Z",
+      "seconds": 1.101
+    },
+    {
+      "step": "backup_verified",
+      "backup_dir": "/tmp/claude-0/-home-user-lumen-AI/9848bd96-e333-5e5f-906e-c172784b7394/scratchpad/gpae-backups/gpae-backup-20260716T235435Z",
+      "verified": true,
+      "components": {
+        "database": "sha256_verified",
+        "object_storage": "sha256_verified",
+        "model_artifacts": "sha256_verified"
+      }
+    },
+    {
+      "step": "disaster_inflicted",
+      "database": "DROPPED",
+      "object_storage": "DELETED"
+    },
+    {
+      "step": "restore_completed",
+      "seconds": 10.444,
+      "rpo_seconds_data_loss_window": 10.8
+    },
+    {
+      "step": "recovery_verified",
+      "governed_object_rows": 3,
+      "audit_rows": 3,
+      "alembic_revision": "d4e8a1c93f57",
+      "objects_hash_verified": [
+        {
+          "object_id": "GOBJ-1f470cf037364fd4b6dca22315b646d2",
+          "bytes": 2800,
+          "sha256_verified": true
+        },
+        {
+          "object_id": "GOBJ-9c20c25e97184f098762fb4ce1229b63",
+          "bytes": 2800,
+          "sha256_verified": true
+        },
+        {
+          "object_id": "GOBJ-9b73b35fa1da471691d61e1361ae00d5",
+          "bytes": 2800,
+          "sha256_verified": true
+        }
+      ],
+      "corruption_detected_fail_closed": true,
+      "corruption_recovery_seconds": 16.046,
+      "post_recovery_bytes": 2800
+    }
+  ],
+  "finished_at": "2026-07-16T23:55:03.320949+00:00",
+  "result": "ALL_STEPS_PASSED"
+}
