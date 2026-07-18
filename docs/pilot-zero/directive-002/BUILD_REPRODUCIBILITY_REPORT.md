@@ -55,3 +55,27 @@ wc -l requirements-lock.txt            # 100
 grep -ci psycopg2 requirements.txt     # 1
 pip-audit                              # No known vulnerabilities found
 ```
+
+---
+
+## Increment 2 re-verification (endpoint governance PR)
+
+Executed on this branch as part of the endpoint-governance increment:
+
+| Environment | Value |
+|---|---|
+| OS | Linux |
+| Python | **3.11.15** |
+| Node | **v22.22.2** |
+| npm | **10.9.7** |
+
+| Step | Command | Result |
+|---|---|---|
+| Backend lint | `ruff check app scripts tests` | All checks passed |
+| Backend deps vuln scan | `pip-audit -r requirements-lock.txt` | No known vulnerabilities found |
+| Frontend clean build | `npm --prefix frontend run build` | **2761 modules transformed, built in 4.99s** (exit 0) |
+| SBOM generation | `cyclonedx-py requirements requirements-lock.txt` | CycloneDX 1.6, 100 components (exit 0) |
+| Endpoint governance tests | `pytest tests/test_directive_002_endpoint_governance.py` | 6 passed |
+
+No dependency manifests were modified in increment 2; the frontend was not
+changed, and its build is re-verified above as unaffected.

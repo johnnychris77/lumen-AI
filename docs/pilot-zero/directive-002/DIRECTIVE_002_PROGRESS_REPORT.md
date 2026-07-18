@@ -120,3 +120,90 @@ cross-tenant fail-open and establishes the identity, tenant, and
 engine-capability contracts the remaining increments build on. The full backend
 suite is green on a clean database with this increment applied. The gate remains
 **IN PROGRESS** until F1, F4, F5, F6, and F8 wiring are closed with tests.
+
+---
+
+# Increment 2 — Endpoint governance, reproducible builds, engineering integrity
+
+**Gate status: IN PROGRESS / PARTIALLY PASSED — NOT COMPLETE.**
+**Directive completion estimate: ~55%.**
+
+## Executive summary
+
+Increment 2 establishes *complete, continuously-enforced* endpoint governance
+and re-verifies build/dependency integrity, without securing endpoints blind or
+touching the frozen product architecture. The centrepiece is a generator that
+introspects the live FastAPI app and classifies **all 1912 endpoints from
+evidence** (resolved dependency tree + in-body auth guards), plus a governance
+regression test that forbids any *new* unauthenticated write.
+
+## Repository baseline (measured)
+
+| Metric | Value |
+|---|---|
+| Total endpoints (method × path) | 1912 |
+| `UNKNOWN` | 0 |
+| Write endpoints | 728 |
+| Unauthenticated writes | 21 (9 public-by-design, 12 review-required) |
+| Classification split | AUTHENTICATED 881 · TENANT_SCOPED 837 · ADMIN 70 · SYSTEM 12 · PUBLIC 112 |
+
+## Confirmed findings (this increment)
+
+* **F4 (endpoint auth coverage)** — CONFIRMED / SCOPED. 21 unauthenticated
+  writes exist; 12 are genuine review-required gaps (enterprise/vendor-governance
+  writes). Enumerated and dispositioned in `ENDPOINT_SECURITY_REVIEW.md`.
+* Initial dependency-only scans over-counted unauthenticated writes
+  (123 → 30 → 24 → **21**) because many handlers authenticate **in-body**
+  (`require_enterprise_auth(request)`, `require_hospital_or_enterprise_admin`,
+  `Depends(require_manufacturer_auth)`); the generator now detects both, so the
+  21 figure is evidence-based, not a false alarm.
+
+## Changes implemented
+
+* `backend/scripts/generate_endpoint_inventory.py` (new) — evidence-based
+  inventory/classifier + artifact writer.
+* `backend/tests/test_directive_002_endpoint_governance.py` (new) — enforces
+  0-UNKNOWN, the no-new-unauthenticated-write allowlist, allowlist-shrink, and
+  health-probe behavior.
+* `backend/app/main.py` — `/ready` now emits a per-dependency `checks` block
+  (database hard-gate; object_storage + configuration soft), DB-gated 503
+  contract unchanged.
+* SBOM artifact `docs/pilot-zero/directive-002/sbom/backend-sbom.cdx.json`.
+* Docs: `ENDPOINT_INVENTORY.md` (generated), `ENDPOINT_SECURITY_REVIEW.md`,
+  `DEPENDENCY_REVIEW.md`, `OBSERVABILITY_REVIEW.md`, `SBOM_REPORT.md`,
+  `BUILD_REPRODUCIBILITY_REPORT.md` (extended), this report.
+
+## Commands executed & results
+
+| Command | Result |
+|---|---|
+| `python scripts/generate_endpoint_inventory.py --write` | 1912 endpoints, 0 UNKNOWN |
+| `pytest tests/test_directive_002_endpoint_governance.py` | 6 passed |
+| `pytest tests/test_directive_002_*` (all dir-002) | 22 passed |
+| `ruff check app scripts tests` | All checks passed |
+| `npm --prefix frontend run build` | 2761 modules, 4.99s, exit 0 |
+| `cyclonedx-py requirements requirements-lock.txt` | CycloneDX 1.6, 100 components |
+| `pip-audit -r requirements-lock.txt` | No known vulnerabilities |
+| Full backend suite (clean DB) | see test-results note above (green) |
+
+## Security & backward-compatibility impact
+
+* No endpoint behavior changed except `/ready` (additive `checks` field; same
+  status codes). No product routes, schemas, or auth flows altered.
+* Net new control: unauthenticated writes can no longer be added silently.
+
+## Remaining risks / deferred work
+
+* **12 review-required unauthenticated writes** (enterprise_intake +
+  vendor_governance) — securing deferred to **increment 3** with per-endpoint
+  owner-contract confirmation and negative tests, to avoid breaking intended
+  demo/integration flows.
+* Uniform structured logging, startup probe, redis/queue soft health checks,
+  SBOM license enrichment, frontend CycloneDX SBOM — documented follow-ups.
+* F1/F5/F6 (increment 1 carry-over) remain open.
+
+## Next recommended increment
+
+**Increment 3 — close the 12 review-required unauthenticated writes** (add the
+module's established guard + tenant scope + a negative test each), then F6 audit
+actor wiring.
