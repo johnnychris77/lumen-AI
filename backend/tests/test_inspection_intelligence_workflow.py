@@ -121,6 +121,7 @@ def test_baseline_aware_score_approved_vendor_baseline_returns_high_confidence()
     client = TestClient(app)
     response = client.post(
         "/api/enterprise/baseline-aware-score",
+        headers={"Authorization": "Bearer dev-token"},
         json={
             "finding_type": "bioburden",
             "risk_level": "high",
@@ -145,6 +146,7 @@ def test_baseline_aware_score_approved_hospital_baseline_returns_medium_high_con
     client = TestClient(app)
     response = client.post(
         "/api/enterprise/baseline-aware-score",
+        headers={"Authorization": "Bearer dev-token"},
         json={
             "finding_type": "bioburden",
             "risk_level": "medium",
@@ -167,6 +169,7 @@ def test_baseline_aware_score_historical_pattern_returns_medium_confidence():
     client = TestClient(app)
     response = client.post(
         "/api/enterprise/baseline-aware-score",
+        headers={"Authorization": "Bearer dev-token"},
         json={
             "finding_type": "bioburden",
             "risk_level": "low",
@@ -189,6 +192,7 @@ def test_baseline_aware_score_no_baseline_requires_manual_review():
     client = TestClient(app)
     response = client.post(
         "/api/enterprise/baseline-aware-score",
+        headers={"Authorization": "Bearer dev-token"},
         json={
             "finding_type": "bioburden",
             "risk_level": "high",
@@ -211,6 +215,7 @@ def test_baseline_aware_score_recommended_action_present():
     client = TestClient(app)
     response = client.post(
         "/api/enterprise/baseline-aware-score",
+        headers={"Authorization": "Bearer dev-token"},
         json={"finding_type": "debris", "risk_level": "critical"},
     )
     assert response.status_code == 200
@@ -328,7 +333,7 @@ def test_vendor_baseline_create_approve_audit_workflow():
             "ifu_reference": f"IFU-{unique}",
             "subscription_tier": "vendor_enterprise",
         },
-        headers={"X-LumenAI-Role": "vendor", "X-LumenAI-Actor": f"vendor-{unique}@test.com"},
+        headers={"Authorization": "Bearer dev-token", "X-LumenAI-Role": "vendor", "X-LumenAI-Actor": f"vendor-{unique}@test.com"},
     )
     assert create_resp.status_code == 200, create_resp.text
     create_data = create_resp.json()

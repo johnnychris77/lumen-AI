@@ -52,13 +52,15 @@ _ADMIN_ROLES = {"admin", "platform_admin", "superadmin", "super_admin"}
 # unauthenticated. Any `require_*(` guard counts as authentication EXCEPT
 # `require_tier` (a subscription gate, not an auth check).
 _AUTH_GUARD_RE = re.compile(
-    r"\b(require_(?!tier\b)[a-z_]+|assert_tenant_membership|get_current_user|"
-    r"get_auth_context|_resolve_user_email_from_token|_require_dev_auth_context|"
-    r"_require_oidc_auth_context)\s*\("
+    r"(?:^|[^A-Za-z0-9])(_?require_(?!tier\b)[a-z_]+|assert_tenant_membership|"
+    r"get_current_user|get_auth_context|_resolve_user_email_from_token)\s*\("
 )
-# Guards that additionally imply a tenant boundary.
+# Guards that additionally imply a tenant boundary. A local wrapper such as
+# `_require_vendor_baseline_approval_access` (which itself calls
+# `require_hospital_or_enterprise_admin`) is covered by the leading-underscore
+# `_?` and the `require_vendor[a-z_]*` alternative.
 _TENANT_GUARD_RE = re.compile(
-    r"\b(require_enterprise_auth|require_hospital_or_enterprise_admin|"
+    r"(?:^|[^A-Za-z0-9])_?(require_enterprise_auth|require_hospital_or_enterprise_admin|"
     r"require_enterprise_role|require_tenant_roles|require_tenant_context|"
     r"require_portfolio_access|require_enabled_tenant_membership|"
     r"require_vendor[a-z_]*|require_governance_packet[a-z_]*|"
@@ -107,7 +109,7 @@ def classify(route: APIRoute) -> list[dict]:
     # require_tier). This catches dependency guards like require_manufacturer_auth.
     def _is_auth_name(n: str) -> bool:
         return n in _AUTH_CALLABLES or bool(
-            re.fullmatch(r"require_(?!tier$)[a-z_]+", n)
+            re.fullmatch(r"_?require_(?!tier$)[a-z_]+", n)
         )
 
     dep_auth = any(_is_auth_name(n) for n in calls)
