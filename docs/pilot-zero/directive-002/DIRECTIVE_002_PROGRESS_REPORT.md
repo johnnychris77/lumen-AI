@@ -207,3 +207,79 @@ regression test that forbids any *new* unauthenticated write.
 **Increment 3 — close the 12 review-required unauthenticated writes** (add the
 module's established guard + tenant scope + a negative test each), then F6 audit
 actor wiring.
+
+---
+
+# Increment 3 — close the review-required unauthenticated writes (F4)
+
+**Gate status: IN PROGRESS / PARTIALLY PASSED — NOT COMPLETE.**
+**Directive completion estimate: ~70%.**
+
+## What this increment delivers
+
+The 11 REVIEW_REQUIRED unauthenticated writes from increment 2 are closed:
+
+* **enterprise_intake.py (7 secured):** `require_enterprise_auth(request)` added
+  to `calculate_enterprise_baseline_aware_score`, `review_manufacturer_baseline`,
+  `upload_instrument_baseline`, `compare_finding_to_manufacturer_baseline`,
+  `create_enterprise_vendor_baseline_record`, `upload_vendor_baseline_image`,
+  `match_enterprise_vendor_baseline_record`.
+* **enterprise_intake.py (1 already-guarded):**
+  `approve_enterprise_vendor_baseline_record` was already protected by
+  `require_hospital_or_enterprise_admin` via `_require_vendor_baseline_approval_access`
+  — a detector false-negative in increment 2 (leading-underscore guard name),
+  now corrected in the generator.
+* **vendor_governance.py (3 secured):** added the `Request` param + import and
+  `require_enterprise_auth(request)` to `create_vendor_governance_event`,
+  `link_vendor_event_to_existing_capa`, `create_capa_for_vendor_event`.
+
+**Result:** unauthenticated writes **21 → 10**, and the remaining 10 are exactly
+the PUBLIC_BY_DESIGN paths (login, signed webhooks, self-service registration,
+token refresh, device-key capture, stateless compute). AUTHENTICATED 881→882,
+TENANT_SCOPED 837→855.
+
+## Detector correction
+
+`scripts/generate_endpoint_inventory.py` now matches leading-underscore auth
+guards (`_?require_*`), both as in-body calls and as dependency callable names,
+closing the false-negative that mis-listed the already-guarded `approve`
+endpoint.
+
+## Guard choice & safety
+
+`require_enterprise_auth(request)` was chosen because it is the module's
+established guard, authenticates via the validated bearer token, verifies tenant
+membership, and rejects production dev/demo shortcuts. Empirically verified: an
+authenticated request (`Bearer dev-token`) still succeeds; an anonymous request
+now returns **401**. Six existing tests in `test_inspection_intelligence_workflow.py`
+that called these endpoints **without** an Authorization header were updated to
+authenticate (matching the sibling calls already in that file) — this is test
+maintenance accompanying a real security fix, not a weakened assertion.
+
+## Tests
+
+* `test_directive_002_endpoint_governance.py` — allowlist shrunk to the 9
+  PUBLIC_BY_DESIGN paths; new `TestSecuredWritesRejectAnon` asserts the secured
+  endpoints reject anonymous requests (401/403). 13 passed.
+* Affected enterprise/vendor suites pass (`test_vendor_baseline_persistent_workflow`,
+  `test_vendor_baseline_access_control`, `test_vendor_baseline_library_access_control`,
+  `test_enterprise_compliance_routes`, `test_inspection_intelligence_workflow`).
+
+## Commands & results
+
+| Command | Result |
+|---|---|
+| `python scripts/generate_endpoint_inventory.py` | 1912 endpoints, 0 UNKNOWN, **10** unauthenticated writes |
+| `pytest tests/test_directive_002_endpoint_governance.py` | 13 passed |
+| `ruff check` (changed files) | All checks passed |
+| Full backend suite (clean DB) | recorded in the PR / final report |
+
+## Remaining work (Directive 002)
+
+* F1 header-fallback route migration; F5 auth consolidation; F6 audit actor
+  wiring; F8 result capability-stamping; ownership-verification uniformity.
+
+## Next recommended increment
+
+**Increment 4 — F6 audit actor attribution:** wire security-relevant audit
+events to record the verified principal instead of header-derived `unknown`.

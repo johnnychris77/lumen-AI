@@ -54,19 +54,31 @@ REVIEWED_UNAUTHENTICATED_WRITES = {
     ("POST", "/api/integrations/webhook/{system_name}"),
     ("POST", "/api/manufacturers/register"),
     ("POST", "/api/mobile/auth/token-refresh"),
-    # --- REVIEW_REQUIRED (real gaps, tracked for increment 3) ---
-    ("POST", "/api/enterprise/baseline-aware-score"),
-    ("POST", "/api/enterprise/baselines/{baseline_id}/review"),
-    ("POST", "/api/enterprise/instruments/{instrument_id}/baseline"),
-    ("POST", "/api/enterprise/intake/{finding_id}/baseline-comparison"),
-    ("POST", "/api/enterprise/vendor-baseline-subscription/baselines"),
-    ("POST", "/api/enterprise/vendor-baseline-subscription/baselines/upload-image"),
-    ("POST", "/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/approve"),
-    ("POST", "/api/enterprise/vendor-baseline-subscription/match"),
-    ("POST", "/api/enterprise/vendor-governance/events"),
-    ("POST", "/api/enterprise/vendor-governance/events/{event_id}/create-capa"),
-    ("POST", "/api/enterprise/vendor-governance/events/{event_id}/link-capa"),
+    # The 11 REVIEW_REQUIRED enterprise/vendor-governance writes were SECURED in
+    # increment 3 (require_enterprise_auth / already-guarded via
+    # require_hospital_or_enterprise_admin) and removed from this allowlist. See
+    # SECURED_WRITE_ENDPOINTS below and ENDPOINT_SECURITY_REVIEW.md.
 }
+
+# Endpoints secured in increment 3: they must now reject an unauthenticated
+# request (401/403). These are asserted live in TestSecuredWritesRejectAnon.
+# Only endpoints whose body passes FastAPI validation with the payload below
+# are listed here — for handlers with a required pydantic body, an empty anon
+# request returns 422 (validation) before the in-body auth guard runs, so their
+# secured state is asserted by the allowlist test (they are no longer in the
+# unauthenticated-writes set) rather than a direct 401 assertion.
+SECURED_WRITE_ENDPOINTS = [
+    ("post", "/api/enterprise/baseline-aware-score", {}),
+    ("post", "/api/enterprise/intake/1/baseline-comparison", {}),
+    ("post", "/api/enterprise/vendor-baseline-subscription/baselines", {}),
+    ("post", "/api/enterprise/vendor-baseline-subscription/match", {}),
+    ("post", "/api/enterprise/vendor-governance/events", {
+        "vendor_name": "x", "event_type": "quality", "event_summary": "s",
+        "risk_level": "low", "site": "s", "device_or_tray": "d", "owner": "o",
+    }),
+    ("post", "/api/enterprise/vendor-governance/events/evt-1/create-capa", None),
+    ("post", "/api/enterprise/vendor-governance/events/evt-1/link-capa", {"capa_id": "c-1"}),
+]
 
 
 @pytest.fixture(scope="module")
@@ -102,6 +114,19 @@ class TestNoNewUnauthenticatedWrites:
         current = {(r["method"], r["path"]) for r in unauthenticated_writes(rows)}
         stale = REVIEWED_UNAUTHENTICATED_WRITES - current
         assert stale == set(), f"Allowlist entries no longer unauthenticated (remove them): {sorted(stale)}"
+
+
+class TestSecuredWritesRejectAnon:
+    """Increment 3 — the 11 previously-unauthenticated enterprise/vendor writes
+    now reject an anonymous request (no Authorization header) with 401/403."""
+
+    @pytest.mark.parametrize("method,path,body", SECURED_WRITE_ENDPOINTS)
+    def test_secured_write_requires_auth(self, method, path, body):
+        fn = getattr(client, method)
+        resp = fn(path, json=body) if body is not None else fn(path)
+        assert resp.status_code in (401, 403), (
+            f"{method.upper()} {path} must require auth, got {resp.status_code}: {resp.text[:200]}"
+        )
 
 
 class TestHealthProbes:

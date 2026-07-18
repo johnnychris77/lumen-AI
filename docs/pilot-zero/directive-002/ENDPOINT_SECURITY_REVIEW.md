@@ -7,14 +7,22 @@ guesswork.
 
 ## Coverage summary (generated)
 
-| Metric | Value |
-|---|---|
-| Total endpoints (method × path) | 1912 |
-| `UNKNOWN` (unclassifiable) | **0** |
-| Write endpoints (POST/PUT/PATCH/DELETE) | 728 |
-| Authenticated writes | 707 |
-| **Unauthenticated writes** | **21** |
-| AUTHENTICATED / TENANT_SCOPED / ADMIN / SYSTEM / PUBLIC | 881 / 837 / 70 / 12 / 112 |
+| Metric | Value (increment 2) | Value (increment 3) |
+|---|---|---|
+| Total endpoints (method × path) | 1912 | 1912 |
+| `UNKNOWN` (unclassifiable) | **0** | **0** |
+| Write endpoints (POST/PUT/PATCH/DELETE) | 728 | 728 |
+| **Unauthenticated writes** | 21 | **10** (all PUBLIC_BY_DESIGN) |
+| AUTHENTICATED / TENANT_SCOPED / ADMIN / SYSTEM / PUBLIC | 881 / 837 / 70 / 12 / 112 | 882 / 855 / 70 / 12 / 93 |
+
+> **Increment 3 update:** the 11 REVIEW_REQUIRED enterprise/vendor-governance
+> writes below have been **secured** (or found already-guarded). The remaining
+> 10 unauthenticated writes are exactly the 9 PUBLIC_BY_DESIGN paths
+> (`/api/billing/webhook` has two handlers). The detector was also corrected —
+> it previously missed in-body guards named with a leading underscore
+> (`_require_vendor_baseline_approval_access`), which is why
+> `.../baselines/{baseline_id}/approve` was mis-listed as unauthenticated in
+> increment 2 when it was already guarded by `require_hospital_or_enterprise_admin`.
 
 Authentication is detected from any of: a security dependency in the route
 tree (`get_current_user`, `require_roles`, `require_tenant_roles`, any
@@ -44,12 +52,17 @@ unauthenticated — this review accounts for both.
 integrations (Stripe, webhook producers, device capture, login). Their
 contracts are documented; the governance test allowlists them explicitly.
 
-### REVIEW_REQUIRED (candidate real gaps — deferred to increment 3)
+### REVIEW_REQUIRED → REMEDIATED (increment 3)
 
-These write/approve tenant-scoped enterprise data with **no** authentication
-guard, in modules whose sibling endpoints *do* require
-`require_hospital_or_enterprise_admin` / `require_enterprise_auth`. They are
-strong candidates for a missing-guard defect.
+These wrote/approved tenant-scoped enterprise data with **no** authentication
+guard. All are now secured: `require_enterprise_auth(request)` added to the
+enterprise_intake and vendor_governance handlers (matching the module's
+established guard), except `.../baselines/{baseline_id}/approve` which was
+already guarded by `require_hospital_or_enterprise_admin` (a detector
+false-negative, now fixed). Each is verified either by a direct
+anonymous-request 401 test or by the allowlist test (it is no longer in the
+unauthenticated-writes set). Negative tests live in
+`tests/test_directive_002_endpoint_governance.py::TestSecuredWritesRejectAnon`.
 
 | Method | Path | Handler | Risk |
 |---|---|---|---|

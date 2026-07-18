@@ -1988,6 +1988,7 @@ def upload_instrument_baseline(
     baseline_status: str = Form(default="pending_review"),
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     from fastapi import HTTPException
 
     instrument = db.get(EnterpriseInstrument, instrument_id)
@@ -2159,6 +2160,7 @@ def compare_finding_to_manufacturer_baseline(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     from fastapi import HTTPException
 
     finding = db.get(EnterpriseFinding, finding_id)
@@ -2333,6 +2335,7 @@ def review_manufacturer_baseline(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     from fastapi import HTTPException
 
     baseline = db.get(EnterpriseInstrumentBaseline, baseline_id)
@@ -9269,6 +9272,7 @@ def calculate_enterprise_baseline_aware_score(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     finding_type = payload.get("finding_type")
     risk_level = payload.get("risk_level")
     vendor_baseline_id = payload.get("vendor_baseline_id")
@@ -9437,7 +9441,7 @@ def create_enterprise_vendor_baseline_record(
     request: Request,
     db: Session = Depends(get_db),
 ):
-
+    require_enterprise_auth(request)
     vendor_name = payload.get("vendor_name") or payload.get("vendor") or ""
     instrument_name = payload.get("instrument_name") or ""
     instrument_category = payload.get("instrument_category") or ""
@@ -9561,6 +9565,7 @@ def upload_vendor_baseline_image(
     Upload a baseline reference image for a vendor instrument.
     Returns the storage URL to use as baseline_image_url when submitting a baseline record.
     """
+    require_enterprise_auth(request)
     from app.services.object_storage import save_upload_file
     import uuid
 
@@ -9809,6 +9814,7 @@ def match_enterprise_vendor_baseline_record(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    require_enterprise_auth(request)
     identifier_value = (payload.get("identifier_value") or "").lower()
     instrument_name = (payload.get("instrument_name") or "").lower()
     vendor_name = (payload.get("vendor_name") or payload.get("vendor") or "").lower()

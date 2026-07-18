@@ -10,7 +10,7 @@ cd backend && PYTHONPATH=. python scripts/generate_endpoint_inventory.py --write
 
 * Total endpoints (method × path): **1912**
 * Write endpoints (POST/PUT/PATCH/DELETE): **728**
-* Unauthenticated write endpoints: **21** (see `ENDPOINT_SECURITY_REVIEW.md` for per-endpoint disposition)
+* Unauthenticated write endpoints: **10** (see `ENDPOINT_SECURITY_REVIEW.md` for per-endpoint disposition)
 * Endpoints classified `UNKNOWN`: **0** (must remain 0 — enforced by `test_directive_002_endpoint_governance.py`)
 
 ### By classification
@@ -18,10 +18,10 @@ cd backend && PYTHONPATH=. python scripts/generate_endpoint_inventory.py --write
 | Classification | Count |
 |---|---|
 | ADMIN | 70 |
-| AUTHENTICATED | 881 |
-| PUBLIC | 112 |
+| AUTHENTICATED | 882 |
+| PUBLIC | 93 |
 | SYSTEM | 12 |
-| TENANT_SCOPED | 837 |
+| TENANT_SCOPED | 855 |
 
 ## Classification method (evidence, not guesswork)
 
@@ -458,7 +458,7 @@ cd backend && PYTHONPATH=. python scripts/generate_endpoint_inventory.py --write
 | POST | `/api/decision-policies/{policy_id}/archive` | app.routes.lumen_decision_engine.archive_policy_route | AUTHENTICATED | yes | dependency | - | W | admin,spd_manager |
 | POST | `/api/decision-policies/{policy_id}/reject` | app.routes.lumen_decision_engine.reject_policy_route | AUTHENTICATED | yes | dependency | - | W | admin,spd_manager |
 | POST | `/api/decision-policies/{policy_id}/submit` | app.routes.lumen_decision_engine.submit_policy | AUTHENTICATED | yes | dependency | - | W | admin,spd_manager |
-| GET | `/api/demo/reset` | app.routes.demo.demo_reset | PUBLIC | NO | none | - | R | - |
+| GET | `/api/demo/reset` | app.routes.demo.demo_reset | AUTHENTICATED | yes | in_body | - | R | - |
 | GET | `/api/digest-delivery/history` | app.routes.digest_delivery.digest_delivery_history | AUTHENTICATED | yes | dependency | - | R | admin,spd_manager |
 | GET | `/api/digest-delivery/history.csv` | app.routes.digest_delivery.digest_delivery_history_csv | AUTHENTICATED | yes | dependency | - | R | admin,spd_manager |
 | POST | `/api/digest-scheduler/run-now` | app.routes.digest_delivery.run_digest_now | AUTHENTICATED | yes | dependency | - | W | admin,spd_manager |
@@ -513,15 +513,15 @@ cd backend && PYTHONPATH=. python scripts/generate_endpoint_inventory.py --write
 | GET | `/api/enterprise/audit/evidence-bundle/download.json` | app.routes.enterprise_intake.download_enterprise_compliance_evidence_bundle_json | AUTHENTICATED | yes | in_body | - | R | - |
 | GET | `/api/enterprise/audit/evidence-bundle/verification-summary` | app.routes.enterprise_intake.get_enterprise_compliance_evidence_verification_summary | AUTHENTICATED | yes | in_body | - | R | - |
 | GET | `/api/enterprise/audit/evidence-bundle/verify` | app.routes.enterprise_intake.verify_enterprise_compliance_evidence_bundle_hash | AUTHENTICATED | yes | in_body | - | R | - |
-| GET | `/api/enterprise/audit/verify-chain` | app.routes.enterprise_intake.verify_enterprise_audit_chain | PUBLIC | NO | none | - | R | - |
-| POST | `/api/enterprise/baseline-aware-score` | app.routes.enterprise_intake.calculate_enterprise_baseline_aware_score | PUBLIC | NO | none | - | W | - |
+| GET | `/api/enterprise/audit/verify-chain` | app.routes.enterprise_intake.verify_enterprise_audit_chain | TENANT_SCOPED | yes | in_body | yes | R | - |
+| POST | `/api/enterprise/baseline-aware-score` | app.routes.enterprise_intake.calculate_enterprise_baseline_aware_score | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/baseline-review-queue` | app.routes.enterprise_intake.get_enterprise_baseline_review_queue | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/baselines` | app.routes.enterprise_hierarchy.list_enterprise_baselines | ADMIN | yes | dependency | - | R | admin |
 | POST | `/api/enterprise/baselines` | app.routes.enterprise_hierarchy.create_enterprise_baseline | ADMIN | yes | dependency | - | W | admin |
 | POST | `/api/enterprise/baselines/{baseline_id}/approve` | app.routes.enterprise_hierarchy.approve_baseline | ADMIN | yes | dependency | - | W | admin |
 | GET | `/api/enterprise/baselines/{baseline_id}/history` | app.routes.enterprise_hierarchy.baseline_version_history | ADMIN | yes | dependency | - | R | admin |
 | POST | `/api/enterprise/baselines/{baseline_id}/publish` | app.routes.enterprise_hierarchy.publish_baseline | ADMIN | yes | dependency | - | W | admin |
-| POST | `/api/enterprise/baselines/{baseline_id}/review` | app.routes.enterprise_intake.review_manufacturer_baseline | PUBLIC | NO | none | - | W | - |
+| POST | `/api/enterprise/baselines/{baseline_id}/review` | app.routes.enterprise_intake.review_manufacturer_baseline | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/benchmarks/executive-dashboard` | app.routes.benchmarking.executive_dashboard | TENANT_SCOPED | yes | in_body | yes | R | - |
 | GET | `/api/enterprise/benchmarks/hospitals` | app.routes.benchmarking.list_hospital_benchmarks | TENANT_SCOPED | yes | in_body | yes | R | - |
 | POST | `/api/enterprise/benchmarks/hospitals` | app.routes.benchmarking.hospital_benchmarks | TENANT_SCOPED | yes | in_body | yes | W | - |
@@ -586,20 +586,20 @@ cd backend && PYTHONPATH=. python scripts/generate_endpoint_inventory.py --write
 | GET | `/api/enterprise/governance-intelligence/health` | app.routes.governance_intelligence.governance_intelligence_health | SYSTEM | NO | none | - | R | - |
 | GET | `/api/enterprise/governance-intelligence/summary` | app.routes.governance_intelligence.governance_intelligence_summary | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/instruments/{instrument_id}/baseline` | app.routes.enterprise_intake.list_instrument_baselines | PUBLIC | NO | none | - | R | - |
-| POST | `/api/enterprise/instruments/{instrument_id}/baseline` | app.routes.enterprise_intake.upload_instrument_baseline | PUBLIC | NO | none | - | W | - |
+| POST | `/api/enterprise/instruments/{instrument_id}/baseline` | app.routes.enterprise_intake.upload_instrument_baseline | TENANT_SCOPED | yes | in_body | yes | W | - |
 | POST | `/api/enterprise/intake` | app.routes.enterprise_intake.create_enterprise_intake | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/intake/history` | app.routes.enterprise_intake.list_enterprise_intake_history | TENANT_SCOPED | yes | in_body | yes | R | - |
-| POST | `/api/enterprise/intake/{finding_id}/baseline-comparison` | app.routes.enterprise_intake.compare_finding_to_manufacturer_baseline | PUBLIC | NO | none | - | W | - |
+| POST | `/api/enterprise/intake/{finding_id}/baseline-comparison` | app.routes.enterprise_intake.compare_finding_to_manufacturer_baseline | TENANT_SCOPED | yes | in_body | yes | W | - |
 | POST | `/api/enterprise/intake/{finding_id}/capa` | app.routes.enterprise_intake.create_enterprise_capa | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/intake/{finding_id}/evidence` | app.routes.enterprise_intake.list_enterprise_evidence | PUBLIC | NO | none | - | R | - |
 | POST | `/api/enterprise/intake/{finding_id}/evidence` | app.routes.enterprise_intake.upload_enterprise_evidence | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/intake/{finding_id}/export-readiness-status` | app.routes.enterprise_intake.get_enterprise_export_readiness_status | PUBLIC | NO | none | - | R | - |
-| GET | `/api/enterprise/intake/{finding_id}/governance-export-history` | app.routes.enterprise_intake.get_enterprise_governance_export_history | PUBLIC | NO | none | - | R | - |
+| GET | `/api/enterprise/intake/{finding_id}/governance-export-history` | app.routes.enterprise_intake.get_enterprise_governance_export_history | TENANT_SCOPED | yes | in_body | yes | R | - |
 | GET | `/api/enterprise/intake/{finding_id}/governance-export-package` | app.routes.enterprise_intake.get_enterprise_governance_export_package | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/intake/{finding_id}/governance-packet` | app.routes.enterprise_intake.get_enterprise_governance_packet | PUBLIC | NO | none | - | R | - |
-| GET | `/api/enterprise/intake/{finding_id}/governance-packet.pdf` | app.routes.enterprise_intake.get_enterprise_governance_packet_pdf | PUBLIC | NO | none | - | R | - |
-| GET | `/api/enterprise/intake/{finding_id}/governance-packet/certificate` | app.routes.enterprise_intake.get_enterprise_governance_packet_certificate | PUBLIC | NO | none | - | R | - |
-| GET | `/api/enterprise/intake/{finding_id}/governance-packet/verify-hash` | app.routes.enterprise_intake.verify_enterprise_governance_packet_hash | PUBLIC | NO | none | - | R | - |
+| GET | `/api/enterprise/intake/{finding_id}/governance-packet.pdf` | app.routes.enterprise_intake.get_enterprise_governance_packet_pdf | TENANT_SCOPED | yes | in_body | yes | R | - |
+| GET | `/api/enterprise/intake/{finding_id}/governance-packet/certificate` | app.routes.enterprise_intake.get_enterprise_governance_packet_certificate | TENANT_SCOPED | yes | in_body | yes | R | - |
+| GET | `/api/enterprise/intake/{finding_id}/governance-packet/verify-hash` | app.routes.enterprise_intake.verify_enterprise_governance_packet_hash | TENANT_SCOPED | yes | in_body | yes | R | - |
 | GET | `/api/enterprise/intake/{finding_id}/governance-zip-bundle` | app.routes.enterprise_intake.get_enterprise_governance_zip_bundle | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/intake/{finding_id}/infection-prevention-review-packet` | app.routes.enterprise_intake.get_enterprise_infection_prevention_review_packet | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/intake/{finding_id}/infection-prevention-review-packet.pdf` | app.routes.enterprise_intake.get_enterprise_infection_prevention_review_packet_pdf | PUBLIC | NO | none | - | R | - |
@@ -625,18 +625,18 @@ cd backend && PYTHONPATH=. python scripts/generate_endpoint_inventory.py --write
 | GET | `/api/enterprise/systems/{system_id}/facilities` | app.routes.enterprise_hierarchy.list_facilities | ADMIN | yes | dependency | - | R | admin |
 | GET | `/api/enterprise/systems/{system_id}/markets` | app.routes.enterprise_hierarchy.list_markets | ADMIN | yes | dependency | - | R | admin |
 | GET | `/api/enterprise/systems/{system_id}/onboarding` | app.routes.enterprise_hierarchy.list_onboarding | ADMIN | yes | dependency | - | R | admin |
-| GET | `/api/enterprise/vendor-baseline-subscription/baselines` | app.routes.enterprise_intake.list_enterprise_vendor_baseline_records | PUBLIC | NO | none | - | R | - |
-| POST | `/api/enterprise/vendor-baseline-subscription/baselines` | app.routes.enterprise_intake.create_enterprise_vendor_baseline_record | PUBLIC | NO | none | - | W | - |
-| POST | `/api/enterprise/vendor-baseline-subscription/baselines/upload-image` | app.routes.enterprise_intake.upload_vendor_baseline_image | PUBLIC | NO | none | - | W | - |
-| POST | `/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/approve` | app.routes.enterprise_intake.approve_enterprise_vendor_baseline_record | PUBLIC | NO | none | - | W | - |
-| GET | `/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/audit` | app.routes.enterprise_intake.get_enterprise_vendor_baseline_audit_trail | PUBLIC | NO | none | - | R | - |
-| POST | `/api/enterprise/vendor-baseline-subscription/match` | app.routes.enterprise_intake.match_enterprise_vendor_baseline_record | PUBLIC | NO | none | - | W | - |
+| GET | `/api/enterprise/vendor-baseline-subscription/baselines` | app.routes.enterprise_intake.list_enterprise_vendor_baseline_records | TENANT_SCOPED | yes | in_body | yes | R | - |
+| POST | `/api/enterprise/vendor-baseline-subscription/baselines` | app.routes.enterprise_intake.create_enterprise_vendor_baseline_record | TENANT_SCOPED | yes | in_body | yes | W | - |
+| POST | `/api/enterprise/vendor-baseline-subscription/baselines/upload-image` | app.routes.enterprise_intake.upload_vendor_baseline_image | TENANT_SCOPED | yes | in_body | yes | W | - |
+| POST | `/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/approve` | app.routes.enterprise_intake.approve_enterprise_vendor_baseline_record | TENANT_SCOPED | yes | in_body | yes | W | - |
+| GET | `/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/audit` | app.routes.enterprise_intake.get_enterprise_vendor_baseline_audit_trail | TENANT_SCOPED | yes | in_body | yes | R | - |
+| POST | `/api/enterprise/vendor-baseline-subscription/match` | app.routes.enterprise_intake.match_enterprise_vendor_baseline_record | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/vendor-baselines` | app.routes.enterprise_intake.list_vendor_baselines | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/vendor-governance/capa-linkage-summary` | app.routes.vendor_governance.get_vendor_capa_linkage_summary | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/vendor-governance/events` | app.routes.vendor_governance.get_vendor_governance_events | PUBLIC | NO | none | - | R | - |
-| POST | `/api/enterprise/vendor-governance/events` | app.routes.vendor_governance.create_vendor_governance_event | PUBLIC | NO | none | - | W | - |
-| POST | `/api/enterprise/vendor-governance/events/{event_id}/create-capa` | app.routes.vendor_governance.create_capa_for_vendor_event | PUBLIC | NO | none | - | W | - |
-| POST | `/api/enterprise/vendor-governance/events/{event_id}/link-capa` | app.routes.vendor_governance.link_vendor_event_to_existing_capa | PUBLIC | NO | none | - | W | - |
+| POST | `/api/enterprise/vendor-governance/events` | app.routes.vendor_governance.create_vendor_governance_event | TENANT_SCOPED | yes | in_body | yes | W | - |
+| POST | `/api/enterprise/vendor-governance/events/{event_id}/create-capa` | app.routes.vendor_governance.create_capa_for_vendor_event | TENANT_SCOPED | yes | in_body | yes | W | - |
+| POST | `/api/enterprise/vendor-governance/events/{event_id}/link-capa` | app.routes.vendor_governance.link_vendor_event_to_existing_capa | TENANT_SCOPED | yes | in_body | yes | W | - |
 | GET | `/api/enterprise/vendor-governance/health` | app.routes.vendor_governance.vendor_governance_health | SYSTEM | NO | none | - | R | - |
 | GET | `/api/enterprise/vendor-governance/performance-scorecard` | app.routes.vendor_performance_scorecard.vendor_performance_scorecard | PUBLIC | NO | none | - | R | - |
 | GET | `/api/enterprise/vendor-governance/performance-scorecard/` | app.routes.vendor_performance_scorecard.vendor_performance_scorecard | PUBLIC | NO | none | - | R | - |

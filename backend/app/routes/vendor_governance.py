@@ -2,9 +2,11 @@ import csv
 import io
 from typing import Optional
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Request
 from pydantic import BaseModel
 from fastapi.responses import Response
+
+from app.enterprise_auth import require_enterprise_auth
 
 from app.services.vendor_governance_service import (
     create_vendor_event,
@@ -53,7 +55,8 @@ def vendor_governance_health():
 
 
 @router.post("/enterprise/vendor-governance/events")
-def create_vendor_governance_event(payload: VendorEventRequest):
+def create_vendor_governance_event(payload: VendorEventRequest, request: Request):
+    require_enterprise_auth(request)
     event = create_vendor_event(
         vendor_name=payload.vendor_name,
         event_type=payload.event_type,
@@ -110,7 +113,8 @@ def get_vendor_capa_linkage_summary():
 
 
 @router.post("/enterprise/vendor-governance/events/{event_id}/link-capa")
-def link_vendor_event_to_existing_capa(event_id: str, payload: VendorCapaLinkRequest):
+def link_vendor_event_to_existing_capa(event_id: str, payload: VendorCapaLinkRequest, request: Request):
+    require_enterprise_auth(request)
     event = link_vendor_event_to_capa(event_id=event_id, capa_id=payload.capa_id)
 
     if not event:
@@ -125,7 +129,8 @@ def link_vendor_event_to_existing_capa(event_id: str, payload: VendorCapaLinkReq
 
 
 @router.post("/enterprise/vendor-governance/events/{event_id}/create-capa")
-def create_capa_for_vendor_event(event_id: str):
+def create_capa_for_vendor_event(event_id: str, request: Request):
+    require_enterprise_auth(request)
     result = create_capa_from_vendor_event(event_id)
 
     if not result:
