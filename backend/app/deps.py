@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import os
-from types import SimpleNamespace
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
+from app.security.principal import (
+    METHOD_DEVELOPMENT,
+    METHOD_JWT,
+    AuthenticatedPrincipal,
+    TenantMembershipView,
+)
 
 _ENABLE_DEV_AUTH = os.getenv("ENABLE_DEV_AUTH", "false").strip().lower() in {"1", "true", "yes"}
 _APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
@@ -65,10 +70,55 @@ def _decode_jwt(token: str):
         return None
 
 
+def _load_tenant_memberships(db: Session, email: str) -> tuple[TenantMembershipView, ...]:
+    """Resolve a user's enabled tenant memberships from the database.
+
+    This is the ONLY source of tenant authority for the principal — no
+    client header can populate it. Failures degrade to no memberships
+    (fail closed), never to an assumed tenant.
+    """
+    if not email:
+        return ()
+    try:
+        from app.db import models
+
+        rows = (
+            db.query(models.TenantMembership)
+            .filter(
+                models.TenantMembership.user_email == email,
+                models.TenantMembership.is_enabled.is_(True),
+            )
+            .all()
+        )
+        return tuple(
+            TenantMembershipView(
+                tenant_id=r.tenant_id,
+                tenant_name=r.tenant_name,
+                role_name=r.role_name,
+            )
+            for r in rows
+        )
+    except Exception:
+        return ()
+
+
+def _active_tenant(memberships: tuple[TenantMembershipView, ...]) -> str | None:
+    """Deterministic active tenant when a user belongs to exactly one tenant.
+
+    With multiple memberships the active tenant must be selected explicitly
+    per-request (verified against membership by the tenant-context resolver);
+    we do not guess one here.
+    """
+    tenant_ids = {m.tenant_id for m in memberships}
+    if len(tenant_ids) == 1:
+        return next(iter(tenant_ids))
+    return None
+
+
 def get_current_user(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
-):
+) -> AuthenticatedPrincipal:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -77,13 +127,21 @@ def get_current_user(
 
     token = authorization.split(" ", 1)[1].strip()
 
-    # Dev token map — only active in development with ENABLE_DEV_AUTH=true
+    # Dev token map — only active in development with ENABLE_DEV_AUTH=true.
+    # Production disables this branch entirely (_DEV_AUTH_ACTIVE is False when
+    # APP_ENV is production), so a dev token can never authenticate in prod.
     if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
         role = _DEV_ROLE_MAP[token]
-        return SimpleNamespace(
-            id=0,
-            email=f"{role}@local.dev",
+        email = f"{role}@local.dev"
+        memberships = _load_tenant_memberships(db, email)
+        return AuthenticatedPrincipal(
+            subject=email,
+            email=email,
+            username=email,
             role=role,
+            authentication_method=METHOD_DEVELOPMENT,
+            tenant_memberships=memberships,
+            active_tenant_id=_active_tenant(memberships),
         )
 
     # JWT validation path (tokens issued by /auth/login in auth_simple)
@@ -98,7 +156,19 @@ def get_current_user(
                 role = _user_role(username)
             except Exception:
                 role = "viewer"
-            return SimpleNamespace(id=0, email=username, username=username, role=role)
+            memberships = _load_tenant_memberships(db, username)
+            return AuthenticatedPrincipal(
+                subject=username,
+                email=username,
+                username=username,
+                role=role,
+                authentication_method=METHOD_JWT,
+                tenant_memberships=memberships,
+                active_tenant_id=_active_tenant(memberships),
+                token_id=payload.get("jti"),
+                issued_at=payload.get("iat"),
+                expires_at=payload.get("exp"),
+            )
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

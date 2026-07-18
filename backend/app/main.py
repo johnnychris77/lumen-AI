@@ -303,16 +303,43 @@ def health_check():
 
 @app.get("/ready", include_in_schema=False)
 def readiness_check():
-    """Readiness probe — returns 200 only if the DB is reachable."""
+    """Readiness probe — returns 200 only if the database (the hard
+    dependency) is reachable. Object storage and configuration are reported as
+    informational sub-checks and do NOT flip readiness on their own, so a
+    degraded soft dependency never black-holes traffic the app can still
+    serve. (Directive 002 increment 2: per-dependency observability.)"""
+    checks: dict[str, str] = {}
+
+    # Database — the hard readiness gate.
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return JSONResponse({"status": "ready", "database": "ok"})
+        checks["database"] = "ok"
+        db_ok = True
     except Exception as exc:
-        return JSONResponse(
-            {"status": "not_ready", "database": str(exc)},
-            status_code=503,
-        )
+        checks["database"] = f"error: {exc}"
+        db_ok = False
+
+    # Object storage — soft dependency, never raises.
+    try:
+        from app.services.object_storage import storage_health_check
+
+        storage = storage_health_check()
+        checks["object_storage"] = str(storage.get("status", "unknown"))
+    except Exception as exc:
+        checks["object_storage"] = f"unavailable: {exc}"
+
+    # Configuration presence — soft signal that required settings are wired.
+    checks["configuration"] = "ok" if os.getenv("DATABASE_URL") else "missing_database_url"
+
+    return JSONResponse(
+        {
+            "status": "ready" if db_ok else "not_ready",
+            "database": checks["database"],
+            "checks": checks,
+        },
+        status_code=200 if db_ok else 503,
+    )
 
 
 @app.get("/metrics", include_in_schema=False)

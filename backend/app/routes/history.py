@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from io import StringIO, BytesIO
@@ -11,6 +11,7 @@ from openpyxl import Workbook
 from app.deps import get_db
 from app.db import models
 from app.authz import require_roles
+from app.security.tenant_context import resolve_verified_tenant
 
 router = APIRouter(tags=["history"])
 
@@ -94,9 +95,24 @@ def build_summary(rows):
     }
 
 
-def fetch_rows(db: Session, tenant_id: str | None = None):
+def fetch_rows(db: Session, *, all_tenants: bool, tenant_id: str | None):
+    """Fetch inspection rows within a verified tenant scope.
+
+    Fail-closed contract (Directive 002): callers pass an explicit
+    ``all_tenants`` flag. Cross-tenant access is possible ONLY when
+    ``all_tenants`` is True (verified platform admin). Otherwise a non-empty
+    ``tenant_id`` is required and enforced — a missing tenant can never
+    produce an unfiltered query.
+    """
     q = db.query(models.Inspection)
-    if tenant_id:
+    if not all_tenants:
+        if not tenant_id:
+            # Defensive: the resolver guarantees this never happens, but the
+            # data layer refuses an unscoped non-admin read regardless.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No verified tenant scope for inspection history.",
+            )
         q = q.filter(models.Inspection.tenant_id == tenant_id)
     return q.order_by(models.Inspection.id.desc()).all()
 
@@ -205,11 +221,16 @@ def xlsx_bytes(rows):
     return bio.getvalue()
 
 
-def _tenant_id_for_user(current_user) -> str | None:
-    """Platform admins see all tenants; everyone else is scoped to their own."""
-    if getattr(current_user, "role", "") == "admin":
-        return None
-    return getattr(current_user, "tenant_id", None)
+def _scoped_rows(db: Session, current_user):
+    """Fetch inspection rows within the caller's verified tenant scope.
+
+    Directive 002: cross-tenant access requires an explicit platform admin;
+    every other principal is confined to a membership-verified tenant, and a
+    missing verified tenant fails closed (403) rather than returning all
+    tenants' data — the exact fail-open this route previously had.
+    """
+    scope = resolve_verified_tenant(current_user)
+    return fetch_rows(db, all_tenants=scope.all_tenants, tenant_id=scope.tenant_id)
 
 
 @router.get("/history")
@@ -218,7 +239,7 @@ async def get_history(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer")),
 ):
-    rows = fetch_rows(db, _tenant_id_for_user(current_user))[:limit]
+    rows = _scoped_rows(db, current_user)[:limit]
     return {"items": [inspection_response(r) for r in rows]}
 
 
@@ -227,7 +248,7 @@ async def get_history_summary(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer")),
 ):
-    rows = fetch_rows(db, _tenant_id_for_user(current_user))
+    rows = _scoped_rows(db, current_user)
     return build_summary(rows)
 
 
@@ -236,7 +257,7 @@ async def export_history_json(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user")),
 ):
-    rows = fetch_rows(db, _tenant_id_for_user(current_user))
+    rows = _scoped_rows(db, current_user)
     return JSONResponse({"items": [inspection_response(r) for r in rows]})
 
 
@@ -245,7 +266,7 @@ async def export_history_csv(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user")),
 ):
-    rows = fetch_rows(db, _tenant_id_for_user(current_user))
+    rows = _scoped_rows(db, current_user)
     text = csv_text(rows)
     return StreamingResponse(
         iter([text]),
@@ -259,7 +280,7 @@ async def export_history_xlsx(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user")),
 ):
-    rows = fetch_rows(db, _tenant_id_for_user(current_user))
+    rows = _scoped_rows(db, current_user)
     content = xlsx_bytes(rows)
     return StreamingResponse(
         iter([content]),
@@ -273,7 +294,7 @@ async def export_history_bundle(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user")),
 ):
-    rows = fetch_rows(db, _tenant_id_for_user(current_user))
+    rows = _scoped_rows(db, current_user)
     summary = build_summary(rows)
     inspections = {"items": [inspection_response(r) for r in rows]}
     csv_content = csv_text(rows)
