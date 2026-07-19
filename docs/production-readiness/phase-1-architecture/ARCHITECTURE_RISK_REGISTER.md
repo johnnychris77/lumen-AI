@@ -19,16 +19,24 @@ would block a future production release if unresolved.
 | AR-12 | Tenant-isolation | (Verification) cross-tenant paths | tests pass | Low | High | OBSERVATION | Security Eng | Keep regression tests green | Ongoing | Mitigated | No |
 | AR-13 | Auth/Authz | (Verification) principal/role bypass | tests pass | Low | High | OBSERVATION | Security Eng | Keep guards + tests | Ongoing | Mitigated | No |
 | AR-14 | Evidence-integrity | (Verification) evidence mutation/audit bypass | tests pass | Low | High | OBSERVATION | Security Eng | Keep hash-chain + append-only | Ongoing | Mitigated | No |
+| AR-15 | Trust-boundary | External-integration webhooks fail OPEN when their secret is unset; tenant taken from `X-Tenant-Id` header → cross-tenant injection on a public write | `integrations.webhook_ingest`, `billing.stripe_webhook` (code-confirmed, PR review) | Med | High | **CRITICAL** | Security Eng | Require signing secret at startup (fail-closed); reject unsigned; don't trust header for tenant | Phase 2 | Open | **Yes** |
+| AR-16 | Audit | Audit write not atomic with business write — commit precedes audit insert | `integrations.webhook_ingest` (code-confirmed) | Med | Med | MAJOR | Backend Eng | Single transaction or outbox; surface audit failure | Phase 2 | Open | No |
+| AR-17 | Data-authority | Frozen `DatasetVersion` not locked — `dataset_builder` writes `split_assignment`/`image_quality` without checking `frozen` | `dataset_builder.build_training_dataset` (code-confirmed) | Med | Med | MAJOR | ML Eng | Enforce `frozen` guard on all entry writes | Phase 2 | Open | No |
+| AR-18 | Data-integrity | Image dedup is check-then-insert with non-unique `image_sha256` (TOCTOU) | `dataset_registry.register_image` (code-confirmed) | Low | Med | MAJOR | ML Eng | Unique `(tenant_id, image_sha256)` + integrity-error handling | Phase 2 | Open | No |
 
 ## Summary
 
-* **CRITICAL architecture risks: 0.** No open risk permits cross-tenant exposure,
-  unauthorized action, evidence corruption, audit bypass, false finalization,
-  unsafe AI authority, or unrecoverable data loss — the safety-critical categories
-  are verified (AR-12/13/14 mitigated).
-* **MAJOR (9):** maintainability, governance-in-code, ADR documentation,
-  CI-enforcement, recovery HA, model certification, scalability, ownership — all
-  addressable in later phases under change control; none release-blocking at the
-  architecture-freeze decision point.
+* **CRITICAL architecture risks: 1 (AR-15).** PR review surfaced a code-confirmed
+  webhook fail-open path that permits **cross-tenant data injection** when a signing
+  secret is unset (no startup validation) and the tenant is derived from an
+  attacker-controllable header. This corrects the earlier "0 CRITICAL" statement.
+  It is a **pre-existing** platform behavior, is now tracked and release-blocking,
+  and **no production deployment is authorized** — so the architecture-freeze
+  decision remains PASS WITH CONDITIONS with AR-15 as a mandatory pre-production
+  remediation (see the Phase 1 report §16/§19). This PR changes documentation only.
+* **MAJOR (12):** maintainability, governance-in-code, ADR documentation,
+  CI-enforcement, recovery HA, model certification, scalability, ownership, plus the
+  three code-confirmed findings AR-16 (audit atomicity), AR-17 (dataset immutability),
+  AR-18 (dedup race) — all addressable in later phases under change control.
 * **MINOR/OBSERVATION:** duplicate webhook, Directive 005 consolidation,
   verification observations.

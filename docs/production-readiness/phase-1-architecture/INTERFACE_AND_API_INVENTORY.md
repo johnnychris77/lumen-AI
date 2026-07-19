@@ -16,9 +16,17 @@ against `app.main:app` at `c9797b2`.
 | UNKNOWN classification | **0** |
 | Route modules / decorators | 205 files / ~1,965 decorators |
 
-The 10 unauthenticated writes are the governed PUBLIC_BY_DESIGN set (login, signed
+The 10 unauthenticated writes are the governed PUBLIC_BY_DESIGN set (login,
 webhooks, self-service registration, token refresh, device-key capture, stateless
-compute) — verified by the Directive 002 governance regression test.
+compute) — verified by the Directive 002 governance regression test as
+*classification*. **Correction (I-05, see below):** the "signed webhook" property
+is **conditional, not guaranteed** — `app.routes.billing.stripe_webhook` falls back
+to `json.loads(payload)` with **no signature verification** when
+`STRIPE_WEBHOOK_SECRET` is unset (and it is the first-registered handler for
+`POST /api/billing/webhook`, so it shadows `billing_webhooks.billing_webhook`), and
+`app.routes.integrations.webhook_ingest` verifies HMAC **only when**
+`WEBHOOK_SECRET_{SYSTEM}` is set. There is no startup validation requiring these
+secrets. This is a tracked finding, not a verified control.
 
 ## Interface classes inventoried
 

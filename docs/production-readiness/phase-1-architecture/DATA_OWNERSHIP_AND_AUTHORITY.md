@@ -22,7 +22,7 @@ audit requirement, downstream consumers. One authoritative SoR per object.
 | Human Review | review/adjudication records | Reviewer | — | Supervisor | Retain | Immutable decision record | Tenant | Yes |
 | Evidence Package | compliance evidence bundle | System | — | — | Retain | Checksummed; audit-chain-immutable | Tenant | Yes |
 | Audit Event | `enterprise_audit_service` | System | **None (append-only)** | — | Retain | **Hash-chained, tamper-evident** | Tenant | Self |
-| Dataset | `DatasetVersion` / `DatasetRegistryEntry` | Curator | New version only | Dataset Approver | Retain | **Immutable after approval** | Tenant | Yes |
+| Dataset | `DatasetVersion` / `DatasetRegistryEntry` | Curator | New version only *(intended)* | Dataset Approver | Retain | **Immutability NOT enforced — see DA-01** | Tenant | Yes |
 | Dataset Manifest | dataset release/build | System | — | Dataset Approver | Retain | Sealed at publication (planned hash) | Tenant | Yes |
 | Candidate Model | `ModelRegistryEntry` | ML Eng | New version only | Model Approver | Retain | Frozen artifact + checksum | Tenant | Yes |
 | Model Version | `model_version` | ML Eng | — | Model Approver | Retain | Append-only lineage | Tenant | Yes |
@@ -44,7 +44,14 @@ audit requirement, downstream consumers. One authoritative SoR per object.
 ## Findings
 
 * Every major object has **one authoritative SoR** (acceptance criterion met).
-* Immutability/append-only rules are enforced for image bytes, annotation, GT,
-  baseline, dataset, model, and audit (tests verify audit + baseline + annotation).
+* Immutability/append-only is **verified** for image bytes, annotation, GT,
+  baseline, model, and audit (tests verify audit + baseline + annotation).
+* **DA-01 (MAJOR) — dataset "immutable after approval" is NOT enforced (code-confirmed).**
+  A frozen `DatasetVersion` does not lock its entries: `dataset_builder.build_training_dataset`
+  writes `DatasetRegistryEntry.split_assignment` and the image-quality path updates
+  `image_quality`, **neither checking the parent version's `frozen` flag**. A user can
+  therefore change the contents/metadata behind a frozen dataset, invalidating
+  reproducibility and model lineage. This corrects the prior "Immutable after
+  approval" assertion to a tracked governance gap (see `ARCHITECTURE_RISK_REGISTER.md`).
 * Deletion is retention-first (soft-deactivate/retain) across governed objects,
   preserving evidence lineage and immutable history.

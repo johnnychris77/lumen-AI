@@ -10,11 +10,16 @@ this phase: **186 tests passed, 0 failed**; `ruff` clean; endpoint inventory
 **0 UNKNOWN**, 10 unauthenticated writes (all PUBLIC_BY_DESIGN).
 
 **Architecture decision: ARCHITECTURE FROZEN — PASS WITH CONDITIONS.** The
-safety-critical architecture (auth, tenant isolation, authorization, audit chain,
-evidence integrity, human authority) is coherent and test-verified with **zero
-CRITICAL findings**. Conditions are MAJOR maintainability/enforcement/documentation
-items suitable for later phases under change control. **No production or clinical
-deployment is authorized.**
+safety-critical *internal* architecture (auth, tenant isolation, authorization,
+audit chain, evidence integrity, human authority) is coherent and test-verified.
+PR review surfaced **one CRITICAL finding at the external-integration edge**
+(AR-15/TB-02 — webhooks fail open, permitting cross-tenant injection when a signing
+secret is unset), plus three MAJOR code-confirmed gaps (audit atomicity AR-16,
+dataset-freeze enforcement AR-17, image dedup race AR-18). All four are pre-existing,
+now tracked, and remediable under change control; AR-15 is a **mandatory
+pre-production condition**. The freeze decision stands **because no production or
+clinical deployment is authorized** and the finding is contained and scheduled for
+Phase 2. **No production or clinical deployment is authorized.**
 
 ## 2. Architecture freeze status
 
@@ -50,7 +55,9 @@ a MAJOR risk (AR-11).
 Clean, test-verified safety boundaries (auth/tenant chain, image ownership, single
 audit writer, append-only history, AI-inside-human-authority). MAJOR findings:
 deprecated audit shim (B-01), governance-in-code (B-02), god-runtime (B-03).
-**No CRITICAL boundary defect.** (`MODULE_BOUNDARY_REVIEW.md`.)
+**No CRITICAL *internal-module* boundary defect** (the CRITICAL AR-15 finding is at
+the external-integration trust boundary — see §10/§16, not a module-to-module
+breach). (`MODULE_BOUNDARY_REVIEW.md`.)
 
 ## 7. Dependency assessment
 
@@ -62,8 +69,11 @@ dependency scanning is a gap (`SYSTEM_DEPENDENCY_MAP.md`,
 ## 8. Data authority assessment
 
 Every major data object has **one authoritative system of record**; immutability/
-append-only enforced for image bytes, annotation, GT, baseline, dataset, model, and
-audit; deletion is retention-first. Competing sources resolved
+append-only enforced and test-verified for image bytes, annotation, GT, baseline,
+model, and audit; deletion is retention-first. **Correction (DA-01/AR-17, MAJOR):**
+dataset "immutable after approval" is **not code-enforced** — `dataset_builder`
+writes `split_assignment`/`image_quality` without checking the parent version's
+`frozen` flag. Competing sources otherwise resolved
 (`DATA_OWNERSHIP_AND_AUTHORITY.md`).
 
 ## 9. Interface assessment
@@ -75,15 +85,22 @@ insecure/orphan endpoint surfaced (`INTERFACE_AND_API_INVENTORY.md`).
 
 ## 10. Trust-boundary assessment
 
-All 13 boundaries have defined controls and fail-closed behavior; the
-safety-critical ones (3–12) are test-verified. No CRITICAL trust-boundary defect
-(`TRUST_BOUNDARY_ARCHITECTURE.md`).
+The internal safety-critical boundaries (3–12: auth, tenant, authorization, service,
+storage, model, human review, evidence archive) are test-verified and fail-closed.
+**Correction (TB-02/AR-15, CRITICAL):** boundary 13 (external integration) does
+**not** hold — `integrations.webhook_ingest` and `billing.stripe_webhook` accept
+unsigned payloads when their secret is unset, with no startup validation, and
+`webhook_ingest` trusts the `X-Tenant-Id` header, permitting cross-tenant injection
+on a public write. **TB-01/AR-16 (MAJOR):** audit is not atomic with the business
+write (`TRUST_BOUNDARY_ARCHITECTURE.md`).
 
 ## 11. Failure and recovery assessment
 
 "Absence ≠ success" invariants implemented and test-backed; DR executed with
-measured RTO/RPO; `/ready` DB hard-gate. MAJOR: production-scale HA unproven
-(`FAILURE_AND_RECOVERY_ARCHITECTURE.md`).
+measured RTO/RPO; `/ready` DB hard-gate. MAJOR: production-scale HA unproven;
+**FR-01/AR-16** audit-write not atomic with the business write; **FR-02/AR-18**
+duplicate-request protection is best-effort (`image_sha256` indexed, not unique;
+check-then-insert race) (`FAILURE_AND_RECOVERY_ARCHITECTURE.md`).
 
 ## 12. ADR assessment
 
@@ -108,22 +125,39 @@ Critical finding (`MODULE_READINESS_SCORECARD.md`).
 
 ## 15. Architecture risk summary
 
-**0 CRITICAL**, 9 MAJOR, minor/observation risks; safety-critical categories
-(tenant/auth/audit/evidence) mitigated and test-verified. None release-blocking at
-the freeze decision (`ARCHITECTURE_RISK_REGISTER.md`).
+**1 CRITICAL** (AR-15, webhook fail-open — release-blocking, pre-production
+condition), **12 MAJOR** (including AR-16 audit atomicity, AR-17 dataset-freeze
+enforcement, AR-18 dedup race), minor/observation risks. The internal
+safety-critical categories (tenant/auth/audit-chain/evidence) remain mitigated and
+test-verified; AR-15 is an external-edge input-validation gap
+(`ARCHITECTURE_RISK_REGISTER.md`).
 
 ## 16. Critical findings
 
-**None.** No architecture defect permitting cross-tenant exposure, unauthorized
-action, evidence corruption, audit bypass, false finalization, unsafe AI authority,
-unrecoverable data loss, or inability to establish system authority was found; the
-relevant defenses are test-verified (186/186).
+**One (AR-15 / TB-02) — external-integration webhook fails open.**
+`integrations.webhook_ingest` verifies its HMAC only when `WEBHOOK_SECRET_{SYSTEM}`
+is set, and `billing.stripe_webhook` parses unsigned JSON when
+`STRIPE_WEBHOOK_SECRET` is unset; there is **no startup validation** requiring these
+secrets, and `webhook_ingest` derives the tenant from the attacker-controllable
+`X-Tenant-Id` header. A valid deployment configuration therefore permits
+**cross-tenant data injection on a public write**. This finding was surfaced during
+PR review, verified against code, and **corrects the initial "no critical findings"
+assessment** (honesty mandate: no unresolved critical finding is hidden or
+downgraded). It is pre-existing, is now tracked as release-blocking (AR-15), and is a
+**mandatory pre-production remediation**; no production or clinical deployment is
+authorized, so it does not block the *architecture-freeze* decision.
+
+The other governed defenses remain test-verified (186/186): no defect permitting
+audit-chain forgery, evidence corruption, false finalization, unsafe AI authority,
+unrecoverable data loss, or *internal* cross-tenant/privilege escalation was found.
 
 ## 17. Major findings
 
 B-01 audit shim · B-02 governance-in-code · B-03 god-runtime · AR-04/ADR-01 missing
 ADRs · AR-05 CI-enforcement gaps · AR-06 HA unproven · AR-07 no governed model ·
-AR-08 scalability uncharacterized · AR-11 knowledge concentration.
+AR-08 scalability uncharacterized · AR-11 knowledge concentration · **AR-16 audit
+write not atomic with business write** · **AR-17 frozen dataset not lock-enforced**
+· **AR-18 image dedup check-then-insert race (`image_sha256` not unique)**.
 
 ## 18. Technical debt requiring later phases
 
@@ -134,15 +168,24 @@ characterization; Directive 005 doc consolidation; governed aggregate Digital Tw
 ## 19. Architecture decision
 
 **ARCHITECTURE FROZEN — PASS WITH CONDITIONS.** The architecture is sufficiently
-coherent, secure, and test-verified to freeze; the identified MAJOR conditions must
-be resolved during later Production Readiness phases under change control. No
-production deployment is authorized.
+coherent and test-verified in its internal safety-critical structure to freeze. The
+one CRITICAL finding (AR-15, webhook fail-open) is an external-edge input-validation
+gap that is pre-existing, contained, tracked, and remediable — it is a **mandatory
+pre-production condition**, not an architecture-invalidating defect, and the freeze
+holds specifically because **no production or clinical deployment is authorized**.
+AR-15 (CRITICAL) plus the MAJOR conditions (AR-16/17/18 and the pre-existing debt
+items) must be resolved during later Production Readiness phases under change
+control; AR-15 must be closed and re-verified **before any production authorization**.
 
 ## 20. Phase 2 entry recommendation
 
-**Proceed to Phase 2** with these entry conditions carried as a tracked backlog:
-(1) enforce High-priority governance gates in code (B-02/AR-03); (2) author the
-missing ADRs (ADR-01); (3) activate CI enforcement for dependency scan, import-cycle,
+**Proceed to Phase 2** with these entry conditions carried as a tracked backlog,
+**AR-15 first and release-blocking:** (0) **[CRITICAL] close AR-15/TB-02** — require
+webhook signing secrets at startup (fail-closed), reject unsigned payloads, and stop
+trusting `X-Tenant-Id` for tenant authority; (1) enforce High-priority governance
+gates in code (B-02/AR-03) and the code-confirmed MAJOR gaps AR-16 (audit atomicity),
+AR-17 (dataset-freeze enforcement), AR-18 (dedup uniqueness); (2) author the missing
+ADRs (ADR-01); (3) activate CI enforcement for dependency scan, import-cycle,
 OpenAPI-diff, and dead-code detection (AR-05); (4) migrate the deprecated audit shim
 and resolve the duplicate billing webhook (B-01/DUP-02); (5) plan HA + scale
 characterization (AR-06/AR-08). Phase 2 must not add product features, AI

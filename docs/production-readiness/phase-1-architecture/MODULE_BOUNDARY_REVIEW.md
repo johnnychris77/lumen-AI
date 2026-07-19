@@ -33,8 +33,12 @@ change approval (Class B/C) is required.
   writer; append-only history.
 * **Weak boundaries:** route-layer persistence/audit calls (B-04); god-runtime
   ownership (B-03).
-* **Boundary violations:** none CRITICAL found — no cross-tenant access, audit
-  bypass, evidence mutation, or unsafe AI finalization surfaced in code or tests.
+* **Boundary violations:** no CRITICAL violation of an *internal module* boundary —
+  no cross-tenant access, audit bypass, evidence mutation, or unsafe AI finalization
+  surfaced between modules in code or tests. (One CRITICAL finding does exist at the
+  *external-integration trust boundary* — webhook fail-open, TB-02 / AR-15 — but it
+  is an input-validation gap at the platform edge, not a module-to-module boundary
+  breach; see `TRUST_BOUNDARY_ARCHITECTURE.md`.)
 * **Duplicate capabilities:** billing webhook (B-06); deprecated audit shim (B-01).
 * **Orphan capabilities:** none confirmed (route inventory shows 0 UNKNOWN
   classification).
@@ -45,7 +49,10 @@ change approval (Class B/C) is required.
 
 ## Net assessment
 
-**No CRITICAL boundary finding.** The safety-critical boundaries (tenant, auth,
-audit, evidence, human authority) are clean and test-verified. The MAJOR findings
-are maintainability/enforcement items suitable for later Production Readiness
+**No CRITICAL internal-module boundary finding.** The safety-critical module
+boundaries (tenant, auth, audit, evidence, human authority) are clean and
+test-verified. The one CRITICAL finding surfaced this phase is at the external
+integration trust boundary (TB-02 / AR-15, webhook fail-open) and is documented in
+`TRUST_BOUNDARY_ARCHITECTURE.md` and the risk register; the remaining findings here
+are MAJOR maintainability/enforcement items suitable for later Production Readiness
 phases under change control.

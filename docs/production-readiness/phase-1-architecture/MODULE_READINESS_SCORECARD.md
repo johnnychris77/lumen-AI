@@ -43,9 +43,16 @@ Ma=Maintainability, Sc=Scalability. (0–5 each.)
   safety-critical core, all test-verified.
 * **READY WITH CONDITIONS (majority):** governance/data/model/infra/CI modules —
   conditions are enforcement-in-code, HA, CI execution, and doc/ADR completion.
+  The **Supporting services** row (which includes external Integrations and Billing
+  webhooks) additionally carries the **CRITICAL AR-15** condition (webhook fail-open /
+  cross-tenant injection) as a **mandatory pre-production remediation** — see
+  `ARCHITECTURE_RISK_REGISTER.md` and the Phase 1 report §16.
 * **NOT READY (1):** Vision Engine inference — no governed/certified model exists
   (correct for this stage; not a defect).
 * **PLACEHOLDER (isolated, READY):** unavailable-model safe states.
 * **DOCUMENTED ONLY / OUT OF SCOPE:** physical lab acquisition.
 
-No module scored READY carries an unresolved **Critical** architectural finding.
+No module scored **READY** (the safety-critical core) carries an unresolved
+**Critical** architectural finding. The one Critical finding (AR-15) sits in the
+**READY WITH CONDITIONS** Supporting-services row and is a tracked, release-blocking
+pre-production condition — no production deployment is authorized.

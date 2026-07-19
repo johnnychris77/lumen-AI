@@ -16,9 +16,9 @@ reflects the Phase 1 validation run (186/186 passed).
 | 8 | Service → Object Storage | Service → storage | Access-controlled; integrity-hashed | Fail-closed reads | ✅ (foundation) |
 | 9 | Candidate Model → Governed Workflow | Model output → workflow | Advisory only; safe unavailable-model states | No confident result on missing model | ✅ `test_candidate_model_training` |
 | 10 | Human Reviewer → Final Disposition | Reviewer → disposition | Human authoritative; AI cannot finalize | No autonomous close | ✅ |
-| 11 | System → Audit Chain | Action → audit | Hash-chained, append-only | Failed write ≠ auditable success | ✅ `test_audit_chain_verification` |
+| 11 | System → Audit Chain | Action → audit | Hash-chained, append-only (verified). **Not atomic with the business write** — see finding TB-01 | Chain verifies once written; but a business commit that precedes a failing audit write leaves data committed without a chain entry | ⚠️ Append-only verified (`test_audit_chain_verification`); write/audit **atomicity is a gap** |
 | 12 | Evidence Generation → Immutable Archive | Bundle → archive | Checksums; append-only | Incomplete bundle not promoted | ✅ `test_evidence_authorization_baseline` |
-| 13 | External Integration → Internal Platform | Webhook/IdP → platform | Signature/JWKS verification; idempotency | Reject unverifiable | ✅ (OIDC/webhook suites) |
+| 13 | External Integration → Internal Platform | Webhook/IdP → platform | Signature/JWKS verification **only when the relevant secret is configured** — see finding TB-02 | OIDC/JWT: reject unverifiable ✅. **Webhooks fail OPEN when their secret is unset** (no startup validation): `integrations.webhook_ingest` and `billing.stripe_webhook` accept unsigned payloads; `webhook_ingest` also derives tenant from the `X-Tenant-Id` header | ⚠️ OIDC verified; **webhook signature is conditional — cross-tenant injection risk when unconfigured** |
 
 ## Cross-boundary invariants
 
@@ -32,8 +32,24 @@ reflects the Phase 1 validation run (186/186 passed).
 
 ## Findings
 
-* **No CRITICAL trust-boundary defect.** All 13 boundaries have defined controls
-  and fail-closed behavior, and the safety-critical ones (3–12) are test-verified.
-* **MINOR:** external-integration signature verification and idempotency should be
-  standardized and explicitly tested for every webhook (I-01 duplicate handler is a
-  related cleanup).
+Boundaries 3–10 and 12 (auth, tenant, authorization, service, storage, model,
+human review, evidence archive) are clean and test-verified. Two boundaries carry
+verified defects surfaced during PR review (code-confirmed):
+
+* **TB-02 (CRITICAL) — external integration webhook fails open.**
+  `app.routes.integrations.webhook_ingest` verifies HMAC only when
+  `WEBHOOK_SECRET_{SYSTEM}` is set; otherwise it accepts an arbitrary payload,
+  takes the tenant from the attacker-controllable `X-Tenant-Id` header, and commits
+  event records. `app.routes.billing.stripe_webhook` similarly parses unsigned JSON
+  when `STRIPE_WEBHOOK_SECRET` is unset. There is **no startup validation** requiring
+  these secrets, so a valid deployment configuration permits **cross-tenant data
+  injection** on a public write. This corrects boundary 13's prior "✅" assertion.
+* **TB-01 (MAJOR) — audit not atomic with the write.** Several write paths (e.g.
+  `integrations.webhook_ingest`) `db.commit()` business data *before* calling the
+  audit writer; if the audit insert fails, business data remains committed with no
+  chain entry — so boundary 11's "failed write ≠ auditable success" is not
+  guaranteed at the write/audit boundary.
+
+Both are pre-existing platform behaviors (this PR changes only documentation) and
+are added to `ARCHITECTURE_RISK_REGISTER.md`. TB-02 is the reason the
+critical-findings count and freeze decision are revised (see the Phase 1 report).
