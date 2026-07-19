@@ -92,45 +92,107 @@ class TestCSVConnector:
 # ---------------------------------------------------------------------------
 
 class TestWebhook:
-    def test_webhook_endpoint_returns_200_without_signature(self, client):
+    """SEC-C-01 (LPR-DIR-022): the webhook must fail CLOSED and bind the tenant
+    server-side. These tests assert the hardened behavior — an unconfigured or
+    unsigned webhook must never accept a write, and the client-supplied
+    ``X-Tenant-Id`` header must never determine the tenant."""
+
+    @staticmethod
+    def _sign(secret: str, body: bytes) -> str:
+        import hashlib
+        import hmac
+
+        return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+    def test_webhook_fails_closed_without_secret(self, client, monkeypatch):
+        monkeypatch.delenv("WEBHOOK_SECRET_CENSITRAC", raising=False)
         resp = client.post(
             "/api/integrations/webhook/censitrac",
             json=[{"source_event_type": "checkout", "event_timestamp": "2026-06-01T00:00:00"}],
-            headers={"X-Tenant-Id": "tenant-webhook-test"},
+            headers={"X-Tenant-Id": "tenant-attacker"},
         )
-        assert resp.status_code == 200
-        assert resp.json()["received"] is True
+        assert resp.status_code == 503  # no unauthenticated writes
 
-    def test_webhook_endpoint_no_auth_header_required(self, client):
-        # No Authorization header
+    def test_webhook_rejects_invalid_signature(self, client, monkeypatch):
+        monkeypatch.setenv("WEBHOOK_SECRET_CENSITRAC", "s3cr3t")
+        monkeypatch.setenv("WEBHOOK_TENANT_CENSITRAC", "tenant-bound")
         resp = client.post(
             "/api/integrations/webhook/censitrac",
-            json=[],
-            headers={"X-Tenant-Id": "tenant-webhook-test"},
+            content=b"[]",
+            headers={"X-Webhook-Signature": "sha256=deadbeef", "Content-Type": "application/json"},
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 401
 
-    def test_webhook_processes_events_list(self, client):
+    def test_webhook_fails_closed_without_tenant_binding(self, client, monkeypatch):
+        monkeypatch.setenv("WEBHOOK_SECRET_CENSITRAC", "s3cr3t")
+        monkeypatch.delenv("WEBHOOK_TENANT_CENSITRAC", raising=False)
+        body = b"[]"
+        resp = client.post(
+            "/api/integrations/webhook/censitrac",
+            content=body,
+            headers={"X-Webhook-Signature": self._sign("s3cr3t", body), "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 503
+
+    def test_webhook_processes_events_list_when_signed(self, client, monkeypatch):
+        monkeypatch.setenv("WEBHOOK_SECRET_CENSITRAC", "s3cr3t")
+        monkeypatch.setenv("WEBHOOK_TENANT_CENSITRAC", "tenant-bound")
+        import json as _json
+
         events = [
             {"source_event_type": "checkout", "event_timestamp": "2026-06-01T00:00:00", "instrument_id": "INST-W1"},
             {"source_event_type": "checkin", "event_timestamp": "2026-06-02T00:00:00", "instrument_id": "INST-W2"},
         ]
+        body = _json.dumps(events).encode()
         resp = client.post(
             "/api/integrations/webhook/censitrac",
-            json=events,
-            headers={"X-Tenant-Id": "tenant-webhook-test"},
+            content=body,
+            headers={
+                "X-Webhook-Signature": self._sign("s3cr3t", body),
+                # An attacker-supplied tenant header must be ignored entirely.
+                "X-Tenant-Id": "tenant-attacker",
+                "Content-Type": "application/json",
+            },
         )
         assert resp.status_code == 200
         assert resp.json()["events_processed"] == 2
 
-    def test_webhook_processes_single_event(self, client):
+    def test_webhook_binds_server_tenant_not_client_header(self, client, monkeypatch):
+        """Definitive SEC-C-01 proof: the stored record's tenant is the
+        server-configured binding, never the attacker's X-Tenant-Id header."""
+        monkeypatch.setenv("WEBHOOK_SECRET_RLDATIX", "s3cr3t2")
+        monkeypatch.setenv("WEBHOOK_TENANT_RLDATIX", "tenant-server-bound")
+        import json as _json
+
+        event = {"source_event_type": "adverse_event", "event_timestamp": "2026-06-01T00:00:00", "source_record_id": "SEC-C-01-PROOF"}
+        body = _json.dumps(event).encode()
         resp = client.post(
             "/api/integrations/webhook/rldatix",
-            json={"source_event_type": "adverse_event", "event_timestamp": "2026-06-01T00:00:00"},
-            headers={"X-Tenant-Id": "tenant-webhook-test"},
+            content=body,
+            headers={
+                "X-Webhook-Signature": self._sign("s3cr3t2", body),
+                "X-Tenant-Id": "tenant-attacker",
+                "Content-Type": "application/json",
+            },
         )
         assert resp.status_code == 200
         assert resp.json()["system"] == "rldatix"
+
+        from app.db import SessionLocal
+        from app.models.integrations import QualitySafetyEventRecord
+
+        db = SessionLocal()
+        try:
+            rec = (
+                db.query(QualitySafetyEventRecord)
+                .filter(QualitySafetyEventRecord.source_record_id == "SEC-C-01-PROOF")
+                .first()
+            )
+            assert rec is not None
+            assert rec.tenant_id == "tenant-server-bound"  # server binding wins
+            assert rec.tenant_id != "tenant-attacker"       # header ignored
+        finally:
+            db.close()
 
 
 # ---------------------------------------------------------------------------

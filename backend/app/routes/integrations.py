@@ -799,12 +799,20 @@ async def webhook_ingest(system_name: str, request: Request, db: Session = Depen
     body = await request.body()
     system_upper = system_name.upper().replace("-", "_")
     secret = os.getenv(f"WEBHOOK_SECRET_{system_upper}", "")
+    configured_tenant = os.getenv(f"WEBHOOK_TENANT_{system_upper}", "")
 
-    if secret:
-        sig_header = request.headers.get("X-Webhook-Signature", "")
-        expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig_header, expected):
-            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    # SEC-C-01 (LPR-DIR-022): fail CLOSED. An unconfigured webhook must never
+    # accept unauthenticated writes — a missing signing secret is a rejection,
+    # not a bypass.
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook not configured for this system (no signing secret).",
+        )
+    sig_header = request.headers.get("X-Webhook-Signature", "")
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig_header, expected):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     # Parse body
     try:
@@ -823,8 +831,15 @@ async def webhook_ingest(system_name: str, request: Request, db: Session = Depen
     else:
         system_category = "quality_safety"
 
-    # Determine tenant from first event or header
-    tenant_id = request.headers.get("X-Tenant-Id") or request.headers.get("X-LumenAI-Tenant-Id") or "webhook"
+    # SEC-C-01 (LPR-DIR-022): the tenant is bound server-side to the verified
+    # signing secret, NEVER taken from a client-controlled header. A configured
+    # secret with no configured tenant binding is a misconfiguration → reject.
+    if not configured_tenant:
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook not configured for this system (no tenant binding).",
+        )
+    tenant_id = configured_tenant
 
     imported = 0
     errors = []
