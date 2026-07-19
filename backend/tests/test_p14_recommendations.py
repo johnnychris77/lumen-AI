@@ -103,42 +103,68 @@ class TestCustomerHealthScore:
 # 4. Billing webhook handler
 # ---------------------------------------------------------------------------
 class TestBillingWebhooks:
-    def test_webhook_no_auth_works(self) -> None:
-        """Webhook endpoint must NOT require auth (Stripe calls it)."""
-        event = {
-            "type": "invoice.payment_failed",
-            "data": {"object": {"metadata": {"tenant_id": "test-webhook-tenant"}}},
-        }
+    """SEC-C-01 (LPR-DIR-022): the Stripe webhook must fail CLOSED. An unsigned
+    or unverifiable billing event must never mutate subscription state; only a
+    signature-verified (hence Stripe-signed) payload is trusted for the tenant."""
+
+    _SECRET = "whsec_test_secret"
+
+    @classmethod
+    def _sign(cls, body: bytes) -> str:
+        import hashlib
+        import hmac
+        import time
+
+        ts = str(int(time.time()))
+        expected = hmac.new(cls._SECRET.encode(), f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+        return f"t={ts},v1={expected}"
+
+    def test_webhook_fails_closed_without_secret(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+        event = {"type": "invoice.payment_failed", "data": {"object": {"metadata": {"tenant_id": "t"}}}}
+        resp = client.post("/api/billing/webhook", json=event)
+        assert resp.status_code == 503  # not configured → reject, do not process
+
+    def test_webhook_rejects_invalid_signature(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", self._SECRET)
+        event = {"type": "invoice.payment_failed", "data": {"object": {"metadata": {"tenant_id": "t"}}}}
+        import json as _json
+
         resp = client.post(
             "/api/billing/webhook",
-            json=event,
+            content=_json.dumps(event).encode(),
+            headers={"stripe-signature": "t=1,v1=deadbeef", "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400  # bad signature → hard reject (not silent 200)
+
+    def test_webhook_payment_failed_when_signed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", self._SECRET)
+        import json as _json
+
+        event = {"type": "invoice.payment_failed", "data": {"object": {"metadata": {"tenant_id": "wh-tenant-1"}}}}
+        body = _json.dumps(event).encode()
+        resp = client.post(
+            "/api/billing/webhook",
+            content=body,
+            headers={"stripe-signature": self._sign(body), "Content-Type": "application/json"},
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["received"] is True
 
-    def test_webhook_payment_failed(self) -> None:
-        event = {
-            "type": "invoice.payment_failed",
-            "data": {"object": {"metadata": {"tenant_id": "wh-tenant-1"}}},
-        }
-        resp = client.post("/api/billing/webhook", json=event)
-        assert resp.status_code == 200
+    def test_webhook_subscription_updated_when_signed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", self._SECRET)
+        import json as _json
 
-    def test_webhook_subscription_deleted(self) -> None:
-        event = {
-            "type": "customer.subscription.deleted",
-            "data": {"object": {"metadata": {"tenant_id": "wh-tenant-2"}}},
-        }
-        resp = client.post("/api/billing/webhook", json=event)
-        assert resp.status_code == 200
-        assert resp.json()["received"] is True
-
-    def test_webhook_subscription_updated(self) -> None:
         event = {
             "type": "customer.subscription.updated",
             "data": {"object": {"plan": {"nickname": "enterprise"}, "metadata": {"tenant_id": "wh-tenant-3"}}},
         }
-        resp = client.post("/api/billing/webhook", json=event)
+        body = _json.dumps(event).encode()
+        resp = client.post(
+            "/api/billing/webhook",
+            content=body,
+            headers={"stripe-signature": self._sign(body), "Content-Type": "application/json"},
+        )
         assert resp.status_code == 200
 
 

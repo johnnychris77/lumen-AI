@@ -8,7 +8,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
@@ -49,24 +49,33 @@ async def billing_webhook(
     request: Request,
     db: Session = Depends(get_db),
 ) -> dict:
-    """Stripe webhook endpoint — no auth (Stripe signs the request)."""
+    """Stripe webhook endpoint — no auth header (Stripe signs the request)."""
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
     secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
-    if secret and sig_header:
-        if not _verify_stripe_signature(payload, sig_header, secret):
-            logger.warning("Stripe signature verification failed")
-            # Return 200 anyway to avoid Stripe retries on signature issues in test
-            return {"received": True, "warning": "signature_invalid"}
+    # SEC-C-01 (LPR-DIR-022): fail CLOSED. An unsigned or unverifiable billing
+    # event must never mutate subscription state — a missing signing secret is a
+    # rejection, not a bypass, and a bad signature is a hard 400 (not a silent
+    # 200). Only after the signature verifies do we trust the (Stripe-signed)
+    # payload metadata for the tenant binding.
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Billing webhook not configured (no signing secret).",
+        )
+    if not sig_header or not _verify_stripe_signature(payload, sig_header, secret):
+        logger.warning("Stripe signature verification failed")
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
     try:
         event = json.loads(payload)
     except Exception:
-        return {"received": True}
+        raise HTTPException(status_code=400, detail="Invalid payload")
 
     event_type = event.get("type", "")
     data = event.get("data", {}).get("object", {})
+    # Trustworthy: the payload is Stripe-signature-verified above.
     tenant_id = data.get("metadata", {}).get("tenant_id", "unknown")
 
     logger.info("Stripe webhook received: %s for tenant %s", event_type, tenant_id)

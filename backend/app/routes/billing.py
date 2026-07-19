@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 from datetime import datetime, timezone
@@ -77,23 +79,47 @@ def create_checkout(req: CheckoutRequest, request: Request, db: Session = Depend
         raise HTTPException(500, detail=str(exc))
 
 
+def _verify_stripe_signature(payload: bytes, sig_header: str, secret: str) -> bool:
+    """Verify a Stripe webhook signature (t=...,v1=... HMAC-SHA256 scheme)."""
+    try:
+        parts = {k: v for k, v in (p.split("=", 1) for p in sig_header.split(",") if "=" in p)}
+        signed_payload = f"{parts.get('t', '')}.".encode() + payload
+        expected = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, parts.get("v1", ""))
+    except Exception:
+        return False
+
+
 @router.post("/billing/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """Stripe sends events here. Verifies signature and updates tenant tier."""
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
+    # Read at request time so configuration (and tests) take effect without a
+    # reimport, and so the fail-closed check reflects the live environment.
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    stripe_secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
 
+    # SEC-C-01 (LPR-DIR-022): fail CLOSED. A billing event must never mutate
+    # tenant/subscription state unless its payload is signature-verified — a
+    # missing signing secret is a rejection (503), not a bypass, and a bad
+    # signature is a hard 400. Only the verified (Stripe-signed) payload's
+    # metadata is trusted for the tenant binding.
+    if not webhook_secret:
+        raise HTTPException(503, detail="Billing webhook not configured (no signing secret).")
     try:
-        if STRIPE_SECRET_KEY:
+        if stripe_secret_key:
             import stripe  # type: ignore[import]
-            stripe.api_key = STRIPE_SECRET_KEY
-            if STRIPE_WEBHOOK_SECRET:
-                event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-            else:
-                event = json.loads(payload)
+            stripe.api_key = stripe_secret_key
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
         else:
-            # Dev/test mode — no Stripe key, parse raw payload
+            # No Stripe SDK key, but a signing secret is configured: verify the
+            # HMAC signature ourselves rather than trusting the raw payload.
+            if not _verify_stripe_signature(payload, sig_header, webhook_secret):
+                raise HTTPException(400, detail="Invalid Stripe signature")
             event = json.loads(payload)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(400, detail=f"Webhook error: {exc}")
 
