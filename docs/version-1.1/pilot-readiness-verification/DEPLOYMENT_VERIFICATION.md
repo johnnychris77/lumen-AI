@@ -1,25 +1,55 @@
-# LPR-DIR-030 — Deployment Verification (Workstream 2)
+# DEPLOYMENT VERIFICATION — LPR-DIR-030 (Workstream 4)
 
-**Independent action performed:** I re-inspected `.github/workflows/deploy.yml` on the
-current head (`66c2e0d`): **0 placeholder echo lines**, **8 real deploy/rollback verbs**
-(`set image`, `rollout status`, `rollout undo`), **valid YAML**.
+> This file supersedes the lighter first-pass content for the expanded LPR-DIR-030
+> verification. It is authoritative.
 
-| Item | Verified? | Basis |
-|---|---|---|
-| **Deployment workflow (artifact exists + valid)** | ✅ **PASS (artifact)** | `deploy.yml` re-inspected: placeholder removed; real fail-closed `kubectl` rollout + auto-rollback; YAML parses |
-| **Deployment execution** | ❌ **NOT VERIFIED** | Never executed — no cluster/kubectl in this environment; no deployment record, no rollout log, no live instance |
-| **Deployment rollback (executed)** | ❌ **NOT VERIFIED** | `rollout undo` is present in code but **no rollback was executed**; no MTTR, no post-rollback smoke evidence |
-| **Deployment repeatability** | ❌ **NOT VERIFIED** | Cannot be demonstrated without ≥2 executed deploys on a real target |
+**Scope:** Verify deployment capability — the workflow artifact **and** whether a real,
+executed deployment to a managed cluster exists (blocker **OPS-DEP-01**, tracker **E-03**).
 
-## Rejected claims
-- **"Deployment implemented" ⇒ "deployment verified":** REJECTED. Per the standard,
-  *implementation ≠ verification.* The workflow file is a verified artifact; a **deployment**
-  is not verified until a real rollout produces objective execution evidence.
-- **Fail-closed NOT-CONFIGURED path as "successful deploy":** correctly **not** claimed by
-  DIR-029; confirmed it reports NOT-CONFIGURED rather than faking success.
+## 1. Artifact verification (independently re-inspected)
+`.github/workflows/deploy.yml` was re-read this pass.
+| Property | Result |
+|---|---|
+| Placeholder / echo-stub deploy lines | **0** (the DIR-029 rewrite removed them) |
+| Real deploy verbs | `kubectl set image` → `kubectl rollout status` (fail on timeout) → `kubectl rollout undo` on failure |
+| Fail-closed behavior when target unconfigured | reports **"DEPLOY TARGET NOT CONFIGURED … NOT a simulated deploy"** and does not fake success |
+| Staging + production targets | gated on `KUBE_CONFIG` / `KUBE_CONFIG_PROD` secrets |
+| YAML validity | valid |
+| Trigger | `main` / `workflow_dispatch` — **not** this PR branch, so it has **not executed** here |
 
-## Determination
-The **deployment workflow artifact is independently verified** (real, valid, placeholder
-removed). **Deployment execution, executed rollback, and repeatability are NOT VERIFIED** —
-they require a managed cluster that does not exist here. Pilot-gate OPS-DEP-01/02: **NOT
-satisfied.**
+**Artifact classification: VERIFIED** — the workflow is real, valid, fail-closed, and free
+of simulation stubs.
+
+## 2. Execution verification (the operational question)
+| Check | Result |
+|---|---|
+| A green `deploy.yml` run against a real cluster | **NONE** — no `KUBE_CONFIG*` secret, no cluster |
+| Healthy running instance produced by a deploy | **NONE** |
+| Post-deploy smoke-test log | **NONE** |
+| `kubectl` / cluster reachable in this environment | **NO** |
+
+**Execution classification: NOT VERIFIED** — the workflow has never been executed against a
+managed cluster; no deployment has occurred.
+
+## 3. Classification summary
+| Item | Classification |
+|---|---|
+| Deploy workflow artifact (real, valid, fail-closed) | **VERIFIED** |
+| Executed deployment → healthy instance (E-03 / OPS-DEP-01) | **NOT VERIFIED** |
+| Post-deploy smoke evidence | **NOT VERIFIED** |
+| Deployment repeatability (≥2 executed deploys) | **NOT VERIFIED** |
+
+## 4. Rejected claims
+- **"Deployment implemented" ⇒ "deployment verified":** REJECTED — implementation ≠
+  verification. The workflow is a verified *artifact*; a *deployment* is verified only when a
+  real rollout produces execution evidence.
+- **Fail-closed NOT-CONFIGURED path ⇒ "successful deploy":** correctly **not** claimed;
+  confirmed it reports NOT-CONFIGURED rather than faking success.
+
+## 5. What would close the gap
+A `deploy.yml` run with `KUBE_CONFIG` set → `rollout status` success → `/health` 200 on the
+deployed instance, with the run URL and smoke log captured as evidence.
+
+## 6. Determination
+**Deploy *artifact* VERIFIED; deploy *execution* NOT VERIFIED.** Blocker **OPS-DEP-01
+remains OPEN**. A committed workflow is not a performed deployment.
