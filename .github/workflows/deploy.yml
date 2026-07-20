@@ -143,13 +143,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to staging cluster
+      - name: Deploy to staging cluster (real, fail-closed)
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          IMAGE: lumenai/backend:${{ github.sha }}
+          NS: lumenai-staging
         run: |
-          echo "Deploying lumenai/backend:${{ github.sha }} to staging"
-          echo "Configure kubectl context + helm/kustomize here"
-          echo "Example:"
-          echo "  kubectl set image deployment/lumenai-backend backend=lumenai/backend:${{ github.sha }} -n lumenai-staging"
-          echo "  kubectl rollout status deployment/lumenai-backend -n lumenai-staging"
+          set -euo pipefail
+          if [ -z "${KUBE_CONFIG}" ]; then
+            echo "::warning::DEPLOY TARGET NOT CONFIGURED — KUBE_CONFIG secret is absent."
+            echo "No rollout performed. This is fail-closed placeholder removal, NOT a simulated deploy."
+            echo "To enable real staging deploys, set the KUBE_CONFIG repository secret."
+            exit 0
+          fi
+          export KUBECONFIG="$(mktemp)"
+          echo "${KUBE_CONFIG}" | base64 -d > "${KUBECONFIG}"
+          echo "Deploying ${IMAGE} to ${NS}"
+          kubectl -n "${NS}" set image deployment/lumenai-backend backend="${IMAGE}" --record
+          if ! kubectl -n "${NS}" rollout status deployment/lumenai-backend --timeout=180s; then
+            echo "::error::Rollout failed — rolling back."
+            kubectl -n "${NS}" rollout undo deployment/lumenai-backend
+            kubectl -n "${NS}" rollout status deployment/lumenai-backend --timeout=120s
+            exit 1
+          fi
 
   smoke-test-staging:
     name: Smoke Test Staging
@@ -180,18 +196,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to production cluster
+      - name: Deploy to production cluster (real, fail-closed)
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PROD }}
+          IMAGE: lumenai/backend:${{ github.sha }}
+          NS: lumenai
         run: |
-          echo "Deploying lumenai/backend:${{ github.sha }} to production"
-          echo "Configure kubectl context + helm/kustomize here"
-          echo "Example:"
-          echo "  kubectl set image deployment/lumenai-backend backend=lumenai/backend:${{ github.sha }} -n lumenai"
-          echo "  kubectl rollout status deployment/lumenai-backend -n lumenai"
-          echo "  kubectl rollout status deployment/lumenai-frontend -n lumenai"
+          set -euo pipefail
+          if [ -z "${KUBE_CONFIG}" ]; then
+            echo "::warning::PRODUCTION DEPLOY TARGET NOT CONFIGURED — KUBE_CONFIG_PROD secret is absent."
+            echo "No rollout performed. This is fail-closed placeholder removal, NOT a simulated deploy."
+            exit 0
+          fi
+          export KUBECONFIG="$(mktemp)"
+          echo "${KUBE_CONFIG}" | base64 -d > "${KUBECONFIG}"
+          echo "Deploying ${IMAGE} to ${NS}"
+          kubectl -n "${NS}" set image deployment/lumenai-backend backend="${IMAGE}" --record
+          if ! kubectl -n "${NS}" rollout status deployment/lumenai-backend --timeout=300s; then
+            echo "::error::Production rollout failed — rolling back."
+            kubectl -n "${NS}" rollout undo deployment/lumenai-backend
+            kubectl -n "${NS}" rollout status deployment/lumenai-backend --timeout=180s
+            exit 1
+          fi
 
       - name: Verify production health
+        env:
+          PROD_URL: ${{ vars.PROD_URL }}
         run: |
-          echo "Waiting for rollout..."
-          sleep 30
-          echo "Run production health check here"
-          echo "  curl -f https://api.lumenai.health/health"
+          set -euo pipefail
+          if [ -z "${PROD_URL:-}" ]; then
+            echo "::warning::PROD_URL not set — skipping post-deploy health probe."
+            exit 0
+          fi
+          for i in $(seq 1 10); do
+            if curl -fsS "${PROD_URL}/health" && curl -fsS "${PROD_URL}/ready"; then
+              echo "Production health + readiness OK"; exit 0
+            fi
+            echo "waiting for readiness ($i/10)"; sleep 15
+          done
+          echo "::error::Production did not become ready"; exit 1
