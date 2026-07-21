@@ -131,20 +131,49 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.pilot_config")             # register v1.9 pilot site config table
     importlib.import_module("app.models.pilot_error_log")          # register v1.9 pilot error log table
     importlib.import_module("app.models.governed_object")          # register GPAE governed object registry table
+    importlib.import_module("app.models.scheduler_leader")          # RES-01 register scheduler leader-election lease table
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     # Back-fill columns added to existing tables (create_all never alters them).
     # Without this, an old production `inspections` table is missing newer columns
     # and every inspection/history query 500s (surfacing as a CORS error).
     try:
-        from app.db.column_migrator import ensure_columns
+        from app.db.column_migrator import ensure_all_columns, ensure_columns
         from app.models.inspection import Inspection
         from app.models.supervisor_review import SupervisorReview
+        # Critical-path tables first (proven), then every remaining mapped table.
         ensure_columns(engine, Inspection)  # includes v1.4's `technician` column
         ensure_columns(engine, SupervisorReview)
+        # Back-fill drift on ALL mapped tables (e.g. `annotations`) so newer
+        # workflows don't 500 on an older DB that predates their columns.
+        ensure_all_columns(engine, Base)
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
+    # SEC-H-02 — actually invoke Settings.validate() at startup (previously only
+    # reachable via a report route). SECRET_KEY weakness is already fail-closed
+    # by the module-level guard above; remaining config issues are surfaced here
+    # so a misconfigured deployment is visible in logs rather than silent.
+    try:
+        from app.config import get_settings
+        _cfg_issues = get_settings().validate()
+        if _cfg_issues:
+            import logging
+            _log = logging.getLogger(__name__)
+            for _issue in _cfg_issues:
+                _log.error("Startup config validation: %s", _issue)
+    except Exception as _val_e:
+        import logging
+        logging.getLogger(__name__).warning("Startup config validation skipped: %s", _val_e)
+    # RES-01 — the background schedulers must run on exactly one replica.
+    # Every replica registers the jobs but only the current DB-lease *leader*
+    # runs them: a heartbeat renews the lease, and a standby resumes the jobs if
+    # the leader dies (automatic failover within the lease TTL). On a single
+    # replica this is transparent — that one process simply always leads.
+    import logging as _logging
+    import threading
+    _scheduler_stop = threading.Event()
+    _sched_holder = os.getenv("HOSTNAME") or f"pid-{os.getpid()}-{uuid.uuid4().hex[:8]}"
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from app.services.prediction_scheduler import register_prediction_scheduler
@@ -153,17 +182,56 @@ async def lifespan(_app: FastAPI):
         from app.services.quality_intelligence_service import register_intelligence_scheduler
         from app.services.global_aggregation_job import register_global_aggregation_scheduler
         from app.db.session import SessionLocal
+        from app.services import scheduler_leader
         _scheduler = BackgroundScheduler()
         register_prediction_scheduler(_scheduler, SessionLocal)
         register_rwe_scheduler(_scheduler, SessionLocal)
         register_integration_scheduler(_scheduler, SessionLocal)
         register_intelligence_scheduler(_scheduler, SessionLocal)
         register_global_aggregation_scheduler(_scheduler, SessionLocal)
-        _scheduler.start()
+        _ttl = scheduler_leader.DEFAULT_TTL_SECONDS
+
+        def _leader_loop():
+            log = _logging.getLogger(__name__)
+            started = False
+            leading = False
+            while not _scheduler_stop.is_set():
+                try:
+                    if scheduler_leader.acquire_or_renew(
+                        SessionLocal, _sched_holder, ttl_seconds=_ttl
+                    ):
+                        if not started:
+                            _scheduler.start()
+                            started = True
+                            log.info("Scheduler leadership acquired by %s; schedulers running", _sched_holder)
+                        elif not leading:
+                            _scheduler.resume()
+                            log.info("Scheduler leadership re-acquired by %s; schedulers resumed", _sched_holder)
+                        leading = True
+                    elif started and leading:
+                        _scheduler.pause()
+                        leading = False
+                        log.info("Scheduler leadership lost by %s; schedulers paused", _sched_holder)
+                except Exception as _le:  # pragma: no cover - loop is best-effort
+                    log.warning("Scheduler leader loop error: %s", _le)
+                _scheduler_stop.wait(max(5, _ttl // 2))
+
+        _leader_thread = threading.Thread(
+            target=_leader_loop, name="scheduler-leader", daemon=True
+        )
+        _leader_thread.start()
     except Exception as _e:
-        import logging
-        logging.getLogger(__name__).warning("Prediction scheduler not started: %s", _e)
+        _logging.getLogger(__name__).warning("Prediction scheduler not started: %s", _e)
     yield
+    # Graceful shutdown — stop the leader loop and relinquish the lease so a
+    # standby replica can take over promptly instead of waiting for TTL expiry.
+    try:
+        _scheduler_stop.set()
+        from app.db.session import SessionLocal as _SL
+        from app.services import scheduler_leader as _sl
+        _sl.release(_SL, _sched_holder)
+    except Exception as _se:  # pragma: no cover
+        _logging.getLogger(__name__).warning("Scheduler shutdown/release skipped: %s", _se)
 
 
 _IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod"}
@@ -175,12 +243,16 @@ _IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"produc
 _ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
 _ANY_PRODUCTION = _IS_PRODUCTION or _ENV in {"production", "prod"}
 _SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
-_DEFAULT_SECRET = "dev-secret-change-in-production"
 
-if _ANY_PRODUCTION and _SECRET_KEY == _DEFAULT_SECRET:
+# SEC-H-01/02 — reject ALL known-weak signing secrets (unset, "dev-secret", and
+# "dev-secret-change-in-production"), not just the one string. `core/config.py`
+# historically fell back to a different weak default that this guard missed.
+from app.config import KNOWN_WEAK_SECRET_KEYS  # noqa: E402
+
+if _ANY_PRODUCTION and _SECRET_KEY in KNOWN_WEAK_SECRET_KEYS:
     sys.exit(
-        "FATAL: SECRET_KEY is set to the default value in production environment. "
-        "Set a strong SECRET_KEY before starting."
+        "FATAL: SECRET_KEY is unset or a known-weak default value in a production "
+        "environment. Set a strong, non-default SECRET_KEY before starting."
     )
 
 # --- Production safety guard: AUTH_MODE must be an explicit decision ---

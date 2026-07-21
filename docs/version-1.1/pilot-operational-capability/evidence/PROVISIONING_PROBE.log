@@ -1,0 +1,38 @@
+LPR-DIR-031 provisioning capability probe
+timestamp_utc: 2026-07-20T02:33:10Z
+commit: 4299c40b2d25f59fa256390abd5b6f9b18ab83b9
+operator: automated (Claude Code, LumenAI governance execution)
+host: Linux vm 6.18.5 #1 SMP PREEMPT_DYNAMIC @0 x86_64 x86_64 x86_64 GNU/Linux
+user: root
+
+== container runtime ==
+docker binary: Docker version 29.3.1, build c2be9cc
+docker daemon: UNREACHABLE (cannot build/run containers)
+== kubernetes ==
+kubectl: ABSENT
+helm: ABSENT
+kind: ABSENT
+minikube: ABSENT
+k3s: ABSENT
+== cloud provisioning CLIs ==
+aws: ABSENT
+gcloud: ABSENT
+az: ABSENT
+doctl: ABSENT
+flyctl: ABSENT
+terraform: ABSENT
+pulumi: ABSENT
+== postgres ==
+psql: present
+pg_isready: present
+pg_dump: present
+pg_restore: present
+initdb: ABSENT
+postgres: ABSENT
+server on 127.0.0.1:5432: 127.0.0.1:5432 - no response
+== cloud credentials in env ==
+AWS_SECRET_ACCESS_KEY=prox****REDACTED****
+AWS_ACCESS_KEY_ID=prox****REDACTED****
+AWS_CA_BUNDLE=/roo****REDACTED****
+== DETERMINATION ==
+Managed environment CANNOT be provisioned from this execution context.

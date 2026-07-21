@@ -77,3 +77,42 @@ def ensure_columns(engine: Engine, model) -> list[str]:
     if added:
         logger.info("Back-filled columns on %s: %s", table.name, ", ".join(added))
     return added
+
+
+def ensure_all_columns(engine: Engine, base) -> dict[str, list[str]]:
+    """Back-fill missing columns across *every* mapped table on `base`.
+
+    `ensure_columns` fixes one model at a time, which meant only the handful of
+    tables explicitly listed at startup were repaired — newer tables (e.g.
+    ``annotations``) added after their table already existed in production kept
+    500-ing (surfacing in the browser as a CORS / "failed to fetch" error).
+    This walks the declarative registry so any table whose model gained columns
+    is repaired, and future tables are covered automatically with no per-table
+    wiring. Best-effort and non-fatal: a failure on one model is logged and
+    skipped so startup is never blocked.
+
+    Returns a mapping of ``table_name -> [columns added]`` for tables that
+    actually changed.
+    """
+    results: dict[str, list[str]] = {}
+    try:
+        mappers = list(base.registry.mappers)
+    except Exception as exc:  # pragma: no cover - registry access is non-fatal
+        logger.warning("Column back-fill (all tables) skipped: %s", exc)
+        return results
+
+    seen: set[str] = set()
+    for mapper in mappers:
+        model = mapper.class_
+        table = getattr(model, "__table__", None)
+        if table is None or table.name in seen:
+            continue
+        seen.add(table.name)
+        try:
+            added = ensure_columns(engine, model)
+        except Exception as exc:  # pragma: no cover - per-model failure is non-fatal
+            logger.warning("Column back-fill failed for %s: %s", table.name, exc)
+            continue
+        if added:
+            results[table.name] = added
+    return results

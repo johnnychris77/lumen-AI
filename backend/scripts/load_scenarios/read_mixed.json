@@ -1,0 +1,9 @@
+{
+  "_comment": "Example weighted read-mostly scenario for scripts/load_test.py. Point --base-url at a SEEDED environment and pass --auth-token; the auth-flagged requests below require real data and a valid dev/JWT bearer token. The two unauthenticated probes are always safe. Adjust paths/weights to the endpoints you want to characterize.",
+  "scenario": [
+    { "name": "health", "method": "GET", "path": "/health", "weight": 2, "auth": false },
+    { "name": "ready", "method": "GET", "path": "/ready", "weight": 2, "auth": false },
+    { "name": "audit_logs", "method": "GET", "path": "/api/audit-logs/", "weight": 3, "auth": true },
+    { "name": "inspections", "method": "GET", "path": "/api/inspections/", "weight": 3, "auth": true }
+  ]
+}

@@ -22,6 +22,18 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+# SEC-H-01/02 — known-weak HS256 signing secrets that must never be used in a
+# production deployment. Both historical hardcoded fallbacks are listed so a
+# deploy that explicitly set either (or left SECRET_KEY unset) is caught, not
+# just the one string the earlier startup guard checked. Empty string covers an
+# explicitly-blank SECRET_KEY.
+KNOWN_WEAK_SECRET_KEYS = frozenset({
+    "",
+    "dev-secret",
+    "dev-secret-change-in-production",
+})
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -29,6 +41,8 @@ class Settings:
     public_base_url: str
 
     database_url: str
+
+    secret_key: str
 
     dev_auth_token: str
     enable_dev_auth: bool
@@ -82,6 +96,14 @@ class Settings:
         if not self.database_url:
             issues.append("DATABASE_URL is required.")
 
+        # SEC-H-01/02 — the HS256 signing secret must be a strong, non-default
+        # value in production. A weak/default secret lets anyone mint valid
+        # tokens, so this is fail-closed at startup (see app/main.py).
+        if self.is_production and self.secret_key in KNOWN_WEAK_SECRET_KEYS:
+            issues.append(
+                "SECRET_KEY must be set to a strong, non-default value in production."
+            )
+
         if self.is_production and self.enable_dev_auth:
             issues.append("ENABLE_DEV_AUTH should be false in production.")
 
@@ -109,6 +131,7 @@ def get_settings() -> Settings:
         api_prefix=os.getenv("API_PREFIX", "/api"),
         public_base_url=os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:18011").rstrip("/"),
         database_url=os.getenv("DATABASE_URL", ""),
+        secret_key=os.getenv("SECRET_KEY", "dev-secret-change-in-production"),
         dev_auth_token=os.getenv("DEV_AUTH_TOKEN", "dev-token"),
         enable_dev_auth=_bool_env("ENABLE_DEV_AUTH", False),
         portfolio_briefing_scheduler_seconds=_int_env("PORTFOLIO_BRIEFING_SCHEDULER_SECONDS", 60),
