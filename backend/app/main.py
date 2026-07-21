@@ -149,6 +149,21 @@ async def lifespan(_app: FastAPI):
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
+    # SEC-H-02 — actually invoke Settings.validate() at startup (previously only
+    # reachable via a report route). SECRET_KEY weakness is already fail-closed
+    # by the module-level guard above; remaining config issues are surfaced here
+    # so a misconfigured deployment is visible in logs rather than silent.
+    try:
+        from app.config import get_settings
+        _cfg_issues = get_settings().validate()
+        if _cfg_issues:
+            import logging
+            _log = logging.getLogger(__name__)
+            for _issue in _cfg_issues:
+                _log.error("Startup config validation: %s", _issue)
+    except Exception as _val_e:
+        import logging
+        logging.getLogger(__name__).warning("Startup config validation skipped: %s", _val_e)
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from app.services.prediction_scheduler import register_prediction_scheduler
@@ -179,12 +194,16 @@ _IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"produc
 _ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
 _ANY_PRODUCTION = _IS_PRODUCTION or _ENV in {"production", "prod"}
 _SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
-_DEFAULT_SECRET = "dev-secret-change-in-production"
 
-if _ANY_PRODUCTION and _SECRET_KEY == _DEFAULT_SECRET:
+# SEC-H-01/02 — reject ALL known-weak signing secrets (unset, "dev-secret", and
+# "dev-secret-change-in-production"), not just the one string. `core/config.py`
+# historically fell back to a different weak default that this guard missed.
+from app.config import KNOWN_WEAK_SECRET_KEYS  # noqa: E402
+
+if _ANY_PRODUCTION and _SECRET_KEY in KNOWN_WEAK_SECRET_KEYS:
     sys.exit(
-        "FATAL: SECRET_KEY is set to the default value in production environment. "
-        "Set a strong SECRET_KEY before starting."
+        "FATAL: SECRET_KEY is unset or a known-weak default value in a production "
+        "environment. Set a strong, non-default SECRET_KEY before starting."
     )
 
 # --- Production safety guard: AUTH_MODE must be an explicit decision ---
