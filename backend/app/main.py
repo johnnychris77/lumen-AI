@@ -137,11 +137,15 @@ async def lifespan(_app: FastAPI):
     # Without this, an old production `inspections` table is missing newer columns
     # and every inspection/history query 500s (surfacing as a CORS error).
     try:
-        from app.db.column_migrator import ensure_columns
+        from app.db.column_migrator import ensure_all_columns, ensure_columns
         from app.models.inspection import Inspection
         from app.models.supervisor_review import SupervisorReview
+        # Critical-path tables first (proven), then every remaining mapped table.
         ensure_columns(engine, Inspection)  # includes v1.4's `technician` column
         ensure_columns(engine, SupervisorReview)
+        # Back-fill drift on ALL mapped tables (e.g. `annotations`) so newer
+        # workflows don't 500 on an older DB that predates their columns.
+        ensure_all_columns(engine, Base)
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
