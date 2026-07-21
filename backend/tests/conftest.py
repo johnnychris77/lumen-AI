@@ -125,6 +125,7 @@ def _force_import_models():
         "app.models.council_leadership",
         "app.models.governed_action",
         "app.models.governed_object",
+        "app.models.scheduler_leader",
         "app.models.oracle_discovery",
         "app.models.shadow_validation",
         "app.models.advisory_pilot",
