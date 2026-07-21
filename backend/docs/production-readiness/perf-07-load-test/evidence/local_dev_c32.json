@@ -1,0 +1,71 @@
+{
+  "target": {
+    "base_url": "http://127.0.0.1:8077",
+    "concurrency": 32,
+    "duration_s": 15.0,
+    "warmup_s": 3.0
+  },
+  "note": "Numbers reflect the pointed-at server only. A local single-process SQLite instance is NOT production-representative.",
+  "aggregate": {
+    "requests": 5005,
+    "wall_seconds": 15.067,
+    "throughput_rps": 332.19,
+    "errors": 0,
+    "error_rate": 0.0,
+    "count": 5005,
+    "mean_ms": 96.09,
+    "p50_ms": 65.32,
+    "p90_ms": 212.76,
+    "p95_ms": 282.16,
+    "p99_ms": 424.81,
+    "max_ms": 926.52
+  },
+  "endpoints": {
+    "health": {
+      "count": 2503,
+      "mean_ms": 93.68,
+      "p50_ms": 63.25,
+      "p90_ms": 206.9,
+      "p95_ms": 282.08,
+      "p99_ms": 437.86,
+      "max_ms": 926.52,
+      "ok": 2503,
+      "errors": 0,
+      "error_rate": 0.0,
+      "status_counts": {
+        "200": 2503
+      }
+    },
+    "ready": {
+      "count": 2502,
+      "mean_ms": 98.5,
+      "p50_ms": 67.92,
+      "p90_ms": 219.32,
+      "p95_ms": 282.2,
+      "p99_ms": 420.76,
+      "max_ms": 749.3,
+      "ok": 2502,
+      "errors": 0,
+      "error_rate": 0.0,
+      "status_counts": {
+        "200": 2502
+      }
+    }
+  },
+  "scenario": [
+    {
+      "name": "health",
+      "method": "GET",
+      "path": "/health",
+      "weight": 1,
+      "auth": false
+    },
+    {
+      "name": "ready",
+      "method": "GET",
+      "path": "/ready",
+      "weight": 1,
+      "auth": false
+    }
+  ]
+}
