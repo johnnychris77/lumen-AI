@@ -343,8 +343,18 @@ class TestRepairIntegration:
 
 class TestCaseIntelligenceDashboard:
     def test_dashboard_returns_todays_cases(self):
-        case = _create_case(scheduled_start=datetime.now(timezone.utc) + timedelta(hours=1))
-        r = client.get("/api/or-connect/dashboard", headers=AUTH_OPERATOR)
+        scheduled = datetime.now(timezone.utc) + timedelta(hours=1)
+        case = _create_case(scheduled_start=scheduled)
+        # Pin the dashboard's date window to the case's own scheduled UTC date.
+        # Requesting the bare endpoint would default the window to "now's" UTC
+        # date, so a case at now+1h that crosses into the next UTC day (suite
+        # running in the last hour before midnight) would fall outside "today"
+        # and the count would be 0 — a real UTC-midnight flake. Pinning the
+        # target_date to the case's date removes all clock dependence.
+        target_date = scheduled.date().isoformat()
+        r = client.get(
+            f"/api/or-connect/dashboard?target_date={target_date}", headers=AUTH_OPERATOR
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["total_cases"] >= 1
