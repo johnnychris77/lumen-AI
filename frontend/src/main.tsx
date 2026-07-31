@@ -165,6 +165,8 @@ const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
 const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+// Public marketing site — mounted at /site/*, outside AppShell + auth guard.
+const MarketingApp = lazy(() => import("./marketing/MarketingApp"));
 const InstrumentLibraryPage = lazy(() => import("./pages/InstrumentLibraryPage"));
 const AnatomyLibraryPage = lazy(() => import("./pages/AnatomyLibraryPage"));
 const InspectionZonesPage = lazy(() => import("./pages/InspectionZonesPage"));
@@ -383,7 +385,6 @@ function App() {
     // NotificationProvider, or any component below
     <RootErrorBoundary>
       <AuthProvider>
-        <NotificationProvider>
           <BrowserRouter>
             <Routes>
               {/* Login — no AppShell */}
@@ -406,11 +407,27 @@ function App() {
                 }
               />
 
-              {/* All app routes inside AppShell — require authentication */}
+              {/* Public marketing site — no AppShell, no auth, and OUTSIDE
+                  NotificationProvider so it makes ZERO app API calls even when
+                  an authenticated visitor (token in localStorage) opens it. */}
+              <Route
+                path="/site/*"
+                element={
+                  <Page name="Marketing">
+                    <MarketingApp />
+                  </Page>
+                }
+              />
+
+              {/* All app routes inside AppShell — require authentication.
+                  NotificationProvider is mounted here (not at the app root) so
+                  its /api/analytics polling runs ONLY for the authenticated app,
+                  never for /login, /station, or the public /site tree. */}
               <Route
                 path="/*"
                 element={
                   <RequireAuth>
+                  <NotificationProvider>
                   <AppShell>
                     <Routes>
                       <Route path="/" element={<Page name="Dashboard"><Dashboard /></Page>} />
@@ -543,12 +560,12 @@ function App() {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppShell>
+                  </NotificationProvider>
                   </RequireAuth>
                 }
               />
             </Routes>
           </BrowserRouter>
-        </NotificationProvider>
       </AuthProvider>
     </RootErrorBoundary>
   );

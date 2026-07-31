@@ -158,10 +158,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { token } = useAuth();
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
 
-  // NotificationProvider wraps the whole app, including the unauthenticated
-  // /login and /station routes — skip the fetch entirely when signed out
-  // instead of firing an Authorization: Bearer (empty) request that always
-  // 401s.
+  // NotificationProvider is mounted only inside the authenticated app subtree
+  // (see main.tsx), so a token is normally present. This guard stays as a
+  // defensive no-op for the brief window between sign-out and unmount — skip
+  // the fetch when signed out instead of firing an Authorization: Bearer
+  // (empty) request that always 401s.
   const fetchAlerts = useCallback(async () => {
     if (!token) {
       // Clear the previous user's alert state on sign-out — otherwise a

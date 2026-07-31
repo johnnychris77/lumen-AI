@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LumenAI — Clinical Inspection Intelligence for Sterile Processing</title>
+    <meta
+      name="description"
+      content="LumenAI is a vendor-neutral decision-support and evidence-governance platform for borescope lumen inspection in Sterile Processing. Demonstration site."
+    />
+
+    <!--
+      Static, site-level social metadata so link crawlers that DON'T run the SPA
+      still get a valid card for any shared marketing URL. The client SEO helper
+      (src/marketing/lib/seo.ts) refines these per route at runtime for
+      JS-capable clients; these are the no-JS fallback defaults. og:url is left
+      relative-free intentionally — set an absolute canonical/og:url at deploy
+      time once the marketing domain is known (see DEPLOYMENT_GUIDE.md).
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LumenAI" />
+    <meta property="og:title" content="LumenAI — Clinical Inspection Intelligence for Sterile Processing" />
+    <meta property="og:description" content="A vendor-neutral decision-support and evidence-governance platform for borescope lumen inspection. Demonstration site — not for clinical use." />
+    <meta property="og:image" content="/site/social-card.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LumenAI — Clinical Inspection Intelligence for Sterile Processing" />
+    <meta name="twitter:description" content="A vendor-neutral decision-support and evidence-governance platform for borescope lumen inspection. Demonstration site — not for clinical use." />
+    <meta name="twitter:image" content="/site/social-card.svg" />
+
+    <!--
+      Standalone marketing-site entry, served at the DOMAIN ROOT ("/") on a
+      dedicated marketing domain. This is a separate HTML entry from the app's
+      index.html: it loads only the public marketing bundle (no app, no auth,
+      no API client). Built via `npm run build:site`.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/marketing/standalone.tsx"></script>
+  </body>
+</html>
