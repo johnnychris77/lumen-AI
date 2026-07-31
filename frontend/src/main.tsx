@@ -165,6 +165,8 @@ const ROICenterPage = lazy(() => import("./pages/ROICenterPage"));
 const SubscriptionReadinessPage = lazy(() => import("./pages/SubscriptionReadinessPage"));
 const DashboardApp = lazy(() => import("./pages/DashboardApp"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+// Public marketing site — mounted at /site/*, outside AppShell + auth guard.
+const MarketingApp = lazy(() => import("./marketing/MarketingApp"));
 const InstrumentLibraryPage = lazy(() => import("./pages/InstrumentLibraryPage"));
 const AnatomyLibraryPage = lazy(() => import("./pages/AnatomyLibraryPage"));
 const InspectionZonesPage = lazy(() => import("./pages/InspectionZonesPage"));
@@ -402,6 +404,16 @@ function App() {
                 element={
                   <Page name="Station">
                     <StationPage />
+                  </Page>
+                }
+              />
+
+              {/* Public marketing site — no AppShell, no authentication */}
+              <Route
+                path="/site/*"
+                element={
+                  <Page name="Marketing">
+                    <MarketingApp />
                   </Page>
                 }
               />

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="LumenAI social preview">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eef2ff"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#eef2ff"/>
+      <stop offset="70%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g transform="translate(96,150)">
+    <circle cx="70" cy="70" r="64" fill="none" stroke="#4f46e5" stroke-width="6"/>
+    <circle cx="70" cy="70" r="30" fill="url(#core)"/>
+    <text x="170" y="60" font-family="Segoe UI, Arial, sans-serif" font-size="64" font-weight="800" fill="#0f172a">Lumen<tspan fill="#4f46e5">AI</tspan></text>
+    <text x="172" y="120" font-family="Segoe UI, Arial, sans-serif" font-size="30" fill="#475569">Inspection · Evidence · Decision support</text>
+  </g>
+  <text x="96" y="400" font-family="Segoe UI, Arial, sans-serif" font-size="52" font-weight="700" fill="#0f172a">See what traditional inspection cannot.</text>
+  <text x="96" y="460" font-family="Segoe UI, Arial, sans-serif" font-size="28" fill="#475569">Structured, traceable, reviewable evidence for lumened medical instruments.</text>
+  <text x="96" y="560" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#94a3b8">Decision support with human review — not autonomous diagnosis.</text>
+</svg>
