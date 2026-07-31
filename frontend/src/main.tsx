@@ -385,7 +385,6 @@ function App() {
     // NotificationProvider, or any component below
     <RootErrorBoundary>
       <AuthProvider>
-        <NotificationProvider>
           <BrowserRouter>
             <Routes>
               {/* Login — no AppShell */}
@@ -408,7 +407,9 @@ function App() {
                 }
               />
 
-              {/* Public marketing site — no AppShell, no authentication */}
+              {/* Public marketing site — no AppShell, no auth, and OUTSIDE
+                  NotificationProvider so it makes ZERO app API calls even when
+                  an authenticated visitor (token in localStorage) opens it. */}
               <Route
                 path="/site/*"
                 element={
@@ -418,11 +419,15 @@ function App() {
                 }
               />
 
-              {/* All app routes inside AppShell — require authentication */}
+              {/* All app routes inside AppShell — require authentication.
+                  NotificationProvider is mounted here (not at the app root) so
+                  its /api/analytics polling runs ONLY for the authenticated app,
+                  never for /login, /station, or the public /site tree. */}
               <Route
                 path="/*"
                 element={
                   <RequireAuth>
+                  <NotificationProvider>
                   <AppShell>
                     <Routes>
                       <Route path="/" element={<Page name="Dashboard"><Dashboard /></Page>} />
@@ -555,12 +560,12 @@ function App() {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppShell>
+                  </NotificationProvider>
                   </RequireAuth>
                 }
               />
             </Routes>
           </BrowserRouter>
-        </NotificationProvider>
       </AuthProvider>
     </RootErrorBoundary>
   );

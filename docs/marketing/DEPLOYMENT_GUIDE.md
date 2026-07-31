@@ -85,14 +85,20 @@ npm ci
 npm run build:site
 ```
 
-Output is `frontend/dist-site/` and contains **only** these four entries:
+Output is `frontend/dist-site/`, containing:
 - `index.html` at the root (the `build:site` postbuild step renames the Vite
   entry `marketing.html` → `index.html`).
 - `assets/` — hashed JS/CSS under `/assets/…` with **root-relative** paths
   (verified: no `/site/` prefix in the standalone bundle).
 - `site/` — the only public assets the marketing pages reference
   (`social-card.svg`, `lumenai-explainer.vtt`).
-- `_redirects` — an SPA catch-all (`/*  /index.html  200`), written automatically.
+- `_redirects` — an SPA catch-all (`/*  /index.html  200`), written automatically
+  (used by Netlify/Render/Cloudflare Pages).
+- `404.html` — a copy of `index.html`, written automatically, so hosts that do
+  **not** read `_redirects` (notably GitHub Pages) still resolve deep links and
+  hard refreshes instead of 404ing.
+- `robots.txt` / `sitemap.xml` — copied automatically **if** you place them in
+  `frontend/public/` before building (see the robots/sitemap section below).
 
 Internal links are rooted at `/` (e.g. `/workflow`, `/contact`), because the
 standalone build defines `__MARKETING_BASE__ = ""`.
@@ -123,6 +129,9 @@ refresh / direct link 404s.
 
 - **Netlify / Render / Cloudflare Pages:** already handled — the build writes
   `dist-site/_redirects` with `/*  /index.html  200`. No action needed.
+- **GitHub Pages:** already handled — the build writes `dist-site/404.html` (a
+  copy of `index.html`). Pages serves `404.html` for unknown paths, so client
+  routes resolve. No action needed (Pages ignores `_redirects`).
 - **nginx:** `location / { try_files $uri $uri/ /index.html; }`
 - **Vercel:** add a rewrite `{ "source": "/(.*)", "destination": "/index.html" }`.
 - **S3 + CloudFront:** set the custom error response for 403/404 → `/index.html`
@@ -140,16 +149,24 @@ so no app connection is required for the site to function.
 
 On a dedicated domain the public paths are root-relative (no `/site` prefix):
 `/`, `/problem`, `/workflow`, `/platform`, `/architecture`, `/security`,
-`/use-cases`, `/video`, `/about`, `/contact`. Add `robots.txt` and `sitemap.xml`
-built for **that** domain (see the next section for the `/site`-prefixed variant
-used by the in-app deploy).
+`/use-cases`, `/video`, `/about`, `/contact`. Create `robots.txt` and
+`sitemap.xml` for **that** domain and drop them in `frontend/public/` before
+running `npm run build:site` — the postbuild step copies both into
+`dist-site/` root automatically (they are **not** committed, so they never
+override a host-level config unless you add them). Use the standalone,
+root-relative form:
 
-`robots.txt` (standalone domain):
+`frontend/public/robots.txt` (standalone domain):
 ```
 User-agent: *
 Allow: /
 Sitemap: https://YOUR_MARKETING_DOMAIN/sitemap.xml
 ```
+
+`frontend/public/sitemap.xml` — list the root-relative public routes for the
+standalone domain (`/`, `/problem`, `/workflow`, `/platform`, `/architecture`,
+`/security`, `/use-cases`, `/video`, `/about`, `/contact`). Do not include any
+authenticated app route.
 
 ### What still requires your input to go live
 

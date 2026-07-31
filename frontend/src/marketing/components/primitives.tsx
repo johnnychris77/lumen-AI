@@ -40,16 +40,26 @@ export function SectionHeading({
   title,
   intro,
   center,
+  as = "h2",
 }: {
   eyebrow?: string;
   title: string;
   intro?: string;
   center?: boolean;
+  /**
+   * Heading level for the title. Defaults to "h2" for in-page section titles.
+   * Pass "h1" on the FIRST heading of a route so every page has exactly one
+   * top-level heading (accessibility + the one-h1-per-page rule in
+   * docs/marketing/WEBSITE_OVERVIEW.md). The HomePage hero already renders its
+   * own h1, so its SectionHeadings stay h2.
+   */
+  as?: "h1" | "h2";
 }) {
+  const Heading = as;
   return (
     <div className={`${center ? "mx-auto max-w-2xl text-center" : "max-w-3xl"} mb-10`}>
       {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-      <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
+      <Heading className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</Heading>
       {intro ? <p className="mt-4 text-base leading-relaxed text-slate-600">{intro}</p> : null}
     </div>
   );

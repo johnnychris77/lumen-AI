@@ -192,6 +192,7 @@ export function ProblemPage() {
     <>
       <Section>
         <SectionHeading
+          as="h1"
           eyebrow="The problem"
           title="Inspection evidence is hard to standardize, compare, review, and trace."
           intro="These are structural challenges in how internal-channel inspection evidence is captured and used today. LumenAI is built to address the evidence and workflow layer — responsibly, and without overstating outcomes."
@@ -232,6 +233,7 @@ export function WorkflowPage() {
     <>
       <Section>
         <SectionHeading
+          as="h1"
           eyebrow="How it works"
           title="Ten steps from instrument to governed evidence."
           intro="Automated analysis, human review, baseline comparison, evidence governance, and reporting are distinct, labeled stages — never blurred together."
@@ -274,6 +276,7 @@ export function PlatformPage() {
     <>
       <Section>
         <SectionHeading
+          as="h1"
           eyebrow="Platform"
           title="Capabilities, labeled honestly."
           intro="Each capability is tagged by maturity so you always know what is in the product today, what is demonstrated with simulated data, and what is concept stage."
@@ -342,6 +345,7 @@ export function ArchitecturePage() {
     <>
       <Section>
         <SectionHeading
+          as="h1"
           eyebrow="AI architecture"
           title="Specialists that assist — never decide alone."
           intro="LumenAI composes focused specialists, each with a narrow purpose. Descriptions here follow the platform's own specialist catalog, including where a name is infrastructure or a sub-capability rather than a standalone agent."
@@ -386,6 +390,7 @@ export function SecurityPage() {
     <>
       <Section>
         <SectionHeading
+          as="h1"
           eyebrow="Security & governance"
           title="Designed with healthcare security, traceability, and governance principles in mind."
           intro="The controls below describe how the platform is built. They are engineering and governance controls — not regulatory certifications."
@@ -425,7 +430,7 @@ export function UseCasesPage() {
   });
   return (
     <Section>
-      <SectionHeading eyebrow="Use cases" title="Where LumenAI fits into real workflows." intro="Illustrative scenarios across roles. Examples avoid patient-specific or regulatory guarantees." />
+      <SectionHeading as="h1" eyebrow="Use cases" title="Where LumenAI fits into real workflows." intro="Illustrative scenarios across roles. Examples avoid patient-specific or regulatory guarantees." />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {USE_CASES.map((u) => (
           <div key={u.title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -452,6 +457,7 @@ export function VideoPage() {
     <>
       <Section>
         <SectionHeading
+          as="h1"
           eyebrow="Explainer video"
           title="Better visibility. Better evidence. Better decisions."
           intro="A storyboard-based preview stands in for the finished ~110-second explainer. Step through each scene to see the on-screen text, narration, animation direction, and timing. The full script, storyboard, and captions ship in the repository."
@@ -485,7 +491,7 @@ export function AboutPage() {
   return (
     <>
       <Section>
-        <SectionHeading eyebrow="About" title="Turning inspection into evidence — and evidence into intelligence." intro="LumenAI exists to help teams inspect what is hardest to see and to make the resulting evidence structured, comparable, and reviewable." />
+        <SectionHeading as="h1" eyebrow="About" title="Turning inspection into evidence — and evidence into intelligence." intro="LumenAI exists to help teams inspect what is hardest to see and to make the resulting evidence structured, comparable, and reviewable." />
         <ul className="grid gap-3 sm:grid-cols-2">
           {pillars.map((p) => (
             <li key={p} className="flex gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -521,6 +527,7 @@ export function ContactPage() {
       <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr]">
         <div>
           <SectionHeading
+            as="h1"
             eyebrow="Get in touch"
             title="Request a demonstration or discuss a pilot."
             intro="Tell us a little about your organization and what you're interested in. We'll follow up to schedule time."
