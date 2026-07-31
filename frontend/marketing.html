@@ -13,19 +13,21 @@
       Static, site-level social metadata so link crawlers that DON'T run the SPA
       still get a valid card for any shared marketing URL. The client SEO helper
       (src/marketing/lib/seo.ts) refines these per route at runtime for
-      JS-capable clients; these are the no-JS fallback defaults. og:url is left
-      relative-free intentionally — set an absolute canonical/og:url at deploy
-      time once the marketing domain is known (see DEPLOYMENT_GUIDE.md).
+      JS-capable clients; these are the no-JS fallback defaults. Absolute URLs
+      are pinned to the marketing domain (www.lumenai.org); if you deploy to a
+      different domain, update these five absolute references.
     -->
+    <link rel="canonical" href="https://www.lumenai.org/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="LumenAI" />
+    <meta property="og:url" content="https://www.lumenai.org/" />
     <meta property="og:title" content="LumenAI — Clinical Inspection Intelligence for Sterile Processing" />
     <meta property="og:description" content="A vendor-neutral decision-support and evidence-governance platform for borescope lumen inspection. Demonstration site — not for clinical use." />
-    <meta property="og:image" content="/site/social-card.svg" />
+    <meta property="og:image" content="https://www.lumenai.org/site/social-card.svg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="LumenAI — Clinical Inspection Intelligence for Sterile Processing" />
     <meta name="twitter:description" content="A vendor-neutral decision-support and evidence-governance platform for borescope lumen inspection. Demonstration site — not for clinical use." />
-    <meta name="twitter:image" content="/site/social-card.svg" />
+    <meta name="twitter:image" content="https://www.lumenai.org/site/social-card.svg" />
 
     <!--
       Standalone marketing-site entry, served at the DOMAIN ROOT ("/") on a

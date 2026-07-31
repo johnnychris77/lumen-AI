@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sitemap for the STANDALONE marketing domain (www.lumenai.org). Root-relative
+  public routes only — no authenticated application routes are listed. Copied
+  into dist-site/ by the build:site postbuild step.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.lumenai.org/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.lumenai.org/problem</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.lumenai.org/workflow</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.lumenai.org/platform</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.lumenai.org/architecture</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.lumenai.org/security</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.lumenai.org/use-cases</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.lumenai.org/video</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.lumenai.org/about</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.lumenai.org/contact</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+</urlset>
