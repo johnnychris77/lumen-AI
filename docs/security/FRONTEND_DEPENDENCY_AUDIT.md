@@ -55,9 +55,18 @@ Execution Before 400 Response.** High. Affects `react-router` core
 3. **Downgrade to `react-router-dom@7.11.0`.** Clears the gate but is regressive
    and reintroduces older bugs. **Not recommended.**
 
-## Recommendation
+## Decision (implemented)
 
-Land the postcss + react-router-dom 7.18.2 bumps now (real, validated risk
-reduction), then adopt **Option 1** (documented allow-list of
-`GHSA-qwww-vcr4-c8h2`) unless/until a react-router v8 migration is scheduled.
-Re-evaluate when a `react-router-dom` 8.x (or a backported 7.x patch) ships.
+**Option 1 adopted.** The blocking `npm audit --audit-level=high` step in
+`.github/workflows/security-baseline.yml` now runs
+`frontend/scripts/audit-allowlist.mjs`, which fails on any high/critical
+advisory **except** the explicitly triaged `GHSA-qwww-vcr4-c8h2`, keeping the
+gate strict for every other advisory (including any newly-published one). This
+mirrors the repo's existing documented-exception pattern
+(`pip-audit --ignore-vuln PYSEC-2022-42969` in `deploy.yml`).
+
+The allow-list lives in one place (`audit-allowlist.mjs`) with the justification
+inline. **Remove the entry** and let the strict gate reassert itself once a
+`react-router-dom` 8.x (or a backported 7.x patch) ships, or once a react-router
+v7→v8 migration lands. Until then this advisory is an accepted, documented risk
+because the vulnerable RSC/server mode is not used by this client SPA.

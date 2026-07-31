@@ -79,9 +79,14 @@ jobs:
         run: |
           npm run build
 
-      - name: NPM dependency audit
+      - name: NPM dependency audit (high; documented allow-list)
+        # Fails on any high/critical advisory EXCEPT those explicitly triaged as
+        # inapplicable in frontend/scripts/audit-allowlist.mjs (see
+        # docs/security/FRONTEND_DEPENDENCY_AUDIT.md). The gate stays strict for
+        # everything else, including any newly-published advisory. Mirrors the
+        # repo's existing `pip-audit --ignore-vuln` documented-exception pattern.
         run: |
-          npm audit --audit-level=high
+          node scripts/audit-allowlist.mjs
 
   secrets-scan:
     runs-on: ubuntu-latest
