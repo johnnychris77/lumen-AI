@@ -1,3 +1,4 @@
+import { mlink } from "../lib/base";
 /** Small, reusable presentational primitives for the marketing site. */
 import * as React from "react";
 import { Link } from "react-router-dom";
@@ -83,14 +84,14 @@ export function CtaRow({ align = "start" }: { align?: "start" | "center" }) {
   return (
     <div className={`flex flex-wrap gap-3 ${align === "center" ? "justify-center" : ""}`}>
       <Link
-        to="/site/contact"
+        to={mlink("/contact")}
         onClick={() => track("demo_request_click", { placement: "cta_row" })}
         className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-white transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
         Request a demonstration
       </Link>
       <Link
-        to="/site/workflow"
+        to={mlink("/workflow")}
         onClick={() => track("cta_click", { placement: "cta_row", target: "workflow" })}
         className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-6 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >

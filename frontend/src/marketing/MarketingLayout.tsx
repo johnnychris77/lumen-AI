@@ -1,3 +1,4 @@
+import { mlink } from "./lib/base";
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
@@ -27,7 +28,7 @@ export function MarketingLayout() {
 
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8" aria-label="Primary">
-          <Link to="/site" aria-label="LumenAI home">
+          <Link to={mlink("")} aria-label="LumenAI home">
             <Logo />
           </Link>
 
@@ -46,7 +47,7 @@ export function MarketingLayout() {
               </NavLink>
             ))}
             <Link
-              to="/site/contact"
+              to={mlink("/contact")}
               onClick={() => track("demo_request_click", { placement: "header" })}
               className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
@@ -82,7 +83,7 @@ export function MarketingLayout() {
                   {l.label}
                 </NavLink>
               ))}
-              <Link to="/site/contact" className="mt-2 block rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-white">
+              <Link to={mlink("/contact")} className="mt-2 block rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-white">
                 Request a demo
               </Link>
             </div>
@@ -120,10 +121,10 @@ export function MarketingLayout() {
           <nav aria-label="Footer — engage">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Engage</h2>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><Link to="/site/use-cases" className="text-slate-600 hover:text-primary">Use cases</Link></li>
-              <li><Link to="/site/video" className="text-slate-600 hover:text-primary">Explainer video</Link></li>
-              <li><Link to="/site/contact" className="text-slate-600 hover:text-primary">Request a demonstration</Link></li>
-              <li><Link to="/site/contact" className="text-slate-600 hover:text-primary">Discuss a pilot</Link></li>
+              <li><Link to={mlink("/use-cases")} className="text-slate-600 hover:text-primary">Use cases</Link></li>
+              <li><Link to={mlink("/video")} className="text-slate-600 hover:text-primary">Explainer video</Link></li>
+              <li><Link to={mlink("/contact")} className="text-slate-600 hover:text-primary">Request a demonstration</Link></li>
+              <li><Link to={mlink("/contact")} className="text-slate-600 hover:text-primary">Discuss a pilot</Link></li>
             </ul>
           </nav>
         </div>

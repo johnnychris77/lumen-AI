@@ -1,3 +1,4 @@
+import { mlink } from "./lib/base";
 import { Link } from "react-router-dom";
 import {
   ShieldCheck,
@@ -32,7 +33,7 @@ export function HomePage() {
     title: "LumenAI — Inspection evidence & decision support for lumened instruments",
     description:
       "LumenAI turns internal medical-instrument inspection into structured, traceable, reviewable evidence — decision support with human review, not autonomous diagnosis.",
-    path: "/site",
+    path: mlink(""),
   });
   const outcomes = [
     { icon: Eye, title: "See what inspection can't", body: "Bring internal-channel findings into one structured, reviewable record." },
@@ -91,7 +92,7 @@ export function HomePage() {
                 </li>
               ))}
             </ul>
-            <Link to="/site/problem" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-hover">
+            <Link to={mlink("/problem")} className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-hover">
               Read the full problem <ArrowRight size={14} />
             </Link>
           </Panel>
@@ -124,10 +125,10 @@ export function HomePage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3 md:justify-end">
-            <Link to="/site/security" className="inline-flex h-11 items-center rounded-md bg-white px-6 text-base font-medium text-primary hover:bg-slate-100">
+            <Link to={mlink("/security")} className="inline-flex h-11 items-center rounded-md bg-white px-6 text-base font-medium text-primary hover:bg-slate-100">
               Security & governance
             </Link>
-            <Link to="/site/workflow" className="inline-flex h-11 items-center rounded-md border border-white/40 px-6 text-base font-medium text-white hover:bg-white/10">
+            <Link to={mlink("/workflow")} className="inline-flex h-11 items-center rounded-md border border-white/40 px-6 text-base font-medium text-white hover:bg-white/10">
               How it works
             </Link>
           </div>
@@ -175,7 +176,7 @@ export function ProblemPage() {
     title: "The Problem",
     description:
       "Why internal-channel inspection is hard to standardize, compare, and trace — and what stronger inspection evidence would look like.",
-    path: "/site/problem",
+    path: mlink("/problem"),
   });
   const problems = [
     "Internal channels and lumens are difficult to inspect consistently.",
@@ -225,7 +226,7 @@ export function WorkflowPage() {
     title: "How LumenAI Works",
     description:
       "A ten-step inspection workflow: identify, capture, validate, analyze, compare with baseline, rank, route for human review, record evidence, and report.",
-    path: "/site/workflow",
+    path: mlink("/workflow"),
   });
   return (
     <>
@@ -267,7 +268,7 @@ export function PlatformPage() {
     title: "Platform Capabilities",
     description:
       "LumenAI platform capabilities — borescope review, structured records, baseline comparison, evidence integrity, review routing, audit logging, RBAC, and reporting.",
-    path: "/site/platform",
+    path: mlink("/platform"),
   });
   return (
     <>
@@ -335,7 +336,7 @@ export function ArchitecturePage() {
     title: "AI Specialist Architecture",
     description:
       "How LumenAI's AI specialists contribute analysis and decision support within strict boundaries — each with defined inputs, outputs, and what it may and may not do.",
-    path: "/site/architecture",
+    path: mlink("/architecture"),
   });
   return (
     <>
@@ -369,7 +370,7 @@ export function SecurityPage() {
     title: "Security & Governance",
     description:
       "How LumenAI approaches authentication, authorization, tenant isolation, evidence integrity, audit logging, and human oversight — designed with healthcare governance principles.",
-    path: "/site/security",
+    path: mlink("/security"),
   });
   const controls = [
     { icon: KeyRound, title: "Authentication", body: "Token-based authentication gates access to the platform." },
@@ -420,7 +421,7 @@ export function UseCasesPage() {
     title: "Use Cases",
     description:
       "How sterile processing, infection prevention, quality, risk, and executive teams can use LumenAI — from routine inspection to audit preparation and multi-site trend review.",
-    path: "/site/use-cases",
+    path: mlink("/use-cases"),
   });
   return (
     <Section>
@@ -445,7 +446,7 @@ export function VideoPage() {
     title: "Explainer Video",
     description:
       "A 90-second explainer concept for LumenAI — storyboard-based interactive preview, plus the full narration script, scene-by-scene storyboard, and captions.",
-    path: "/site/video",
+    path: mlink("/video"),
   });
   return (
     <>
@@ -472,7 +473,7 @@ export function AboutPage() {
     title: "About the Product",
     description:
       "The vision behind LumenAI — improving visibility into difficult-to-inspect instruments and turning isolated inspection findings into usable operational intelligence.",
-    path: "/site/about",
+    path: mlink("/about"),
   });
   const pillars = [
     "Improving visibility into difficult-to-inspect instruments.",
@@ -498,7 +499,7 @@ export function AboutPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold sm:text-3xl">Let&apos;s talk about a pilot.</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/85">See the workflow, discuss a pilot, or join the product-validation program.</p>
-          <Link to="/site/contact" className="mt-6 inline-flex h-11 items-center rounded-md bg-white px-6 text-base font-medium text-primary hover:bg-slate-100">
+          <Link to={mlink("/contact")} className="mt-6 inline-flex h-11 items-center rounded-md bg-white px-6 text-base font-medium text-primary hover:bg-slate-100">
             Contact the LumenAI team
           </Link>
         </div>
@@ -513,7 +514,7 @@ export function ContactPage() {
     title: "Request a Demonstration",
     description:
       "Request a LumenAI demonstration, discuss a pilot, or join the product-validation program. Configurable, secure contact form — no PHI.",
-    path: "/site/contact",
+    path: mlink("/contact"),
   });
   return (
     <Section>
@@ -544,13 +545,13 @@ export function ContactPage() {
 
 /* ─────────────────────────── 404 ─────────────────────────── */
 export function NotFoundPage() {
-  useSeo({ title: "Page not found", description: "The page you requested does not exist.", path: "/site" });
+  useSeo({ title: "Page not found", description: "The page you requested does not exist.", path: mlink("") });
   return (
     <Section>
       <div className="mx-auto max-w-lg text-center">
         <p className="text-5xl font-extrabold text-primary">404</p>
         <h1 className="mt-3 text-xl font-semibold text-slate-900">We couldn&apos;t find that page.</h1>
-        <Link to="/site" className="mt-6 inline-flex h-11 items-center rounded-md bg-primary px-6 text-base font-medium text-white hover:bg-primary-hover">
+        <Link to={mlink("")} className="mt-6 inline-flex h-11 items-center rounded-md bg-primary px-6 text-base font-medium text-white hover:bg-primary-hover">
           Back to home
         </Link>
       </div>

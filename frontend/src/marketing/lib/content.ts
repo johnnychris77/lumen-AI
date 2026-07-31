@@ -1,3 +1,4 @@
+import { mlink } from "./base";
 /**
  * Single source of marketing copy for the public LumenAI site.
  *
@@ -270,12 +271,12 @@ export const VIDEO_SCENES: VideoScene[] = [
 ];
 
 export const NAV_LINKS = [
-  { to: "/site/problem", label: "The Problem" },
-  { to: "/site/workflow", label: "How It Works" },
-  { to: "/site/platform", label: "Platform" },
-  { to: "/site/architecture", label: "AI Architecture" },
-  { to: "/site/security", label: "Security" },
-  { to: "/site/use-cases", label: "Use Cases" },
-  { to: "/site/video", label: "Video" },
-  { to: "/site/about", label: "About" },
+  { to: mlink("/problem"), label: "The Problem" },
+  { to: mlink("/workflow"), label: "How It Works" },
+  { to: mlink("/platform"), label: "Platform" },
+  { to: mlink("/architecture"), label: "AI Architecture" },
+  { to: mlink("/security"), label: "Security" },
+  { to: mlink("/use-cases"), label: "Use Cases" },
+  { to: mlink("/video"), label: "Video" },
+  { to: mlink("/about"), label: "About" },
 ];
