@@ -11,9 +11,11 @@
  *      so it is served at the domain root.
  *   2. Copies public/site/*  (social-card.svg, lumenai-explainer.vtt) ->
  *      dist-site/site/  — the only public assets the marketing pages reference.
- *   3. Copies operator-provided root SEO files (robots.txt, sitemap.xml) from
- *      public/ if present — the standalone config disables publicDir, so these
- *      would otherwise never reach the domain root.
+ *   3. Copies root SEO files (robots.txt, sitemap.xml) into the domain root.
+ *      Source is `marketing-seo/` (marketing-only, so the app's own build never
+ *      serves the marketing sitemap), falling back to `public/` for an operator
+ *      override. The standalone config disables publicDir, so without this step
+ *      these files would never reach the domain root.
  *   4. Writes dist-site/_redirects with a single SPA catch-all so client routes
  *      (/workflow, /contact, …) fall back to index.html on hosts that read it
  *      (Netlify/Render/Cloudflare Pages).
@@ -32,6 +34,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontend = path.resolve(here, "..");
 const publicDir = path.join(frontend, "public");
+const seoDir = path.join(frontend, "marketing-seo");
 const distSite = path.join(frontend, "dist-site");
 
 // 1. marketing.html -> index.html
@@ -43,9 +46,11 @@ if (existsSync(publicSite)) {
   await cp(publicSite, path.join(distSite, "site"), { recursive: true });
 }
 
-// 3. Copy operator-provided root SEO files if they exist (publicDir is off).
+// 3. Copy root SEO files (marketing-seo/ preferred; public/ as override).
 for (const name of ["robots.txt", "sitemap.xml"]) {
-  const src = path.join(publicDir, name);
+  const src = existsSync(path.join(seoDir, name))
+    ? path.join(seoDir, name)
+    : path.join(publicDir, name);
   if (existsSync(src)) await copyFile(src, path.join(distSite, name));
 }
 

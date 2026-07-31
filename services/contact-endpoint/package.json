@@ -1,0 +1,14 @@
+{
+  "name": "lumenai-contact-endpoint",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Standalone contact/demo-request endpoint for the LumenAI marketing site. No dependencies; secrets from env only.",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

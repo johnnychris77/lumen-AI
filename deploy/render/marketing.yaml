@@ -1,0 +1,76 @@
+# Render Blueprint for the LumenAI PUBLIC MARKETING SITE + its contact endpoint.
+#
+# ⚠️  This is a SEPARATE blueprint from the repo-root `render.yaml`, which
+#     deploys the LumenAI application (API, worker, redis, app frontend, db).
+#     This file deploys ONLY the public marketing layer and changes NOTHING
+#     about the application or its infrastructure.
+#
+# Use it as its own Render Blueprint (New → Blueprint → point at this path) OR
+# copy the settings into manually-created services. Secrets are never committed:
+# values marked `sync: false` are entered once in the Render dashboard.
+# Full walkthrough: docs/marketing/DEPLOYMENT_GUIDE.md.
+
+services:
+  # ── Public marketing site (static) — served at www.lumenai.org ─────────────
+  - type: web
+    runtime: static
+    name: lumenai-marketing
+    rootDir: frontend
+    buildCommand: npm ci && npm run build:site
+    staticPublishPath: dist-site
+    pullRequestPreviewsEnabled: false
+    buildFilter:
+      paths:
+        - frontend/**
+    domains:
+      - www.lumenai.org
+    envVars:
+      # Analytics stays inert unless you set a provider (no keys in source).
+      - key: VITE_ANALYTICS_PROVIDER
+        value: none
+      # Full https URL of the contact service below, e.g.
+      # https://lumenai-contact.onrender.com — set in the dashboard AFTER the
+      # contact service first deploys. Until set, the form runs in safe MOCK
+      # mode. (Dashboard value because Render's fromService cannot compose a
+      # full URL with a path.)
+      - key: VITE_CONTACT_ENDPOINT
+        sync: false
+    # SPA fallback. dist-site/_redirects also covers this; kept here explicitly.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains; preload
+
+  # ── Contact endpoint (tiny Node web service) ───────────────────────────────
+  - type: web
+    runtime: node
+    name: lumenai-contact
+    rootDir: services/contact-endpoint
+    plan: free
+    buildCommand: npm ci
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - services/contact-endpoint/**
+    envVars:
+      - key: CONTACT_ALLOWED_ORIGIN
+        value: https://www.lumenai.org
+      # Operator-owned inbound webhook that receives submissions. REQUIRED —
+      # set in the dashboard, never commit. Until set the endpoint returns 501
+      # and the marketing form stays in mock mode.
+      - key: CONTACT_FORWARD_WEBHOOK
+        sync: false
