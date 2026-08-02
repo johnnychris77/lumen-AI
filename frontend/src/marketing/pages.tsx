@@ -239,10 +239,15 @@ export function WorkflowPage() {
           intro="Automated analysis, human review, baseline comparison, evidence governance, and reporting are distinct, labeled stages — never blurred together."
         />
         <div className="mb-6"><WorkflowLegend /></div>
+        <p className="mb-4 text-sm text-slate-500">
+          Follow the numbered stages <span className="font-semibold text-slate-700">1&nbsp;→&nbsp;10</span>,
+          top to bottom. Each stage is a distinct, labeled step — this is an assistive workflow, not an
+          autonomous decision pipeline.
+        </p>
         <WorkflowDiagram />
       </Section>
 
-      <Section tone="muted" id="demo">
+      <Section tone="muted" id="demo" className="scroll-mt-20">
         <SectionHeading
           eyebrow="Interactive demo"
           title="Walk the workflow with synthetic data."
@@ -259,6 +264,34 @@ export function WorkflowPage() {
           evidence, analysis and baseline comparison inform it, human review decides it, and the
           audit trail preserves it for reporting.
         </p>
+      </Section>
+
+      <Section tone="muted">
+        <Panel>
+          <h2 className="text-lg font-semibold text-slate-900">Human oversight is built into the workflow</h2>
+          <ul className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <li>• Automated analysis is <strong>assistive</strong> — it suggests finding categories; it does not decide.</li>
+            <li>• Uncertain or higher-risk findings <strong>route to a qualified human reviewer</strong>.</li>
+            <li>• Approved baselines are <strong>governed records</strong>, not ad-hoc comparisons.</li>
+            <li>• Final decisions remain subject to <strong>qualified human review</strong>.</li>
+            <li>• LumenAI does <strong>not</strong> replace manufacturer instructions for use (IFUs).</li>
+            <li>• LumenAI is <strong>not</strong> an autonomous clinical decision-maker.</li>
+          </ul>
+        </Panel>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a
+            href="#demo"
+            className="inline-flex h-11 items-center rounded-md bg-primary px-6 text-base font-medium text-white transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Explore the simulated inspection
+          </a>
+          <Link
+            to={mlink("/contact")}
+            className="inline-flex h-11 items-center rounded-md border border-slate-300 bg-white px-6 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Request a product demonstration
+          </Link>
+        </div>
       </Section>
     </>
   );
