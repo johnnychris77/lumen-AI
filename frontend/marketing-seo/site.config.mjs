@@ -11,7 +11,7 @@
  * No other file hard-codes the domain. To move to a different domain later,
  * edit ONLY this line (and the Render custom domain + DNS).
  */
-export const SITE_ORIGIN = "https://www.lumenai.org";
+export const SITE_ORIGIN = "https://lumenai.opsbridgesolution.com";
 
 /**
  * Public marketing routes (root-relative), used to generate sitemap.xml.

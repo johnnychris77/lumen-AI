@@ -159,12 +159,11 @@ The marketing domain is defined in **exactly one place**:
 To move to a different domain, edit `SITE_ORIGIN` in that one file and rebuild —
 nothing else in the repo hard-codes the domain.
 
-### Configured target: Render Static at `www.lumenai.org`
+### Configured target: Render Static at `lumenai.opsbridgesolution.com`
 
-This repo is pre-wired for domain **`www.lumenai.org`**, host **Render (static
-site)**, plus the recommended **contact endpoint**. Blueprint:
-`deploy/render/marketing.yaml`. You must control DNS for `lumenai.org` at its
-registrar to point the `www` record at Render (see step 4).
+This repo is pre-wired for domain **`lumenai.opsbridgesolution.com`** (a
+subdomain of a domain you own on GoDaddy), host **Render (static site)**, plus
+the recommended **contact endpoint**. Blueprint: `deploy/render/marketing.yaml`.
 
 > The actual publish still happens in your Render account + DNS — those cannot
 > be done from this repo. Steps below are copy-paste.
@@ -184,7 +183,7 @@ On `lumenai-contact`, set the one secret in the dashboard:
 - `CONTACT_FORWARD_WEBHOOK` = an inbound webhook you own (Slack incoming webhook,
   Zapier/Make catch hook, or your email service's inbound URL). **Never commit.**
   `CONTACT_ALLOWED_ORIGIN` is already pinned to
-  `https://www.lumenai.org`.
+  `https://lumenai.opsbridgesolution.com`.
 - Verify: `GET https://<contact-host>/health` → `{"ok":true,"configured":true}`.
 - Until set, the endpoint returns `501` and the form stays in mock mode.
 
@@ -192,15 +191,14 @@ On `lumenai-contact`, set the one secret in the dashboard:
 On `lumenai-marketing`, set `VITE_CONTACT_ENDPOINT` = the full contact-service
 URL (e.g. `https://lumenai-contact.onrender.com`) and redeploy (build-time var).
 
-**4. DNS for `www.lumenai.org` → Render.**
+**4. DNS on GoDaddy (subdomain → Render).**
 In Render → the static site → **Settings → Custom Domains** → add
-`www.lumenai.org`; Render shows a CNAME target (`<something>.onrender.com`). At
-the registrar/DNS host that controls `lumenai.org` → **Add record**: Type
-`CNAME`, Name/Host `www`, Value = that Render target. Render provisions TLS
-automatically once it resolves. (`www` is a subdomain, so it takes a clean
-CNAME; if you also want the bare apex `lumenai.org` to reach the site, add a
-redirect or ALIAS/ANAME per your DNS host — a plain CNAME is not allowed on the
-apex.)
+`lumenai.opsbridgesolution.com`; Render shows a CNAME target
+(`<something>.onrender.com`). In GoDaddy → `opsbridgesolution.com` → DNS →
+**Add record**: Type `CNAME`, Name/Host `lumenai`, Value = that Render target.
+Render provisions TLS automatically once it resolves. (A subdomain uses a clean
+CNAME; GoDaddy does not allow a CNAME on the apex, which is one reason to use the
+subdomain and leave the existing `opsbridgesolution.com` site untouched.)
 
 **5. Before linking publicly.**
 - Complete the **`PRODUCT_CLAIMS_REVIEW.md`** sign-off.
