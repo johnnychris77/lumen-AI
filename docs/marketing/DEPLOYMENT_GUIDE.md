@@ -97,9 +97,9 @@ Output is `frontend/dist-site/`, containing:
 - `404.html` — a copy of `index.html`, written automatically, so hosts that do
   **not** read `_redirects` (notably GitHub Pages) still resolve deep links and
   hard refreshes instead of 404ing.
-- `robots.txt` / `sitemap.xml` — copied automatically from
-  `frontend/marketing-seo/`. Both are committed for `www.lumenai.org`; for a
-  different domain, edit them there (see the robots/sitemap section below).
+- `robots.txt` / `sitemap.xml` — **generated** by the postbuild step from the
+  domain in `frontend/marketing-seo/site.config.mjs` (the single source of
+  truth). Change the domain there and both regenerate on the next build.
 
 Internal links are rooted at `/` (e.g. `/workflow`, `/contact`), because the
 standalone build defines `__MARKETING_BASE__ = ""`.
@@ -146,85 +146,73 @@ domain. Set this at build time via the app's public URL if/when those CTAs are
 wired to it; the shipped demo is fully self-contained (synthetic data, no API),
 so no app connection is required for the site to function.
 
-### 5. Canonical URL, robots, sitemap for the standalone domain
+### 5. Canonical URL, robots, sitemap — one source of truth
 
-On a dedicated domain the public paths are root-relative (no `/site` prefix):
-`/`, `/problem`, `/workflow`, `/platform`, `/architecture`, `/security`,
-`/use-cases`, `/video`, `/about`, `/contact`. Create `robots.txt` and
-`sitemap.xml` for **that** domain and put them in `frontend/marketing-seo/`
-before running `npm run build:site` — the postbuild step copies both into
-`dist-site/` root automatically. This repo ships both files already filled in
-for `www.lumenai.org`; edit them for a different domain. (They live in
-`marketing-seo/`, not `public/`, so the app's own build never serves the
-marketing sitemap on the app domain.) Use the standalone, root-relative form:
+The marketing domain is defined in **exactly one place**:
+`frontend/marketing-seo/site.config.mjs` (`SITE_ORIGIN` + the route list). On
+`npm run build:site`, the postbuild step:
+- replaces the `__SITE_ORIGIN__` placeholder in `marketing.html` → the built
+  `index.html` canonical / `og:url` / `og:image` / `twitter:image`;
+- **generates** `dist-site/robots.txt` (with the `Sitemap:` line); and
+- **generates** `dist-site/sitemap.xml` (absolute `<loc>` per public route).
 
-`frontend/marketing-seo/robots.txt` (standalone domain):
-```
-User-agent: *
-Allow: /
-Sitemap: https://YOUR_MARKETING_DOMAIN/sitemap.xml
-```
+To move to a different domain, edit `SITE_ORIGIN` in that one file and rebuild —
+nothing else in the repo hard-codes the domain.
 
-`frontend/marketing-seo/sitemap.xml` — list the root-relative public routes for the
-standalone domain (`/`, `/problem`, `/workflow`, `/platform`, `/architecture`,
-`/security`, `/use-cases`, `/video`, `/about`, `/contact`). Do not include any
-authenticated app route.
+### Configured target: Render Static at `lumenai.opsbridgesolution.com`
 
-### Configured target: Render Static at `www.lumenai.org`
-
-This repo now ships everything pre-wired for the chosen target — domain
-`www.lumenai.org`, host **Render (static site)**, plus the recommended
-**contact endpoint**. Canonical/OG URLs, `robots.txt`, and `sitemap.xml` are all
-built for `www.lumenai.org`. Blueprint: `deploy/render/marketing.yaml`.
+This repo is pre-wired for domain **`lumenai.opsbridgesolution.com`** (a
+subdomain of a domain you own on GoDaddy), host **Render (static site)**, plus
+the recommended **contact endpoint**. Blueprint: `deploy/render/marketing.yaml`.
 
 > The actual publish still happens in your Render account + DNS — those cannot
 > be done from this repo. Steps below are copy-paste.
 
 **1. Create the two services (Render Blueprint).**
-In Render: **New → Blueprint**, point it at this repo and the blueprint file
+In Render: **New → Blueprint**, point it at this repo and
 `deploy/render/marketing.yaml`. It creates:
-- `lumenai-marketing` — static site (`buildCommand: npm ci && npm run build:site`,
-  publish `frontend/dist-site`), with the SPA rewrite + security headers.
+- `lumenai-marketing` — **Static Site** (`npm ci && npm run build:site`, publish
+  `frontend/dist-site`), SPA rewrite + security headers. (It must be a Static
+  Site, not a Web Service — a static build has no server process; a Web Service
+  serving it returns 502.)
 - `lumenai-contact` — the Node contact endpoint (`services/contact-endpoint`).
+  This one **is** a Web Service (it runs `node server.mjs`).
 
-(Prefer clicking? Create them manually with those same settings — the blueprint
-just encodes them.)
-
-**2. Configure the contact endpoint (recommended contact path).**
+**2. Configure the contact endpoint.**
 On `lumenai-contact`, set the one secret in the dashboard:
-- `CONTACT_FORWARD_WEBHOOK` = an inbound webhook you own that should receive
-  submissions (a Slack incoming webhook, a Zapier/Make catch hook, or your email
-  service's inbound URL). **Never commit it.** `CONTACT_ALLOWED_ORIGIN` is
-  already pinned to `https://www.lumenai.org`.
+- `CONTACT_FORWARD_WEBHOOK` = an inbound webhook you own (Slack incoming webhook,
+  Zapier/Make catch hook, or your email service's inbound URL). **Never commit.**
+  `CONTACT_ALLOWED_ORIGIN` is already pinned to
+  `https://lumenai.opsbridgesolution.com`.
 - Verify: `GET https://<contact-host>/health` → `{"ok":true,"configured":true}`.
-- Until this is set, the endpoint returns `501` and the form stays in mock mode.
+- Until set, the endpoint returns `501` and the form stays in mock mode.
 
 **3. Point the form at the endpoint.**
 On `lumenai-marketing`, set `VITE_CONTACT_ENDPOINT` = the full contact-service
-URL (e.g. `https://lumenai-contact.onrender.com`) and redeploy. The form then
-switches from mock to live delivery. (It's a build-time var, so a redeploy is
-required.)
+URL (e.g. `https://lumenai-contact.onrender.com`) and redeploy (build-time var).
 
-**4. DNS for `www.lumenai.org`.**
-The blueprint declares the custom domain on `lumenai-marketing`. In Render →
-the static site → **Settings → Custom Domains**, add `www.lumenai.org`, then at
-your DNS provider add the **CNAME** Render shows (typically
-`www` → `<site>.onrender.com`). Render provisions TLS automatically. If you also
-want the apex `lumenai.org` to redirect to `www`, add it as a redirect domain.
+**4. DNS on GoDaddy (subdomain → Render).**
+In Render → the static site → **Settings → Custom Domains** → add
+`lumenai.opsbridgesolution.com`; Render shows a CNAME target
+(`<something>.onrender.com`). In GoDaddy → `opsbridgesolution.com` → DNS →
+**Add record**: Type `CNAME`, Name/Host `lumenai`, Value = that Render target.
+Render provisions TLS automatically once it resolves. (A subdomain uses a clean
+CNAME; GoDaddy does not allow a CNAME on the apex, which is one reason to use the
+subdomain and leave the existing `opsbridgesolution.com` site untouched.)
 
 **5. Before linking publicly.**
 - Complete the **`PRODUCT_CLAIMS_REVIEW.md`** sign-off.
 - Optional: set `VITE_ANALYTICS_PROVIDER` (`plausible`/`gtag`) and load that
   script yourself — no keys live in source.
 
-### Deploying to a different domain later
+### Moving to a different domain later
 
-Everything domain-specific lives in five places: `frontend/marketing.html`
-(canonical + `og:url` + `og:image`/`twitter:image`), `frontend/marketing-seo/robots.txt`
-(sitemap URL), `frontend/marketing-seo/sitemap.xml` (absolute `<loc>`s),
-`deploy/render/marketing.yaml` (`domains:` + `CONTACT_ALLOWED_ORIGIN`), and the
-contact service's `CONTACT_ALLOWED_ORIGIN`. Update those to the new host and
-rebuild.
+The domain lives in **one place**: `SITE_ORIGIN` in
+`frontend/marketing-seo/site.config.mjs` (drives canonical/OG/robots/sitemap at
+build time). When you change it, also update the two Render-side references —
+`domains:` and `CONTACT_ALLOWED_ORIGIN` in `deploy/render/marketing.yaml` (and
+the matching dashboard value on the contact service) — plus the Render custom
+domain + DNS. No other file hard-codes the domain.
 
 ## robots.txt & sitemap
 
