@@ -11,7 +11,7 @@
 # Full walkthrough: docs/marketing/DEPLOYMENT_GUIDE.md.
 
 services:
-  # ── Public marketing site (static) — served at lumenai.opsbridgesolution.com ─
+  # ── Public marketing site (static) — served at www.lumenai.org ─────────────
   - type: web
     runtime: static
     name: lumenai-marketing
@@ -22,11 +22,12 @@ services:
     buildFilter:
       paths:
         - frontend/**
-    # Custom domain. Add a GoDaddy CNAME: lumenai -> <this service>.onrender.com.
+    # Custom domain. Add a DNS CNAME: www -> <this service>.onrender.com at the
+    # registrar that controls lumenai.org.
     # The site's canonical/OG/robots/sitemap origin lives in ONE place:
     # frontend/marketing-seo/site.config.mjs — keep it in sync with this domain.
     domains:
-      - lumenai.opsbridgesolution.com
+      - www.lumenai.org
     envVars:
       # Analytics stays inert unless you set a provider (no keys in source).
       - key: VITE_ANALYTICS_PROVIDER
@@ -71,7 +72,7 @@ services:
         - services/contact-endpoint/**
     envVars:
       - key: CONTACT_ALLOWED_ORIGIN
-        value: https://lumenai.opsbridgesolution.com
+        value: https://www.lumenai.org
       # Operator-owned inbound webhook that receives submissions. REQUIRED —
       # set in the dashboard, never commit. Until set the endpoint returns 501
       # and the marketing form stays in mock mode.
