@@ -2,12 +2,11 @@
 
 **Date:** 2026-08-02
 
-1. **No JS test runner configured.** `frontend/` has `*.test.ts` files
-   (`contact.test.ts`, `workflowDemo.test.ts`) but no vitest/jest and no `test`
-   script, so they cannot execute. Adding a runner was deferred to respect the
-   "don't add dependencies unless needed / frozen architecture" constraint.
-   *Follow-up:* add vitest as a dev dependency + `"test": "vitest run"` in a
-   dedicated tooling change.
+1. **JS test runner — RESOLVED.** vitest is now a dev dependency with
+   `npm --prefix frontend test` (`vitest run`). The existing pure-logic tests run
+   green (13 passing across `contact.test.ts` + `workflowDemo.test.ts`).
+   *Remaining:* no component/DOM tests yet (would need jsdom + testing-library);
+   pure-logic coverage only.
 2. **Automated a11y/perf not scored.** axe, Lighthouse, and Playwright were not run;
    accessibility and performance findings are code-level only.
 3. **Live security headers unverified.** Headers are declared in the Render blueprint

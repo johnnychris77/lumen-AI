@@ -11,10 +11,12 @@
 | `marketing-*.css` | ~74.8 kB | ~13.4 kB |
 
 ## Observations & recommendations
-- **Charts vendor is the largest cost (137 kB gzip).** It is only used on the
-  Platform "dashboard preview" and the workflow demo report. **Recommendation
-  (non-blocking):** route/lazy-load the charts so the Home/Problem/Security/About
-  pages don't pay for it. Deferred — not required for launch.
+- **Charts code-split — DONE.** recharts/d3 (~137 kB gzip) were previously
+  eager-preloaded on every page. `DashboardPreview` is now `React.lazy`-loaded and
+  the manual `vendor-charts` chunk grouping was removed, so charts fold into an
+  async chunk that loads **only** on the Platform page. Initial critical JS drops
+  from ~204 kB → ~113 kB gzip (verified: `index.html` no longer preloads any
+  charts chunk).
 - SVG social card + WEBVTT are the only media; no large raster hero images. PASS.
 - Fonts: verify `font-display: swap` on any custom font (system stack is otherwise fine).
 - No render-blocking third-party scripts (analytics stays inert; `VITE_ANALYTICS_PROVIDER=none`).

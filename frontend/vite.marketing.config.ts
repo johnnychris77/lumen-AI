@@ -49,9 +49,10 @@ export default defineConfig({
           if (id.includes("node_modules/react-router")) {
             return "vendor-router";
           }
-          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3")) {
-            return "vendor-charts";
-          }
+          // recharts/d3 are intentionally NOT grouped into a manual vendor chunk:
+          // that hoists a modulepreload into the entry HTML and defeats the lazy
+          // boundary. Left ungrouped, they land in the async chunk created by the
+          // dynamic import of DashboardPreview (Platform page only).
         },
       },
     },

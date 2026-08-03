@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { mlink } from "./lib/base";
 import { Link } from "react-router-dom";
 import {
@@ -20,7 +21,11 @@ import { CAPABILITIES, USE_CASES } from "./lib/content";
 import { WorkflowDiagram, WorkflowLegend } from "./components/WorkflowDiagram";
 import { EvidencePathDiagram } from "./components/EvidencePathDiagram";
 import { WorkflowDemo } from "./components/WorkflowDemo";
-import { DashboardPreview } from "./components/DashboardPreview";
+// Lazy-loaded: pulls in the recharts/d3 "vendor-charts" chunk (~137 kB gzip) only
+// when the Platform page renders, so the other pages don't pay for it.
+const DashboardPreview = lazy(() =>
+  import("./components/DashboardPreview").then((m) => ({ default: m.DashboardPreview })),
+);
 import { SpecialistGrid, SpecialistBoundaries } from "./components/SpecialistArchitecture";
 import { ContactForm } from "./components/ContactForm";
 import { VideoStoryboard } from "./components/VideoStoryboard";
@@ -334,7 +339,9 @@ export function PlatformPage() {
 
       <Section tone="muted">
         <SectionHeading eyebrow="Dashboard preview" title="Operational visibility, at a glance." intro="A concept dashboard built from synthetic data to illustrate the shape of insight — inspection volume, review-required cases, finding categories, and trends." />
-        <DashboardPreview />
+        <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-slate-100" aria-hidden />}>
+          <DashboardPreview />
+        </Suspense>
       </Section>
 
       <Section>
