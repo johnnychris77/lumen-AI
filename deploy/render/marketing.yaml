@@ -38,6 +38,11 @@ services:
       # full URL with a path.)
       - key: VITE_CONTACT_ENDPOINT
         sync: false
+      # Optional: full https URL of a produced explainer MP4 (PHI-safe footage).
+      # When set, /video plays the real video (with captions) instead of the
+      # built-in animated storyboard. Leave unset to keep the storyboard.
+      - key: VITE_EXPLAINER_VIDEO_URL
+        sync: false
     # SPA fallback. dist-site/_redirects also covers this; kept here explicitly.
     routes:
       - type: rewrite
