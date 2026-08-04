@@ -14,6 +14,13 @@ import {
   ContactPage,
   NotFoundPage,
 } from "./pages";
+import {
+  PricingPage,
+  PilotProgramPage,
+  RoiPage,
+  TrustCenterPage,
+  InvestorPage,
+} from "./commercial";
 
 /**
  * Public marketing site. Mounted at `/site/*` in the app router, OUTSIDE the
@@ -32,6 +39,11 @@ export default function MarketingApp() {
         <Route path="security" element={<SecurityPage />} />
         <Route path="use-cases" element={<UseCasesPage />} />
         <Route path="executive" element={<ExecutivePage />} />
+        <Route path="pricing" element={<PricingPage />} />
+        <Route path="pilot" element={<PilotProgramPage />} />
+        <Route path="roi" element={<RoiPage />} />
+        <Route path="trust" element={<TrustCenterPage />} />
+        <Route path="investors" element={<InvestorPage />} />
         <Route path="video" element={<VideoPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="contact" element={<ContactPage />} />
