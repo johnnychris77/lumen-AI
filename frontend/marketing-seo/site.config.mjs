@@ -26,6 +26,7 @@ export const ROUTES = [
   { path: "/architecture", priority: "0.7" },
   { path: "/security", priority: "0.7" },
   { path: "/use-cases", priority: "0.7" },
+  { path: "/executive", priority: "0.8" },
   { path: "/video", priority: "0.6" },
   { path: "/about", priority: "0.6" },
   { path: "/contact", priority: "0.9" },

@@ -27,6 +27,7 @@ const DashboardPreview = lazy(() =>
   import("./components/DashboardPreview").then((m) => ({ default: m.DashboardPreview })),
 );
 import { SpecialistGrid, SpecialistBoundaries } from "./components/SpecialistArchitecture";
+import { ExecutiveExperience } from "./components/ExecutiveExperience";
 import { ContactForm } from "./components/ContactForm";
 import { VideoStoryboard } from "./components/VideoStoryboard";
 import { DemoDisclaimer } from "./components/DemoDisclaimer";
@@ -482,6 +483,41 @@ export function UseCasesPage() {
       </div>
       <div className="mt-10"><CtaRow align="start" /></div>
     </Section>
+  );
+}
+
+/* ─────────────────────────── Executive demo ─────────────────────────── */
+export function ExecutivePage() {
+  useSeo({
+    title: "Executive Demonstration",
+    description:
+      "A persona-driven executive demonstration of LumenAI — synthetic KPIs and role-based messaging for CEOs, SPD, Quality, Infection Prevention, vendors, biomed, and investors. Demonstration data only.",
+    path: mlink("/executive"),
+  });
+  return (
+    <>
+      <Section>
+        <SectionHeading
+          as="h1"
+          eyebrow="Executive demonstration"
+          title="See LumenAI through your team's eyes."
+          intro="Pick a role to reframe the same governed-evidence story around the metrics that matter to that audience. Everything here is synthetic demonstration data — no production data, no PHI, no performance claims."
+        />
+        <ExecutiveExperience />
+      </Section>
+
+      <Section tone="muted">
+        <SectionHeading
+          eyebrow="Dashboard preview"
+          title="Operational visibility, at a glance."
+          intro="A concept dashboard built from synthetic data to illustrate the shape of insight — inspection volume, review-required cases, finding categories, and trends."
+        />
+        <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-slate-100" aria-hidden />}>
+          <DashboardPreview />
+        </Suspense>
+        <div className="mt-8"><CtaRow /></div>
+      </Section>
+    </>
   );
 }
 
