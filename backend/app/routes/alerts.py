@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from openpyxl import Workbook
 
 from app.deps import get_db
 from app.db import models
+from app.enterprise_auth import get_request_tenant_id
 from app.notifications.notifier import dispatch_alert
 from app.authz import require_roles
 
@@ -185,13 +186,24 @@ def alert_events_xlsx_bytes(rows):
 
 
 @router.get("/alerts/feed")
-def alerts_feed(limit: int = 20, db: Session = Depends(get_db)):
-    rows = (
-        db.query(models.Inspection)
-        .order_by(models.Inspection.id.desc())
-        .limit(limit)
-        .all()
-    )
+def alerts_feed(
+    request: Request,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer")),
+):
+    # Tenant isolation: this feed returns raw inspection data (file names,
+    # vendors, findings, owners, notes), so it must require an authenticated
+    # identity and be scoped to the caller's tenant. Falls back to the request
+    # tenant header when the auth identity carries no tenant_id (dev-auth), so
+    # the filter below is never silently skipped for a non-admin caller.
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+
+    query = db.query(models.Inspection)
+    if getattr(current_user, "role", "") != "admin":
+        query = query.filter(models.Inspection.tenant_id == tenant_id)
+
+    rows = query.order_by(models.Inspection.id.desc()).limit(limit).all()
 
     items = []
     for r in rows:
@@ -207,15 +219,19 @@ def alerts_feed(limit: int = 20, db: Session = Depends(get_db)):
 
 @router.get("/alerts/open")
 def alerts_open(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer")),
 ):
-    rows = (
-        db.query(models.Inspection)
-        .filter(models.Inspection.alert_status != "resolved")
-        .order_by(models.Inspection.id.desc())
-        .all()
-    )
+    # Scope open alerts to the caller's tenant unless platform admin, so an
+    # authenticated viewer from one tenant cannot read another tenant's alerts.
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+
+    query = db.query(models.Inspection).filter(models.Inspection.alert_status != "resolved")
+    if getattr(current_user, "role", "") != "admin":
+        query = query.filter(models.Inspection.tenant_id == tenant_id)
+
+    rows = query.order_by(models.Inspection.id.desc()).all()
     return {"items": [alert_response(r) for r in rows]}
 
 
