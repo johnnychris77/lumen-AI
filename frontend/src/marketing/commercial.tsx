@@ -29,7 +29,7 @@ const FEATURES: { label: string; tiers: boolean[] }[] = [
   { label: "Hash-chained evidence & audit trail", tiers: [true, true, true, true, true] },
   { label: "Reports & operational dashboards", tiers: [false, true, true, true, true] },
   { label: "Multi-site governance & comparison", tiers: [false, false, true, true, true] },
-  { label: "Anonymized vendor/instrument trends", tiers: [false, false, true, true, false] },
+  { label: "Anonymized vendor/instrument trends (demonstrated with simulated data)", tiers: [false, false, true, true, false] },
   { label: "Role-based access & tenant isolation", tiers: [true, true, true, true, true] },
 ];
 
@@ -200,7 +200,7 @@ export function RoiPage() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           {field("sites", "Sites", sites, setSites)}
-          {field("volume", "Inspections / month", volume, setVolume)}
+          {field("volume", "Inspections / month (all sites)", volume, setVolume)}
           {field("instruments", "Instruments", instruments, setInstruments)}
           {field("staff", "SPD staff", staff, setStaff)}
         </div>
