@@ -130,6 +130,7 @@ export function MarketingLayout() {
           <nav aria-label="Footer — engage">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Engage</h2>
             <ul className="mt-3 space-y-2 text-sm">
+              <li><Link to={mlink("/executive")} className="text-slate-600 hover:text-primary">Executive demo</Link></li>
               <li><Link to={mlink("/use-cases")} className="text-slate-600 hover:text-primary">Use cases</Link></li>
               <li><Link to={mlink("/video")} className="text-slate-600 hover:text-primary">Explainer video</Link></li>
               <li><Link to={mlink("/contact")} className="text-slate-600 hover:text-primary">Request a demonstration</Link></li>

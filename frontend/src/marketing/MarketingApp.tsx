@@ -8,6 +8,7 @@ import {
   ArchitecturePage,
   SecurityPage,
   UseCasesPage,
+  ExecutivePage,
   VideoPage,
   AboutPage,
   ContactPage,
@@ -30,6 +31,7 @@ export default function MarketingApp() {
         <Route path="architecture" element={<ArchitecturePage />} />
         <Route path="security" element={<SecurityPage />} />
         <Route path="use-cases" element={<UseCasesPage />} />
+        <Route path="executive" element={<ExecutivePage />} />
         <Route path="video" element={<VideoPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="contact" element={<ContactPage />} />
