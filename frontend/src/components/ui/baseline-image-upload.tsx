@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { Upload, Image, X, CheckCircle2 } from "lucide-react";
+import { Upload, Image, X, CheckCircle2, Camera } from "lucide-react";
 import { Button } from "./button";
 import { Spinner } from "./spinner";
-import { useAuth, API_BASE } from "@/lib/auth";
+import { BorescopeCapturePanel } from "./borescope-capture";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 
@@ -18,6 +19,8 @@ export function BaselineImageUpload({ value, onChange, className }: BaselineImag
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<string>("");
+  // Image-source mode for the empty state: pick a source, then capture/upload.
+  const [mode, setMode] = useState<"picker" | "borescope">("picker");
 
   async function handleFile(file: File) {
     if (!file.type.startsWith("image/")) {
@@ -96,30 +99,54 @@ export function BaselineImageUpload({ value, onChange, className }: BaselineImag
             </button>
           </div>
         </div>
+      ) : mode === "borescope" ? (
+        <BorescopeCapturePanel
+          onAttach={(files) => { const f = files[0]; if (f) handleFile(f); setMode("picker"); }}
+          onCancel={() => setMode("picker")}
+        />
+      ) : uploading ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-6">
+          <Spinner className="h-6 w-6 text-blue-500" />
+          <p className="text-xs text-slate-500">Uploading…</p>
+        </div>
       ) : (
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-6 cursor-pointer hover:bg-slate-100 transition-colors"
-          onClick={() => inputRef.current?.click()}
-        >
-          {uploading ? (
-            <>
-              <Spinner className="h-6 w-6 text-blue-500" />
-              <p className="text-xs text-slate-500">Uploading…</p>
-            </>
-          ) : (
-            <>
-              <Image className="h-8 w-8 text-slate-300" />
-              <div className="text-center">
-                <p className="text-sm font-medium text-slate-600">Drop image here or click to browse</p>
-                <p className="text-xs text-slate-400 mt-0.5">JPEG, PNG, WebP · max 10 MB</p>
-              </div>
-              <Button type="button" variant="outline" size="sm" className="gap-1.5">
-                <Upload className="h-3.5 w-3.5" /> Choose File
-              </Button>
-            </>
-          )}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-slate-500">Add Baseline Image — choose image source:</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("borescope")}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:border-blue-400 hover:bg-blue-50"
+            >
+              <Camera className="h-5 w-5 text-blue-600" aria-hidden="true" /> Capture from Borescope
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:border-blue-400 hover:bg-blue-50"
+            >
+              <Upload className="h-5 w-5 text-blue-600" aria-hidden="true" /> Upload Existing Image
+            </button>
+          </div>
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-6 cursor-pointer hover:bg-slate-100 transition-colors"
+            onClick={() => inputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            aria-label="Drag and drop a baseline image here or press Enter to browse"
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
+          >
+            <Image className="h-8 w-8 text-slate-300" aria-hidden="true" />
+            <div className="text-center">
+              <p className="text-sm font-medium text-slate-600">Drag &amp; drop an image here</p>
+              <p className="text-xs text-slate-400 mt-0.5">JPEG, PNG, WebP · max 10 MB</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" className="gap-1.5">
+              <Upload className="h-3.5 w-3.5" /> Choose File
+            </Button>
+          </div>
         </div>
       )}
 

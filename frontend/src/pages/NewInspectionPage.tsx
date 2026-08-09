@@ -6,6 +6,7 @@ import DecisionEnginePanel, { type DecisionContract } from "@/components/Decisio
 import InstrumentIntelligencePanel, { InstrumentIntel } from "@/components/InstrumentIntelligencePanel";
 import GuidedCapturePanel from "@/components/GuidedCapturePanel";
 import CoverageOverridePanel from "@/components/CoverageOverridePanel";
+import { ImageAcquisition, imageAcquisitionSource } from "@/components/ui/image-acquisition";
 import { FormSection } from "@/components/ui/FormSection";
 import { RequiredLabel, FieldError } from "@/components/ui/RequiredField";
 import { StatusBanner } from "@/components/ui/StatusBanner";
@@ -234,17 +235,10 @@ const OVERRIDE_SOURCES = [
   { value: "none", label: "No Baseline — Manual Assessment Only" },
 ];
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-
 function nowDatetimeLocal() {
   return new Date().toISOString().slice(0, 16);
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function riskColor(score: number) {
   if (score >= 80) return "bg-red-600 text-white";
@@ -326,8 +320,6 @@ export default function NewInspectionPage() {
   const [barcodeScanned, setBarcodeScanned] = useState(false);
   const [noBaselineWarning, setNoBaselineWarning] = useState(false);
 
-  const inspectionInputRef = useRef<HTMLInputElement>(null);
-  const borescopeInputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
   // Bring the result/banner into view — it renders above the long form, so
@@ -395,23 +387,15 @@ export default function NewInspectionPage() {
   }
 
   // ── image handling ─────────────────────────────────────────────────────────
-
-  function handleImages(
-    e: ChangeEvent<HTMLInputElement>,
-    setter: React.Dispatch<React.SetStateAction<File[]>>
-  ) {
-    const files = Array.from(e.target.files || []);
-    const valid = files.filter((f) => f.size <= MAX_FILE_BYTES);
-    const oversized = files.filter((f) => f.size > MAX_FILE_BYTES);
-    setter((prev) => [...prev, ...valid]);
-    if (oversized.length) alert(`${oversized.length} file(s) exceed 10 MB and were skipped.`);
-    // clear image error once files added
-    if (valid.length > 0) setFieldErrors((e) => { const n = { ...e }; delete n.images; return n; });
-  }
-
-  function removeImage(index: number, setter: React.Dispatch<React.SetStateAction<File[]>>) {
-    setter((prev) => prev.filter((_, i) => i !== index));
-  }
+  // Image acquisition (source picker + borescope live capture + upload/drag-drop)
+  // is handled by the reusable <ImageAcquisition> component, which is controlled
+  // via the inspectionImages/borescopeImages state below. Clearing the "images"
+  // field error once at least one image is present:
+  useEffect(() => {
+    if (inspectionImages.length > 0 || borescopeImages.length > 0) {
+      setFieldErrors((e) => { if (!e.images) return e; const n = { ...e }; delete n.images; return n; });
+    }
+  }, [inspectionImages, borescopeImages]);
 
   // v1.2 — Image View Tagging
   function updateImageTag(f: File, patch: Partial<ImageTag>) {
@@ -474,11 +458,16 @@ export default function NewInspectionPage() {
       const hdrs = headers();
       const allImages = [...inspectionImages, ...borescopeImages];
 
-      // Step 1: Upload images first — required for AI analysis
+      // Step 1: Upload images first — required for AI analysis. Borescope
+      // captures and uploaded files travel the SAME governed endpoint; we only
+      // annotate which image source(s) were used (audit metadata, no schema
+      // change) so evidence provenance is recorded.
       let imageSha256: string | undefined;
       const fd = new FormData();
       allImages.forEach((f) => fd.append("images", f));
-      const imgRes = await apiFetch(`/api/inspections/upload-images`, { raw: true,
+      const sources = new Set(allImages.map(imageAcquisitionSource));
+      const imageSource = sources.size > 1 ? "mixed" : [...sources][0] ?? "file_upload";
+      const imgRes = await apiFetch(`/api/inspections/upload-images?image_source=${encodeURIComponent(imageSource)}`, { raw: true,
         method: "POST",
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
@@ -956,30 +945,31 @@ export default function NewInspectionPage() {
 
             <div>
               <RequiredLabel label="Inspection Images" />
-              <ImageFileInput
+              <ImageAcquisition
                 id="inspection_images"
-                label=""
+                label="Add Inspection Image"
                 files={inspectionImages}
-                inputRef={inspectionInputRef}
-                onChange={(e) => handleImages(e, setInspectionImages)}
-                onRemove={(i) => removeImage(i, setInspectionImages)}
+                onChange={setInspectionImages}
                 disabled={!canRunInspection || submitting}
+                onEvent={(name, detail) => {
+                  if (name === "camera_permission_denied" || name === "camera_unavailable") {
+                    logPilotError("upload_failure", `${name}${detail ? `:${detail}` : ""}`);
+                  }
+                }}
               />
               <FieldError message={fieldErrors.images} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Borescope Images <span className="text-slate-400 font-normal">(optional)</span></label>
-              <ImageFileInput
+              <label className="block text-sm font-medium text-gray-700">Borescope Images <span className="text-slate-400 font-normal">(optional — capture live or attach existing)</span></label>
+              <ImageAcquisition
                 id="borescope_images"
-                label=""
+                label="Add Borescope Image"
                 files={borescopeImages}
-                inputRef={borescopeInputRef}
-                onChange={(e) => handleImages(e, setBorescopeImages)}
-                onRemove={(i) => removeImage(i, setBorescopeImages)}
+                onChange={setBorescopeImages}
                 disabled={!canRunInspection || submitting}
               />
             </div>
-            <p className="text-xs text-gray-500">Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
+            <p className="text-xs text-gray-500">Capture live from the borescope or upload existing files. Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
 
             {/* Phase 15 — zones inspected (feeds the coverage engine) */}
             {anatomyZones.length > 0 && (
@@ -1662,64 +1652,6 @@ function AnalysisDetails({ analysis }: { analysis: Analysis }) {
         </div>
       </div>
 
-    </div>
-  );
-}
-
-// ─── sub-component: image file input with previews ────────────────────────────
-
-function ImageFileInput({
-  id,
-  label,
-  files,
-  inputRef,
-  onChange,
-  onRemove,
-  disabled,
-}: {
-  id: string;
-  label: string;
-  files: File[];
-  inputRef: React.RefObject<HTMLInputElement>;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  onRemove: (index: number) => void;
-  disabled?: boolean;
-}) {
-  const totalBytes = files.reduce((s, f) => s + f.size, 0);
-
-  return (
-    <div>
-      {label && <label htmlFor={id} className="block text-sm font-medium text-gray-700">{label}</label>}
-      <input
-        ref={inputRef} id={id} type="file" accept="image/*" multiple onChange={onChange} disabled={disabled}
-        className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
-      />
-      {files.length > 0 && (
-        <div className="mt-2 space-y-1">
-          <p className="text-xs text-gray-500">
-            {files.length} file{files.length !== 1 ? "s" : ""} · {formatBytes(totalBytes)} total
-          </p>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {files.map((file, i) => (
-              <div key={i} className="relative group">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="h-16 w-16 object-cover rounded border border-gray-200"
-                />
-                <button
-                  type="button"
-                  onClick={() => onRemove(i)}
-                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-xs leading-none"
-                  aria-label={`Remove ${file.name}`}
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

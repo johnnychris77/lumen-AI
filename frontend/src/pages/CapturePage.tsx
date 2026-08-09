@@ -172,9 +172,9 @@ export default function CapturePage() {
   if (!canRun) {
     return (
       <div className="p-6">
-        <h2 className="text-xl font-semibold text-slate-900">Borescope Capture</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Borescope Diagnostics</h2>
         <p className="mt-2 text-sm text-amber-700">
-          Viewer access is read-only. Ask an admin for Operator or SPD Manager access to capture inspections.
+          Viewer access is read-only. Ask an admin for Operator or SPD Manager access to run the device diagnostics.
         </p>
       </div>
     );
@@ -183,11 +183,16 @@ export default function CapturePage() {
   return (
     <div className="space-y-5 p-1">
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">Borescope Capture</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Borescope Diagnostics &amp; Device Test</h2>
         <p className="text-sm text-slate-500 mt-0.5">
-          Live capture from a connected borescope (UVC video grabber). Capture a frame and analyze it directly —
-          no phone photos, no USB drive.
+          Device diagnostics and compatibility testing for a connected borescope (UVC video grabber). Use this to
+          verify a camera source and run an end-to-end capture on a non-clinical test instrument.
         </p>
+        <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          For routine work you no longer need this page: borescope capture is now built into{" "}
+          <a href="/inspection/new" className="font-semibold underline">New Inspection</a> and the baseline image
+          uploads. Click <strong>Add Image → Capture from Borescope</strong> inside the active workflow — no context switch.
+        </div>
       </div>
 
       {/* Camera / device selector */}

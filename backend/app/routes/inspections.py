@@ -948,6 +948,7 @@ async def upload_inspection_images(
     images: List[UploadFile] = File(...),
     instrument_type: str = "unknown",
     consent: bool = False,
+    image_source: str = "",
     db: Session = Depends(get_db),
     current_user=Depends(require_inspection_runner),
 ):
@@ -963,6 +964,13 @@ async def upload_inspection_images(
 
     tenant_id = get_request_tenant_id(request)
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
+
+    # Image-source provenance (borescope_capture / file_upload / mixed). Purely
+    # additive audit metadata — the borescope and file-upload paths share this
+    # one governed endpoint, so recording which source produced a frame does not
+    # change validation, storage, or scoring. Unknown/blank values are ignored.
+    _ALLOWED_IMAGE_SOURCES = {"borescope_capture", "file_upload", "mixed"}
+    normalized_source = image_source if image_source in _ALLOWED_IMAGE_SOURCES else ""
 
     results = []
     for img in images:
@@ -999,6 +1007,8 @@ async def upload_inspection_images(
             "udi_device_id": decoded.udi_device_id,
             "decoder_backend": decoded.decoder_backend,
         }
+        if normalized_source:
+            entry["image_source"] = normalized_source
         retained = retain_image(
             db,
             data=data,
@@ -1026,7 +1036,11 @@ async def upload_inspection_images(
         action_type="inspection_image_uploaded",
         resource_type="inspection_image",
         resource_id=",".join(r["sha256"] for r in results),
-        details={"count": len(results), "instrument_type": instrument_type},
+        details={
+            "count": len(results),
+            "instrument_type": instrument_type,
+            **({"image_source": normalized_source} if normalized_source else {}),
+        },
     )
 
     return {
