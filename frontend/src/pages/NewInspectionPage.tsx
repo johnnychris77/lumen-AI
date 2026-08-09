@@ -622,7 +622,10 @@ export default function NewInspectionPage() {
         type: "error",
         message: `Could not complete AI analysis: ${detail}. Please try again.`,
       });
-      logPilotError(allImages.length > 0 ? "upload_failure" : "ai_analysis_failure", detail);
+      logPilotError(
+        inspectionImages.length + borescopeImages.length > 0 ? "upload_failure" : "ai_analysis_failure",
+        detail,
+      );
       scrollToResult();
     } finally {
       setSubmitting(false);
@@ -1370,7 +1373,7 @@ function AIPredictionPanel({
         {prediction.analysis?.clinical_decision && (
           <ClinicalDecisionPanel
             cd={prediction.analysis.clinical_decision}
-            inspectionId={prediction.id}
+            inspectionId={Number(prediction.id)}
             rawResult={prediction.analysis}
           />
         )}
