@@ -22,6 +22,8 @@ import {
   currentStep,
   reset,
 } from "../lib/workflowDemo";
+import { Link } from "react-router-dom";
+import { mlink } from "../lib/base";
 import { DemoDisclaimer } from "./DemoDisclaimer";
 import { track } from "../lib/analytics";
 
@@ -36,6 +38,16 @@ const STEP_TITLES: Record<string, string> = {
   report: "8 · Generated report",
 };
 
+// Presentation-layer labels for the SYNTHETIC demo result. These are NOT backend
+// ranking names (the product exposes dispositions such as "Supervisor Review
+// Required" + human_review_required, not a "ranking"). They are illustrative and
+// documented in docs/marketing/WORKFLOW_DEMO_CONTRACT.md.
+const RANKING_LABEL: Record<string, string> = {
+  "provisional-pass": "Provisional — no automated escalation",
+  "provisional-attention": "Provisional — flagged for reviewer attention",
+  "hold-for-review": "Held for Supervisor Review",
+};
+
 /** Synthetic borescope view. No real image — purely illustrative. */
 function BorescopeView({ image, size = 150 }: { image?: DemoImage; size?: number }) {
   const spots =
@@ -46,7 +58,18 @@ function BorescopeView({ image, size = 150 }: { image?: DemoImage; size?: number
         : [];
   const spotFill = image?.seed === "corrosion" ? "#b45309" : "#78716c";
   return (
-    <svg width={size} height={size} viewBox="0 0 150 150" role="img" aria-label={image ? image.label : "No image selected"}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 150 150"
+      role="img"
+      className="h-auto max-w-full"
+      aria-label={
+        image
+          ? `Synthetic demonstration borescope view — ${image.label}. Not a real clinical image.`
+          : "No sample image selected"
+      }
+    >
       <defs>
         <radialGradient id="lumenWall" cx="50%" cy="45%" r="60%">
           <stop offset="0%" stopColor="#334155" />
@@ -135,9 +158,22 @@ export function WorkflowDemo() {
         <DemoDisclaimer />
       </div>
 
-      {/* Progress */}
+      {/* Progress — accessible name, current/total step, exposed value, text equivalent */}
       <div className="px-4 pt-4">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+        <p className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500">
+          <span>
+            Step {state.stepIndex + 1} of {DEMO_STEPS.length}: {STEP_TITLES[step].replace(/^\d+ · /, "")}
+          </span>
+          <span aria-hidden>{pct}%</span>
+        </p>
+        <div
+          role="progressbar"
+          aria-label={`Workflow demonstration progress: step ${state.stepIndex + 1} of ${DEMO_STEPS.length}, ${STEP_TITLES[step].replace(/^\d+ · /, "")}`}
+          aria-valuenow={state.stepIndex + 1}
+          aria-valuemin={1}
+          aria-valuemax={DEMO_STEPS.length}
+          className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
+        >
           <div className="h-full rounded-full bg-primary transition-all motion-reduce:transition-none" style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -212,7 +248,7 @@ export function WorkflowDemo() {
           )}
 
           {step === "compare" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <figure className="rounded-lg border border-slate-200 p-2 text-center">
                 <BorescopeView image={state.image} size={130} />
                 <figcaption className="mt-1 text-xs font-medium text-slate-600">Current inspection</figcaption>
@@ -240,14 +276,17 @@ export function WorkflowDemo() {
                 <UserCheck size={20} className={finding.reviewRequired ? "text-warning" : "text-success"} aria-hidden />
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
-                    {finding.reviewRequired ? "Routed to human review" : "No mandatory review triggered"}
+                    {finding.reviewRequired ? "Routed to human review" : "No automated review escalation triggered"}
                   </p>
                   <p className="text-xs text-slate-600">
-                    Ranking: <span className="font-medium">{finding.ranking.replace(/-/g, " ")}</span>
+                    Provisional result: <span className="font-medium">{RANKING_LABEL[finding.ranking]}</span>
                   </p>
                 </div>
               </div>
               <p className="text-xs leading-relaxed text-slate-600">{finding.rationale}</p>
+              <p className="text-xs font-medium text-slate-700">
+                A qualified person owns the final decision — this demonstration never authorizes instrument use.
+              </p>
             </div>
           )}
 
@@ -269,25 +308,49 @@ export function WorkflowDemo() {
 
           {step === "report" && report && (
             <div className="rounded-lg border border-slate-200">
-              <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 p-3">
-                <FileText size={16} className="text-primary" aria-hidden />
-                <span className="text-sm font-semibold text-slate-900">Sample inspection report</span>
+              <div className="flex items-center gap-2 border-b border-slate-200 bg-success-subtle p-3">
+                <Check size={16} className="text-success" aria-hidden />
+                <span className="text-sm font-semibold text-slate-900">Demonstration complete — sample inspection report</span>
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2 p-3 text-sm">
                 <dt className="text-slate-500">Report ID</dt>
                 <dd className="font-mono text-xs text-slate-900">{report.reportId}</dd>
                 <dt className="text-slate-500">Instrument</dt>
-                <dd className="text-slate-900">{report.instrumentId}</dd>
+                <dd className="text-slate-900">{report.instrumentId} <span className="text-xs text-slate-400">(synthetic)</span></dd>
                 <dt className="text-slate-500">Finding</dt>
                 <dd className="text-slate-900">{report.finding.category}</dd>
+                <dt className="text-slate-500">Result type</dt>
+                <dd className="font-medium text-slate-900">Provisional (not final)</dd>
+                <dt className="text-slate-500">Result</dt>
+                <dd className="text-slate-900">{RANKING_LABEL[report.finding.ranking]}</dd>
                 <dt className="text-slate-500">Baseline</dt>
-                <dd className="text-slate-900">{report.finding.baselineMatch.replace(/-/g, " ")}</dd>
-                <dt className="text-slate-500">Ranking</dt>
-                <dd className="text-slate-900">{report.finding.ranking.replace(/-/g, " ")}</dd>
-                <dt className="text-slate-500">Human review</dt>
-                <dd className="text-slate-900">{report.finding.reviewRequired ? "required" : "not mandatory"}</dd>
+                <dd className="text-slate-900">
+                  {report.finding.baselineMatch === "match"
+                    ? "Approved baseline — consistent"
+                    : report.finding.baselineMatch === "deviation"
+                      ? "Approved baseline — deviation noted"
+                      : "No approved baseline"}
+                </dd>
+                <dt className="text-slate-500">Review routing</dt>
+                <dd className="text-slate-900">{report.finding.reviewRequired ? "Routed to human review" : "No automated escalation triggered"}</dd>
+                <dt className="text-slate-500">Evidence recorded</dt>
+                <dd className="text-slate-900">Yes — appended to demo audit trail</dd>
+                <dt className="text-slate-500">Report generated</dt>
+                <dd className="text-slate-900">Yes</dd>
               </dl>
-              <p className="border-t border-slate-200 p-3 text-[11px] font-semibold text-warning">{report.disclaimer}</p>
+              <p className="border-t border-slate-200 px-3 pt-3 text-xs font-medium text-slate-700">
+                A qualified person owns the final decision. This synthetic result does not authorize instrument use.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 p-3">
+                <Link
+                  to={mlink("/contact")}
+                  onClick={() => track("demo_request_click", { placement: "workflow_demo_report" })}
+                  className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  Request a product demonstration
+                </Link>
+                <span className="text-[11px] font-semibold text-warning">{report.disclaimer}</span>
+              </div>
             </div>
           )}
         </div>
@@ -297,26 +360,28 @@ export function WorkflowDemo() {
           <aside className="hidden justify-self-center md:block">
             <BorescopeView image={state.image} />
             <p className="mt-2 text-center text-xs text-slate-500">
-              {state.instrument ? state.instrument.id : "no instrument"}
+              {state.instrument ? `Synthetic demo instrument: ${state.instrument.id}` : "No instrument selected"}
             </p>
           </aside>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-slate-200 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4">
         <button
           type="button"
           onClick={() => setState(reset())}
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="Restart the demonstration — resets progress to step 1"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md px-3 py-2 text-sm text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <RotateCcw size={14} aria-hidden /> Restart
         </button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setState(back(state))}
             disabled={state.stepIndex === 0}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label="Go to the previous step"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <ArrowLeft size={14} aria-hidden /> Back
           </button>
@@ -324,7 +389,8 @@ export function WorkflowDemo() {
             type="button"
             onClick={goNext}
             disabled={!canAdvance(state)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            aria-label={step === "report" ? "Demonstration complete" : "Go to the next step"}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
             {step === "report" ? "Done" : "Next"} <ArrowRight size={14} aria-hidden />
           </button>

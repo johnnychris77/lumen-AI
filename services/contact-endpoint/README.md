@@ -1,7 +1,7 @@
 # LumenAI Contact Endpoint
 
 A tiny, dependency-free Node service that receives demo-request submissions from
-the public marketing site (`www.lumenai.org`) and forwards them to an
+the public marketing site (`lumenai.opsbridgesolution.com`) and forwards them to an
 operator-owned destination. It is deployed as a **separate Render Web Service**
 and is **not** part of the LumenAI application backend — it shares no database,
 auth, or PHI with the product.
@@ -19,7 +19,7 @@ destination is configured.
   `CONTACT_FORWARD_WEBHOOK` env var only.
 - **Not an open relay.** The destination is fixed by env; a submitter can't
   choose recipients. Only a bounded, validated JSON body is accepted.
-- **CORS locked** to `CONTACT_ALLOWED_ORIGIN` (default `https://www.lumenai.org`).
+- **CORS locked** to `CONTACT_ALLOWED_ORIGIN` (default `https://lumenai.opsbridgesolution.com`).
 - Honeypot (`company_website`) submissions are accepted-and-dropped.
 - Per-IP rate limiting, 16 KB body cap, and **no PII in logs** (only the
   reference id and interest category are logged).
@@ -29,7 +29,7 @@ destination is configured.
 | Var | Required | Default | Purpose |
 |---|---|---|---|
 | `PORT` | — | `8080` | Set automatically by Render. |
-| `CONTACT_ALLOWED_ORIGIN` | — | `https://www.lumenai.org` | Only origin allowed to POST. |
+| `CONTACT_ALLOWED_ORIGIN` | — | `https://lumenai.opsbridgesolution.com` | Only origin allowed to POST. |
 | `CONTACT_FORWARD_WEBHOOK` | **yes** | *(none)* | Operator-owned inbound webhook that receives the submission JSON (e.g. a Slack incoming webhook, a Zapier/Make catch hook, or your email service's inbound endpoint). Until set, the endpoint returns `501` and the site stays in mock mode. Set it in the Render dashboard — never commit it. |
 
 ## Local run

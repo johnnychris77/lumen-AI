@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { mlink } from "./lib/base";
 import { Link } from "react-router-dom";
 import {
@@ -20,8 +21,13 @@ import { CAPABILITIES, USE_CASES } from "./lib/content";
 import { WorkflowDiagram, WorkflowLegend } from "./components/WorkflowDiagram";
 import { EvidencePathDiagram } from "./components/EvidencePathDiagram";
 import { WorkflowDemo } from "./components/WorkflowDemo";
-import { DashboardPreview } from "./components/DashboardPreview";
+// Lazy-loaded: pulls in the recharts/d3 "vendor-charts" chunk (~137 kB gzip) only
+// when the Platform page renders, so the other pages don't pay for it.
+const DashboardPreview = lazy(() =>
+  import("./components/DashboardPreview").then((m) => ({ default: m.DashboardPreview })),
+);
 import { SpecialistGrid, SpecialistBoundaries } from "./components/SpecialistArchitecture";
+import { ExecutiveExperience } from "./components/ExecutiveExperience";
 import { ContactForm } from "./components/ContactForm";
 import { VideoStoryboard } from "./components/VideoStoryboard";
 import { DemoDisclaimer } from "./components/DemoDisclaimer";
@@ -239,10 +245,15 @@ export function WorkflowPage() {
           intro="Automated analysis, human review, baseline comparison, evidence governance, and reporting are distinct, labeled stages — never blurred together."
         />
         <div className="mb-6"><WorkflowLegend /></div>
+        <p className="mb-4 text-sm text-slate-500">
+          Follow the numbered stages <span className="font-semibold text-slate-700">1&nbsp;→&nbsp;10</span>,
+          top to bottom. Each stage is a distinct, labeled step — this is an assistive workflow, not an
+          autonomous decision pipeline.
+        </p>
         <WorkflowDiagram />
       </Section>
 
-      <Section tone="muted" id="demo">
+      <Section tone="muted" id="demo" className="scroll-mt-20">
         <SectionHeading
           eyebrow="Interactive demo"
           title="Walk the workflow with synthetic data."
@@ -259,6 +270,34 @@ export function WorkflowPage() {
           evidence, analysis and baseline comparison inform it, human review decides it, and the
           audit trail preserves it for reporting.
         </p>
+      </Section>
+
+      <Section tone="muted">
+        <Panel>
+          <h2 className="text-lg font-semibold text-slate-900">Human oversight is built into the workflow</h2>
+          <ul className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <li>• Automated analysis is <strong>assistive</strong> — it suggests finding categories; it does not decide.</li>
+            <li>• Uncertain or higher-risk findings <strong>route to a qualified human reviewer</strong>.</li>
+            <li>• Approved baselines are <strong>governed records</strong>, not ad-hoc comparisons.</li>
+            <li>• Final decisions remain subject to <strong>qualified human review</strong>.</li>
+            <li>• LumenAI does <strong>not</strong> replace manufacturer instructions for use (IFUs).</li>
+            <li>• LumenAI is <strong>not</strong> an autonomous clinical decision-maker.</li>
+          </ul>
+        </Panel>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a
+            href="#demo"
+            className="inline-flex h-11 items-center rounded-md bg-primary px-6 text-base font-medium text-white transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Explore the simulated inspection
+          </a>
+          <Link
+            to={mlink("/contact")}
+            className="inline-flex h-11 items-center rounded-md border border-slate-300 bg-white px-6 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Request a product demonstration
+          </Link>
+        </div>
       </Section>
     </>
   );
@@ -301,7 +340,9 @@ export function PlatformPage() {
 
       <Section tone="muted">
         <SectionHeading eyebrow="Dashboard preview" title="Operational visibility, at a glance." intro="A concept dashboard built from synthetic data to illustrate the shape of insight — inspection volume, review-required cases, finding categories, and trends." />
-        <DashboardPreview />
+        <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-slate-100" aria-hidden />}>
+          <DashboardPreview />
+        </Suspense>
       </Section>
 
       <Section>
@@ -442,6 +483,41 @@ export function UseCasesPage() {
       </div>
       <div className="mt-10"><CtaRow align="start" /></div>
     </Section>
+  );
+}
+
+/* ─────────────────────────── Executive demo ─────────────────────────── */
+export function ExecutivePage() {
+  useSeo({
+    title: "Executive Demonstration",
+    description:
+      "A persona-driven executive demonstration of LumenAI — synthetic KPIs and role-based messaging for CEOs, SPD, Quality, Infection Prevention, vendors, biomed, and investors. Demonstration data only.",
+    path: mlink("/executive"),
+  });
+  return (
+    <>
+      <Section>
+        <SectionHeading
+          as="h1"
+          eyebrow="Executive demonstration"
+          title="See LumenAI through your team's eyes."
+          intro="Pick a role to reframe the same governed-evidence story around the metrics that matter to that audience. Everything here is synthetic demonstration data — no production data, no PHI, no performance claims."
+        />
+        <ExecutiveExperience />
+      </Section>
+
+      <Section tone="muted">
+        <SectionHeading
+          eyebrow="Dashboard preview"
+          title="Operational visibility, at a glance."
+          intro="A concept dashboard built from synthetic data to illustrate the shape of insight — inspection volume, review-required cases, finding categories, and trends."
+        />
+        <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-slate-100" aria-hidden />}>
+          <DashboardPreview />
+        </Suspense>
+        <div className="mt-8"><CtaRow /></div>
+      </Section>
+    </>
   );
 }
 

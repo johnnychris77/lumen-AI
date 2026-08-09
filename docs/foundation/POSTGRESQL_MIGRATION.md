@@ -87,6 +87,56 @@ Notes:
   `backend/` (conftest honors a pre-set `DATABASE_URL` and only defaults
   to SQLite when unset).
 
+## Troubleshooting: `DATABASE_URL is not set` (and `REDIS_URL`)
+
+If the API or worker crash-loops at startup with:
+
+```
+RuntimeError: DATABASE_URL is not set
+  File ".../app/db/session.py", line 10, in <module>
+```
+
+this is **configuration, not a code bug**. `app/db/session.py` deliberately
+**fails fast** when `DATABASE_URL` is absent (it also normalizes a
+`postgres://` URL to `postgresql://` for you) — the app must never boot
+pointed at no database. Fix the environment, not the code.
+
+**On Render** (`render.yaml` wires this via `fromDatabase`), the usual causes
+and fixes:
+
+1. **The managed Postgres no longer exists.** Render's **free** PostgreSQL
+   instances are deleted ~90 days after creation, which breaks the
+   `fromDatabase` reference and leaves `DATABASE_URL` empty. Recreate the
+   database (expect it to be empty — re-run migrations, below).
+2. **The service was created outside the Blueprint**, so the `fromDatabase`
+   wiring in `render.yaml` was never applied. Either re-sync from the
+   Blueprint, or set the env var by hand.
+3. **The var was cleared.** Re-add it.
+
+Steps:
+
+- Confirm a Postgres instance exists (the `lumen-ai-db` from `render.yaml`).
+- Copy its **Internal Database URL** (`postgresql://…@dpg-…`).
+- Set `DATABASE_URL` on **both** `lumen-ai-api` **and** `lumen-ai-worker`
+  (the worker needs it too). Simplest: after the DB exists, trigger a
+  **Manual Deploy → Clear build cache & deploy** so the Blueprint's
+  `fromDatabase` reference repopulates it automatically — no hand-pasting.
+- If the database is new/empty, apply the schema before expecting the app to
+  work: `DATABASE_URL=… alembic upgrade head` from `backend/` (never
+  `create_all` in production).
+
+**`REDIS_URL` fails the same way.** `render.yaml` wires it from the
+`lumen-ai-redis` service; if that service was removed or expired, the next
+boot will complain about Redis after the database is fixed. Confirm the redis
+service exists (or set `REDIS_URL` explicitly). Likewise `OIDC_ISSUER_URL` /
+`OIDC_AUDIENCE` are `sync: false` in `render.yaml` and must be filled in the
+dashboard for `AUTH_MODE=oidc`.
+
+> This is the **application** backend (`lumen-ai-api` / `lumen-ai-worker`) — it
+> is unrelated to the public marketing site (`lumenai-marketing`) and contact
+> endpoint (`lumenai-contact`) in `deploy/render/marketing.yaml`, which have no
+> database.
+
 ## Honest limitations
 
 * The verification server was a locally spawned instance inside an

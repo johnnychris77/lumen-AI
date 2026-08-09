@@ -14,6 +14,7 @@ import {
   currentStep,
   DEMO_IMAGES,
   DEMO_INSTRUMENTS,
+  DemoState,
   reset,
 } from "./workflowDemo";
 
@@ -32,7 +33,7 @@ describe("workflow demo state machine", () => {
   });
 
   it("requires an image on the select-image step", () => {
-    let s = { ...reset(), instrument: DEMO_INSTRUMENTS[0] };
+    let s: DemoState = { ...reset(), instrument: DEMO_INSTRUMENTS[0] };
     s = advance(s); // -> select-image
     expect(canAdvance(s)).toBe(false);
     s = { ...s, image: DEMO_IMAGES[0] };

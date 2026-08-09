@@ -2,7 +2,7 @@
  * LumenAI marketing contact endpoint.
  *
  * A tiny, dependency-free Node service that receives demo-request submissions
- * from the public marketing site (www.lumenai.org) and forwards them to an
+ * from the public marketing site (lumenai.opsbridgesolution.com) and forwards them to an
  * operator-owned destination. Deployed as a separate Render Web Service — it is
  * NOT part of the frozen application backend and shares no data with it.
  *
@@ -17,7 +17,7 @@
  *
  * Env:
  *  - PORT                     (Render sets this)
- *  - CONTACT_ALLOWED_ORIGIN   e.g. https://www.lumenai.org  (default below)
+ *  - CONTACT_ALLOWED_ORIGIN   e.g. https://lumenai.opsbridgesolution.com  (default below)
  *  - CONTACT_FORWARD_WEBHOOK  operator-owned inbound webhook (Slack/Zapier/
  *                             email-service/etc.) that receives the JSON.
  *                             REQUIRED — without it the endpoint returns 501.
@@ -25,7 +25,7 @@
 import http from "node:http";
 
 const PORT = Number(process.env.PORT) || 8080;
-const ALLOWED_ORIGIN = process.env.CONTACT_ALLOWED_ORIGIN || "https://www.lumenai.org";
+const ALLOWED_ORIGIN = process.env.CONTACT_ALLOWED_ORIGIN || "https://lumenai.opsbridgesolution.com";
 const FORWARD_WEBHOOK = process.env.CONTACT_FORWARD_WEBHOOK || "";
 const MAX_BODY_BYTES = 16 * 1024;
 

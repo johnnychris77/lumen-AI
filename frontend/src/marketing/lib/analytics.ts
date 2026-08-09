@@ -17,6 +17,7 @@ export type AnalyticsEvent =
   | "video_play"
   | "demo_request_click"
   | "contact_submit"
+  | "exec_persona_select"
   | "cta_click";
 
 type Props = Record<string, string | number | boolean | undefined>;

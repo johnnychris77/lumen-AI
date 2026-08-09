@@ -38,8 +38,13 @@ export function MarketingLayout() {
                 key={l.to}
                 to={l.to}
                 className={({ isActive }) =>
-                  `text-sm font-medium transition-colors hover:text-primary ${
-                    isActive ? "text-primary" : "text-slate-600"
+                  // Active-route treatment (persistent underline + accent color, driven
+                  // by aria-current) is deliberately DISTINCT from the keyboard focus
+                  // ring below, so "current page" never reads as a focus outline.
+                  `relative rounded-sm px-0.5 py-1 text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                    isActive
+                      ? "text-primary after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-primary after:content-['']"
+                      : "text-slate-600"
                   }`
                 }
               >
@@ -75,8 +80,12 @@ export function MarketingLayout() {
                   key={l.to}
                   to={l.to}
                   className={({ isActive }) =>
-                    `block rounded-md px-3 py-2 text-sm font-medium ${
-                      isActive ? "bg-primary-subtle text-primary" : "text-slate-700 hover:bg-slate-50"
+                    // Active = filled subtle background + left accent bar (aria-current);
+                    // focus = ring. The two states remain visually separable on mobile.
+                    `block rounded-md px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${
+                      isActive
+                        ? "border-l-2 border-primary bg-primary-subtle pl-2.5 text-primary"
+                        : "text-slate-700 hover:bg-slate-50"
                     }`
                   }
                 >
@@ -121,6 +130,7 @@ export function MarketingLayout() {
           <nav aria-label="Footer — engage">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Engage</h2>
             <ul className="mt-3 space-y-2 text-sm">
+              <li><Link to={mlink("/executive")} className="text-slate-600 hover:text-primary">Executive demo</Link></li>
               <li><Link to={mlink("/use-cases")} className="text-slate-600 hover:text-primary">Use cases</Link></li>
               <li><Link to={mlink("/video")} className="text-slate-600 hover:text-primary">Explainer video</Link></li>
               <li><Link to={mlink("/contact")} className="text-slate-600 hover:text-primary">Request a demonstration</Link></li>
