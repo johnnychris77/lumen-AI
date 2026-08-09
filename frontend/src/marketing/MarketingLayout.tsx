@@ -131,6 +131,11 @@ export function MarketingLayout() {
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Engage</h2>
             <ul className="mt-3 space-y-2 text-sm">
               <li><Link to={mlink("/executive")} className="text-slate-600 hover:text-primary">Executive demo</Link></li>
+              <li><Link to={mlink("/pricing")} className="text-slate-600 hover:text-primary">Pricing</Link></li>
+              <li><Link to={mlink("/pilot")} className="text-slate-600 hover:text-primary">Pilot program</Link></li>
+              <li><Link to={mlink("/trust")} className="text-slate-600 hover:text-primary">Trust center</Link></li>
+              <li><Link to={mlink("/investors")} className="text-slate-600 hover:text-primary">For investors</Link></li>
+              <li><Link to={mlink("/roi")} className="text-slate-600 hover:text-primary">Operational estimator</Link></li>
               <li><Link to={mlink("/use-cases")} className="text-slate-600 hover:text-primary">Use cases</Link></li>
               <li><Link to={mlink("/video")} className="text-slate-600 hover:text-primary">Explainer video</Link></li>
               <li><Link to={mlink("/contact")} className="text-slate-600 hover:text-primary">Request a demonstration</Link></li>

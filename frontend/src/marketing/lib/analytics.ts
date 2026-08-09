@@ -18,6 +18,8 @@ export type AnalyticsEvent =
   | "demo_request_click"
   | "contact_submit"
   | "exec_persona_select"
+  | "pricing_interaction"
+  | "roi_calculator_use"
   | "cta_click";
 
 type Props = Record<string, string | number | boolean | undefined>;
