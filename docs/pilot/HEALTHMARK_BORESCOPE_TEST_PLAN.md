@@ -7,6 +7,15 @@ the available **Healthmark borescope** as a standard browser camera source.
 > is **not** a Healthmark certification, an official vendor integration, or any
 > regulatory clearance. LumenAI makes no such claim. The borescope is used here
 > only as a UVC-class camera input through standard web APIs.
+>
+> **Healthmark is Test Device #1**, not the platform architecture. LumenAI is
+> designed for **vendor-neutral** borescope image acquisition (see
+> `docs/architecture/IMAGE_ACQUISITION_DECISION.md`); any standards-compatible
+> borescope or camera should behave identically. Record results for each device
+> in `docs/devices/BORESCOPE_COMPATIBILITY_MATRIX.md`. The generic device logic
+> (discovery, selection, preference, capability detection, error handling) is
+> covered by automated tests in `frontend/tests/imageAcquisition.test.mts`
+> (`npm test`) using a mocked device set — no specific hardware required.
 
 ## Preconditions
 

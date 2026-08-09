@@ -94,6 +94,53 @@ scenario). It is:
 Route (`/inspection/capture`) is retained so existing links and the shared
 `/station` kiosk are unaffected.
 
+## Vendor-neutral device model
+
+LumenAI is **designed for vendor-neutral borescope image acquisition** — it
+integrates with the image *source*, never with a manufacturer's workflow. There
+is no hard-coded manufacturer name, USB VID/PID, or device label anywhere, and no
+device-specific business logic or workflow.
+
+```
+ANY COMPATIBLE BORESCOPE
+   → DEVICE / CAPTURE ADAPTER          (BorescopeAdapter)
+   → UNIFIED IMAGE ACQUISITION         (ImageAcquisition / BorescopeCapturePanel)
+   → STANDARD LUMENAI IMAGE OBJECT     (ImageAcquisitionResult)
+   → INSPECTION / BASELINE / EVIDENCE WORKFLOW
+```
+
+**Compatibility tiers** (see `docs/devices/BORESCOPE_COMPATIBILITY_MATRIX.md`):
+Tier 1 browser video devices (UVC cameras/borescopes) via MediaDevices; Tier 2
+file-based devices via first-class Upload/Drag&Drop; Tier 3 proprietary-SDK
+devices via a future `BorescopeAdapter` implementation (no workflow change);
+Tier 4 HDMI/USB capture hardware treated as Tier 1 when it presents as a camera.
+
+**Core module** `frontend/src/lib/imageAcquisition.ts` (pure, DOM-free, unit-tested):
+- `ImageAcquisitionResult` — the one standard object every source produces:
+  `{ image, sourceType, captureTimestamp, deviceType?, deviceLabel?, captureMethod, metadata? }`.
+  `sourceType` is generic (`borescope | camera | file_upload | external_capture`) —
+  never a vendor value; device manufacturer/model/label/driver metadata is
+  **optional**, populated only when a source actually provides it.
+- Generic device classification from OS labels using only industry-generic
+  descriptor words (borescope/capture/usb/integrated/virtual) — a display hint
+  only, never authoritative, never manufacturer-specific.
+- Injectable discovery (`listVideoInputs`, `requestVideoAccess`) over a
+  `MediaDevices`-like surface, so the 13 device scenarios are unit-tested with a
+  fake device set (`frontend/tests/imageAcquisition.test.mts`, `npm test` — Node's
+  built-in runner, no test-framework dependency).
+- Device-preference memory (`resolvePreferredDevice` + localStorage): remembers
+  the chosen source by id **and** label, falls back to selection if it disappears,
+  and never assumes the first camera is the borescope.
+- Capability detection (`supportedOptionalControls`): optional torch/zoom controls
+  are exposed only when the device reports them; basic capture always works without.
+
+**Adapter interface** `BorescopeAdapter` + default `MediaDevicesAdapter`
+(`frontend/src/lib/borescopeAdapter.ts`): isolates *how* frames are acquired from
+the workflow that consumes them. Adding a second standard USB borescope requires
+no code — it appears as another camera source. Only a Tier-3 proprietary device
+needs a new adapter, and even then the inspection/baseline/evidence workflow is
+untouched. Healthmark is **Test Device #1**, not the architecture.
+
 ## Alternatives considered
 
 - **Make the component upload directly.** Rejected — it would create a second

@@ -14,8 +14,10 @@ CLICK ADD IMAGE → CHOOSE SOURCE → CAPTURE OR UPLOAD → ATTACHED → CONTINU
 | Component | File | Responsibility |
 |-----------|------|----------------|
 | `ImageAcquisition` | `frontend/src/components/ui/image-acquisition.tsx` | Source picker (Borescope / Upload / Drag&Drop) + previews. Controlled, network-free. |
-| `BorescopeCapturePanel` | `frontend/src/components/ui/borescope-capture.tsx` | Live borescope/webcam capture via `getUserMedia`. Emits JPEG `File`s. |
-| `imageAcquisitionSource(file)` | (exported from `image-acquisition.tsx`) | Recovers `borescope_capture` \| `file_upload` from a file. |
+| `BorescopeCapturePanel` | `frontend/src/components/ui/borescope-capture.tsx` | Live borescope/webcam capture UI: device selection, preference memory, capability-driven controls. Emits JPEG `File`s + `ImageAcquisitionResult`. |
+| Vendor-neutral core | `frontend/src/lib/imageAcquisition.ts` | Pure, DOM-free: types (`ImageAcquisitionResult`, `SourceType`, `DeviceType`), discovery, preference resolution, capability detection, `BorescopeAdapter` interface. Unit-tested. |
+| `MediaDevicesAdapter` | `frontend/src/lib/borescopeAdapter.ts` | Default adapter (Tier 1/2/4) binding the core to `navigator.mediaDevices` + `localStorage`. |
+| `imageAcquisitionSource(file)` | (exported from `image-acquisition.tsx`) | Recovers `borescope_capture` \| `file_upload` from a file (backend `image_source` vocabulary). |
 
 ### `ImageAcquisition` props
 
@@ -71,3 +73,45 @@ always available.
 
 See `INSPECTION_IMAGE_WORKFLOW.md` and `BASELINE_IMAGE_WORKFLOW.md` for the
 end-to-end flows.
+
+## Vendor neutrality
+
+LumenAI integrates with the **image source**, never with a borescope
+manufacturer's workflow. Any device that presents as a standard video input — a
+Healthmark borescope, any third-party USB borescope, an industrial inspection
+camera, an HDMI/USB capture card, or a webcam — appears automatically as a
+selectable **Camera source** and produces the same `ImageAcquisitionResult`.
+There is no hard-coded manufacturer name, USB VID/PID, or device label, and no
+device-specific workflow. Adding a second standards-compatible borescope needs no
+code; a proprietary (Tier 3) device is added by implementing the `BorescopeAdapter`
+interface without changing the inspection/baseline/evidence workflow. See
+`docs/architecture/IMAGE_ACQUISITION_DECISION.md` and
+`docs/devices/BORESCOPE_COMPATIBILITY_MATRIX.md`.
+
+## The standard result object
+
+Every source produces an `ImageAcquisitionResult`:
+`{ image, sourceType, captureTimestamp, deviceType?, deviceLabel?, captureMethod, metadata? }`.
+`sourceType` is generic (`borescope | camera | file_upload | external_capture`).
+Device `metadata` (manufacturer/model/label/driver) is **optional** — populated
+only when a source actually provides it (standard web APIs expose only a label).
+
+## Device preference & capabilities
+
+- **Preference memory** — the chosen camera source is remembered (by id *and*
+  label) in `localStorage`; if it disappears (e.g. unplugged, id regenerated) the
+  panel falls back to the selector. The first camera is never assumed to be the
+  borescope.
+- **Capability-driven controls** — optional torch/zoom controls appear only when
+  the device reports supporting them (`track.getCapabilities()`); basic capture
+  always works without them.
+
+## Tests
+
+`frontend/tests/imageAcquisition.test.mts` (run `npm test` — Node's built-in
+runner, no test-framework dependency) covers the 13 device scenarios with a
+mocked MediaDevices set plus the pure vendor-neutral logic: single/multi camera,
+device appearing after load, permission denied/granted, device removed
+mid-preview, preferred-device resolution + label fallback, unsupported browser,
+file-upload fallback, capture failure, consecutive captures, generic
+classification (a bare brand name is not a borescope), and capability detection.

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Camera, Upload, ImageIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BorescopeCapturePanel, BORESCOPE_FILENAME_PREFIX, type BorescopeEvent } from "./borescope-capture";
+import type { ImageAcquisitionResult } from "@/lib/imageAcquisition";
 
 /**
  * ImageAcquisition — one reusable "Add Image" surface for the whole platform.
@@ -51,6 +52,8 @@ interface ImageAcquisitionProps {
   showPreviews?: boolean;
   /** Optional telemetry hook. Never receives image data or PHI. */
   onEvent?: (name: BorescopeEvent | "image_source_opened" | "file_upload_completed", detail?: string) => void;
+  /** Optional — receive the standard vendor-neutral result for a live capture. */
+  onResult?: (result: ImageAcquisitionResult) => void;
   className?: string;
   /** Stable id prefix for inputs/labels. */
   id?: string;
@@ -68,6 +71,7 @@ export function ImageAcquisition({
   disabled = false,
   showPreviews = true,
   onEvent,
+  onResult,
   className,
   id = "image-acquisition",
 }: ImageAcquisitionProps) {
@@ -117,6 +121,7 @@ export function ImageAcquisition({
         <BorescopeCapturePanel
           disabled={disabled}
           onEvent={onEvent}
+          onResult={onResult}
           onAttach={(captured) => {
             add(captured, "borescope_capture");
             if (!multiple) setMode("picker");
