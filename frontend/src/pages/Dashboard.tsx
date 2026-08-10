@@ -252,11 +252,19 @@ export default function Dashboard() {
     if (!silent) setLoading(true);
     setError("");
     try {
+      // These are passive dashboard widgets loaded on mount. Each already
+      // degrades gracefully (allSettled + per-widget `.ok` check), so a single
+      // widget's 401 must NOT tear down the session — otherwise one
+      // enterprise-gated endpoint returning 401 right after login triggers the
+      // global sign-out handler and bounces the user straight back to /login
+      // (the post-login redirect loop). signOutOn401:false keeps sign-out on the
+      // real auth path (user actions), not on background KPI reads — matching the
+      // health-probe and notification polls below/elsewhere.
       const [summaryRes, historyRes, kpiRes, capaRes] = await Promise.allSettled([
-        apiFetch(`/api/history/summary`, { raw: true, headers: hdrs }),
-        apiFetch(`/api/history?limit=10`, { raw: true, headers: hdrs }),
-        apiFetch(`/api/enterprise/findings/kpi-summary`, { raw: true, headers: hdrs }),
-        apiFetch(`/api/capa`, { raw: true, headers: hdrs }),
+        apiFetch(`/api/history/summary`, { raw: true, headers: hdrs, signOutOn401: false }),
+        apiFetch(`/api/history?limit=10`, { raw: true, headers: hdrs, signOutOn401: false }),
+        apiFetch(`/api/enterprise/findings/kpi-summary`, { raw: true, headers: hdrs, signOutOn401: false }),
+        apiFetch(`/api/capa`, { raw: true, headers: hdrs, signOutOn401: false }),
       ]);
 
       if (summaryRes.status === "fulfilled" && summaryRes.value.ok)
