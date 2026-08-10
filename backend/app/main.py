@@ -308,8 +308,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        # LumenAI captures inspection/baseline images live from a borescope
+        # (a UVC camera) via getUserMedia, so the camera must be allowed for the
+        # app's OWN origin — camera=() would block it everywhere. Everything else
+        # stays denied.
         response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+            "camera=(self), microphone=(), geolocation=(), payment=(), usb=()"
         )
         if _IS_PRODUCTION:
             response.headers["Strict-Transport-Security"] = (

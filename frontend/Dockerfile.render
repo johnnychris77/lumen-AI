@@ -10,7 +10,14 @@ COPY . .
 # With single-origin serving, the SPA calls /api on its OWN origin, so the
 # base URL is empty (relative). apiFetch handles a "" base as same-origin.
 ENV VITE_API_BASE_URL=""
-ENV VITE_AUTH_TRANSPORT="cookie"
+# Auth transport MUST match what the backend actually issues. The backend login
+# returns a bearer token in the JSON body and verifies the Authorization header;
+# it does NOT set an httpOnly session cookie yet (see the single-origin cutover
+# checklist in render.yaml). Building with cookie transport made apiFetch drop
+# the bearer header while no cookie existed, so every authenticated request 401'd
+# and the app bounced straight back to /login. Keep this "bearer" until the
+# backend login is switched to set the httpOnly cookie.
+ENV VITE_AUTH_TRANSPORT="bearer"
 RUN npm run build
 
 FROM nginx:alpine AS runtime
