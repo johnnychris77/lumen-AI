@@ -1,14 +1,13 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
-  Upload,
-  X,
   ImageIcon,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { useAuth, API_BASE } from "@/lib/auth";
+import { ImageAcquisition, imageAcquisitionSource } from "@/components/ui/image-acquisition";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 
@@ -76,114 +75,6 @@ const RISK_OPTIONS: Array<{ value: RiskLevel; label: string; color: string }> = 
   { value: "high", label: "High", color: "text-orange-700 bg-orange-50 border-orange-200" },
   { value: "critical", label: "Critical", color: "text-red-700 bg-red-50 border-red-200" },
 ];
-
-// ─── Dropzone ─────────────────────────────────────────────────────────────────
-
-function ImageDropzone({
-  label,
-  files,
-  onChange,
-  maxFiles = 10,
-}: {
-  label: string;
-  files: File[];
-  onChange: (files: File[]) => void;
-  maxFiles?: number;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
-
-  function validate(incoming: File[]): File[] {
-    const errs: string[] = [];
-    const valid: File[] = [];
-    for (const f of incoming) {
-      if (!f.type.startsWith("image/")) {
-        errs.push(`${f.name}: not an image`);
-      } else if (f.size > 10 * 1024 * 1024) {
-        errs.push(`${f.name}: exceeds 10 MB`);
-      } else {
-        valid.push(f);
-      }
-    }
-    setErrors(errs);
-    return valid;
-  }
-
-  function add(incoming: File[]) {
-    const valid = validate(incoming);
-    const next = [...files, ...valid].slice(0, maxFiles);
-    onChange(next);
-  }
-
-  function remove(idx: number) {
-    onChange(files.filter((_, i) => i !== idx));
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-slate-700">{label}</p>
-
-      {/* Drop target */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          add(Array.from(e.dataTransfer.files));
-        }}
-        onClick={() => inputRef.current?.click()}
-        className={cn(
-          "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors",
-          dragOver
-            ? "border-blue-400 bg-blue-50"
-            : "border-slate-300 bg-slate-50 hover:bg-slate-100"
-        )}
-      >
-        <Upload className="h-7 w-7 text-slate-400" />
-        <div className="text-center">
-          <p className="text-sm font-medium text-slate-600">Drop images here or click to browse</p>
-          <p className="text-xs text-slate-400 mt-0.5">JPEG, PNG, WebP · max 10 MB each · up to {maxFiles} files</p>
-        </div>
-      </div>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(e) => { if (e.target.files) add(Array.from(e.target.files)); }}
-      />
-
-      {errors.map((err, i) => (
-        <p key={i} className="text-xs text-red-600">{err}</p>
-      ))}
-
-      {/* Previews */}
-      {files.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {files.map((f, i) => {
-            const url = URL.createObjectURL(f);
-            return (
-              <div key={i} className="relative rounded-lg overflow-hidden border border-slate-200 w-20 h-20 bg-slate-50 shrink-0">
-                <img src={url} alt={f.name} className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); remove(i); }}
-                  className="absolute top-0.5 right-0.5 rounded-full bg-white/90 p-0.5 text-slate-600 hover:bg-white shadow-sm"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── Select / Field helpers ────────────────────────────────────────────────────
 
@@ -286,10 +177,13 @@ export default function InspectionImageUploadPage() {
         inspectionId = String(d?.id || d?.inspection_id || "");
       }
 
-      // Step 2: upload images
+      // Step 2: upload images — borescope captures and uploaded files share
+      // this one governed endpoint; annotate the source(s) for audit provenance.
       const fd = new FormData();
       allImages.forEach((f) => fd.append("images", f));
-      const uploadRes = await apiFetch(`/api/inspections/upload-images`, { raw: true,
+      const sources = new Set(allImages.map(imageAcquisitionSource));
+      const imageSource = sources.size > 1 ? "mixed" : [...sources][0] ?? "file_upload";
+      const uploadRes = await apiFetch(`/api/inspections/upload-images?image_source=${encodeURIComponent(imageSource)}`, { raw: true,
         method: "POST",
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
@@ -388,13 +282,15 @@ export default function InspectionImageUploadPage() {
             <CardDescription>Upload inspection and borescope images. All images are SHA-256 hashed for audit integrity.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <ImageDropzone
-              label="Inspection Images"
+            <ImageAcquisition
+              id="inspection_images"
+              label="Add Inspection Image"
               files={inspectionImages}
               onChange={setInspectionImages}
             />
-            <ImageDropzone
-              label="Borescope Images"
+            <ImageAcquisition
+              id="borescope_images"
+              label="Add Borescope Image"
               files={borescopeImages}
               onChange={setBorescopeImages}
             />

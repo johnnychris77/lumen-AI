@@ -81,7 +81,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/inspection/new", label: "New Inspection", icon: FilePlus },
-      { to: "/inspection/capture", label: "Borescope Capture", icon: Camera },
       { to: "/intake-history", label: "Inspection History", icon: History },
       { to: "/findings", label: "Review Queue", icon: ClipboardCheck },
       { to: "/analytics", label: "Inspection Analytics", icon: LineChart },
@@ -184,6 +183,11 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/users", label: "Users", icon: Users },
       { to: "/roles", label: "Roles", icon: UserCheck },
       { to: "/settings", label: "Settings", icon: Settings },
+      // Repositioned: the borescope is no longer a standalone technician
+      // workflow. Live capture is embedded wherever an image is needed (New
+      // Inspection, baseline uploads). This page is retained only as a device
+      // diagnostics / compatibility-test tool for admins/support.
+      { to: "/inspection/capture", label: "Borescope Diagnostics", icon: Camera },
     ],
   },
   {
