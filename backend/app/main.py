@@ -150,6 +150,21 @@ async def lifespan(_app: FastAPI):
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
+    # Pilot provisioning: ensure the configured admin(s) hold an enabled tenant
+    # membership so /api/enterprise/* routes (vendor/manufacturer baselines,
+    # audit KPIs) don't 403 a legitimately logged-in operator. Explicit
+    # allow-list via BOOTSTRAP_TENANT_ADMINS — never an open grant. Never fatal.
+    try:
+        from app.services.tenant_bootstrap import ensure_bootstrap_admins
+        from app.db.session import SessionLocal
+        _boot_db = SessionLocal()
+        try:
+            ensure_bootstrap_admins(_boot_db)
+        finally:
+            _boot_db.close()
+    except Exception as _boot_e:
+        import logging
+        logging.getLogger(__name__).warning("Tenant admin bootstrap skipped: %s", _boot_e)
     # SEC-H-02 — actually invoke Settings.validate() at startup (previously only
     # reachable via a report route). SECRET_KEY weakness is already fail-closed
     # by the module-level guard above; remaining config issues are surfaced here

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth, API_BASE } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { ImageAcquisition } from "@/components/ui/image-acquisition";
 
 // Must match the inspection instrument types so a baseline lines up with the
 // instrument an inspection is run against.
@@ -207,14 +208,14 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
 
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Baseline Image *</label>
-          <input
-            type="file"
-            accept={ALLOWED_TYPES.join(",")}
+          <ImageAcquisition
+            id="manufacturer_baseline_image"
+            label="Add Baseline Image"
+            multiple={false}
             disabled={!canCreate}
-            onChange={(e) => setImage(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:text-blue-700"
+            files={image ? [image] : []}
+            onChange={(files) => setImage(files[0] ?? null)}
           />
-          {image && <p className="mt-1 text-xs text-slate-500">{image.name}</p>}
         </div>
 
         <button

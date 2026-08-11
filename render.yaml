@@ -64,6 +64,13 @@ services:
       # POSTs. Pinned here; keep in sync with CORS_ORIGIN_REGEX above.
       - key: ALLOWED_ORIGINS
         value: https://lumen-ai-1.onrender.com
+      # Pilot provisioning: comma-separated admin emails auto-granted an enabled
+      # tenant_admin membership in BOOTSTRAP_TENANT_ID (default "default-tenant")
+      # at startup, so a logged-in operator isn't 403'd by /api/enterprise/*
+      # routes (vendor/manufacturer baselines, audit KPIs). Explicit allow-list
+      # only — never an open grant. Edit to match your pilot admin(s).
+      - key: BOOTSTRAP_TENANT_ADMINS
+        value: asaahj@yahoo.com
 
   - type: worker
     name: lumen-ai-worker
