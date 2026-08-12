@@ -17,18 +17,30 @@ router = APIRouter(tags=["tenant-admin"])
 class TenantMembershipPayload(BaseModel):
     user_email: str
     tenant_id: str
-    tenant_name: str
-    role_name: str = "viewer"
+    # `role` is the live model's column. `role_name` is accepted as a
+    # backward-compatible alias (older callers/docs used it). `tenant_name` is
+    # accepted-and-ignored for the same reason (the live model has no such column).
+    role: str = Field("viewer", validation_alias="role", serialization_alias="role")
+    role_name: str | None = None
+    tenant_name: str | None = None
     is_enabled: bool = True
+
+    def effective_role(self) -> str:
+        return (self.role_name or self.role or "viewer").strip() or "viewer"
 
 
 def _membership_response(row: models.TenantMembership) -> dict:
+    # Read defensively so a schema variant can't 500 the endpoint. The live
+    # model exposes `role`; `role_name`/`tenant_name` are surfaced as aliases for
+    # any client that still expects them.
+    role = getattr(row, "role", None) or getattr(row, "role_name", None) or "viewer"
     return {
         "id": row.id,
         "user_email": row.user_email,
         "tenant_id": row.tenant_id,
-        "tenant_name": row.tenant_name,
-        "role_name": row.role_name,
+        "tenant_name": getattr(row, "tenant_name", None) or row.tenant_id,
+        "role": role,
+        "role_name": role,
         "is_enabled": row.is_enabled,
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
@@ -40,16 +52,18 @@ def list_tenant_memberships(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin")),
 ):
-    # Scope to the caller's own tenant unless they are a platform-level superadmin.
-    # A platform superadmin is identified by the synthetic "platform" email suffix used
-    # by the admin dev token, or by an explicit platform_admin role if implemented.
-    actor_email = getattr(current_user, "email", "") or ""
-    is_platform_admin = actor_email.endswith("@local.dev") or actor_email == "admin@local"
+    # Scope to the caller's verified tenant(s) unless they are a platform admin.
+    # Use the principal's own membership-verified authority (never a client
+    # header or a brittle email-suffix heuristic).
+    is_platform_admin = bool(getattr(current_user, "is_platform_admin", False))
     query = db.query(models.TenantMembership)
     if not is_platform_admin:
-        caller_tenant = getattr(current_user, "tenant_id", None)
-        if caller_tenant:
-            query = query.filter(models.TenantMembership.tenant_id == caller_tenant)
+        verified = getattr(current_user, "verified_tenant_ids", lambda: frozenset())()
+        if verified:
+            query = query.filter(models.TenantMembership.tenant_id.in_(list(verified)))
+        else:
+            # No verified tenant → nothing to show (fail closed, never list all).
+            query = query.filter(models.TenantMembership.id.is_(None))
     rows = query.order_by(models.TenantMembership.id.desc()).all()
 
     actor_email = getattr(current_user, "email", None) or getattr(current_user, "username", None) or "unknown"
@@ -79,8 +93,7 @@ def create_tenant_membership(
     row = models.TenantMembership(
         user_email=payload.user_email.strip().lower(),
         tenant_id=payload.tenant_id.strip(),
-        tenant_name=payload.tenant_name.strip(),
-        role_name=payload.role_name.strip(),
+        role=payload.effective_role(),
         is_enabled=payload.is_enabled,
     )
     db.add(row)
@@ -91,7 +104,7 @@ def create_tenant_membership(
     log_audit_event(
         db,
         tenant_id=payload.tenant_id,
-        tenant_name=payload.tenant_name,
+        tenant_name=payload.tenant_id,
         actor_email=actor_email,
         actor_role="admin",
         action_type="tenant_membership_create",
@@ -125,14 +138,14 @@ def toggle_tenant_membership(
     log_audit_event(
         db,
         tenant_id=row.tenant_id,
-        tenant_name=row.tenant_name,
+        tenant_name=row.tenant_id,
         actor_email=actor_email,
         actor_role="admin",
         action_type="tenant_membership_toggle",
         resource_type="tenant_membership",
         resource_id=row.id,
         request=request,
-        details={"is_enabled": row.is_enabled, "user_email": row.user_email, "role_name": row.role_name},
+        details={"is_enabled": row.is_enabled, "user_email": row.user_email, "role": getattr(row, "role", None)},
         compliance_flag=True,
     )
 

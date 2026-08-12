@@ -134,12 +134,12 @@ def _force_import_models():
         # The following were audited and added because they were previously
         # missing from this list entirely -- they only worked by accident,
         # via incidental import ordering elsewhere in the test session (see
-        # the Council/Maestro post-implementation review). Deliberately
-        # excluded: "app.models.tenant_membership", a dead, never-imported
-        # duplicate of the real `TenantMembership` in `app/db/models.py`
-        # that maps a *different* schema onto the same `tenant_memberships`
-        # table -- importing it would register a conflicting table
-        # definition, not fix a gap.
+        # the Council/Maestro post-implementation review). Note:
+        # "app.models.tenant_membership" was a dead, never-imported duplicate of
+        # the real `TenantMembership` in `app/db/models.py` (it mapped a
+        # *different* schema onto the same `tenant_memberships` table and its
+        # phantom `tenant_name`/`role_name` fields silently broke
+        # _load_tenant_memberships); it has now been deleted.
         "app.models.account_review_delivery",
         "app.models.account_review_export",
         "app.models.account_review_packet",
