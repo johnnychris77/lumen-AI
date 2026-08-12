@@ -1,8 +1,70 @@
 from __future__ import annotations
 
+import logging
+import os
+
 from sqlalchemy.orm import Session
 
 from app.db import models
+
+logger = logging.getLogger(__name__)
+
+
+def ensure_bootstrap_admins(db: Session) -> list[str]:
+    """Idempotently grant an ENABLED tenant_admin membership to each admin listed
+    in the ``BOOTSTRAP_TENANT_ADMINS`` env var (comma-separated emails), in
+    ``BOOTSTRAP_TENANT_ID`` (default ``default-tenant``).
+
+    This closes the pilot gap where a user can log in (app JWT) but has no tenant
+    membership, so every ``/api/enterprise/*`` route returns 403 "Enabled tenant
+    membership required" (vendor/manufacturer baselines, audit KPIs, …). It is
+    deliberately an explicit allow-list keyed off configuration — it NEVER grants
+    membership to arbitrary users, so tenant isolation is preserved. Safe to run
+    on every startup; existing memberships are left as-is (re-enabled if a listed
+    admin was previously disabled). Returns the emails provisioned/confirmed.
+    """
+    raw = (os.getenv("BOOTSTRAP_TENANT_ADMINS", "") or "").strip()
+    if not raw:
+        return []
+    tenant_id = (os.getenv("BOOTSTRAP_TENANT_ID", "") or "default-tenant").strip()
+
+    provisioned: list[str] = []
+    for email in [e.strip().lower() for e in raw.split(",") if e.strip()]:
+        existing = (
+            db.query(models.TenantMembership)
+            .filter(
+                models.TenantMembership.user_email == email,
+                models.TenantMembership.tenant_id == tenant_id,
+            )
+            .first()
+        )
+        if existing:
+            if not existing.is_enabled:
+                existing.is_enabled = True
+                db.commit()
+            provisioned.append(email)
+            continue
+        # Use the model the enterprise auth check actually queries
+        # (app.db.models.TenantMembership): tenant_id / user_email / role /
+        # is_enabled. "tenant_admin" is the highest tenant-scoped role.
+        db.add(
+            models.TenantMembership(
+                user_email=email,
+                tenant_id=tenant_id,
+                role="tenant_admin",
+                is_enabled=True,
+            )
+        )
+        db.commit()
+        provisioned.append(email)
+
+    if provisioned:
+        logger.info(
+            "Bootstrapped tenant_admin membership in %s for: %s",
+            tenant_id,
+            ", ".join(provisioned),
+        )
+    return provisioned
 
 
 DEFAULT_RETENTION = {
