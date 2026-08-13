@@ -356,10 +356,59 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(CorrelationIDMiddleware)
 
+
+class CorsSafeErrorMiddleware(BaseHTTPMiddleware):
+    """Convert any UNHANDLED exception into a JSON 500 that still flows back out
+    through CORSMiddleware.
+
+    Why this exists: Starlette's ServerErrorMiddleware is the process's
+    outermost layer — outside the CORSMiddleware registered below. So an
+    exception that escapes the routes reaches ServerErrorMiddleware and returns
+    a 500 that NEVER passes through CORS, i.e. with no `Access-Control-Allow-
+    Origin`. The browser then cannot read the response and reports the credentialed
+    cross-origin call as a bare "Failed to fetch" — hiding the real status and
+    detail (the exact symptom noted at the column back-fill above: a backend 500
+    "surfacing as a CORS error"). A heavy endpoint like `POST /api/inspections`
+    (image upload + AI analysis) is the most visible victim.
+
+    By catching the exception HERE — inside CORS (this middleware is registered
+    immediately before it, so CORS stays the outermost user middleware) — the
+    500 JSONResponse we return travels back out through CORSMiddleware and picks
+    up the CORS headers. The frontend's existing `!res.ok` path can then show the
+    real error instead of an opaque network failure. HTTPExceptions raised in
+    routes are already turned into responses by the inner ExceptionMiddleware and
+    never reach here; this only catches genuinely unhandled errors.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:  # noqa: BLE001 — deliberate catch-all for the 500 path
+            correlation_id = request.headers.get("X-Correlation-ID", "")
+            logging.getLogger(__name__).exception(
+                "Unhandled error on %s %s (correlation_id=%s)",
+                request.method,
+                request.url.path,
+                correlation_id or "-",
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": "Internal server error. The request could not be "
+                    "completed. If this persists, contact support with the "
+                    "correlation id.",
+                    "correlation_id": correlation_id or None,
+                },
+            )
+
+
+app.add_middleware(CorsSafeErrorMiddleware)
+
 # CORS must be the OUTERMOST middleware so it answers OPTIONS preflight before
 # any other middleware can reject it (a 403 on preflight surfaces as a browser
-# "Failed to fetch"). add_middleware stacks last-added = outermost, so this
-# registration intentionally comes after all others.
+# "Failed to fetch"). It must also wrap CorsSafeErrorMiddleware above so a 500
+# built there still gets CORS headers on the way out. add_middleware stacks
+# last-added = outermost, so this registration intentionally comes after all others.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
