@@ -92,3 +92,28 @@ def test_only_listed_emails_provisioned(monkeypatch):
     finally:
         _clear(db, "listed@example.com", "default-tenant")
         db.close()
+
+
+def test_membership_response_does_not_500_on_live_model():
+    """Regression: _membership_response read row.tenant_name/row.role_name which
+    don't exist on the live model → AttributeError 500 on list/create/toggle."""
+    from app.routes.tenant_admin import _membership_response
+
+    db = SessionLocal()
+    email = "resp-probe@example.com"
+    try:
+        _clear(db, email, "default-tenant")
+        row = models.TenantMembership(
+            user_email=email, tenant_id="default-tenant", role="spd_manager", is_enabled=True
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        resp = _membership_response(row)
+        assert resp["user_email"] == email
+        assert resp["tenant_id"] == "default-tenant"
+        assert resp["role"] == "spd_manager"
+        assert resp["role_name"] == "spd_manager"  # alias preserved for old clients
+    finally:
+        _clear(db, email, "default-tenant")
+        db.close()
