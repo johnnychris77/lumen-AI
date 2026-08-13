@@ -454,6 +454,9 @@ export default function NewInspectionPage() {
     if (!validate()) return;
 
     setSubmitting(true);
+    // Which network step is in flight, so a failure can name the real stage
+    // (image upload vs AI analysis) instead of always blaming "AI analysis".
+    let step: "upload" | "analysis" = "upload";
     try {
       const hdrs = headers();
       const allImages = [...inspectionImages, ...borescopeImages];
@@ -548,6 +551,7 @@ export default function NewInspectionPage() {
         }),
       };
 
+      step = "analysis";
       const res = await apiFetch(`/api/inspections`, { raw: true,
         method: "POST",
         headers: hdrs,
@@ -607,12 +611,24 @@ export default function NewInspectionPage() {
     } catch (err) {
       // Never fail silently — surface the error so the user knows what happened.
       const detail = err instanceof Error ? err.message : "network error";
-      setBanner({
-        type: "error",
-        message: `Could not complete AI analysis: ${detail}. Please try again.`,
-      });
+      // A bare "Failed to fetch"/"Load failed"/"NetworkError" is a browser
+      // TypeError: the request never completed — the server was unreachable,
+      // the connection dropped, or an error response arrived without CORS
+      // headers (so the browser hid the real status). Distinguish it from a
+      // parsed server error so the message is actionable rather than opaque.
+      const isNetworkError =
+        err instanceof TypeError ||
+        /failed to fetch|load failed|networkerror|network request failed/i.test(detail);
+      const stage = step === "upload" ? "upload the image(s)" : "run the AI analysis";
+      const message = isNetworkError
+        ? `Could not ${stage} — the server could not be reached. This is usually a ` +
+          `temporary network issue or the analysis service is still starting up. ` +
+          `Check your connection and try again in a moment; if it keeps failing, ` +
+          `the backend may be unavailable.`
+        : `Could not ${stage}: ${detail}. Please try again.`;
+      setBanner({ type: "error", message });
       logPilotError(
-        inspectionImages.length + borescopeImages.length > 0 ? "upload_failure" : "ai_analysis_failure",
+        step === "upload" ? "upload_failure" : "ai_analysis_failure",
         detail,
       );
       scrollToResult();

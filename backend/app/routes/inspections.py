@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import re
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
@@ -24,6 +25,41 @@ from app.services.baseline_comparison_scoring_service import analyze_inspection
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["inspections"])
+
+
+@contextmanager
+def _post_commit_step(db: Session, step: str, *, inspection_id, tenant):
+    """Run a non-core, post-commit enrichment step best-effort.
+
+    The core contract of `POST /inspections` — the persisted Inspection row and
+    its AI-analysis result (including `human_review_required`/supervisor-review
+    flags) — is complete and committed BEFORE these steps run. The trailing
+    enrichment (per-finding logging, image-view tags, workflow-state audit,
+    clinical case library, decision engine, data-quality guardrails) is additive.
+
+    Previously any one of them raising — e.g. a production table that drifted and
+    is missing a column — turned a fully-saved inspection into a 500. Because the
+    error response is generated above the CORS middleware, the browser saw a bare
+    "Failed to fetch"; the technician then retried and created DUPLICATE
+    inspections while never seeing a result. Here each step is isolated: a failure
+    is rolled back (so the session stays usable for later steps) and logged with
+    full context, and the request still returns the committed core result. The
+    failure is never hidden — it is captured in the logs (with the inspection id)
+    for follow-up — it just no longer destroys a completed clinical inspection.
+    """
+    try:
+        yield
+    except Exception:
+        # Clear the aborted transaction so subsequent steps/commits still work.
+        try:
+            db.rollback()
+        except Exception:
+            logger.exception("Rollback failed after post-commit step %r", step)
+        logger.exception(
+            "Post-commit enrichment step %r failed for inspection %s (tenant=%s); "
+            "core inspection saved, enrichment degraded for this step.",
+            step, inspection_id, tenant,
+        )
 
 # Roles permitted to upload images, run AI analysis, and submit inspections.
 # Viewers are read-only. Operators run inspections; spd_manager/admin also override.
@@ -630,39 +666,48 @@ async def create_inspection(
     if analysis is not None and analysis.get("live_model_result") is not None:
         analysis["live_model_result"]["inspection_id"] = row.id
 
+    # Everything below is post-commit ENRICHMENT: the Inspection row and its AI
+    # result are already saved. Each block is wrapped in `_post_commit_step` so a
+    # single drifted table / downstream bug degrades that step (logged, with the
+    # inspection id) instead of turning a completed inspection into a 500 that the
+    # browser shows as "Failed to fetch" — which drove technicians to retry and
+    # create duplicates. The core response is always returned.
+
     # v1.5 — Quality Intelligence: log each actionable finding (severity >= 1)
     # for real trend/anatomy-risk/instrument-family aggregation. Only findings
     # from a completed analysis are real detections — nothing logged for
     # no-baseline/manual-entry inspections.
     if analysis is not None and analysis.get("analysis_status") == "completed":
-        from app.models.inspection_finding import InspectionFinding
+        with _post_commit_step(db, "persist_findings", inspection_id=row.id, tenant=tenant_id):
+            from app.models.inspection_finding import InspectionFinding
 
-        for f in analysis.get("predicted_findings", []):
-            if f.get("severity_index", 0) >= 1:
-                db.add(InspectionFinding(
-                    inspection_id=row.id,
-                    tenant_id=tenant_id,
-                    instrument_type=body.instrument_type,
-                    finding_type=f["type"],
-                    zone=f.get("instrument_zone", ""),
-                    severity_index=f["severity_index"],
-                ))
-        db.commit()
+            for f in analysis.get("predicted_findings", []):
+                if f.get("severity_index", 0) >= 1:
+                    db.add(InspectionFinding(
+                        inspection_id=row.id,
+                        tenant_id=tenant_id,
+                        instrument_type=body.instrument_type,
+                        finding_type=f["type"],
+                        zone=f.get("instrument_zone", ""),
+                        severity_index=f["severity_index"],
+                    ))
+            db.commit()
 
     if image_view_tags_dicts:
-        from app.models.inspection_image_tag import InspectionImageTag
+        with _post_commit_step(db, "persist_image_tags", inspection_id=row.id, tenant=tenant_id):
+            from app.models.inspection_image_tag import InspectionImageTag
 
-        for tag in image_view_tags_dicts:
-            db.add(InspectionImageTag(
-                tenant_id=tenant_id,
-                inspection_id=row.id,
-                instrument_family=tag.get("instrument_family", ""),
-                anatomy_zone=tag.get("anatomy_zone", ""),
-                image_view=tag.get("image_view", ""),
-                capture_quality=tag.get("capture_quality", "acceptable"),
-                notes=tag.get("notes", ""),
-            ))
-        db.commit()
+            for tag in image_view_tags_dicts:
+                db.add(InspectionImageTag(
+                    tenant_id=tenant_id,
+                    inspection_id=row.id,
+                    instrument_family=tag.get("instrument_family", ""),
+                    anatomy_zone=tag.get("anatomy_zone", ""),
+                    image_view=tag.get("image_view", ""),
+                    capture_quality=tag.get("capture_quality", "acceptable"),
+                    notes=tag.get("notes", ""),
+                ))
+            db.commit()
 
     # v1.7 — Workflow Intelligence: audit the real transitions this request
     # just performed (image capture + AI analysis happen synchronously in
@@ -672,71 +717,81 @@ async def create_inspection(
     from app.services.disposition_engine import SUPERVISOR_REVIEW_REQUIRED, recommend_disposition
     from app.services.readiness_engine import compute_readiness, get_primary_finding_type
 
-    if body.has_image:
-        workflow_state_service.record_capture_and_analysis(db, insp=row, tenant_id=tenant_id, actor=actor)
-        db.commit()
+    # Defaulted so a failure inside the workflow step can't NameError the
+    # downstream case-library block that reads these.
+    workflow_readiness: dict = {}
+    workflow_disposition: dict = {"disposition": None, "explanation": ""}
+    with _post_commit_step(db, "workflow_intelligence", inspection_id=row.id, tenant=tenant_id):
+        if body.has_image:
+            workflow_state_service.record_capture_and_analysis(db, insp=row, tenant_id=tenant_id, actor=actor)
+            db.commit()
 
-    workflow_readiness = compute_readiness(db, tenant_id, row, confirmed=False)
-    workflow_disposition = recommend_disposition(
-        workflow_readiness, row, coverage_pct=row.coverage_pct,
-        primary_finding_type=get_primary_finding_type(db, row),
-    )
-    if workflow_disposition["disposition"] == SUPERVISOR_REVIEW_REQUIRED:
-        workflow_state_service.enter_supervisor_review(
-            db, insp=row, tenant_id=tenant_id, actor="system", reason=workflow_disposition["explanation"],
+        workflow_readiness = compute_readiness(db, tenant_id, row, confirmed=False)
+        workflow_disposition = recommend_disposition(
+            workflow_readiness, row, coverage_pct=row.coverage_pct,
+            primary_finding_type=get_primary_finding_type(db, row),
         )
-        db.commit()
+        if workflow_disposition["disposition"] == SUPERVISOR_REVIEW_REQUIRED:
+            workflow_state_service.enter_supervisor_review(
+                db, insp=row, tenant_id=tenant_id, actor="system", reason=workflow_disposition["explanation"],
+            )
+            db.commit()
 
     # v1.8 — Clinical Case Library: automatically preserve significant
     # inspections (a critical finding on the readiness engine's own
     # classification) as a reusable case for future similar-case lookups.
-    from app.services.clinical_case_library_service import is_significant, save_or_update_case
-    from app.services.risk_stratification_service import stratify_risk
+    with _post_commit_step(db, "clinical_case_library", inspection_id=row.id, tenant=tenant_id):
+        from app.services.clinical_case_library_service import is_significant, save_or_update_case
+        from app.services.risk_stratification_service import stratify_risk
 
-    workflow_primary_finding = get_primary_finding_type(db, row)
-    workflow_risk = stratify_risk(row, primary_finding_type=workflow_primary_finding)
-    if is_significant(
-        risk_tier=workflow_risk["risk_tier"], is_critical_finding=workflow_readiness.get("is_critical_finding", False),
-        has_override=False, finding_type=workflow_primary_finding,
-    ):
-        save_or_update_case(
-            db, tenant_id, row, finding_type=workflow_primary_finding,
-            final_disposition=workflow_disposition["disposition"], clinical_reasoning=workflow_disposition["explanation"],
-        )
-        db.commit()
+        workflow_primary_finding = get_primary_finding_type(db, row)
+        workflow_risk = stratify_risk(row, primary_finding_type=workflow_primary_finding)
+        if is_significant(
+            risk_tier=workflow_risk["risk_tier"], is_critical_finding=workflow_readiness.get("is_critical_finding", False),
+            has_override=False, finding_type=workflow_primary_finding,
+        ):
+            save_or_update_case(
+                db, tenant_id, row, finding_type=workflow_primary_finding,
+                final_disposition=workflow_disposition["disposition"], clinical_reasoning=workflow_disposition["explanation"],
+            )
+            db.commit()
 
-    log_audit_event(
-        db,
-        tenant_id=tenant_id,
-        tenant_name=tenant_name,
-        actor_email=actor,
-        actor_role=getattr(current_user, "role", "viewer"),
-        action_type="inspection_created",
-        resource_type="inspection",
-        resource_id=str(row.id),
-    )
-
-    if body.has_image:
-        if analysis_failed:
-            analysis_action_type = "inspection_analysis_failed"
-        elif analysis is not None and analysis.get("analysis_status") == "completed":
-            analysis_action_type = "inspection_analysis_succeeded"
-        else:
-            analysis_action_type = "inspection_analysis_requested"
+    # Audit trail for the inspection + analysis. Best-effort: a failed audit
+    # write is logged at exception level (loud in the logs) but must not sink a
+    # completed clinical inspection.
+    with _post_commit_step(db, "audit_events", inspection_id=row.id, tenant=tenant_id):
         log_audit_event(
             db,
             tenant_id=tenant_id,
             tenant_name=tenant_name,
             actor_email=actor,
             actor_role=getattr(current_user, "role", "viewer"),
-            action_type=analysis_action_type,
+            action_type="inspection_created",
             resource_type="inspection",
             resource_id=str(row.id),
-            details={
-                "analysis_status": analysis.get("analysis_status") if analysis else None,
-                "model_version": (analysis or {}).get("model_result", {}).get("model_version"),
-            },
         )
+
+        if body.has_image:
+            if analysis_failed:
+                analysis_action_type = "inspection_analysis_failed"
+            elif analysis is not None and analysis.get("analysis_status") == "completed":
+                analysis_action_type = "inspection_analysis_succeeded"
+            else:
+                analysis_action_type = "inspection_analysis_requested"
+            log_audit_event(
+                db,
+                tenant_id=tenant_id,
+                tenant_name=tenant_name,
+                actor_email=actor,
+                actor_role=getattr(current_user, "role", "viewer"),
+                action_type=analysis_action_type,
+                resource_type="inspection",
+                resource_id=str(row.id),
+                details={
+                    "analysis_status": analysis.get("analysis_status") if analysis else None,
+                    "model_version": (analysis or {}).get("model_result", {}).get("model_version"),
+                },
+            )
 
     response = inspection_response(row)
     if analysis is not None:
@@ -746,29 +801,31 @@ async def create_inspection(
         # Lumen Decision Engine — Observation Doctrine result contract
         # (observation / assessment / policy / recommendation), persisted
         # once at submission time and never recomputed/overwritten later.
-        from app.services.lumen_decision_engine import build_decision
+        with _post_commit_step(db, "decision_engine", inspection_id=row.id, tenant=tenant_id):
+            from app.services.lumen_decision_engine import build_decision
 
-        response["decision"] = build_decision(
-            db,
-            inspection_id=row.id,
-            tenant_id=tenant_id,
-            facility_name=body.facility_name or "",
-            department=body.department or "",
-            instrument_type=body.instrument_type,
-            analysis=analysis,
-        )
+            response["decision"] = build_decision(
+                db,
+                inspection_id=row.id,
+                tenant_id=tenant_id,
+                facility_name=body.facility_name or "",
+                department=body.department or "",
+                instrument_type=body.instrument_type,
+                analysis=analysis,
+            )
     response["coverage_readiness"] = readiness
 
     # v1.9 — Data Quality Guardrails: surface clear, actionable gaps
     # (missing instrument/image/anatomy zone, poor image quality, missing
     # baseline, incomplete coverage, missing technician identity) against
     # the pilot site's own configured thresholds.
-    from app.services.data_quality_guardrails_service import evaluate_data_quality
-    from app.services.pilot_site_config_service import get_or_create_config
+    with _post_commit_step(db, "data_quality_guardrails", inspection_id=row.id, tenant=tenant_id):
+        from app.services.data_quality_guardrails_service import evaluate_data_quality
+        from app.services.pilot_site_config_service import get_or_create_config
 
-    pilot_config = get_or_create_config(db, tenant_id)
-    db.commit()
-    response["data_quality"] = evaluate_data_quality(row, pilot_config=pilot_config)
+        pilot_config = get_or_create_config(db, tenant_id)
+        db.commit()
+        response["data_quality"] = evaluate_data_quality(row, pilot_config=pilot_config)
 
     return response
 
