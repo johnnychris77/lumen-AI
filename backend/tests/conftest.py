@@ -250,7 +250,30 @@ def ensure_test_database_tables():
     _create_audit_logs_fallback(engine)
     _seed_enterprise_finding(engine)
     _seed_hipaa_baa(engine)
+    _reset_principal_tenant_state(engine)
     yield
+
+
+def _reset_principal_tenant_state(engine) -> None:
+    """Per-test isolation for principal tenant resolution.
+
+    The test DB (a shared SQLite *file*) is never truncated between tests, so
+    `tenant_memberships` rows seeded by one test — very commonly for the shared
+    dev identities ``{role}@local.dev`` — would leak into every later dev-token
+    principal and mis-resolve its tenant (e.g. an operator whose data lives in
+    ``default-tenant`` suddenly carries memberships in a dozen random tenants).
+    That is exactly what surfaced when `_load_tenant_memberships` was corrected
+    to actually read the live model. Clear the table before each test; every
+    test that needs a membership seeds its own (all seeds are per-test helpers).
+    Failures are non-fatal — a missing table just means nothing to clear.
+    """
+    try:
+        from sqlalchemy import text as _text
+
+        with engine.begin() as conn:
+            conn.execute(_text("DELETE FROM tenant_memberships"))
+    except Exception:
+        pass
 
 
 def _seed_enterprise_finding(engine) -> None:

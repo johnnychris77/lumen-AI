@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from fastapi import Depends, Header, HTTPException, status
@@ -73,15 +74,20 @@ def _decode_jwt(token: str):
 def _load_tenant_memberships(db: Session, email: str) -> tuple[TenantMembershipView, ...]:
     """Resolve a user's enabled tenant memberships from the database.
 
-    This is the ONLY source of tenant authority for the principal — no
-    client header can populate it. Failures degrade to no memberships
-    (fail closed), never to an assumed tenant.
+    This is the ONLY source of tenant authority for the principal — no client
+    header can populate it. Reads the live model
+    (``app.db.models.TenantMembership``: ``tenant_id`` / ``user_email`` /
+    ``role`` / ``is_enabled``) directly — no phantom ``tenant_name``/``role_name``
+    columns. Genuine operational failures (e.g. the table not yet created) fail
+    CLOSED to no memberships — which ``resolve_verified_tenant`` then turns into a
+    403 — but are LOGGED rather than swallowed silently, so a schema/programming
+    error is visible instead of masquerading as "user has no tenants".
     """
     if not email:
         return ()
-    try:
-        from app.db import models
+    from app.db import models
 
+    try:
         rows = (
             db.query(models.TenantMembership)
             .filter(
@@ -90,16 +96,22 @@ def _load_tenant_memberships(db: Session, email: str) -> tuple[TenantMembershipV
             )
             .all()
         )
-        return tuple(
-            TenantMembershipView(
-                tenant_id=r.tenant_id,
-                tenant_name=r.tenant_name,
-                role_name=r.role_name,
-            )
-            for r in rows
-        )
     except Exception:
+        logging.getLogger(__name__).exception(
+            "tenant-membership load failed; failing closed to no memberships",
+        )
         return ()
+
+    # The live model has no `tenant_name` column; surface the tenant_id as the
+    # display name. `role` is the membership's role column.
+    return tuple(
+        TenantMembershipView(
+            tenant_id=r.tenant_id,
+            tenant_name=r.tenant_id,
+            role_name=r.role,
+        )
+        for r in rows
+    )
 
 
 def _active_tenant(memberships: tuple[TenantMembershipView, ...]) -> str | None:
