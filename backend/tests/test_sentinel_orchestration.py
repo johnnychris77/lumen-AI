@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 
+import uuid
+
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
@@ -13,6 +15,23 @@ from app.models.or_connect import RepairRequest
 from app.models.supervisor_review import SupervisorReview
 
 client = TestClient(app)
+
+
+def _uniq(prefix: str) -> str:
+    """A per-run-unique identifier.
+
+    The test DB is a shared SQLite *file* that is never reset between pytest
+    sessions, so inspections/findings accumulate across runs. Negative-assertion
+    tests ("no signal below threshold", "insufficient history", "no duplicate
+    alerts") that hardcoded a fixed zone/barcode were actually colliding with
+    their own rows from previous runs — e.g. seven accumulated findings in the
+    same "unique" zone tripped the detection threshold. Using a fresh identifier
+    per run makes each negative assertion depend only on the rows the test itself
+    seeds, so it holds regardless of prior runs or test order.
+    """
+    return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
 AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
 AUTH_MGR = {"Authorization": "Bearer manager-token"}
 AUTH_OPERATOR = {"Authorization": "Bearer operator-token"}
@@ -133,12 +152,13 @@ class TestRiskMonitor:
         assert any(s["signal_type"] == "repeated_repair_referrals" and s["scope"] == "drill_bit_test_type" for s in signals)
 
     def test_no_signal_below_threshold(self):
+        zone = _uniq("below-threshold-zone")
         insp_id = _make_inspection(instrument_type="unique_below_threshold")
-        _make_finding(insp_id, finding_type="rust", zone="unique_zone_xyz")
+        _make_finding(insp_id, finding_type="rust", zone=zone)
 
         r = client.post("/api/sentinel/risk-signals/detect", headers=AUTH_MGR)
         signals = r.json()["signals"]
-        assert not any(s["scope"] == "unique_zone_xyz" for s in signals)
+        assert not any(s["scope"] == zone for s in signals)
 
     def test_resolve_signal(self):
         for _ in range(3):
@@ -232,7 +252,7 @@ class TestDigitalTwinMonitoring:
         assert flag["tier"] in ("critical", "escalation")
 
     def test_insufficient_history_not_flagged(self):
-        barcode = "twin-insufficient-001"
+        barcode = _uniq("twin-insufficient")
         _make_inspection(instrument_barcode=barcode)
 
         r = client.post("/api/sentinel/digital-twin-flags/monitor", headers=AUTH_MGR)
@@ -313,13 +333,14 @@ class TestAlertGeneration:
         assert r2.json()["resolved_at"] is not None
 
     def test_no_duplicate_alerts_for_same_signal(self):
+        zone = _uniq("dedup-test-zone")
         for _ in range(3):
             insp_id = _make_inspection()
-            _make_finding(insp_id, finding_type="bone", zone="dedup-test-zone")
+            _make_finding(insp_id, finding_type="bone", zone=zone)
         client.post("/api/sentinel/risk-signals/detect", headers=AUTH_MGR)
         client.post("/api/sentinel/alerts/generate", headers=AUTH_MGR)
         r = client.post("/api/sentinel/alerts/generate", headers=AUTH_MGR)
-        alerts = [a for a in r.json()["alerts"] if "dedup-test-zone" in a["title"]]
+        alerts = [a for a in r.json()["alerts"] if zone in a["title"]]
         assert len(alerts) == 1
 
 

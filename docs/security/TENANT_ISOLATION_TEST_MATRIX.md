@@ -30,7 +30,8 @@ path membership check and `test_alerts_tenant_isolation` / baseline suites.
 
 ## Verification status
 
-All rows above are backed by passing tests in the full SQLite suite (3749 passed).
+All rows above are backed by passing tests in the full SQLite suite (3760 passed,
+0 failed on a fresh DB).
 The corrected loader was run against the entire suite and the isolation/privilege
 suites specifically (`test_cross_hospital_tenant_isolation_security`,
 `test_header_role_privilege_escalation`, `test_oidc_tenant_membership_enforcement`,

@@ -39,13 +39,13 @@ dead duplicate model removed; startup membership bootstrap (#137).
 
 ## Results
 
-- **Full SQLite suite: 3749 passed, 2 skipped, 3 failed.** The 3 failures are
-  pre-existing `test_sentinel_orchestration` **order-dependent flakes**
-  (`test_no_signal_below_threshold`, `test_insufficient_history_not_flagged`,
-  `test_no_duplicate_alerts_for_same_signal`) — proven to fail **identically on
-  baseline** with these changes stashed, and they pass under CI's random order
-  (main is green). They are rooted in broad `inspections`/`findings` accumulation,
-  **not** tenant resolution.
+- **Full SQLite suite (fresh DB): 3760 passed, 2 skipped, 0 failed.** The 3
+  previously pre-existing `test_sentinel_orchestration` **order/session-dependent
+  flakes** (`test_no_signal_below_threshold`,
+  `test_insufficient_history_not_flagged`,
+  `test_no_duplicate_alerts_for_same_signal`) are now **fixed** (see the sentinel
+  flake note below). They were rooted in broad `inspections`/`findings`
+  accumulation on the shared file DB, **not** tenant resolution.
 - The 62 tenant-pollution regressions from the previous attempt are **fixed**.
 - Isolation/privilege suites all green (see the test matrix).
 - PostgreSQL suite: not run locally (no server in this environment); relies on CI.
@@ -61,9 +61,17 @@ remove.
 
 ## Remaining technical debt (follow-ups, not blockers)
 
-1. **Pre-existing sentinel order-flakes** (3 tests) — order-dependent on shared-DB
-   `inspections`/`findings`. Fixing needs broader per-test isolation of those
-   tables; unrelated to tenant resolution.
+1. **Pre-existing sentinel order-flakes** (3 tests) — **fixed.** Root cause: the
+   test DB is a shared SQLite *file* never reset between pytest *sessions*, so
+   `inspections`/`findings` accumulate across runs. Three negative-assertion tests
+   hardcoded a fixed zone/barcode (e.g. `unique_zone_xyz`, `twin-insufficient-001`)
+   that collided with **their own rows from previous runs** — after seven runs,
+   seven accumulated findings in the "unique" zone tripped the detection threshold,
+   inverting the assertion. Fixed by giving each of those tests a per-run-unique
+   identifier (`uuid4`), so every negative assertion depends only on the rows the
+   test itself seeds — robust under any order and independent of prior runs. No
+   production code changed; no broad table truncation needed. The deeper
+   shared-file-DB pattern (item 4) is unchanged.
 2. **Platform-admin vs tenant-admin separation** — see the ADR. Global `admin` is
    cross-tenant by design; a confined tenant-admin identity is deferred.
 3. **DB constraint** — add a composite unique index on
