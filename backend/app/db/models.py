@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -175,6 +175,16 @@ from app.models.annotation_database import (  # noqa: F401
 
 class TenantMembership(Base):
     __tablename__ = "tenant_memberships"
+    # One membership per (user, tenant). Previously enforced only in code
+    # (ensure_bootstrap_admins / the tenant-admin API); this makes it a DB
+    # guarantee. On pre-existing databases the constraint is added at startup by
+    # ensure_tenant_membership_unique_index (after de-duplicating any existing
+    # rows), since create_all() never alters an existing table.
+    __table_args__ = (
+        UniqueConstraint(
+            "user_email", "tenant_id", name="uq_tenant_membership_user_tenant"
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(255), index=True, nullable=False)
