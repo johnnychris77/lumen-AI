@@ -4,6 +4,7 @@ import { Stage, Kicker } from "../components/Stage";
 import { LumenImage } from "../components/LumenImage";
 import { theme } from "../theme";
 import { reveal, progress } from "../components/anim";
+import { mediaSrc } from "../media";
 
 /**
  * Scene 2 — Today's Inspection Reality (0:08–0:18).
@@ -100,7 +101,7 @@ export const SPDReality: React.FC = () => {
           }}
         >
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <LumenImage size={420} depth={0.35 + feedProgress * 0.3} />
+            <LumenImage size={420} depth={0.35 + feedProgress * 0.3} src={mediaSrc("lumenMonitor")} />
           </div>
           <div
             style={{

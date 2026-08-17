@@ -4,6 +4,7 @@ import { Stage } from "../components/Stage";
 import { LumenImage } from "../components/LumenImage";
 import { theme } from "../theme";
 import { fadeInOut } from "../components/anim";
+import { mediaSrc } from "../media";
 
 /**
  * Scene 1 — The Hidden Surface (0:00–0:08).
@@ -74,7 +75,7 @@ export const HiddenSurface: React.FC = () => {
           transform: `scale(${lumenScale})`,
         }}
       >
-        <LumenImage size={620} depth={depth} />
+        <LumenImage size={620} depth={depth} src={mediaSrc("lumenS1")} />
       </div>
 
       {/* On-screen text */}

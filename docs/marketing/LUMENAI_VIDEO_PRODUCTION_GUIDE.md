@@ -62,22 +62,33 @@ to 2 for constrained environments; raise it on a bigger machine.
 | 1080×1080 | `LumenAIExplainerSquare` | LinkedIn / social feed |
 | 1080×1920 | `LumenAIExplainerVertical` | vertical / stories |
 
-All three share one composition. Scenes are composed for landscape; square and
-vertical currently scale the same layout. For a polished vertical cut, add
-size-aware layout tweaks in the scenes (the timing stays identical) — the
-`useVideoConfig()` width/height are available in every scene.
+All three share one composition and one timeline. Scenes are authored on a fixed
+1920×1080 **design canvas** (`src/format.ts`); square and vertical **scale that
+canvas to the target width and center it** on a charcoal frame, then place the
+caption in the format's lower safe area and a small LumenAI wordmark in the top
+area (`CaptionTrack` + `BrandFurniture`). So the social cuts are intentionally
+composed, not naively cropped or stretched. To change how a format frames, edit
+`src/format.ts` / those two components — the scenes and timing stay untouched.
 
 ## 5. Assets still required (this repo ships motion + structure, not final media)
 
-1. **Photoreal footage / stills** to replace the procedural placeholders:
-   - real surgical instrument beauty shots (Scene 1, 10);
-   - real borescope lumen footage (Scenes 1, 2, 3, 5) — no PHI in metadata;
-   - an SPD b-roll plate (Scene 2).
-   Drop them into `public/` and swap the `LumenImage` / SVG instrument for
-   `<Video>` / `<Img>` (Remotion) in the relevant scenes.
-2. **Poster image** for the web player: `web-embed/assets/poster.jpg`.
-3. **Music bed** and **sound design** (see the storyboard's music/sound notes);
-   add via Remotion `<Audio>` in the composition. None is bundled.
+1. **Photoreal footage / stills** to replace the procedural placeholders. This
+   is now **drop-in** via the media manifest — no scene edits needed:
+   - put files in `public/media/`;
+   - set the path in `src/media.ts` (`instrumentHero`, `lumenS1`, `lumenMonitor`,
+     `lumenFeed`, `lumenCurrent`, `lumenBaseline`). `.mp4`/`.webm` render as
+     `<Video>`, images as `<Img>`, clipped into the existing framing.
+   Every slot is `null` by default, so renders work with zero assets and the
+   procedural visuals show until you supply real ones. **No PHI in pixels or
+   metadata** before adding any real image.
+2. **Poster image** for the web player: `web-embed/assets/poster.jpg` (a
+   generated one is committed; replace with a final art poster).
+3. **Music bed** and **voiceover** — now **wired** in `src/audio.ts` and inert
+   until supplied: drop `public/audio/music.mp3` and/or `public/audio/vo.mp3`
+   and set the paths in the `AUDIO` manifest. A volume envelope (fade in/out +
+   a **duck under the human-review scene**) is already implemented and stays in
+   sync with `src/timing.ts`. **Sound design** (subtle sfx) can be added the
+   same way.
 4. **Brand fonts / exact brand hex**: the theme uses a system font stack and
    restrained clinical colors as safe defaults; replace with the official
    LumenAI palette/typeface when available (self-host the font, no CDN).
@@ -108,8 +119,12 @@ Point `data-src` at your hosted MP4, `poster` at your poster image, and the
 
 ## 8. Known limitations
 
-- The lumen/instrument visuals are **stylized placeholders**, not real footage.
-- Square/vertical crops reuse the landscape layout (see §4).
-- No audio is bundled (music/VO/sfx are assets to add).
-- The preview in this repo was rendered at 960×540; render the full-res masters
-  with the `render*` scripts before publishing.
+- The lumen/instrument visuals are **stylized placeholders** until real footage
+  is supplied via the media manifest (§5).
+- No audio is bundled; the mix is wired but silent until `music.mp3`/`vo.mp3`
+  are added (§5).
+- Square/vertical present the landscape design **scaled + centered** with
+  format-aware captions/branding (§4). This is a deliberate, clean social frame;
+  a per-scene portrait re-layout (not just framing) is a possible future step.
+- The theme uses a system font stack + safe clinical colors as defaults; swap in
+  the official brand font/palette (self-hosted) in `src/theme.ts`.

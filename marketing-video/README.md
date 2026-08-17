@@ -52,9 +52,24 @@ web-embed/                   # accessible, lazy-loading HTML player
 Change a scene's length in **one** place (`src/timing.ts`) and the whole film,
 the captions, and the docs stay in sync.
 
-## Not included (assets to supply)
+## Three formats, one timeline
+
+Scenes are authored at 1920×1080; square and vertical scale that band and center
+it on a charcoal frame with format-aware captions + a brand wordmark
+(`src/format.ts`, `CaptionTrack`, `BrandFurniture`) — composed social cuts, not
+crops.
+
+## Drop-in assets (no scene edits)
 
 This project provides the **motion, structure, timing, captions, and safe
-copy**. Photoreal instrument/lumen footage, the music bed, sound design, a
-poster image, and final brand fonts/colors are production assets to drop in —
-see `docs/marketing/LUMENAI_VIDEO_PRODUCTION_GUIDE.md`.
+copy**. Real media and audio are wired to drop in:
+
+- **Footage/stills** — put files in `public/media/`, set paths in `src/media.ts`
+  (procedural visuals show until you do).
+- **Music / voiceover** — put files in `public/audio/`, set paths in
+  `src/audio.ts` (a fade + human-review duck envelope is already wired; silent
+  until supplied).
+- **Poster / brand font+palette** — a generated poster is committed; swap the
+  font/colors in `src/theme.ts`.
+
+See `docs/marketing/LUMENAI_VIDEO_PRODUCTION_GUIDE.md`.

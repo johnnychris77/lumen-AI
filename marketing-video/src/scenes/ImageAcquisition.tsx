@@ -4,6 +4,7 @@ import { Stage, Panel, Kicker } from "../components/Stage";
 import { LumenImage } from "../components/LumenImage";
 import { theme } from "../theme";
 import { reveal, progress } from "../components/anim";
+import { mediaSrc } from "../media";
 
 /**
  * Scene 3 — Introduce LumenAI (0:18–0:29).
@@ -126,7 +127,7 @@ export const ImageAcquisition: React.FC = () => {
               }}
             >
               <div style={{ background: "#0c1119", borderRadius: 14, padding: 12 }}>
-                <LumenImage size={230} depth={0.3 + feedProgress * 0.35} />
+                <LumenImage size={230} depth={0.3 + feedProgress * 0.35} src={mediaSrc("lumenFeed")} />
               </div>
               <div>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: theme.color.green, fontWeight: 600, fontSize: 18 }}>

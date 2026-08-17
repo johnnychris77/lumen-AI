@@ -6,6 +6,7 @@ import { WorkflowArrow } from "../components/WorkflowArrow";
 import { theme } from "../theme";
 import { reveal, progress } from "../components/anim";
 import { demo } from "../data/demo";
+import { mediaSrc, MediaSlot } from "../media";
 
 /**
  * Scene 5 — Image Becomes Intelligence (0:36–0:48).
@@ -84,11 +85,11 @@ export const IntelligencePipeline: React.FC = () => {
           transform: `translateY(${compareIn.translateY}px)`,
         }}
       >
-        <CompareCard title="Current Inspection" showAreas areaOpacity={areaReveal} depth={0.55} />
+        <CompareCard title="Current Inspection" showAreas areaOpacity={areaReveal} depth={0.55} slot="lumenCurrent" />
         <div style={{ display: "flex", alignItems: "center", color: theme.color.onDarkSoft, fontSize: 20, fontWeight: 600 }}>
           compared with
         </div>
-        <CompareCard title="Approved Baseline" showAreas={false} depth={0.5} badge="when available" />
+        <CompareCard title="Approved Baseline" showAreas={false} depth={0.5} badge="when available" slot="lumenBaseline" />
       </div>
     </Stage>
   );
@@ -100,7 +101,8 @@ const CompareCard: React.FC<{
   areaOpacity?: number;
   depth: number;
   badge?: string;
-}> = ({ title, showAreas, areaOpacity = 1, depth, badge }) => (
+  slot: MediaSlot;
+}> = ({ title, showAreas, areaOpacity = 1, depth, badge, slot }) => (
   <div style={{ background: "#0c1119", borderRadius: 16, padding: 16, border: `1px solid rgba(255,255,255,0.08)` }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
       <span style={{ fontSize: 18, fontWeight: 600, color: theme.color.onDark }}>{title}</span>
@@ -108,6 +110,6 @@ const CompareCard: React.FC<{
         <span style={{ fontSize: 13, color: theme.color.onDarkSoft, border: `1px solid rgba(255,255,255,0.15)`, borderRadius: 999, padding: "2px 10px" }}>{badge}</span>
       ) : null}
     </div>
-    <LumenImage size={300} depth={depth} showAreas={showAreas} areaOpacity={areaOpacity} />
+    <LumenImage size={300} depth={depth} showAreas={showAreas} areaOpacity={areaOpacity} src={mediaSrc(slot)} />
   </div>
 );

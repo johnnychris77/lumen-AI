@@ -1,11 +1,14 @@
 import React from "react";
+import { Img, Video } from "remotion";
 import { theme } from "../theme";
+import { isVideoSrc } from "../media";
 
 /**
- * Stylized internal-lumen (borescope) view. This is a restrained, procedural
- * placeholder — realistic captured footage should replace it in production (see
- * the production guide's "Assets still required"). Kept clinical: subtle surface
- * variation, gentle vignette, no exaggerated pathology.
+ * Internal-lumen (borescope) view. If `src` is supplied (via the media manifest)
+ * it renders real footage/stills clipped to the circular frame; otherwise it
+ * falls back to a restrained, procedural placeholder (subtle surface variation,
+ * gentle vignette, no exaggerated pathology). See the production guide's
+ * "Assets still required".
  */
 export const LumenImage: React.FC<{
   size?: number;
@@ -14,8 +17,10 @@ export const LumenImage: React.FC<{
   /** Show subtle, restrained areas-of-interest rings. */
   showAreas?: boolean;
   areaOpacity?: number;
+  /** Optional real asset (from `mediaSrc(...)`). Falls back to procedural. */
+  src?: string | null;
   style?: React.CSSProperties;
-}> = ({ size = 460, depth = 0.5, showAreas = false, areaOpacity = 1, style }) => {
+}> = ({ size = 460, depth = 0.5, showAreas = false, areaOpacity = 1, src = null, style }) => {
   const d = Math.max(0, Math.min(1, depth));
   return (
     <div
@@ -29,6 +34,13 @@ export const LumenImage: React.FC<{
         ...style,
       }}
     >
+      {src ? (
+        isVideoSrc(src) ? (
+          <Video src={src} loop style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
+        ) : (
+          <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        )
+      ) : (
       <svg width={size} height={size} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
         <defs>
           <radialGradient id="lumenWall" cx="50%" cy={`${38 + d * 8}%`} r="75%">
@@ -63,6 +75,7 @@ export const LumenImage: React.FC<{
         <path d="M58 54 L66 60" stroke="rgba(230,230,235,0.14)" strokeWidth={0.4} />
         <rect x="0" y="0" width="100" height="100" fill="url(#lumenLight)" />
       </svg>
+      )}
       {showAreas ? (
         <div style={{ position: "absolute", inset: 0, opacity: areaOpacity }}>
           <Ring xPct={62} yPct={44} d={54} />
