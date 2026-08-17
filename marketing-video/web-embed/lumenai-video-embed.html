@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LumenAI — Inspection Intelligence (Explainer)</title>
+    <!--
+      Accessible, lazy-loading embed for the LumenAI explainer.
+
+      Behavior:
+        - Lazy-load: the <video> is only attached after the user activates the
+          poster (a real click), so the MP4 is not fetched on page load.
+        - Captions: a WebVTT track is attached and default-on.
+        - Transcript: full text below the player, always available to screen
+          readers and search engines.
+        - No autoplay with sound: playback starts muted-safe only on user intent.
+        - prefers-reduced-motion: the poster does not animate; nothing autoplays.
+        - Mobile: responsive 16:9 container, playsinline.
+
+      Replace the asset paths below with your hosted files:
+        data-src   -> the rendered MP4 (1920x1080)
+        poster     -> a poster JPG/PNG (see production guide "Assets required")
+        track src  -> the WebVTT captions
+    -->
+    <style>
+      :root { color-scheme: light dark; }
+      .lumenai-player {
+        max-width: 960px;
+        margin: 0 auto;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+      .lumenai-stage {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        background: #0a0e17;
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .lumenai-stage video,
+      .lumenai-stage .poster {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .poster {
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        background-size: cover;
+        background-position: center;
+      }
+      .play-badge {
+        width: 84px;
+        height: 84px;
+        border-radius: 999px;
+        background: rgba(46, 125, 175, 0.92);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+      .play-badge svg { margin-left: 4px; }
+      .lumenai-transcript {
+        margin-top: 16px;
+        border: 1px solid #d8e1ec;
+        border-radius: 12px;
+        padding: 8px 16px;
+      }
+      .lumenai-transcript > summary {
+        cursor: pointer;
+        font-weight: 600;
+        padding: 8px 0;
+      }
+      .lumenai-transcript p { line-height: 1.5; color: #3c4b60; }
+      @media (prefers-reduced-motion: reduce) {
+        .play-badge { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lumenai-player">
+      <figure class="lumenai-stage" id="lumenai-stage" style="margin: 0">
+        <button
+          class="poster"
+          id="lumenai-poster"
+          type="button"
+          aria-label="Play the LumenAI explainer video"
+          style="background-image: url('./assets/poster.jpg')"
+        >
+          <span class="play-badge" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+        </button>
+      </figure>
+
+      <details class="lumenai-transcript">
+        <summary>Transcript</summary>
+        <p>Every inspection begins with a person — and surfaces that can't always be assessed from the outside.</p>
+        <p>A sterile processing professional, an instrument, and increasingly complex lumened tools to inspect.</p>
+        <p>Using a compatible borescope, the technician examines the lumen directly — inside LumenAI the borescope is an image source, capturing representative evidence without leaving the inspection.</p>
+        <p>The physical inspection becomes a structured digital record — technician, instrument, and lumen image flowing into LumenAI.</p>
+        <p>Designed for compatible borescope and camera sources — standardized inspection evidence, and an inspection can hold several representative images.</p>
+        <p>The image becomes structured evidence — image quality, AI-assisted analysis, and comparison with an available governed baseline, surfacing information for review.</p>
+        <p>When an inspection needs review, LumenAI routes the evidence to a supervisor, who reviews images, baseline, AI-assisted observations, and history before recording the decision. AI assists. People decide.</p>
+        <p>Inspection, evidence, AI-assisted information, baseline, supervisor review, and disposition become one governed, auditable record.</p>
+        <p>Manufacturers, vendors, and organizations contribute reference information through a governed pathway — submit, verify, approve, publish. Never auto-approved.</p>
+        <p>Each inspection becomes part of the instrument's longitudinal history — Pass, Fair, and Review results over time.</p>
+        <p>Across a department, that history becomes trends — Pass, Fair, and Review activity, and how complete the evidence is.</p>
+        <p>Patterns emerge across instrument families — volume, results, recurring observations, review activity, and baseline coverage.</p>
+        <p>Documented inspections and decisions inform maintenance and replacement trends — operational and cost intelligence, evaluated with validated organizational data. Never invented savings.</p>
+        <p>The same evidence serves SPD, quality, and executive leaders — LumenAI is the intelligence and evidence layer, not just a borescope app.</p>
+        <p>One inspection becomes evidence. Evidence becomes history. History becomes intelligence. LumenAI — Inspection Intelligence for Sterile Processing.</p>
+      </details>
+    </div>
+
+    <script>
+      // Lazy-load: build the <video> only when the poster is activated.
+      (function () {
+        var poster = document.getElementById("lumenai-poster");
+        var stage = document.getElementById("lumenai-stage");
+        if (!poster || !stage) return;
+        poster.addEventListener("click", function () {
+          var video = document.createElement("video");
+          video.setAttribute("controls", "");
+          video.setAttribute("playsinline", "");
+          video.setAttribute("preload", "metadata");
+          video.setAttribute("poster", "./assets/poster.jpg");
+          // Not autoplaying with sound: we start playback on this user gesture.
+          video.setAttribute("data-src", "./assets/lumenai-explainer-1920x1080.mp4");
+          video.src = video.getAttribute("data-src");
+
+          var track = document.createElement("track");
+          track.setAttribute("kind", "captions");
+          track.setAttribute("srclang", "en");
+          track.setAttribute("label", "English");
+          track.setAttribute("default", "");
+          track.setAttribute("src", "../public/captions/lumenai-explainer.vtt");
+          video.appendChild(track);
+
+          poster.remove();
+          stage.appendChild(video);
+          var playPromise = video.play();
+          if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch(function () {
+              /* If the browser blocks playback, controls are visible to start it. */
+            });
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
