@@ -150,6 +150,15 @@ async def lifespan(_app: FastAPI):
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
+    # Enforce one membership per (user_email, tenant_id) at the DB level. Runs
+    # BEFORE the bootstrap below so the bootstrap's own duplicate guard is backed
+    # by a real constraint. De-dupes any legacy duplicates first; never fatal.
+    try:
+        from app.db.tenant_membership_index import ensure_tenant_membership_unique_index
+        ensure_tenant_membership_unique_index(engine)
+    except Exception as _idx_e:
+        import logging
+        logging.getLogger(__name__).warning("Tenant membership unique index skipped: %s", _idx_e)
     # Pilot provisioning: ensure the configured admin(s) hold an enabled tenant
     # membership so /api/enterprise/* routes (vendor/manufacturer baselines,
     # audit KPIs) don't 403 a legitimately logged-in operator. Explicit
