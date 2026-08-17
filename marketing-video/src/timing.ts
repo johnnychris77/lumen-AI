@@ -16,13 +16,18 @@ export const SIZES = {
 export type SceneId =
   | "HiddenSurface"
   | "SPDReality"
-  | "ImageAcquisition"
+  | "PhysicalInspection"
+  | "PhysicalDigitalTransition"
   | "UniversalCapture"
   | "IntelligencePipeline"
-  | "HumanReview"
-  | "EvidenceGovernance"
+  | "SupervisorReview"
+  | "GovernedRecord"
   | "BaselineEcosystem"
-  | "OperationalIntelligence"
+  | "InspectionHistory"
+  | "DepartmentTrends"
+  | "InstrumentFamilyIntelligence"
+  | "OperationalCostIntelligence"
+  | "LeadershipView"
   | "Closing";
 
 export interface SceneSpec {
@@ -34,19 +39,27 @@ export interface SceneSpec {
 }
 
 /**
- * Scene order + durations. Sums to 95s (inside the 85–95s target) at 30fps.
+ * Scene order + durations. Sums to 116s (inside the 100–120s target) at 30fps.
+ * The story: person → physical borescope inspection → capture inside LumenAI →
+ * structured evidence → AI-assisted analysis → baseline → supervisor review →
+ * governed record → history → trends → operational intelligence → leadership.
  */
 export const SCENES: readonly SceneSpec[] = [
-  { id: "HiddenSurface", seconds: 8, caption: "Some of the most important surfaces of a surgical instrument are also the hardest to see." },
-  { id: "SPDReality", seconds: 10, caption: "Sterile processing professionals inspect increasingly complex instruments. But seeing the image is only the beginning." },
-  { id: "ImageAcquisition", seconds: 11, caption: "LumenAI brings image acquisition directly into the inspection workflow — capture from a compatible borescope or use an existing image without leaving the inspection." },
-  { id: "UniversalCapture", seconds: 7, caption: "The acquisition layer is designed around compatible image sources — not a single borescope manufacturer." },
-  { id: "IntelligencePipeline", seconds: 12, caption: "The image becomes structured evidence. LumenAI can support image assessment, surface visible findings, and compare with an approved baseline when one is available." },
-  { id: "HumanReview", seconds: 10, caption: "When uncertainty or defined review criteria are present, LumenAI routes the inspection for qualified human review. AI assists. People decide." },
-  { id: "EvidenceGovernance", seconds: 11, caption: "Each inspection can become part of a traceable record — connecting the instrument, image, baseline, findings, review history, and audit evidence over time." },
-  { id: "BaselineEcosystem", seconds: 11, caption: "LumenAI creates a governed pathway for manufacturers, vendors, and healthcare organizations to contribute and use trusted reference information." },
-  { id: "OperationalIntelligence", seconds: 9, caption: "What begins with one inspection can become operational intelligence — patterns across instruments, departments, and time." },
-  { id: "Closing", seconds: 6, caption: "LumenAI. Inspection intelligence for Sterile Processing." },
+  { id: "HiddenSurface", seconds: 5, caption: "Every inspection begins with a person — and surfaces that can't always be assessed from the outside." },
+  { id: "SPDReality", seconds: 5, caption: "A sterile processing professional, an instrument, and increasingly complex lumened tools to inspect." },
+  { id: "PhysicalInspection", seconds: 15, caption: "Using a compatible borescope, the technician examines the lumen directly — inside LumenAI the borescope is an image source, capturing representative evidence without leaving the inspection." },
+  { id: "PhysicalDigitalTransition", seconds: 6, caption: "The physical inspection becomes a structured digital record — technician, instrument, and lumen image flowing into LumenAI." },
+  { id: "UniversalCapture", seconds: 6, caption: "Designed for compatible borescope and camera sources — standardized inspection evidence, and an inspection can hold several representative images." },
+  { id: "IntelligencePipeline", seconds: 10, caption: "The image becomes structured evidence — image quality, AI-assisted analysis, and comparison with an available governed baseline, surfacing information for review." },
+  { id: "SupervisorReview", seconds: 13, caption: "When an inspection needs review, LumenAI routes the evidence to a supervisor, who reviews images, baseline, AI-assisted observations, and history before recording the decision. AI assists. People decide." },
+  { id: "GovernedRecord", seconds: 8, caption: "Inspection, evidence, AI-assisted information, baseline, supervisor review, and disposition become one governed, auditable record." },
+  { id: "BaselineEcosystem", seconds: 8, caption: "Manufacturers, vendors, and organizations contribute reference information through a governed pathway — submit, verify, approve, publish. Never auto-approved." },
+  { id: "InspectionHistory", seconds: 7, caption: "Each inspection becomes part of the instrument's longitudinal history — Pass, Fair, and Review results over time." },
+  { id: "DepartmentTrends", seconds: 6, caption: "Across a department, that history becomes trends — Pass, Fair, and Review activity, and how complete the evidence is." },
+  { id: "InstrumentFamilyIntelligence", seconds: 6, caption: "Patterns emerge across instrument families — volume, results, recurring observations, review activity, and baseline coverage." },
+  { id: "OperationalCostIntelligence", seconds: 8, caption: "Documented inspections and decisions inform maintenance and replacement trends — operational and cost intelligence, evaluated with validated organizational data. Never invented savings." },
+  { id: "LeadershipView", seconds: 6, caption: "The same evidence serves SPD, quality, and executive leaders — LumenAI is the intelligence and evidence layer, not just a borescope app." },
+  { id: "Closing", seconds: 7, caption: "One inspection becomes evidence. Evidence becomes history. History becomes intelligence." },
 ] as const;
 
 export const secToFrames = (s: number): number => Math.round(s * FPS);

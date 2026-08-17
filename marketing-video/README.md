@@ -1,11 +1,14 @@
 # LumenAI Explainer — Marketing Video (Remotion)
 
-An **isolated** Remotion project that renders the official ~90-second LumenAI
-product explainer. It is intentionally separate from the LumenAI backend and
-frontend: its own `package.json`, its own `node_modules`, no shared build, no
-new backend APIs, no product capabilities added.
+An **isolated** Remotion project that renders the official LumenAI product
+explainer. It is intentionally separate from the LumenAI backend and frontend:
+its own `package.json`, its own `node_modules`, no shared build, no new backend
+APIs, no product capabilities added.
 
-- **Runtime:** ~95s at 30fps (2,850 frames), inside the 85–95s target.
+- **Runtime:** ~116s at 30fps (3,480 frames), inside the 100–120s target.
+- **Story:** person → physical borescope inspection → capture inside LumenAI →
+  AI-assisted analysis → baseline → supervisor review → governed record →
+  history → trends → operational intelligence → leadership. 15 scenes.
 - **Primary output:** 1920×1080 (`LumenAIExplainer`).
 - **Also:** 1080×1080 square, 1080×1920 vertical (same composition, centralized timing).
 

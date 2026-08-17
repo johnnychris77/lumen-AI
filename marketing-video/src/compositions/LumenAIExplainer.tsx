@@ -9,25 +9,35 @@ import { AudioBed } from "../audio";
 
 import { HiddenSurface } from "../scenes/HiddenSurface";
 import { SPDReality } from "../scenes/SPDReality";
-import { ImageAcquisition } from "../scenes/ImageAcquisition";
+import { PhysicalInspection } from "../scenes/PhysicalInspection";
+import { PhysicalDigitalTransition } from "../scenes/PhysicalDigitalTransition";
 import { UniversalCapture } from "../scenes/UniversalCapture";
 import { IntelligencePipeline } from "../scenes/IntelligencePipeline";
-import { HumanReview } from "../scenes/HumanReview";
-import { EvidenceGovernance } from "../scenes/EvidenceGovernance";
+import { SupervisorReview } from "../scenes/SupervisorReview";
+import { GovernedRecord } from "../scenes/GovernedRecord";
 import { BaselineEcosystem } from "../scenes/BaselineEcosystem";
-import { OperationalIntelligence } from "../scenes/OperationalIntelligence";
+import { InspectionHistory } from "../scenes/InspectionHistory";
+import { DepartmentTrends } from "../scenes/DepartmentTrends";
+import { InstrumentFamilyIntelligence } from "../scenes/InstrumentFamilyIntelligence";
+import { OperationalCostIntelligence } from "../scenes/OperationalCostIntelligence";
+import { LeadershipView } from "../scenes/LeadershipView";
 import { Closing } from "../scenes/Closing";
 
 const SCENE_COMPONENTS: Record<SceneId, React.FC> = {
   HiddenSurface,
   SPDReality,
-  ImageAcquisition,
+  PhysicalInspection,
+  PhysicalDigitalTransition,
   UniversalCapture,
   IntelligencePipeline,
-  HumanReview,
-  EvidenceGovernance,
+  SupervisorReview,
+  GovernedRecord,
   BaselineEcosystem,
-  OperationalIntelligence,
+  InspectionHistory,
+  DepartmentTrends,
+  InstrumentFamilyIntelligence,
+  OperationalCostIntelligence,
+  LeadershipView,
   Closing,
 };
 
@@ -42,7 +52,6 @@ export const LumenAIExplainer: React.FC = () => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.color.charcoal }}>
-      {/* Scaled 1920×1080 design band */}
       <div
         style={{
           position: "absolute",
@@ -70,11 +79,8 @@ export const LumenAIExplainer: React.FC = () => {
         })}
       </div>
 
-      {/* Format-aware overlays (composition space, not scaled) */}
       <BrandFurniture fmt={fmt} />
       <CaptionTrack fmt={fmt} />
-
-      {/* Optional audio bed / VO — inert until assets are supplied. */}
       <AudioBed />
     </AbsoluteFill>
   );

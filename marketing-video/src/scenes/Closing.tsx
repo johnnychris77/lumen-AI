@@ -13,10 +13,15 @@ export const Closing: React.FC = () => {
   const { durationInFrames } = useVideoConfig();
   const t = (p: number) => durationInFrames * p;
 
-  const instrOpacity = interpolate(frame, [4, 20, t(0.5), t(0.66)], [0, 1, 1, 0], { extrapolateRight: "clamp" });
+  // Instrument sits faintly behind the closing narration lines.
+  const instrOpacity = interpolate(frame, [4, 20, t(0.46), t(0.58)], [0, 0.38, 0.38, 0], { extrapolateRight: "clamp" });
   const orbit = interpolate(frame, [0, durationInFrames], [0, 40]);
-  const logoIn = interpolate(frame, [t(0.6), t(0.78)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const ctaIn = interpolate(frame, [t(0.78), t(0.92)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const logoIn = interpolate(frame, [t(0.58), t(0.74)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const ctaIn = interpolate(frame, [t(0.76), t(0.9)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  // "One inspection becomes evidence. Evidence becomes history. History becomes intelligence."
+  const lines = ["One inspection becomes evidence.", "Evidence becomes history.", "History becomes intelligence."];
+  const linesWrap = interpolate(frame, [t(0.06), t(0.14), t(0.5), t(0.58)], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   return (
     <Stage mode="dark">
@@ -55,6 +60,16 @@ export const Closing: React.FC = () => {
             );
           })}
         </div>
+      </div>
+
+      {/* Closing narration lines */}
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, opacity: linesWrap }}>
+        {lines.map((ln, i) => {
+          const on = interpolate(frame, [t(0.08 + i * 0.12), t(0.16 + i * 0.12)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+          return (
+            <div key={ln} style={{ opacity: on, fontSize: 44, fontWeight: 600, color: i === 2 ? theme.color.teal : theme.color.onDark, letterSpacing: 0.3 }}>{ln}</div>
+          );
+        })}
       </div>
 
       {/* Logo lockup */}

@@ -1,88 +1,123 @@
-# LumenAI Explainer — Storyboard
+# LumenAI Explainer — Storyboard (v2)
 
-Ten scenes. Timecodes and durations come from `src/timing.ts` (the single
-source of truth); change them there, not here. Total ~95s at 30fps.
+Fifteen scenes. Timecodes and durations come from `src/timing.ts` (the single
+source of truth). Total ~116s at 30fps. Emotional hierarchy: **person →
+instrument → inspection → evidence → intelligence → technology** — never
+AI→AI→AI→dashboard.
 
-The narrative transformation the film delivers:
+Narrative transformation the film delivers:
 
 ```
-Physical Instrument → Borescope Image → Structured Inspection →
-AI-Assisted Analysis → Approved Baseline Comparison → Qualified Human Review →
-Governed Evidence → Instrument History → Operational Intelligence
+Technician → Select Instrument → Start Inspection →
+Physical Borescope Inspection → Borescope Travels Through Lumen →
+Live Internal View in LumenAI → Capture Representative Image(s) →
+Image Attached → AI-Assisted Analysis → Baseline Comparison → Review Criteria →
+Supervisor Review When Required → Human Decision / Disposition →
+Governed Evidence Record → Instrument History → Pass / Fair / Review Trends →
+Maintenance / Replacement Trends → Operational & Cost Intelligence →
+Leadership Visibility
 ```
 
 ---
 
-## 1 · Hidden Surface — 0:00–0:08 · dark
-- **Visual:** Clean instrument slowly rotates; camera pushes toward the distal opening and travels into the internal lumen. Subtle, realistic surface variation (discoloration, fine scratches). Not dramatic.
-- **On-screen:** *What happens inside the instrument matters.*
-- **File:** `scenes/HiddenSurface.tsx` · **Motion:** slow push-in + rotate, cross-fade external→interior.
-- **Asset to swap:** photoreal instrument + real borescope lumen footage.
+## 1 · Hidden Surface — 0:00–0:05 · dark
+Instrument rotates; camera pushes into the lumen. *Every inspection begins with a person.*
+`scenes/HiddenSurface.tsx`
 
-## 2 · Today's Inspection Reality — 0:08–0:18 · dark
-- **Visual:** Modern SPD. A sequence of complex instruments (suction, cannulated ortho, drill/reamer, rigid scope, flexible scope). Technician connects a borescope; internal channel appears on a monitor.
-- **On-screen:** *Inspection → Evidence → Decision.*
-- **Principle:** the technician is the expert; technology supports the technician.
-- **File:** `scenes/SPDReality.tsx`.
+## 2 · SPD Reality — 0:05–0:10 · dark
+Modern SPD; complex lumened instruments; the technician is the expert.
+`scenes/SPDReality.tsx`
 
-## 3 · Introduce LumenAI — 0:18–0:29 · light (app UI)
-- **Visual:** LumenAI New Inspection screen. **Add Inspection Image** → source selector (**Capture from Borescope** / **Upload Existing Image**) → user selects *Capture from Borescope* → a **live borescope feed opens inside the inspection**.
-- **On-screen:** *Capture where the work happens.*
-- **Must:** no separate borescope app. The borescope is an image source; LumenAI owns the workflow.
-- **File:** `scenes/ImageAcquisition.tsx`.
+## 3 · Physical Borescope Inspection — 0:10–0:25 · light *(hero scene)*
+**LEFT (physical):** technician holds the instrument and advances a compatible
+borescope probe through the lumen. **RIGHT (LumenAI):** *Add Inspection Image →
+Capture from Borescope*; the **live internal feed** appears inside the active
+inspection; technician examines, stops at an area of interest, captures →
+**Retake / Use Image → Use Image → Image attached**; multiple representative
+images (**Image 1 / 2 / 3**). The technician performs the inspection; the
+borescope provides visual access; LumenAI captures/structures/preserves.
+`scenes/PhysicalInspection.tsx`
 
-## 4 · Universal Image Acquisition — 0:29–0:36 · dark
-- **Visual:** Multiple **compatible** sources (USB borescope, external camera, capture device, existing image) converge into **LumenAI Image Acquisition** → **Standardized Inspection Evidence**.
-- **On-screen:** *Vendor-neutral image acquisition.*
-- **Claim guard:** "Designed for compatible borescope and camera sources." Never "works with every borescope."
-- **File:** `scenes/UniversalCapture.tsx`.
+## 4 · Physical / Digital Transition — 0:25–0:31 · dark *(core concept)*
+Physical World (Technician → Instrument → Borescope → Lumen Image) **becomes**
+Digital Intelligence Layer (LumenAI → Structured Inspection → Analysis →
+Baseline → Review → Evidence). `scenes/PhysicalDigitalTransition.tsx`
 
-## 5 · Image Becomes Intelligence — 0:36–0:48 · dark
-- **Visual:** Four stages — **Image Quality → AI-Assisted Analysis → Baseline Comparison → Review Routing**. Then restrained **Current Inspection | Approved Baseline** side-by-side with subtle areas of interest (not bounding boxes everywhere).
-- **On-screen:** *From image to structured evidence.*
-- **Safety language:** AI-assisted, support, surface, compare. Never diagnose / certify / guarantee clean / determine patient safety.
-- **File:** `scenes/IntelligencePipeline.tsx`.
+## 5 · Universal Image Acquisition — 0:31–0:37 · dark
+Compatible sources → LumenAI Image Acquisition → Standardized Inspection
+Evidence. Vendor-neutral: *"designed for compatible borescope and camera
+sources."* `scenes/UniversalCapture.tsx`
 
-## 6 · Human Authority — 0:48–0:58 · dark *(key moment)*
-- **Visual:** **Review Required · Provisional Result.** Workflow pauses. A qualified reviewer examines current image, baseline, findings, evidence. Resolve to the line.
-- **On-screen:** **AI assists. People decide.**
-- **File:** `scenes/HumanReview.tsx` · music dips under the line.
+## 6 · Image → Intelligence — 0:37–0:47 · dark
+Image Quality → AI-Assisted Analysis → Baseline Comparison → Review Criteria;
+Current vs **Available Governed Baseline** (baseline types: manufacturer /
+vendor / organizational; not every inspection has one). Safety language only.
+`scenes/IntelligencePipeline.tsx`
 
-## 7 · Evidence Governance — 0:58–1:09 · dark
-- **Visual:** Zoom out; the record expands into a connected, timestamped chain — Instrument → Inspection → Captured Image → Baseline → Finding → Human Review → Audit Record → Report. A digital timeline (Inspection 001–004) builds.
-- **On-screen:** *Traceable. Reviewable. Governed.*
-- **File:** `scenes/EvidenceGovernance.tsx`.
+## 7 · Supervisor Review — 0:47–1:00 · dark *(expanded, key moment)*
+**Supervisor Review Required → Submit for Review → Supervisor Review Queue →**
+cut to the SPD supervisor at another workstation, who reviews captured images,
+technician observations, AI-assisted observations, baseline comparison, and
+history, then **records a disposition**. Resolves to **AI assists. People
+decide.** `scenes/SupervisorReview.tsx`
 
-## 8 · The Baseline Ecosystem — 1:09–1:20 · dark
-- **Visual:** Manufacturer · Vendor · Healthcare Organization connect through central **LumenAI** (Baseline Governance · Inspection Evidence · Instrument History). Then **Submit → Verify → Approve → Publish**.
-- **Must:** uploads do NOT automatically become approved baselines.
-- **File:** `scenes/BaselineEcosystem.tsx`.
+## 8 · Governed Inspection Record — 1:00–1:08 · dark *(closed loop)*
+Technician inspection + evidence + AI-assisted information + baseline +
+supervisor review + disposition + audit history → **Governed Inspection
+Record**. `scenes/GovernedRecord.tsx`
 
-## 9 · From One Instrument to Organizational Intelligence — 1:20–1:29 · dark
-- **Visual:** One record becomes many; individual records organize into an executive dashboard with restrained metrics (inspection activity, review activity, baseline coverage, instrument families, finding trends, evidence completeness).
-- **On-screen:** *Inspection Intelligence.*
-- **File:** `scenes/OperationalIntelligence.tsx`.
+## 9 · Baseline Ecosystem — 1:08–1:16 · dark
+Manufacturer · Vendor · Healthcare Organization → **Submit → Verify → Approve →
+Publish**. Never auto-approved. `scenes/BaselineEcosystem.tsx`
 
-## 10 · Close — 1:29–1:35 · dark
-- **Visual:** Return to the instrument, now wrapped in a subtle evidence history; resolve to the LumenAI lockup + CTA.
-- **On-screen:** LumenAI · Inspection Intelligence for Sterile Processing · *See more. Know more. Document what matters.* · Request a Demonstration · `lumenai.opsbridgesolution.com`.
-- **File:** `scenes/Closing.tsx`.
+## 10 · Instrument Inspection History — 1:16–1:23 · dark
+Inspection 001–006 with **Pass / Fair / Review** results. **Synthetic
+demonstration data** label. `scenes/InspectionHistory.tsx`
+
+## 11 · Department Trends — 1:23–1:29 · dark
+Pass 87% · Fair/Monitor 9% · Review 4% · Evidence Complete 96% · Baseline
+Coverage 84% + distribution bar. **Synthetic** label. `scenes/DepartmentTrends.tsx`
+
+## 12 · Instrument-Family Intelligence — 1:29–1:35 · dark
+Families (suction, cannulated orthopedic, scopes, powered components, other
+lumened) with volume + Pass/Fair/Review distribution + supporting signals. No
+failure-prediction claim. **Synthetic** label. `scenes/InstrumentFamilyIntelligence.tsx`
+
+## 13 · Operational & Cost Intelligence — 1:35–1:43 · dark *(claims-critical)*
+Progression: Inspection History → Pass/Fair/Review → Recurring Findings →
+Supervisor Decisions → Maintenance → Repair/Replacement → **Operational & Cost
+Intelligence**. Three value levels: L1 *shown*, L2 *with validated organizational
+data*, L3 Estimated Financial Impact **not shown**. **No dollar values.**
+`scenes/OperationalCostIntelligence.tsx`
+
+## 14 · Leadership Visibility — 1:43–1:49 · dark
+SPD / Quality / Executive / Investor value tiers — LumenAI is the intelligence &
+evidence layer, not just a borescope app. `scenes/LeadershipView.tsx`
+
+## 15 · Close — 1:49–1:56 · dark
+*One inspection becomes evidence. Evidence becomes history. History becomes
+intelligence.* → LumenAI lockup + CTA. `scenes/Closing.tsx`
 
 ---
 
 ## Scene timing table (generated from `src/timing.ts`)
 
-| # | Scene | Start | Dur (s) | Frames @30 |
-|---|-------|-------|---------|------------|
-| 1 | HiddenSurface | 0:00 | 8 | 0–240 |
-| 2 | SPDReality | 0:08 | 10 | 240–540 |
-| 3 | ImageAcquisition | 0:18 | 11 | 540–870 |
-| 4 | UniversalCapture | 0:29 | 7 | 870–1080 |
-| 5 | IntelligencePipeline | 0:36 | 12 | 1080–1440 |
-| 6 | HumanReview | 0:48 | 10 | 1440–1740 |
-| 7 | EvidenceGovernance | 0:58 | 11 | 1740–2070 |
-| 8 | BaselineEcosystem | 1:09 | 11 | 2070–2400 |
-| 9 | OperationalIntelligence | 1:20 | 9 | 2400–2670 |
-| 10 | Closing | 1:29 | 6 | 2670–2850 |
+| # | Scene | Start | Dur (s) |
+|---|-------|-------|---------|
+| 1 | HiddenSurface | 0:00 | 5 |
+| 2 | SPDReality | 0:05 | 5 |
+| 3 | PhysicalInspection | 0:10 | 15 |
+| 4 | PhysicalDigitalTransition | 0:25 | 6 |
+| 5 | UniversalCapture | 0:31 | 6 |
+| 6 | IntelligencePipeline | 0:37 | 10 |
+| 7 | SupervisorReview | 0:47 | 13 |
+| 8 | GovernedRecord | 1:00 | 8 |
+| 9 | BaselineEcosystem | 1:08 | 8 |
+| 10 | InspectionHistory | 1:16 | 7 |
+| 11 | DepartmentTrends | 1:23 | 6 |
+| 12 | InstrumentFamilyIntelligence | 1:29 | 6 |
+| 13 | OperationalCostIntelligence | 1:35 | 8 |
+| 14 | LeadershipView | 1:43 | 6 |
+| 15 | Closing | 1:49 | 7 |
 
-**Total:** 2,850 frames · 95.0s.
+**Total:** 3,480 frames · 116.0s.

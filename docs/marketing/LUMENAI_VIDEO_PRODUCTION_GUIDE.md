@@ -14,9 +14,11 @@ How to build, preview, render, and ship the explainer. The project lives in
 - **Design system:** `src/theme.ts` (charcoal cinematic + clinical light,
   restrained blue/teal accents), `Stage`/`Panel`/`Kicker` primitives.
 - **Reusable components:** `Caption`, `DeviceSource`, `EvidenceNode`,
-  `WorkflowArrow`, `InstrumentCard`, plus `LumenImage` (procedural lumen view)
-  and `anim.ts` helpers (`reveal`, `fadeInOut`, `softSpring`, `progress`).
-- **Scenes:** 10 files in `src/scenes/`, one per storyboard beat.
+  `WorkflowArrow`, `InstrumentCard`, `DataChrome` (`SyntheticBadge` +
+  `ResultBadge`), plus `LumenImage` (procedural lumen view) and `anim.ts`
+  helpers (`reveal`, `fadeInOut`, `softSpring`, `progress`).
+- **Scenes:** 15 files in `src/scenes/`, one per storyboard beat (~116s total).
+  The hero physical-inspection and supervisor-review scenes are the longest.
 - **Composition:** `src/compositions/LumenAIExplainer.tsx` maps the timing table
   to `<Sequence>`s and overlays captions. `src/Root.tsx` registers three sizes.
 

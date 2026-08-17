@@ -1,39 +1,59 @@
 1
-00:00:00,000 --> 00:00:08,000
-Some of the most important surfaces of a surgical instrument are also the hardest to see.
+00:00:00,000 --> 00:00:05,000
+Every inspection begins with a person — and surfaces that can't always be assessed from the outside.
 
 2
-00:00:08,000 --> 00:00:18,000
-Sterile processing professionals inspect increasingly complex instruments. But seeing the image is only the beginning.
+00:00:05,000 --> 00:00:10,000
+A sterile processing professional, an instrument, and increasingly complex lumened tools to inspect.
 
 3
-00:00:18,000 --> 00:00:29,000
-LumenAI brings image acquisition directly into the inspection workflow — capture from a compatible borescope or use an existing image without leaving the inspection.
+00:00:10,000 --> 00:00:25,000
+Using a compatible borescope, the technician examines the lumen directly — inside LumenAI the borescope is an image source, capturing representative evidence without leaving the inspection.
 
 4
-00:00:29,000 --> 00:00:36,000
-The acquisition layer is designed around compatible image sources — not a single borescope manufacturer.
+00:00:25,000 --> 00:00:31,000
+The physical inspection becomes a structured digital record — technician, instrument, and lumen image flowing into LumenAI.
 
 5
-00:00:36,000 --> 00:00:48,000
-The image becomes structured evidence. LumenAI can support image assessment, surface visible findings, and compare with an approved baseline when one is available.
+00:00:31,000 --> 00:00:37,000
+Designed for compatible borescope and camera sources — standardized inspection evidence, and an inspection can hold several representative images.
 
 6
-00:00:48,000 --> 00:00:58,000
-When uncertainty or defined review criteria are present, LumenAI routes the inspection for qualified human review. AI assists. People decide.
+00:00:37,000 --> 00:00:47,000
+The image becomes structured evidence — image quality, AI-assisted analysis, and comparison with an available governed baseline, surfacing information for review.
 
 7
-00:00:58,000 --> 00:01:09,000
-Each inspection can become part of a traceable record — connecting the instrument, image, baseline, findings, review history, and audit evidence over time.
+00:00:47,000 --> 00:01:00,000
+When an inspection needs review, LumenAI routes the evidence to a supervisor, who reviews images, baseline, AI-assisted observations, and history before recording the decision. AI assists. People decide.
 
 8
-00:01:09,000 --> 00:01:20,000
-LumenAI also creates a governed pathway for manufacturers, vendors, and healthcare organizations to contribute and use trusted reference information.
+00:01:00,000 --> 00:01:08,000
+Inspection, evidence, AI-assisted information, baseline, supervisor review, and disposition become one governed, auditable record.
 
 9
-00:01:20,000 --> 00:01:29,000
-What begins with one inspection can become operational intelligence — patterns across instruments, departments, and time.
+00:01:08,000 --> 00:01:16,000
+Manufacturers, vendors, and organizations contribute reference information through a governed pathway — submit, verify, approve, publish. Never auto-approved.
 
 10
+00:01:16,000 --> 00:01:23,000
+Each inspection becomes part of the instrument's longitudinal history — Pass, Fair, and Review results over time.
+
+11
+00:01:23,000 --> 00:01:29,000
+Across a department, that history becomes trends — Pass, Fair, and Review activity, and how complete the evidence is.
+
+12
 00:01:29,000 --> 00:01:35,000
-LumenAI. Inspection intelligence for Sterile Processing.
+Patterns emerge across instrument families — volume, results, recurring observations, review activity, and baseline coverage.
+
+13
+00:01:35,000 --> 00:01:43,000
+Documented inspections and decisions inform maintenance and replacement trends — operational and cost intelligence, evaluated with validated organizational data. Never invented savings.
+
+14
+00:01:43,000 --> 00:01:49,000
+The same evidence serves SPD, quality, and executive leaders — LumenAI is the intelligence and evidence layer, not just a borescope app.
+
+15
+00:01:49,000 --> 00:01:56,000
+One inspection becomes evidence. Evidence becomes history. History becomes intelligence. LumenAI — Inspection Intelligence for Sterile Processing.

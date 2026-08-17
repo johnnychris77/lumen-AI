@@ -89,7 +89,14 @@ export const IntelligencePipeline: React.FC = () => {
         <div style={{ display: "flex", alignItems: "center", color: theme.color.onDarkSoft, fontSize: 20, fontWeight: 600 }}>
           compared with
         </div>
-        <CompareCard title="Approved Baseline" showAreas={false} depth={0.5} badge="when available" slot="lumenBaseline" />
+        <CompareCard title="Available Governed Baseline" showAreas={false} depth={0.5} badge="when available" slot="lumenBaseline" />
+      </div>
+
+      {/* Baseline types — not every inspection necessarily has an approved baseline */}
+      <div style={{ position: "absolute", bottom: 205, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 12 }}>
+        {demo.baselineTypes.map((b) => (
+          <span key={b} style={{ fontSize: 15, color: theme.color.onDarkSoft, border: `1px solid rgba(255,255,255,0.15)`, borderRadius: 999, padding: "5px 14px" }}>{b}</span>
+        ))}
       </div>
     </Stage>
   );

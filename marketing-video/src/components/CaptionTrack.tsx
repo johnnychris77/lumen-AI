@@ -6,8 +6,8 @@ import { FormatInfo } from "../format";
 import { fadeInOut } from "./anim";
 
 /** Scenes rendered on a light background get a light-toned caption. */
-const LIGHT_SCENES: ReadonlySet<SceneId> = new Set<SceneId>(["ImageAcquisition"]);
-/** The Closing scene carries its own lockup text — no burned-in caption. */
+const LIGHT_SCENES: ReadonlySet<SceneId> = new Set<SceneId>(["PhysicalInspection"]);
+/** The Closing scene carries its own narration + lockup text — no burned-in caption. */
 const NO_CAPTION: ReadonlySet<SceneId> = new Set<SceneId>(["Closing"]);
 
 /**

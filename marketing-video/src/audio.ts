@@ -20,8 +20,8 @@ export const AUDIO = {
   voiceoverVolume: 1,
 } as const;
 
-/** Human-review scene window — music ducks under "AI assists. People decide." */
-const HUMAN_REVIEW = SCENE_WINDOWS.find((w) => w.id === "HumanReview");
+/** Supervisor-review scene window — music ducks under "AI assists. People decide." */
+const HUMAN_REVIEW = SCENE_WINDOWS.find((w) => w.id === "SupervisorReview");
 
 /**
  * Music volume envelope: gentle fade-in, a dip under the human-review moment,
