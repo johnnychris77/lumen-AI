@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:08,000
+Some of the most important surfaces of a surgical instrument are also the hardest to see.
+
+2
+00:00:08,000 --> 00:00:18,000
+Sterile processing professionals inspect increasingly complex instruments. But seeing the image is only the beginning.
+
+3
+00:00:18,000 --> 00:00:29,000
+LumenAI brings image acquisition directly into the inspection workflow — capture from a compatible borescope or use an existing image without leaving the inspection.
+
+4
+00:00:29,000 --> 00:00:36,000
+The acquisition layer is designed around compatible image sources — not a single borescope manufacturer.
+
+5
+00:00:36,000 --> 00:00:48,000
+The image becomes structured evidence. LumenAI can support image assessment, surface visible findings, and compare with an approved baseline when one is available.
+
+6
+00:00:48,000 --> 00:00:58,000
+When uncertainty or defined review criteria are present, LumenAI routes the inspection for qualified human review. AI assists. People decide.
+
+7
+00:00:58,000 --> 00:01:09,000
+Each inspection can become part of a traceable record — connecting the instrument, image, baseline, findings, review history, and audit evidence over time.
+
+8
+00:01:09,000 --> 00:01:20,000
+LumenAI also creates a governed pathway for manufacturers, vendors, and healthcare organizations to contribute and use trusted reference information.
+
+9
+00:01:20,000 --> 00:01:29,000
+What begins with one inspection can become operational intelligence — patterns across instruments, departments, and time.
+
+10
+00:01:29,000 --> 00:01:35,000
+LumenAI. Inspection intelligence for Sterile Processing.

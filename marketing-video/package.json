@@ -1,0 +1,36 @@
+{
+  "name": "lumenai-marketing-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated Remotion project for the 90-second LumenAI product explainer. Not part of the LumenAI backend/frontend build.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "remotion studio",
+    "studio": "remotion studio",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "build": "remotion bundle src/index.ts",
+    "render": "remotion render src/index.ts LumenAIExplainer out/lumenai-explainer-1920x1080.mp4",
+    "render:square": "remotion render src/index.ts LumenAIExplainerSquare out/lumenai-explainer-1080x1080.mp4",
+    "render:vertical": "remotion render src/index.ts LumenAIExplainerVertical out/lumenai-explainer-1080x1920.mp4",
+    "render:all": "npm run render && npm run render:square && npm run render:vertical",
+    "preview": "remotion render src/index.ts LumenAIExplainer out/preview-960x540.mp4 --scale=0.5"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.290",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.290"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.0",
+    "eslint-plugin-react": "7.35.0",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "typescript": "5.5.4"
+  }
+}

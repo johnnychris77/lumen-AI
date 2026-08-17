@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LumenAI — Inspection Intelligence (Explainer)</title>
+    <!--
+      Accessible, lazy-loading embed for the LumenAI explainer.
+
+      Behavior:
+        - Lazy-load: the <video> is only attached after the user activates the
+          poster (a real click), so the MP4 is not fetched on page load.
+        - Captions: a WebVTT track is attached and default-on.
+        - Transcript: full text below the player, always available to screen
+          readers and search engines.
+        - No autoplay with sound: playback starts muted-safe only on user intent.
+        - prefers-reduced-motion: the poster does not animate; nothing autoplays.
+        - Mobile: responsive 16:9 container, playsinline.
+
+      Replace the asset paths below with your hosted files:
+        data-src   -> the rendered MP4 (1920x1080)
+        poster     -> a poster JPG/PNG (see production guide "Assets required")
+        track src  -> the WebVTT captions
+    -->
+    <style>
+      :root { color-scheme: light dark; }
+      .lumenai-player {
+        max-width: 960px;
+        margin: 0 auto;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+      .lumenai-stage {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        background: #0a0e17;
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .lumenai-stage video,
+      .lumenai-stage .poster {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .poster {
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        background-size: cover;
+        background-position: center;
+      }
+      .play-badge {
+        width: 84px;
+        height: 84px;
+        border-radius: 999px;
+        background: rgba(46, 125, 175, 0.92);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+      .play-badge svg { margin-left: 4px; }
+      .lumenai-transcript {
+        margin-top: 16px;
+        border: 1px solid #d8e1ec;
+        border-radius: 12px;
+        padding: 8px 16px;
+      }
+      .lumenai-transcript > summary {
+        cursor: pointer;
+        font-weight: 600;
+        padding: 8px 0;
+      }
+      .lumenai-transcript p { line-height: 1.5; color: #3c4b60; }
+      @media (prefers-reduced-motion: reduce) {
+        .play-badge { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lumenai-player">
+      <figure class="lumenai-stage" id="lumenai-stage" style="margin: 0">
+        <button
+          class="poster"
+          id="lumenai-poster"
+          type="button"
+          aria-label="Play the LumenAI explainer video"
+          style="background-image: url('./assets/poster.jpg')"
+        >
+          <span class="play-badge" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+        </button>
+      </figure>
+
+      <details class="lumenai-transcript">
+        <summary>Transcript</summary>
+        <p>Some of the most important surfaces of a surgical instrument are also the hardest to see.</p>
+        <p>Sterile processing professionals inspect increasingly complex instruments. But seeing the image is only the beginning.</p>
+        <p>LumenAI brings image acquisition directly into the inspection workflow — capture from a compatible borescope or use an existing image without leaving the inspection.</p>
+        <p>The acquisition layer is designed around compatible image sources — not a single borescope manufacturer.</p>
+        <p>The image becomes structured evidence. LumenAI can support image assessment, surface visible findings, and compare with an approved baseline when one is available.</p>
+        <p>When uncertainty or defined review criteria are present, LumenAI routes the inspection for qualified human review. AI assists. People decide.</p>
+        <p>Each inspection can become part of a traceable record — connecting the instrument, image, baseline, findings, review history, and audit evidence over time.</p>
+        <p>LumenAI also creates a governed pathway for manufacturers, vendors, and healthcare organizations to contribute and use trusted reference information.</p>
+        <p>What begins with one inspection can become operational intelligence — patterns across instruments, departments, and time.</p>
+        <p>LumenAI. Inspection intelligence for Sterile Processing.</p>
+      </details>
+    </div>
+
+    <script>
+      // Lazy-load: build the <video> only when the poster is activated.
+      (function () {
+        var poster = document.getElementById("lumenai-poster");
+        var stage = document.getElementById("lumenai-stage");
+        if (!poster || !stage) return;
+        poster.addEventListener("click", function () {
+          var video = document.createElement("video");
+          video.setAttribute("controls", "");
+          video.setAttribute("playsinline", "");
+          video.setAttribute("preload", "metadata");
+          video.setAttribute("poster", "./assets/poster.jpg");
+          // Not autoplaying with sound: we start playback on this user gesture.
+          video.setAttribute("data-src", "./assets/lumenai-explainer-1920x1080.mp4");
+          video.src = video.getAttribute("data-src");
+
+          var track = document.createElement("track");
+          track.setAttribute("kind", "captions");
+          track.setAttribute("srclang", "en");
+          track.setAttribute("label", "English");
+          track.setAttribute("default", "");
+          track.setAttribute("src", "../public/captions/lumenai-explainer.vtt");
+          video.appendChild(track);
+
+          poster.remove();
+          stage.appendChild(video);
+          var playPromise = video.play();
+          if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch(function () {
+              /* If the browser blocks playback, controls are visible to start it. */
+            });
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
