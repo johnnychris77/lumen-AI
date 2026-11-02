@@ -182,6 +182,10 @@ services:
 
 databases:
   - name: lumen-ai-db
-    plan: starter
+    # Render retired the legacy "starter" Postgres instance type for new
+    # databases; new databases must use a flexible-plan name instead
+    # (basic-1gb is the smallest/cheapest flexible tier, a reasonable
+    # equivalent for this pilot deployment).
+    plan: basic-1gb
     databaseName: lumenai
     user: lumen
