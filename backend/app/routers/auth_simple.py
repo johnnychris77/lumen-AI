@@ -7,7 +7,9 @@ import jwt
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from pydantic import BaseModel
 from passlib.hash import bcrypt
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+
+from app.db.session import engine
 
 _rate_lock = threading.Lock()
 _rate_buckets: dict[str, tuple[int, float]] = {}  # ip → (count, window_start)
@@ -40,9 +42,6 @@ ALGORITHM = "HS256"
 # so a leaked token stays valid for its full lifetime. Override per-deploy via
 # ACCESS_TOKEN_EXPIRE_MINUTES if a longer session is explicitly needed.
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 class LoginJSON(BaseModel):
