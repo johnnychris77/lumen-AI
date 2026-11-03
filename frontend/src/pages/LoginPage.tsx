@@ -2,6 +2,15 @@ import { useState, FormEvent } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth, API_BASE } from "@/lib/auth";
 
+// Pre-seeded demo accounts (see backend/app/routes/admin_users.py bootstrap +
+// role assignment) for one-click role switching during sales/pilot demos.
+// Not real tenant users -- do not reuse this pattern for production accounts.
+const DEMO_ACCOUNTS: Record<string, { email: string; password: string }> = {
+  admin: { email: "demo-admin@lumenai.app", password: "07Ywv8SfbkiB33GE" },
+  contributor: { email: "demo-contributor@lumenai.app", password: "wWFPAF9CRkb7bXi1" },
+  viewer: { email: "demo-viewer@lumenai.app", password: "R78eSWlQQdTmzAWN" },
+};
+
 export default function LoginPage() {
   const { token, setAuth } = useAuth();
   const navigate = useNavigate();
@@ -15,11 +24,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [demoRole, setDemoRole] = useState("");
 
   if (token) return <Navigate to={from} replace />;
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function performLogin(loginEmail: string, loginPassword: string) {
     setError(null);
     setLoading(true);
 
@@ -27,7 +36,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
 
       if (res.status === 401 || res.status === 403) {
@@ -50,7 +59,7 @@ export default function LoginPage() {
       setAuth({
         token,
         role: data?.role || "viewer",
-        actor: email,
+        actor: loginEmail,
       });
 
       navigate(from, { replace: true });
@@ -59,6 +68,21 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    await performLogin(email, password);
+  }
+
+  async function handleDemoRoleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const role = e.target.value;
+    setDemoRole(role);
+    const account = DEMO_ACCOUNTS[role];
+    if (!account) return;
+    setEmail(account.email);
+    setPassword(account.password);
+    await performLogin(account.email, account.password);
   }
 
   return (
@@ -72,6 +96,33 @@ export default function LoginPage() {
 
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Sign in to your account</h2>
+
+          <div className="mb-6">
+            <label htmlFor="demo-role" className="block text-sm font-medium text-gray-700 mb-1">
+              Quick demo login
+            </label>
+            <select
+              id="demo-role"
+              value={demoRole}
+              onChange={handleDemoRoleChange}
+              disabled={loading}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            >
+              <option value="">— Select a role to preview —</option>
+              <option value="admin">Admin</option>
+              <option value="contributor">Contributor</option>
+              <option value="viewer">Viewer</option>
+            </select>
+          </div>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-2 text-gray-400">or sign in manually</span>
+            </div>
+          </div>
 
           {error && (
             <div

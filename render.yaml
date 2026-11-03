@@ -106,6 +106,13 @@ services:
     name: lumen-ai-redis
     plan: starter
     maxmemoryPolicy: allkeys-lru
+    # Render now requires every Key-Value/Redis service in a Blueprint to
+    # declare an explicit IP allow list. This Redis instance is only ever
+    # consumed by lumen-ai-api/lumen-ai-worker over Render's private network
+    # (see REDIS_URL below) and has no reason to accept public internet
+    # connections, so the allow list is intentionally empty (deny all public
+    # access) rather than opened to 0.0.0.0/0.
+    ipAllowList: []
 
   - type: web
     name: lumen-ai-1
@@ -175,6 +182,10 @@ services:
 
 databases:
   - name: lumen-ai-db
-    plan: starter
+    # Render retired the legacy "starter" Postgres instance type for new
+    # databases; new databases must use a flexible-plan name instead
+    # (basic-1gb is the smallest/cheapest flexible tier, a reasonable
+    # equivalent for this pilot deployment).
+    plan: basic-1gb
     databaseName: lumenai
     user: lumen

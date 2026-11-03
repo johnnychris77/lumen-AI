@@ -18,3 +18,15 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
 
 EXPOSE 8000
+
+# This Dockerfile previously had no CMD/ENTRYPOINT at all: the image built
+# fine (deps installed, code copied) but the container had nothing to run,
+# so it exited immediately on every deploy ("Application exited early").
+# --workers 1 (not 2, unlike the sibling ./Dockerfile this otherwise mirrors):
+# app startup (tenant bootstrap, scheduler-leader acquisition, DB readiness
+# checks) is not safe for multiple worker processes to race through
+# concurrently at cold start -- verified locally that 2 workers crash with
+# "database schema has changed" while 1 starts and serves /api/health
+# cleanly. Render's own deploy logs already default WEB_CONCURRENCY=1 for
+# this instance size, so this matches the platform's own guidance too.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
