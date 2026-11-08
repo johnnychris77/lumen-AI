@@ -54,8 +54,6 @@ type IntakeHistoryItem = {
   created_at?: string;
 };
 
-const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
-
 export default function EnterpriseIntakeHistoryPanel() {
   const [items, setItems] = useState<IntakeHistoryItem[]>([]);
   const [selected, setSelected] = useState<IntakeHistoryItem | null>(null);
@@ -69,10 +67,8 @@ export default function EnterpriseIntakeHistoryPanel() {
     try {
       const response = await apiFetch(`/api/enterprise/intake/history?limit=10`,
         { raw: true,
+          signOutOn401: false,
           headers: {
-            Authorization: `Bearer ${AUTH_TOKEN}`,
-            "X-LumenAI-Role": "viewer",
-            "X-LumenAI-Actor": "john-demo",
             "X-Tenant-Id": "bonsecours",
             "X-Tenant-Name": "Bon Secours",
           },

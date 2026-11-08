@@ -45,21 +45,16 @@ type BaselineItem = {
   created_at?: string;
 };
 
-const AUTH_TOKEN = import.meta.env.VITE_AUTH_TOKEN || "dev-token";
-
-
 async function reviewManufacturerBaseline(
   baselineId: number,
   decision: "approve" | "reject" | "request_more_evidence",
   reviewNotes: string
 ): Promise<BaselineApprovalResult> {
   const response = await apiFetch(`/api/enterprise/baselines/${baselineId}/review`, { raw: true,
+    signOutOn401: false,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${AUTH_TOKEN}`,
-      "X-LumenAI-Role": "operator",
-      "X-LumenAI-Actor": "john-demo",
       "X-Tenant-Id": "bonsecours",
       "X-Tenant-Name": "Bon Secours",
     },
@@ -108,10 +103,8 @@ export default function ManufacturerBaselinePanel() {
   async function loadRecentInstruments() {
     try {
       const response = await apiFetch(`/api/enterprise/intake/history?limit=25`, { raw: true,
+        signOutOn401: false,
         headers: {
-          Authorization: `Bearer ${AUTH_TOKEN}`,
-          "X-LumenAI-Role": "viewer",
-          "X-LumenAI-Actor": "john-demo",
           "X-Tenant-Id": "bonsecours",
           "X-Tenant-Name": "Bon Secours",
         },
@@ -160,10 +153,8 @@ export default function ManufacturerBaselinePanel() {
 
     try {
       const response = await apiFetch(`/api/enterprise/vendor-baselines?limit=25`, { raw: true,
+        signOutOn401: false,
         headers: {
-          Authorization: `Bearer ${AUTH_TOKEN}`,
-          "X-LumenAI-Role": "viewer",
-          "X-LumenAI-Actor": "john-demo",
           "X-Tenant-Id": "bonsecours",
           "X-Tenant-Name": "Bon Secours",
         },
@@ -218,11 +209,9 @@ export default function ManufacturerBaselinePanel() {
     try {
       const response = await apiFetch(`/api/enterprise/instruments/${numericInstrumentId}/baseline`,
         { raw: true,
+          signOutOn401: false,
           method: "POST",
           headers: {
-            Authorization: `Bearer ${AUTH_TOKEN}`,
-            "X-LumenAI-Role": "operator",
-            "X-LumenAI-Actor": "john-demo",
             "X-Tenant-Id": "bonsecours",
             "X-Tenant-Name": "Bon Secours",
           },
