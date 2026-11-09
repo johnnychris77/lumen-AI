@@ -309,6 +309,11 @@ export default function NewInspectionPage() {
   // v1.2 — per-image view tags, keyed by "name__size" so tags survive re-renders
   // without depending on array index (which shifts when a file is removed).
   const [imageTags, setImageTags] = useState<Record<string, ImageTag>>({});
+  // Opt-in consent for retaining these images server-side for model training.
+  // Off by default -- retention is a deliberate choice, not a default (see
+  // backend/app/services/image_retention_service.py). Without this AND the
+  // server's RETAIN_INSPECTION_IMAGES flag, only a SHA-256 hash is kept.
+  const [retainImagesConsent, setRetainImagesConsent] = useState(false);
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -470,7 +475,7 @@ export default function NewInspectionPage() {
       allImages.forEach((f) => fd.append("images", f));
       const sources = new Set(allImages.map(imageAcquisitionSource));
       const imageSource = sources.size > 1 ? "mixed" : [...sources][0] ?? "file_upload";
-      const imgRes = await apiFetch(`/api/inspections/upload-images?image_source=${encodeURIComponent(imageSource)}`, { raw: true,
+      const imgRes = await apiFetch(`/api/inspections/upload-images?image_source=${encodeURIComponent(imageSource)}&consent=${retainImagesConsent}`, { raw: true,
         method: "POST",
         headers: { Authorization: hdrs["Authorization"] },
         body: fd,
@@ -988,7 +993,24 @@ export default function NewInspectionPage() {
                 disabled={!canRunInspection || submitting}
               />
             </div>
-            <p className="text-xs text-gray-500">Capture live from the borescope or upload existing files. Max 10 MB per file. Only SHA-256 hash is stored — raw images are not retained.</p>
+            <p className="text-xs text-gray-500">Capture live from the borescope or upload existing files. Max 10 MB per file.</p>
+
+            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={retainImagesConsent}
+                disabled={!canRunInspection || submitting}
+                onChange={(e) => setRetainImagesConsent(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Retain these images (instruments only — EXIF/metadata stripped) for AI model training.
+                {" "}
+                <span className="text-gray-500">
+                  Unchecked by default — only a SHA-256 hash is stored unless you opt in here.
+                </span>
+              </span>
+            </label>
 
             {/* Phase 15 — zones inspected (feeds the coverage engine) */}
             {anatomyZones.length > 0 && (
