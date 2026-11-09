@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch, API_BASE } from "@/lib/api";
+import { BaselineImageUpload } from "./ui/baseline-image-upload";
 
 type ComplianceEvidenceBundleResponse = {
   status: string;
@@ -500,6 +501,17 @@ export default function VendorBaselineSubscriptionPortal() {
     }
   }
 
+  function fillFormFromMatch(match: VendorBaselineRecord) {
+    setForm((current) => ({
+      ...current,
+      vendor_name: match.vendor_name,
+      instrument_name: match.instrument_name,
+      instrument_category: match.instrument_category,
+      catalog_number: match.catalog_number,
+      model_number: match.model_number,
+    }));
+  }
+
   useEffect(() => {
     loadRecords().catch((err) => {
       setError(err instanceof Error ? err.message : "Failed to load vendor baseline records.");
@@ -668,16 +680,26 @@ return (
         </p>
 
         <div style={formGridStyle}>
-          {Object.entries(form).map(([key, value]) => (
-            <label key={key} style={labelStyle}>
-              {fieldLabel(key)}
-              <input
-                value={value}
-                onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                style={inputStyle}
-              />
-            </label>
-          ))}
+          {Object.entries(form).map(([key, value]) =>
+            key === "baseline_image_url" ? (
+              <label key={key} style={labelStyle}>
+                {fieldLabel(key)}
+                <BaselineImageUpload
+                  value={value}
+                  onChange={(url) => setForm((current) => ({ ...current, baseline_image_url: url }))}
+                />
+              </label>
+            ) : (
+              <label key={key} style={labelStyle}>
+                {fieldLabel(key)}
+                <input
+                  value={value}
+                  onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                  style={inputStyle}
+                />
+              </label>
+            )
+          )}
         </div>
 
         <button type="button" onClick={submitBaseline} style={primaryButtonStyle}>
@@ -716,6 +738,13 @@ return (
                   {matchResult.best_match.vendor_name} · {matchResult.best_match.catalog_number} ·{" "}
                   {matchResult.best_match.baseline_status}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => fillFormFromMatch(matchResult.best_match as VendorBaselineRecord)}
+                  style={matchButtonStyle}
+                >
+                  Use This Match to Fill Form
+                </button>
               </div>
             ) : null}
           </div>
