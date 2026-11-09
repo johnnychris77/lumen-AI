@@ -71,6 +71,14 @@ services:
       # only — never an open grant. Edit to match your pilot admin(s).
       - key: BOOTSTRAP_TENANT_ADMINS
         value: asaahj@yahoo.com
+      # Opt-in image retention for model training. OFF by default in the app
+      # (app/services/image_retention_service.py) -- this flag alone does NOT
+      # retain anything; the uploading client must ALSO pass consent=true per
+      # request (wired into the New Inspection page's own consent checkbox).
+      # Bytes are EXIF/metadata-stripped before storage. Flip to "false" to
+      # fully disable retention regardless of client consent.
+      - key: RETAIN_INSPECTION_IMAGES
+        value: "true"
 
   - type: worker
     name: lumen-ai-worker
