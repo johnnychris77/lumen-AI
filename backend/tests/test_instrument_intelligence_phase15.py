@@ -1,5 +1,6 @@
 """Phase 15 — Instrument Intelligence Engine: anatomy, coverage, risk map,
 missing-image guidance, knowledge library, analytics."""
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -113,6 +114,10 @@ class TestAnalyzeIntegration:
                 "Clear", "Monitor", "Supervisor review", "Reprocess", "Remove from service"
             )
 
+    # The AI mentor's zone reasoning is generated from model findings, so it only
+    # exists once the (segregated) demo scorer supplies them; production AI_UNAVAILABLE
+    # attaches no clinical_decision. Opt this one test into the demo fixture.
+    @pytest.mark.usefixtures("enable_demo_scoring")
     def test_mentor_has_zone_reasoning(self):
         out = _analyze("orthopedic drill", declared=["debris"])
         mentor = out["clinical_decision"]["ai_mentor"]

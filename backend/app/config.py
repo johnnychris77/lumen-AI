@@ -86,6 +86,19 @@ class Settings:
     # than presenting a fabricated score as if it were evaluated.
     ai_strict_no_placeholder: bool
 
+    # Critical-pilot-defect correction — the deterministic placeholder scorer
+    # (SHA-256-seeded findings/scores/baseline-match %, NOT computer vision)
+    # must never populate production clinical outcomes. When False (the default
+    # everywhere, including production), analyze_inspection() returns an
+    # evidence-only AI_UNAVAILABLE result whenever no eligible promoted model
+    # actually evaluated the image, instead of the placeholder-derived score,
+    # findings, confidence, risk level, or clinical interpretation. The scorer
+    # survives only as an explicitly segregated development/demo fixture: set
+    # this True (or pass analyze_inspection(demo_scoring=True)) to opt a
+    # non-clinical demo/dev context back into placeholder output. is_production
+    # does not flip this on — enabling the demo path is always deliberate.
+    ai_allow_demo_scoring: bool
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
@@ -109,6 +122,17 @@ class Settings:
 
         if self.is_production and self.dev_auth_token == "dev-token":
             issues.append("DEV_AUTH_TOKEN must not remain dev-token in production.")
+
+        # The deterministic placeholder scorer must never populate clinical
+        # outcomes on a production deployment. AI_ALLOW_DEMO_SCORING re-enables it
+        # on every inspection route, so enabling it in production is fail-closed
+        # at startup — the segregation must not rely on configuration discipline
+        # alone (see baseline_comparison_scoring_service.analyze_inspection).
+        if self.is_production and self.ai_allow_demo_scoring:
+            issues.append(
+                "AI_ALLOW_DEMO_SCORING must be false in production — it re-enables the "
+                "deterministic placeholder scorer on clinical inspection routes."
+            )
 
         if self.public_base_url.startswith("http://127.0.0.1") and self.is_production:
             issues.append("PUBLIC_BASE_URL should not point to localhost in production.")
@@ -151,6 +175,7 @@ def get_settings() -> Settings:
         require_full_coverage_before_final_decision=_bool_env("REQUIRE_FULL_COVERAGE_BEFORE_FINAL_DECISION", False),
         allowed_origins=allowed_origins,
         ai_strict_no_placeholder=_bool_env("AI_STRICT_NO_PLACEHOLDER", False),
+        ai_allow_demo_scoring=_bool_env("AI_ALLOW_DEMO_SCORING", False),
     )
 
 

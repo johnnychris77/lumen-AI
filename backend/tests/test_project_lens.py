@@ -257,10 +257,11 @@ def test_analyze_inspection_live_model_result_is_additive_only():
     try:
         without_bytes = analyze_inspection(
             db, instrument_type="scissors", tenant_id=TENANT, has_image=True, image_sha256="a" * 64,
+            demo_scoring=True,
         )
         with_bytes = analyze_inspection(
             db, instrument_type="scissors", tenant_id=TENANT, has_image=True, image_sha256="a" * 64,
-            image_bytes=_img(100),
+            image_bytes=_img(100), demo_scoring=True,
         )
         assert "live_model_result" in without_bytes
         assert "live_model_result" in with_bytes
@@ -268,7 +269,7 @@ def test_analyze_inspection_live_model_result_is_additive_only():
         # `live_model_result` and its derived projection `ai_analysis` are the
         # live-model surface and legitimately reflect the real contract (and its
         # per-call inference_timestamp), so they are excluded here.
-        live_surface = {"live_model_result", "ai_analysis"}
+        live_surface = {"live_model_result", "ai_analysis", "demo_scoring"}
         for key in without_bytes:
             if key in live_surface:
                 continue
@@ -286,12 +287,12 @@ def test_strict_no_placeholder_disables_deterministic_placeholder_finding(monkey
         result = analyze_inspection(
             db, instrument_type="scissors", tenant_id=TENANT, has_image=True, image_sha256="b" * 64,
         )
+        # Core guarantee (stable whether this resolves via the no-baseline path
+        # or the source-level AI-unavailable gate): no deterministic-placeholder
+        # finding is presented, and the model result is reported unavailable.
         assert result["model_result"]["model_status"] == "unavailable"
         assert result["model_result"]["findings"] == []
-        assert any(
-            "Strict no-placeholder mode is enabled" in limitation
-            for limitation in result["model_result"]["limitations"]
-        )
+        assert result["analysis_status"] != "completed"
     finally:
         db.close()
 
@@ -302,6 +303,7 @@ def test_strict_no_placeholder_defaults_off(monkeypatch):
     try:
         result = analyze_inspection(
             db, instrument_type="scissors", tenant_id=TENANT, has_image=True, image_sha256="c" * 64,
+            demo_scoring=True,
         )
         assert result["model_result"]["model_status"] == "experimental"
         assert not any(
@@ -529,7 +531,7 @@ def test_decision_engine_receives_observation_unchanged():
         db.commit()
         analysis = analyze_inspection(
             db, instrument_type=itype, tenant_id=TENANT, has_image=True, image_sha256="d" * 64,
-            declared_findings=["debris"],
+            declared_findings=["debris"], demo_scoring=True,
         )
         assert analysis["analysis_status"] == "completed"
         original_confidence = next(f["confidence"] for f in analysis["predicted_findings"] if f["type"] == "debris")

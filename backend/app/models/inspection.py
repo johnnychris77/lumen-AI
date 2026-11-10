@@ -116,6 +116,14 @@ class Inspection(Base):
     # must never be presented as one (history/exports/PDF all gate on this).
     ai_analysis_status: Mapped[str] = mapped_column(String(30), default="", nullable=False, index=True)
 
+    # Technician-DECLARED finding categories (a HUMAN observation, never an AI
+    # detection), JSON-encoded, e.g. '["blood"]'. Persisted so the human's own
+    # declaration survives in the durable clinical record and can be surfaced —
+    # distinct from AI findings — in history and reports even when no eligible
+    # model evaluated the image (the AI-unavailable path stores no AI finding).
+    # "" / "[]" means none declared.
+    declared_findings: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+
     # Zones the technician tagged as inspected (anatomy-aware coverage engine).
     # JSON-encoded: "null" means not tagged (coverage not_assessed), "[...]" is
     # an explicit (possibly empty) list — see app/services/inspection_coverage.py.

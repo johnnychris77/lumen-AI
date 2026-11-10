@@ -243,6 +243,23 @@ def _create_audit_logs_fallback(engine):
         connection.execute(text(create_sql))
 
 
+@pytest.fixture
+def enable_demo_scoring(monkeypatch):
+    """Opt a test module into the SEGREGATED deterministic-placeholder scorer.
+
+    The placeholder scorer (SHA-256-seeded findings/scores — NOT computer vision)
+    is OFF by default everywhere, including the test suite, so the production
+    clinical path is exercised exactly as deployed: AI_UNAVAILABLE with no
+    fabricated clinical outcomes. Legacy unit tests that specifically cover the
+    demo scorer's math/interpretation opt back in with
+    ``pytestmark = pytest.mark.usefixtures("enable_demo_scoring")``. Production
+    routes and the new clinical-safety regression tests never use this, so they
+    keep running with the scorer OFF. ``get_settings()`` reads the env live, so
+    this reaches both direct ``analyze_inspection`` calls and HTTP-route calls.
+    """
+    monkeypatch.setenv("AI_ALLOW_DEMO_SCORING", "true")
+
+
 @pytest.fixture(autouse=True)
 def ensure_test_database_tables():
     base, engine = _load_database_objects()

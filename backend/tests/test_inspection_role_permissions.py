@@ -66,11 +66,16 @@ class TestViewerReadOnly:
 # ── Operator: can run, cannot override ───────────────────────────────────────
 
 class TestOperator:
-    def test_operator_can_submit_and_get_score(self):
+    def test_operator_can_submit_and_get_result(self):
+        # RBAC: an operator can submit an inspection and receives an analysis
+        # result. With no eligible trained model that result is the honest
+        # AI_UNAVAILABLE verdict (no fabricated score).
         _baseline("scissors")
         r = client.post("/api/inspections", json=_inspection_payload("scissors"), headers=AUTH_OPERATOR)
         assert r.status_code == 201, r.text
-        assert r.json()["analysis"]["analysis_status"] == "completed"
+        analysis = r.json()["analysis"]
+        assert analysis["analysis_status"] == "ai_unavailable"
+        assert analysis["ai_analysis"]["status"] == "AI_UNAVAILABLE"
 
     def test_operator_can_upload_image(self):
         r = client.post("/api/inspections/upload-images", files=_png_upload(), headers=AUTH_OPERATOR)

@@ -1,4 +1,12 @@
 """v1.8 — Institutional Knowledge & Clinical Memory."""
+
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal

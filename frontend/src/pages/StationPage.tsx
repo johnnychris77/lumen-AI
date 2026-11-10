@@ -22,6 +22,10 @@ type Verdict = "PASS" | "MONITOR" | "SUPERVISOR REVIEW" | "REPROCESS" | "UNKNOWN
 
 function verdictFrom(risk: string | null | undefined, action: string | undefined): Verdict {
   const a = (action || "").toLowerCase();
+  // No eligible trained model evaluated the image → route to human review,
+  // never a PASS. Checked first so an "unavailable" result can never fall
+  // through to a default that reads as cleared.
+  if (a.includes("manual inspection required") || a.includes("unavailable") || a.includes("no eligible")) return "SUPERVISOR REVIEW";
   if (a.includes("reprocess") || a.includes("remove from service")) return "REPROCESS";
   if (a.includes("supervisor review")) return "SUPERVISOR REVIEW";
   if (a.startsWith("monitor")) return "MONITOR";

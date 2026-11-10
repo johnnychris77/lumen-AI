@@ -13,6 +13,14 @@ Covers the behaviors added/fixed in this pass:
     supervisor disposition workflow
   - the original AI output is never overwritten by a supervisor correction
 """
+
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
 import io
 
 from fastapi.testclient import TestClient

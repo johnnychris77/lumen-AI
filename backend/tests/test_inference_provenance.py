@@ -199,17 +199,21 @@ def test_declared_findings_distinct_from_model():
     _seed_manufacturer_baseline(itype)
     res = _analyze(itype, image_sha256="d" * 64, declared_findings=["blood"])
 
-    by_type = {f["type"]: f for f in res["predicted_findings"]}
-    assert by_type["blood"]["observation_source"] == "technician_declared"
-    assert by_type["blood"]["verified_ai"] is False
-    assert by_type["blood"]["provenance"] == "deterministic_placeholder"
-
-    # A non-declared finding is a heuristic, not a human declaration.
-    heuristic = next(f for f in res["predicted_findings"] if f["observation_source"] == "heuristic")
-    assert heuristic["verified_ai"] is False
-
+    # With no eligible model the result is AI_UNAVAILABLE: no fabricated AI
+    # findings at all, and the technician's declared observations are kept
+    # distinct as HUMAN observations (never attributed to AI).
+    assert res["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+    assert res["predicted_findings"] == []
+    assert any("blood" in o.lower() for o in res["technician_declared_observations"])
     # The authoritative AI observation channel is separate and empty (no model).
     assert res["ai_analysis"]["observation"] is None
+
+    # When the segregated demo scorer is explicitly opted into, declared findings
+    # are still provenance-tagged as technician-declared, never verified AI.
+    demo = _analyze(itype, image_sha256="d" * 64, declared_findings=["blood"], demo_scoring=True)
+    by_type = {f["type"]: f for f in demo["predicted_findings"]}
+    assert by_type["blood"]["observation_source"] == "technician_declared"
+    assert by_type["blood"]["verified_ai"] is False
 
 
 # 7. Unsupported categories never receive invented model confidence scores.

@@ -1,5 +1,13 @@
 """Upgraded AI analysis output: summary, confidence, severity/status, pass/fail,
 critical-threshold escalation, and explainability."""
+
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
 from app.services.baseline_comparison_scoring_service import (
     analyze_inspection,
     severity_from_probability,

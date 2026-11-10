@@ -395,8 +395,10 @@ async def inspection_clinical_report(
 ):
     """Phase 13.8 — printable Clinical Decision Support PDF for an inspection.
 
-    Re-runs the deterministic analysis for the stored inspection (identical seed
-    → identical output) and renders the full explainable report.
+    Re-runs the authoritative analysis for the stored inspection and renders the
+    report. With no eligible trained model the analysis is AI_UNAVAILABLE, so the
+    report shows "Not evaluated" placeholders and a supervisor-review verdict —
+    never a fabricated score, finding, or clinical interpretation.
     """
     tenant_id = getattr(current_user, "tenant_id", None)
     query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
@@ -408,6 +410,37 @@ async def inspection_clinical_report(
 
     from app.services.clinical_report_pdf import build_clinical_report_pdf
 
+    # Reload the verified retained bytes (if consent-based retention stored them)
+    # so the report re-analysis sees the SAME pixels the original inference did.
+    # Without this the live adapter receives no bytes and reports "not evaluated"
+    # even for a row that was genuinely scored by a model at inspection time. The
+    # bytes are hash-verified (registered == recomputed == row sha) before use;
+    # a mismatch falls back to no bytes rather than analyzing wrong pixels.
+    report_image_bytes = None
+    report_retained_id = None
+    if row.has_image and row.image_sha256:
+        from app.models.retained_image import RetainedImage as _RetainedImage
+        _retained = (
+            db.query(_RetainedImage)
+            .filter(_RetainedImage.tenant_id == row.tenant_id, _RetainedImage.sha256 == row.image_sha256)
+            .first()
+        )
+        if _retained is not None:
+            report_retained_id = _retained.id
+            if _retained.image_bytes is not None:
+                if hashlib.sha256(_retained.image_bytes).hexdigest() == _retained.sha256 == row.image_sha256:
+                    report_image_bytes = _retained.image_bytes
+
+    # Re-thread the technician's durably-stored declared observations so the
+    # report preserves the human record (distinct from AI findings) rather than
+    # losing it to a re-analysis that never saw them.
+    try:
+        report_declared = json.loads(row.declared_findings) if getattr(row, "declared_findings", "") else []
+        if not isinstance(report_declared, list):
+            report_declared = []
+    except (ValueError, TypeError):
+        report_declared = []
+
     analysis = analyze_inspection(
         db,
         instrument_type=row.instrument_type,
@@ -417,6 +450,9 @@ async def inspection_clinical_report(
         instrument_barcode=row.instrument_barcode,
         instrument_udi=row.instrument_udi,
         inspection_id=row.id,
+        image_bytes=report_image_bytes,
+        retained_image_id=report_retained_id,
+        declared_findings=report_declared,
     )
     pdf = build_clinical_report_pdf(row, analysis)
     return StreamingResponse(
@@ -617,6 +653,27 @@ async def create_inspection(
             score_status = "supervisor_review_required"
             risk_score_val = 0
             ai_analysis_status_val = "AI_UNAVAILABLE"
+        elif analysis["analysis_status"] == "ai_unavailable":
+            # The source-level gate in analyze_inspection returns
+            # analysis_status="ai_unavailable" directly (the deterministic scorer
+            # never computed a clinical outcome). Persist the same honest
+            # AI_UNAVAILABLE contract as the completed-but-unavailable branch
+            # above: never "scored", real baseline provenance preserved, null
+            # clinical fields, human review required.
+            from app.services.baseline_comparison_scoring_service import (
+                CLEANING_ASSESSMENT_UNAVAILABLE,
+            )
+            baseline_status = "approved_baseline_found"
+            baseline_source_val = analysis.get("baseline_source")
+            score_status = "ai_unavailable"
+            supervisor_review_required = True
+            risk_score_val = 0
+            risk_level_val = None
+            recommended_action_val = "Manual visual inspection required — AI analysis unavailable."
+            cleaning_assessment_val = CLEANING_ASSESSMENT_UNAVAILABLE
+            disposition_val = None
+            ai_confidence_val = None
+            ai_analysis_status_val = "AI_UNAVAILABLE"
         else:
             baseline_status = "no_approved_baseline"
             supervisor_review_required = True
@@ -682,6 +739,10 @@ async def create_inspection(
         coverage_quality=coverage_quality_val,
         ai_confidence=ai_confidence_val,
         ai_analysis_status=ai_analysis_status_val,
+        # Durable record of the technician's own declared observations (human
+        # provenance), kept distinct from AI findings and preserved even when the
+        # AI is unavailable and no AI finding is persisted.
+        declared_findings=json.dumps(declared),
         inspected_zones_json=json.dumps(body.inspected_zones),
         coverage_status=readiness["coverage_status"],
         coverage_score=readiness["coverage_score"],
@@ -758,7 +819,10 @@ async def create_inspection(
     workflow_disposition: dict = {"disposition": None, "explanation": ""}
     with _post_commit_step(db, "workflow_intelligence", inspection_id=row.id, tenant=tenant_id):
         if body.has_image:
-            workflow_state_service.record_capture_and_analysis(db, insp=row, tenant_id=tenant_id, actor=actor)
+            workflow_state_service.record_capture_and_analysis(
+                db, insp=row, tenant_id=tenant_id, actor=actor,
+                analysis_status=(analysis or {}).get("analysis_status", "completed"),
+            )
             db.commit()
 
         workflow_readiness = compute_readiness(db, tenant_id, row, confirmed=False)
@@ -928,6 +992,24 @@ async def baseline_override(
     row = query.first()
     if not row:
         raise HTTPException(status_code=404, detail="Not Found")
+
+    # A baseline override unlocks scoring for a MISSING-baseline block only. When
+    # the inspection is awaiting review because no eligible AI model evaluated the
+    # image (score_status "ai_unavailable" — an approved baseline already
+    # resolved), a baseline override cannot resolve the real blocker and must not
+    # mark the record "scored_after_override", which would bypass the no-model
+    # safety state. Require a qualified manual inspection / disposition instead.
+    if row.score_status == "ai_unavailable" or getattr(row, "ai_analysis_status", "") == "AI_UNAVAILABLE":
+        if row.baseline_source or row.baseline_status == "approved_baseline_found":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This inspection is awaiting review because no eligible AI model "
+                    "evaluated the image, not because of a missing baseline. A baseline "
+                    "override cannot unlock scoring here — a qualified manual inspection "
+                    "and disposition is required."
+                ),
+            )
 
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
     now = datetime.now(timezone.utc)

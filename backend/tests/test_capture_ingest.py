@@ -91,7 +91,10 @@ class TestIngest:
         )
         assert r.status_code == 401
 
-    def test_ingest_creates_scored_inspection(self):
+    def test_ingest_creates_inspection_with_honest_verdict(self):
+        # The capture-ingest path creates a real inspection, but with no eligible
+        # trained model it must report the honest AI_UNAVAILABLE verdict — never a
+        # fabricated score or risk level from the deterministic placeholder.
         _baseline("scissors")
         key = _register_device()["device_key"]
         r = client.post(
@@ -103,8 +106,9 @@ class TestIngest:
         assert r.status_code == 201, r.text
         body = r.json()
         assert body["inspection_id"]
-        assert body["analysis"]["analysis_status"] == "completed"
-        assert body["analysis"]["risk_level"] in ("low", "medium", "high", "critical")
+        assert body["analysis"]["analysis_status"] == "ai_unavailable"
+        assert body["analysis"]["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+        assert body["analysis"]["risk_level"] is None
 
     def test_ingest_records_captured_by(self):
         _baseline("scissors")

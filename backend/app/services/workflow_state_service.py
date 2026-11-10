@@ -106,16 +106,29 @@ def assign_technician(db: Session, *, insp, tenant_id: str, technician: str, ass
     return row
 
 
-def record_capture_and_analysis(db: Session, *, insp, tenant_id: str, actor: str) -> None:
+def record_capture_and_analysis(
+    db: Session, *, insp, tenant_id: str, actor: str, analysis_status: str = "completed",
+) -> None:
     """Called once, at inspection-creation time, when an image was submitted.
     Image capture and AI analysis happen synchronously in the same request —
     both events share that real timestamp rather than fabricating a gap
     between them, consistent with readiness_timeline_service's documented
-    approach to the same synchronous-submission architecture."""
+    approach to the same synchronous-submission architecture.
+
+    ``analysis_status`` is the authoritative analysis outcome, so the audit
+    timeline records what actually happened: a completed analysis, or — when no
+    eligible model evaluated the image — an honest "AI analysis unavailable"
+    event, never a fabricated "completed" for the default no-model path."""
     if current_state(db, insp) in TERMINAL_STATES:
         return
+    if analysis_status == "completed":
+        analysis_reason = "AI analysis completed"
+    elif analysis_status == "ai_unavailable":
+        analysis_reason = "AI analysis unavailable — manual inspection required"
+    else:
+        analysis_reason = "AI analysis requested — result pending review"
     _append(db, insp=insp, tenant_id=tenant_id, to_state=IMAGE_CAPTURE, actor=actor, reason="Image submitted")
-    _append(db, insp=insp, tenant_id=tenant_id, to_state=AI_ANALYSIS, actor=actor, reason="AI analysis completed")
+    _append(db, insp=insp, tenant_id=tenant_id, to_state=AI_ANALYSIS, actor=actor, reason=analysis_reason)
 
 
 def record_disposition_action(db: Session, *, insp, tenant_id: str, action: str, actor: str, reason: str = "") -> None:
