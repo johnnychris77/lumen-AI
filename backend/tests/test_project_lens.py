@@ -264,9 +264,13 @@ def test_analyze_inspection_live_model_result_is_additive_only():
         )
         assert "live_model_result" in without_bytes
         assert "live_model_result" in with_bytes
-        # Every pre-existing key is untouched by adding image_bytes.
+        # Every pre-existing PLACEHOLDER key is untouched by adding image_bytes.
+        # `live_model_result` and its derived projection `ai_analysis` are the
+        # live-model surface and legitimately reflect the real contract (and its
+        # per-call inference_timestamp), so they are excluded here.
+        live_surface = {"live_model_result", "ai_analysis"}
         for key in without_bytes:
-            if key == "live_model_result":
+            if key in live_surface:
                 continue
             assert with_bytes[key] == without_bytes[key], f"key {key!r} changed when only image_bytes was added"
     finally:

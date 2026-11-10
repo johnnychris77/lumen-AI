@@ -117,6 +117,27 @@ type Analysis = {
   placeholder_scoring?: boolean;
   model_label?: string;
   production_validated?: boolean;
+  // Authoritative AI surface — derived ONLY from the real live-model contract.
+  // When no eligible trained model (or no real image bytes) is available this is
+  // AI_UNAVAILABLE with manual_inspection_required; the placeholder findings
+  // below are never presented as a verified AI result.
+  ai_analysis?: {
+    status: "AI_UNAVAILABLE" | "COMPLETED";
+    manual_inspection_required: boolean;
+    model_version?: string | null;
+    model_maturity?: string | null;
+    observation?: unknown | null;
+    supported_categories: string[];
+    unsupported_categories: string[];
+    baseline_image_similarity?: {
+      status: string | null;
+      similarity: number | null;
+      is_image_comparison: boolean;
+      label: string;
+    } | null;
+    authorizes_release: boolean;
+    human_review_required: boolean;
+  };
   // Honest, scope-limited result contract (Core Inspection Workflow Closure) —
   // restricted to the categories the deployed model actually supports.
   model_result?: {
@@ -609,7 +630,9 @@ export default function NewInspectionPage() {
         message: `Inspection #${data.id} submitted. ${allImages.length} image(s) uploaded. ${
           data.supervisor_review_required
             ? "⚠ Supervisor review required — no approved baseline found."
-            : "✓ AI analysis complete."
+            : data.analysis?.ai_analysis?.status === "AI_UNAVAILABLE"
+              ? "AI model unavailable — manual inspection required."
+              : "✓ AI analysis complete."
         }`,
       });
       scrollToResult();
@@ -1212,16 +1235,29 @@ function AIPredictionPanel({
 }) {
   const isScored = prediction.score_status === "scored" || prediction.score_status === "scored_after_override";
   const isSupervisorRequired = prediction.supervisor_review_required;
+  // Authoritative AI verdict: a trained-model result is the ONLY thing that may
+  // be shown as "AI analysis complete". With no eligible model (today's state)
+  // this is AI_UNAVAILABLE, so the card must not claim a completed AI analysis.
+  const aiUnavailable = prediction.analysis?.ai_analysis?.status === "AI_UNAVAILABLE";
+  const cardTone = isSupervisorRequired
+    ? "border-amber-400 bg-amber-50"
+    : aiUnavailable
+      ? "border-slate-300 bg-slate-50"
+      : "border-emerald-300 bg-emerald-50";
 
   return (
     <div className="space-y-4">
       {/* AI Prediction Card */}
-      <div className={`rounded-xl border-2 p-5 space-y-4 ${isSupervisorRequired ? "border-amber-400 bg-amber-50" : "border-emerald-300 bg-emerald-50"}`}>
+      <div className={`rounded-xl border-2 p-5 space-y-4 ${cardTone}`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI Prediction — Inspection #{prediction.id}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inspection #{prediction.id}</p>
             <h2 className="text-lg font-bold text-slate-900 mt-0.5">
-              {isSupervisorRequired ? "⚠ Supervisor Review Required" : "✓ AI Analysis Complete"}
+              {isSupervisorRequired
+                ? "⚠ Supervisor Review Required"
+                : aiUnavailable
+                  ? "AI model unavailable — manual inspection required"
+                  : "✓ AI Analysis Complete"}
             </h2>
           </div>
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${isSupervisorRequired ? "bg-amber-200 text-amber-900" : "bg-emerald-200 text-emerald-900"}`}>
@@ -1237,6 +1273,29 @@ function AIPredictionPanel({
               Risk scoring is locked until a supervisor or admin applies a baseline override.
               Technicians cannot set baseline status — this is system-controlled.
             </p>
+          </div>
+        )}
+
+        {/* Authoritative AI verdict — sourced only from the real trained-model
+            contract. When unavailable, this is the headline result: manual
+            inspection is required and nothing below is a verified AI detection. */}
+        {aiUnavailable && (
+          <div className="rounded-lg border border-slate-400 bg-white px-4 py-3 text-sm text-slate-800 space-y-1">
+            <p className="font-semibold">AI analysis unavailable — manual inspection required.</p>
+            <p className="text-xs text-slate-600">
+              No eligible trained vision model is available for this inspection, so no AI
+              observation, probability, or clinical interpretation has been produced. The
+              baseline-comparison figures below are a pilot heuristic for workflow
+              demonstration only — not verified AI detection. A qualified person must
+              complete this inspection.
+            </p>
+            {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison && (
+              <p className="text-xs text-slate-600">
+                Baseline visual similarity:{" "}
+                {Math.round((prediction.analysis.ai_analysis.baseline_image_similarity.similarity ?? 0) * 100)}%
+                {" "}— {prediction.analysis.ai_analysis.baseline_image_similarity.label}
+              </p>
+            )}
           </div>
         )}
 
@@ -1372,7 +1431,7 @@ function AIPredictionPanel({
                   : "No critical findings")
               : "Pending AI analysis"
           } />
-          <PredictionField label="Confidence" value={
+          <PredictionField label={aiUnavailable ? "Heuristic Confidence (not AI)" : "Confidence"} value={
             prediction.analysis?.analysis_status === "completed" && prediction.analysis.confidence != null
               ? `${prediction.analysis.confidence_level ?? ""} (${Math.round((prediction.analysis.confidence) * 100)}%)`.trim()
               : "Pending"

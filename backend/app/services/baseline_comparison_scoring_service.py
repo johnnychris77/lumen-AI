@@ -342,6 +342,73 @@ def _live_baseline_comparison(
     return comparison
 
 
+# The only comparator statuses where a numeric similarity reflects a REAL
+# pixel-level comparison of two decoded images (see image_similarity_service).
+# Any other status (no baseline, incompatible view, insufficient quality,
+# integrity failed) must never surface a similarity number.
+_REAL_IMAGE_COMPARISON_STATUSES = frozenset({"exact_match", "comparable", "materially_different"})
+
+
+def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
+    """The single authoritative source of AI-generated observations for this
+    inspection, derived ONLY from the real live-model contract
+    (``live_inference_adapter``) — never from this module's deterministic
+    placeholder findings/score.
+
+    Contract this guarantees (Project real-vision pilot readiness):
+      * No eligible trained model, or no real image bytes → an explicit
+        ``AI_UNAVAILABLE`` state with ``manual_inspection_required=True`` and no
+        observation — never a fabricated score or clinical clearance.
+      * ``baseline_image_similarity`` carries a number ONLY when a real
+        comparator evaluated two compatible decoded images; it is always
+        labelled visual similarity, never verified cleanliness.
+      * ``authorizes_release`` is always ``False`` and ``human_review_required``
+        always ``True`` — no model result can auto-authorize instrument release.
+    """
+    unavailable = live_result.get("analysis_status") == "ai_unavailable"
+    model = live_result.get("model") or {}
+    comparison = live_result.get("baseline_comparison") or None
+
+    baseline_similarity: dict[str, Any] | None = None
+    if comparison is not None:
+        is_image_comparison = (
+            comparison.get("status") in _REAL_IMAGE_COMPARISON_STATUSES
+            and comparison.get("similarity") is not None
+        )
+        baseline_similarity = {
+            "status": comparison.get("status"),
+            # Only a real two-image comparison exposes a number; everything
+            # else (metadata-only baseline, incompatible, integrity failure)
+            # stays None so a pseudo/absent value can never read as similarity.
+            "similarity": comparison.get("similarity") if is_image_comparison else None,
+            "is_image_comparison": bool(is_image_comparison),
+            "method": comparison.get("method"),
+            "comparator_version": comparison.get("comparator_version"),
+            "baseline_id": comparison.get("baseline_id"),
+            "baseline_version": comparison.get("baseline_version"),
+            "label": "Visual similarity — not verified cleanliness.",
+        }
+
+    return {
+        "status": "AI_UNAVAILABLE" if unavailable else "COMPLETED",
+        "provenance": "live_model",
+        "model_id": model.get("model_id"),
+        "model_version": model.get("model_version"),
+        "model_maturity": model.get("maturity"),
+        "manual_inspection_required": bool(unavailable),
+        # The ONLY place a model-generated observation is surfaced. Unavailable
+        # ⇒ no observation at all (never a placeholder finding dressed as AI).
+        "observation": None if unavailable else live_result.get("observation"),
+        "supported_categories": list(live_result.get("supported_categories") or []),
+        "unsupported_categories": list(live_result.get("unsupported_categories") or []),
+        "baseline_image_similarity": baseline_similarity,
+        "authorizes_release": False,
+        "human_review_required": True,
+        "limitations": list(live_result.get("limitations") or []),
+        "inference_timestamp": live_result.get("inference_timestamp"),
+    }
+
+
 def _severity_index(p: float) -> int:
     """0–10% → 0, 11–30% → 1, 31–60% → 2, 61%+ → 3."""
     pct = p * 100
@@ -1362,6 +1429,10 @@ def analyze_inspection(
             db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
             inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
         )
+        # Authoritative AI surface — derived ONLY from the live contract, never
+        # the placeholder. No baseline + no promoted model ⇒ AI_UNAVAILABLE.
+        no_baseline["ai_analysis"] = _authoritative_ai_analysis(no_baseline["live_model_result"])
+        no_baseline["ai_observations_source"] = "live_model"
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
 
@@ -1420,6 +1491,12 @@ def analyze_inspection(
         # Per-finding recommended action (Reprocess / Remove / Supervisor review /
         # Monitor / Clear) from its SPD tier + structural vs contamination.
         finding["recommended_action"] = _finding_action(kpi, spd_tier)
+        # Provenance — this is NOT a trained-model observation. A finding is
+        # either a technician-declared HUMAN observation or a deterministic
+        # placeholder heuristic; never presented as a verified AI detection.
+        finding["verified_ai"] = False
+        finding["provenance"] = "deterministic_placeholder"
+        finding["observation_source"] = "technician_declared" if kpi in declared else "heuristic"
         predicted_findings.append(finding)
 
     # ── Identification detection / match (real decode-vs-baseline) ──────────
@@ -1688,6 +1765,11 @@ def analyze_inspection(
         "baseline_version": resolution["baseline_version"],
         "baseline_match_score": baseline_match_score,
         "baseline_deviation_score": baseline_deviation_score,
+        # The match/deviation above is a metadata + declared-findings heuristic,
+        # NOT a pixel-level image comparison. Real baseline image similarity (when
+        # any) lives in ai_analysis.baseline_image_similarity only.
+        "baseline_match_is_image_similarity": False,
+        "baseline_match_basis": "metadata_and_declared_findings_heuristic",
         "inspection_score": inspection_score,
         "risk_level": risk_level,
         "pass_fail": pass_fail,
@@ -1734,6 +1816,12 @@ def analyze_inspection(
         db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
         inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
     )
+    # Authoritative AI surface — the ONLY source of "AI observations" presented
+    # to callers/UI, derived from the live contract. With no promoted model
+    # (today's state) this is AI_UNAVAILABLE even though the placeholder score
+    # above is populated, so the placeholder is never read as a verified AI result.
+    result["ai_analysis"] = _authoritative_ai_analysis(result["live_model_result"])
+    result["ai_observations_source"] = "live_model"
     # Phase 13: Explainable Clinical Decision Support payload.
     result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)
     return result
