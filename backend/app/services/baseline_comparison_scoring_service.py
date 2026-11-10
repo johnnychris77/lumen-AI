@@ -1453,9 +1453,28 @@ def _ai_unavailable_result(
         "ai_analysis": ai_analysis,
         "ai_observations_source": "live_model",
     }
-    result["model_result"] = _build_model_result(
-        [], baseline_found=True, analysis_status="ai_unavailable", strict_no_placeholder=True,
-    )
+    # Honest model_result for the AI-unavailable surface: no eligible trained
+    # model evaluated the image, so it advertises NO supported categories and NO
+    # model version — every category is "not evaluated". (The legacy
+    # _build_model_result still lists debris/corrosion + a placeholder version,
+    # which would contradict the AI_UNAVAILABLE banner the UI renders above it.)
+    all_kpis_unsupported = sorted({KPI_LABELS.get(k, k) for k in all_kpis})
+    result["model_result"] = {
+        "model_status": "unavailable",
+        "model_version": None,
+        "supported_categories": [],
+        "findings": [],
+        "unsupported_categories": all_kpis_unsupported,
+        "limitations": [
+            "No eligible trained vision model is available for this deployment, so no "
+            "category is evaluated by a trained computer-vision model.",
+            "Image quality is not automatically assessed by the current model.",
+            "Result requires qualified human review.",
+        ],
+        "baseline_status": "approved_baseline_found",
+        "image_quality_status": "not_assessed",
+        "human_review_required": True,
+    }
     # NB: no `clinical_decision` payload is attached (matching the no-baseline
     # path). The Explainable Clinical Decision Support panel only makes sense for
     # a completed analysis — building it here from empty findings would fabricate

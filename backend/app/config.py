@@ -123,6 +123,17 @@ class Settings:
         if self.is_production and self.dev_auth_token == "dev-token":
             issues.append("DEV_AUTH_TOKEN must not remain dev-token in production.")
 
+        # The deterministic placeholder scorer must never populate clinical
+        # outcomes on a production deployment. AI_ALLOW_DEMO_SCORING re-enables it
+        # on every inspection route, so enabling it in production is fail-closed
+        # at startup — the segregation must not rely on configuration discipline
+        # alone (see baseline_comparison_scoring_service.analyze_inspection).
+        if self.is_production and self.ai_allow_demo_scoring:
+            issues.append(
+                "AI_ALLOW_DEMO_SCORING must be false in production — it re-enables the "
+                "deterministic placeholder scorer on clinical inspection routes."
+            )
+
         if self.public_base_url.startswith("http://127.0.0.1") and self.is_production:
             issues.append("PUBLIC_BASE_URL should not point to localhost in production.")
 

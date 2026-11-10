@@ -1512,8 +1512,11 @@ function AIPredictionPanel({
         <CoverageOverridePanel inspectionId={Number(prediction.id)} />
       )}
 
-      {/* Supervisor Override Panel */}
-      {isSupervisorRequired && (
+      {/* Supervisor Override Panel — only for a genuine missing-baseline block.
+          An AI-unavailable result (baseline resolved, no eligible model) must NOT
+          offer a baseline override: that path unlocks "scored_after_override" via
+          the manual risk calculator and would bypass the no-model safety state. */}
+      {baselineMissing && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
           <p className="text-sm font-semibold text-slate-800">Supervisor Baseline Override</p>
           <p className="text-xs text-slate-500">Supervisors and admins only. Select an alternate baseline source and provide an override justification to unlock final scoring.</p>
