@@ -12,11 +12,21 @@ from app.deps import get_db
 from app.db import models
 from app.authz import require_roles
 from app.security.tenant_context import resolve_verified_tenant
+from app.services.ai_result_integrity import (
+    UNAVAILABLE_CLEANING, UNAVAILABLE_FINDING, UNAVAILABLE_STATUS_LABEL,
+    ai_evaluated, ai_unavailable_for_presentation, evaluation_status,
+    presented_ai_confidence, presented_inspection_score, presented_risk_level,
+)
 
 router = APIRouter(tags=["history"])
 
 
 def inspection_response(row: models.Inspection) -> dict:
+    # Fix persisted placeholder scores: an image inspection with no verified AI
+    # result must never present its heuristic score/risk/confidence/finding as a
+    # clinical conclusion. Raw stored values are retained under `audit_*` keys
+    # for provenance; the presented fields are suppressed when unavailable.
+    unavailable = ai_unavailable_for_presentation(row)
     return {
         "id": row.id,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -24,19 +34,21 @@ def inspection_response(row: models.Inspection) -> dict:
         "tenant_id": row.tenant_id,
         "tenant_name": row.tenant_name,
         "stain_detected": row.stain_detected,
-        "confidence": row.confidence,
+        # Clinical confidence is suppressed when AI is unavailable.
+        "confidence": None if unavailable else row.confidence,
         "material_type": row.material_type,
         "status": row.status,
         "model_name": row.model_name,
         "model_version": row.model_version,
         "inference_timestamp": row.inference_timestamp.isoformat() if row.inference_timestamp else None,
         "instrument_type": row.instrument_type,
-        "detected_issue": row.detected_issue,
+        # The AI finding is only a verified observation when AI evaluated it.
+        "detected_issue": UNAVAILABLE_FINDING if unavailable else row.detected_issue,
         "inference_mode": row.inference_mode,
-        "risk_score": row.risk_score,
+        # Presented risk score (0-100 risk) — null when not verified.
+        "risk_score": None if unavailable else row.risk_score,
         "vendor_name": row.vendor_name,
         "site_name": row.site_name,
-        # Inspection result fields so history shows what each run produced
         "facility_name": row.facility_name,
         "department": row.department,
         "tray_id": row.tray_id,
@@ -47,12 +59,26 @@ def inspection_response(row: models.Inspection) -> dict:
         "baseline_source": row.baseline_source,
         "score_status": row.score_status,
         "supervisor_review_required": row.supervisor_review_required,
-        # SPD risk-weighted verdict persisted with the inspection
-        "risk_level": row.risk_level,
+        # SPD risk-weighted verdict — suppressed when AI is unavailable.
+        "risk_level": presented_risk_level(row),
         "recommended_action": row.recommended_action,
-        "overall_cleaning_assessment": row.overall_cleaning_assessment,
-        # inspection_score is the inverse of risk_score (0-100 quality)
-        "inspection_score": (100 - row.risk_score) if row.score_status in ("scored", "scored_after_override") else None,
+        "overall_cleaning_assessment": (
+            UNAVAILABLE_CLEANING if unavailable else row.overall_cleaning_assessment
+        ),
+        # inspection_score is the inverse of risk_score (0-100 quality); None
+        # unless there is a verified AI (or manual) score.
+        "inspection_score": presented_inspection_score(row),
+        "ai_confidence": presented_ai_confidence(row),
+        # Authoritative evaluation state the UI/exports gate on.
+        "ai_analysis_status": row.ai_analysis_status or "",
+        "ai_evaluated": ai_evaluated(row),
+        "evaluation_status": evaluation_status(row),
+        "evaluation_label": UNAVAILABLE_STATUS_LABEL if unavailable else None,
+        # Raw stored values preserved for audit provenance ONLY — never presented
+        # as verified findings.
+        "audit_raw_risk_score": row.risk_score,
+        "audit_raw_detected_issue": row.detected_issue,
+        "audit_raw_confidence": row.confidence,
     }
 
 
@@ -90,6 +116,10 @@ def build_summary(rows):
         "queued": queued,
         "running": running,
         "failed": failed,
+        # AI-evaluation integrity counts: how many inspections carry a VERIFIED
+        # AI result vs. how many are AI-unavailable (placeholder-only, image).
+        "ai_evaluated": sum(1 for r in rows if ai_evaluated(r)),
+        "ai_unavailable": sum(1 for r in rows if ai_unavailable_for_presentation(r)),
         "top_issues": top_issues,
         "top_instruments": top_instruments,
     }
@@ -117,14 +147,14 @@ def fetch_rows(db: Session, *, all_tenants: bool, tenant_id: str | None):
     return q.order_by(models.Inspection.id.desc()).all()
 
 
-def csv_text(rows):
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
+def _export_header() -> list[str]:
+    return [
         "id",
         "created_at",
         "file_name",
         "status",
+        "evaluation_status",
+        "ai_evaluated",
         "stain_detected",
         "confidence",
         "material_type",
@@ -132,29 +162,52 @@ def csv_text(rows):
         "detected_issue",
         "inference_mode",
         "risk_score",
+        "inspection_score",
+        "risk_level",
         "vendor_name",
         "model_name",
         "model_version",
         "inference_timestamp",
-    ])
+        "audit_raw_risk_score",
+        "audit_raw_detected_issue",
+    ]
+
+
+def _export_row(r) -> list:
+    """One export row with clinical columns blanked when AI is unavailable;
+    raw values preserved in the audit_* columns for provenance."""
+    unavailable = ai_unavailable_for_presentation(r)
+    return [
+        r.id,
+        r.created_at.isoformat() if r.created_at else "",
+        r.file_name,
+        r.status,
+        evaluation_status(r),
+        ai_evaluated(r),
+        r.stain_detected,
+        "" if unavailable else r.confidence,
+        r.material_type,
+        r.instrument_type,
+        UNAVAILABLE_FINDING if unavailable else r.detected_issue,
+        r.inference_mode,
+        "" if unavailable else r.risk_score,
+        presented_inspection_score(r) if presented_inspection_score(r) is not None else "",
+        presented_risk_level(r) or "",
+        r.vendor_name,
+        r.model_name,
+        r.model_version,
+        r.inference_timestamp.isoformat() if r.inference_timestamp else "",
+        r.risk_score,
+        r.detected_issue,
+    ]
+
+
+def csv_text(rows):
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(_export_header())
     for r in rows:
-        writer.writerow([
-            r.id,
-            r.created_at.isoformat() if r.created_at else "",
-            r.file_name,
-            r.status,
-            r.stain_detected,
-            r.confidence,
-            r.material_type,
-            r.instrument_type,
-            r.detected_issue,
-            r.inference_mode,
-            r.risk_score,
-            r.vendor_name,
-            r.model_name,
-            r.model_version,
-            r.inference_timestamp.isoformat() if r.inference_timestamp else "",
-        ])
+        writer.writerow(_export_row(r))
     return output.getvalue()
 
 
@@ -163,46 +216,15 @@ def xlsx_bytes(rows):
 
     ws = wb.active
     ws.title = "Inspections"
-    ws.append([
-        "id",
-        "created_at",
-        "file_name",
-        "status",
-        "stain_detected",
-        "confidence",
-        "material_type",
-        "instrument_type",
-        "detected_issue",
-        "inference_mode",
-        "risk_score",
-        "vendor_name",
-        "model_name",
-        "model_version",
-        "inference_timestamp",
-    ])
+    ws.append(_export_header())
     for r in rows:
-        ws.append([
-            r.id,
-            r.created_at.isoformat() if r.created_at else "",
-            r.file_name,
-            r.status,
-            r.stain_detected,
-            r.confidence,
-            r.material_type,
-            r.instrument_type,
-            r.detected_issue,
-            r.inference_mode,
-            r.risk_score,
-            r.vendor_name,
-            r.model_name,
-            r.model_version,
-            r.inference_timestamp.isoformat() if r.inference_timestamp else "",
-        ])
+        ws.append(_export_row(r))
 
     summary_ws = wb.create_sheet("Summary")
     summary = build_summary(rows)
     summary_ws.append(["metric", "value"])
-    for key in ["total_inspections", "completed", "queued", "running", "failed"]:
+    for key in ["total_inspections", "completed", "queued", "running", "failed",
+                "ai_evaluated", "ai_unavailable"]:
         summary_ws.append([key, summary[key]])
 
     summary_ws.append([])
