@@ -76,10 +76,11 @@ class TestHistoryShowsInspectionResults:
         ):
             assert field in record, f"missing {field}"
 
-        assert record["score_status"] == "scored"
+        assert record["score_status"] == "ai_unavailable"
         assert record["baseline_source"] == "manufacturer"
-        assert record["inspection_score"] is not None
-        assert 0 <= record["inspection_score"] <= 100
+        # No verified AI model → no fabricated inspection score presented.
+        assert record["inspection_score"] is None
+        assert record["ai_evaluated"] is False
 
     def test_supervisor_review_record_has_no_score(self):
         # No baseline → supervisor review, inspection_score should be None
@@ -114,19 +115,20 @@ class TestHistoryShowsInspectionResults:
         }, headers=AUTH_OPERATOR)
         assert create.status_code == 201, create.text
         body = create.json()
-        # Persisted on the create response
-        assert body["risk_level"] in ("low", "medium", "high", "critical")
-        assert body["recommended_action"]
-        assert body["overall_cleaning_assessment"]
-        # And the live analysis verdict matches what was stored
-        assert body["risk_level"] == body["analysis"]["risk_level"]
+        # With no eligible validated AI model, the SPD verdict is AI-unavailable:
+        # the heuristic risk/cleaning are NOT persisted as a verified conclusion,
+        # and history must agree with the create response (no contradiction).
+        assert body["score_status"] == "ai_unavailable"
+        assert body["analysis"]["ai_analysis"]["status"] == "AI_UNAVAILABLE"
 
         inspection_id = body["id"]
         resp = client.get("/api/history?limit=100", headers=AUTH_ADMIN)
         record = next(it for it in resp.json()["items"] if it["id"] == inspection_id)
-        assert record["risk_level"] == body["risk_level"]
-        assert record["recommended_action"] == body["recommended_action"]
-        assert record["overall_cleaning_assessment"] == body["overall_cleaning_assessment"]
+        assert record["ai_evaluated"] is False
+        assert record["inspection_score"] is None
+        assert record["risk_level"] is None
+        assert record["detected_issue"] == "No verified AI observation"
+        assert "Manual inspection required" in record["overall_cleaning_assessment"]
 
     def test_history_summary_counts_inspections(self):
         itype = "forceps"

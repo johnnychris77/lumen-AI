@@ -96,6 +96,46 @@ def build_clinical_report_pdf(row: Any, analysis: dict) -> bytes:
     story.append(HRFlowable(width="100%", color=colors.HexColor("#94a3b8")))
     story.append(Spacer(1, 6))
 
+    # Fix persisted placeholder scores: when no verified AI model evaluated this
+    # inspection, the report must NOT present a fabricated score or finding. The
+    # authoritative signal is ai_analysis.status (never the placeholder score).
+    ai_analysis = analysis.get("ai_analysis") or {}
+    ai_unavailable = ai_analysis.get("status") == "AI_UNAVAILABLE" or ai_analysis.get("manual_inspection_required")
+    if ai_unavailable:
+        story.append(Paragraph(
+            '<font color="#b45309"><b>Overall Result: AI ANALYSIS UNAVAILABLE — MANUAL INSPECTION REQUIRED</b></font>',
+            ss["Heading2"],
+        ))
+        story.append(Paragraph("Inspection", ss["H"]))
+        story.append(_kv_table([
+            ("Facility", getattr(row, "facility_name", None) or getattr(row, "site_name", "") or "—"),
+            ("Inspection ID", str(getattr(row, "id", "—"))),
+            ("Instrument", getattr(row, "instrument_type", "—")),
+            ("Barcode / UDI", getattr(row, "instrument_barcode", None) or getattr(row, "instrument_udi", None) or "—"),
+            ("Inspection Date", (getattr(row, "created_at", None) or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")),
+        ]))
+        story.append(Paragraph("Clinical Decision Summary", ss["H"]))
+        story.append(_kv_table([
+            ("Inspection Score", "Not evaluated"),
+            ("Risk Classification", "Undetermined"),
+            ("Cleaning Assessment", "Manual inspection required"),
+            ("AI Finding", "No verified AI observation"),
+            ("Status", "AI unavailable / manual review required"),
+        ]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            "No eligible, validated AI vision model evaluated this inspection, so LumenAI "
+            "makes no clinical determination. A qualified technician must perform a full "
+            "manual visual inspection before this instrument is released. Any stored "
+            "baseline-comparison value is a non-clinical placeholder and is not shown here. "
+            "LumenAI makes no claim of FDA clearance or regulatory approval.",
+            ss["Small"],
+        ))
+        doc.build(story)
+        pdf = buf.getvalue()
+        buf.close()
+        return pdf
+
     result = cd.get("overall_result", "SUPERVISOR REVIEW")
     story.append(Paragraph(
         f'<font color="{_RESULT_COLOR.get(result, "#334155")}"><b>Overall Result: {result}</b></font>',

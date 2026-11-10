@@ -98,15 +98,22 @@ class TestMissingBaselineSupervisorReview:
         assert data["risk_score"] == 0
 
     def test_approved_baseline_scores_normally(self):
-        """When approved baseline exists, inspection is scored normally."""
+        """With an approved baseline AND no eligible validated AI model, the
+        inspection is accepted but marked AI-unavailable (never fabricated as a
+        verified 'scored' clinical result) and routed to supervisor review."""
         _make_approved_baseline("scissors")
         try:
             resp = client.post("/api/inspections", json=INSPECTION_WITH_IMAGE, headers=AUTH_TECH)
             assert resp.status_code == 201, resp.text
             data = resp.json()
-            assert data["supervisor_review_required"] is False
-            assert data["score_status"] == "scored"
+            # Baseline provenance is preserved...
             assert data["baseline_status"] == "approved_baseline_found"
+            # ...but with no verified AI model the placeholder is NOT presented as
+            # a verified score: not 'scored', human review required.
+            assert data["score_status"] == "ai_unavailable"
+            assert data["score_status"] != "scored"
+            assert data["supervisor_review_required"] is True
+            assert data["analysis"]["ai_analysis"]["status"] == "AI_UNAVAILABLE"
         finally:
             _remove_approved_baselines("scissors")
 

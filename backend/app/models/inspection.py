@@ -106,6 +106,16 @@ class Inspection(Base):
     # reported without re-deriving analysis.
     ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Fix persisted placeholder scores — the authoritative AI-evaluation status
+    # for THIS inspection, mirrored from the live-model contract
+    # (``ai_analysis.status``): "COMPLETED" only when a real promoted vision
+    # model evaluated the image, "AI_UNAVAILABLE" when it did not, and "" for a
+    # manual (no-image) entry or a legacy row written before this column
+    # existed. A blank/AI_UNAVAILABLE status on an image inspection means the
+    # heuristic baseline-comparison score is NOT a verified clinical result and
+    # must never be presented as one (history/exports/PDF all gate on this).
+    ai_analysis_status: Mapped[str] = mapped_column(String(30), default="", nullable=False, index=True)
+
     # Zones the technician tagged as inspected (anatomy-aware coverage engine).
     # JSON-encoded: "null" means not tagged (coverage not_assessed), "[...]" is
     # an explicit (possibly empty) list — see app/services/inspection_coverage.py.
