@@ -395,8 +395,10 @@ async def inspection_clinical_report(
 ):
     """Phase 13.8 — printable Clinical Decision Support PDF for an inspection.
 
-    Re-runs the deterministic analysis for the stored inspection (identical seed
-    → identical output) and renders the full explainable report.
+    Re-runs the authoritative analysis for the stored inspection and renders the
+    report. With no eligible trained model the analysis is AI_UNAVAILABLE, so the
+    report shows "Not evaluated" placeholders and a supervisor-review verdict —
+    never a fabricated score, finding, or clinical interpretation.
     """
     tenant_id = getattr(current_user, "tenant_id", None)
     query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
@@ -583,6 +585,17 @@ async def create_inspection(
             score_status = "scored"
         elif analysis_failed:
             baseline_status = "analysis_unavailable"
+            supervisor_review_required = True
+            score_status = "supervisor_review_required"
+            risk_score_val = 0
+        elif analysis["analysis_status"] == "ai_unavailable":
+            # An approved baseline may have resolved, but no eligible trained
+            # model evaluated the image. Surface the honest AI_UNAVAILABLE state:
+            # no fabricated score, risk level, or confidence is persisted (those
+            # are already None on the analysis). Real baseline metadata stays
+            # visible and qualified human review is required.
+            baseline_status = "ai_unavailable"
+            baseline_source_val = analysis.get("baseline_source")
             supervisor_review_required = True
             score_status = "supervisor_review_required"
             risk_score_val = 0

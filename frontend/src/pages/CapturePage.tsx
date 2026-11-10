@@ -16,6 +16,9 @@ type CaptureResult = {
   recommended_action?: string;
   overall_cleaning_assessment?: string;
   baseline_source?: string | null;
+  // Authoritative AI verdict — true when no eligible trained model evaluated the
+  // image, so the card must not claim a completed analysis or a real score.
+  ai_unavailable?: boolean;
 };
 
 const RISK_STYLE: Record<string, string> = {
@@ -161,6 +164,7 @@ export default function CapturePage() {
         recommended_action: a.recommended_action,
         overall_cleaning_assessment: a.overall_cleaning_assessment,
         baseline_source: a.baseline_source,
+        ai_unavailable: a.ai_analysis?.status === "AI_UNAVAILABLE" || a.analysis_status === "ai_unavailable",
       });
     } catch {
       setError("Unable to reach the server. Check the connection and try again.");
@@ -274,8 +278,17 @@ export default function CapturePage() {
       )}
 
       {result && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-2">Analysis Complete</p>
+        <div className={`rounded-lg border p-4 ${result.ai_unavailable ? "border-slate-300 bg-slate-50" : "border-emerald-300 bg-emerald-50"}`}>
+          <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${result.ai_unavailable ? "text-slate-600" : "text-emerald-700"}`}>
+            {result.ai_unavailable ? "AI model unavailable — manual inspection required" : "Analysis Complete"}
+          </p>
+          {result.ai_unavailable && (
+            <p className="mb-3 text-xs text-slate-600">
+              No eligible trained vision model evaluated this image, so no AI score, risk
+              level, or finding was produced. A qualified person must complete this
+              inspection before any release decision.
+            </p>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div>
               <div className="text-xs text-slate-500">Inspection Score</div>

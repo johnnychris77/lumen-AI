@@ -1,0 +1,112 @@
+# Eliminate Deterministic Placeholder from Clinical Inspection Outcomes
+
+Critical pilot defect correction. PR #148 added the authoritative `ai_analysis`
+contract but the deterministic placeholder (`_pseudo()` — a SHA‑256‑seeded
+heuristic, **not** computer vision) still generated the inspection score,
+baseline‑match %, findings, confidence, risk level, clinical interpretation,
+mentor content and executive summary that populated the clinician‑facing result.
+This change retires that scorer from the live clinical decision path. It survives
+only as an explicitly segregated development/demo fixture.
+
+## 1. The gate (backend)
+
+`analyze_inspection()` now resolves the authoritative live‑model contract first.
+When no eligible trained model evaluated the image — every production inspection
+today — it returns an **evidence‑only** `AI_UNAVAILABLE` result via
+`_ai_unavailable_result()` and the deterministic scorer below the gate never
+runs. The placeholder is reachable only with `demo_scoring=True` or
+`AI_ALLOW_DEMO_SCORING=true` (a new setting, default **False** everywhere,
+including production — `is_production` does not flip it on).
+
+What the AI‑unavailable result carries (all verified, nothing fabricated):
+
+| Field | Value |
+|---|---|
+| `analysis_status` / `ai_analysis.status` | `ai_unavailable` / `AI_UNAVAILABLE` |
+| `inspection_score`, `risk_level`, `confidence` | `null` |
+| `predicted_findings`, `kpi_summary` | `[]`, `{}` |
+| `baseline_match_score` / `baseline_match_is_image_similarity` | `null` / `false` |
+| `not_evaluated` / `not_evaluated_kpis` | `true` / every KPI label |
+| `technician_declared_observations` | the human's declared findings, kept distinct |
+| `baseline_source` / `baseline_version` | real approved‑baseline metadata (preserved) |
+| `overall_cleaning_assessment` | "AI analysis unavailable — manual visual inspection required" |
+| `human_review_required` / `ai_analysis.authorizes_release` | `true` / `false` |
+| `clinical_decision` | **not attached** (would otherwise fabricate "Acceptable" integrity / 0% confidence) |
+
+Real identifier decode + match, approved‑baseline resolution, image‑quality,
+coverage/guidance/risk‑map and any genuine compatible‑image comparison stay
+operational.
+
+### Other corrected paths
+- **Route** (`routes/inspections.py`): an explicit `ai_unavailable` branch keeps
+  the real `baseline_source` visible, marks the record not‑scored, requires
+  supervisor review, and persists no fabricated score/risk. The clinical‑report
+  PDF endpoint re‑runs the authoritative analysis (AI_UNAVAILABLE → "Not
+  evaluated" placeholders, supervisor‑review verdict).
+- **`build_clinical_decision()`**: for any non‑completed analysis (no‑baseline or
+  AI‑unavailable) it now reports `integrity_assessment = "Not evaluated"` and
+  `confidence_pct = null` instead of a fabricated "Acceptable" / `0%`.
+- **`clinical_report_pdf`**: renders "Not evaluated" for score/integrity/
+  confidence when no completed analysis exists.
+
+## 2. Frontend (no fabricated clinical display)
+
+`NewInspectionPage` distinguishes "no approved baseline" from "baseline resolved
+but AI unavailable", shows the neutral "AI model unavailable — manual inspection
+required" headline (never the green "✓ AI Analysis Complete" success state),
+renders grid fields as "Not evaluated" / "Not scored — AI unavailable", and the
+submit toast no longer claims a baseline gap when a baseline was found.
+`DecisionEnginePanel` renders the `NOT_EVALUATED_BY_CURRENT_MODEL` contract;
+`ClinicalDecisionPanel` is hidden when no clinical decision exists;
+`CapturePage`/`StationPage` drop the "Analysis Complete"/PASS tone and route the
+unavailable verdict to human review. `InspectionResultsHistory` already renders
+`null` scores as "—".
+
+## 3. Tests
+
+- **`tests/test_clinical_placeholder_elimination.py`** — 12 new regression tests
+  run with the scorer **OFF** (production default), end‑to‑end through the real
+  submission route, proving: AI_UNAVAILABLE not scored; no fabricated score/
+  confidence/detection; no pseudo clinical‑decision/mentor/executive content;
+  "Not evaluated" categories; metadata‑only baseline → no similarity %; a genuine
+  comparison labelled *visual similarity — not verified cleanliness*; the PDF
+  carries no fabricated conclusion; declared findings attributed to the human;
+  no automatic release authorization; non‑contradictory status; and API +
+  history + report agree.
+- **`tests/test_inference_provenance.py`** — the 8 existing provenance guarantees
+  continue to pass with the scorer off.
+- Legacy unit tests that specifically exercise the demo scorer's math/
+  interpretation opt in via `pytestmark = pytest.mark.usefixtures("enable_demo_scoring")`
+  (a shared `conftest` fixture) — they remain valid *segregated demo* coverage.
+- Full suite: **3789 passed, 2 skipped**; `ruff` clean; frontend `vite build`
+  clean.
+
+## 4. Pilot validation (local, production path — scorer OFF)
+
+A representative inspection (approved manufacturer baseline, technician‑declared
+"blood") submitted through `POST /api/inspections`:
+
+- `ai_analysis.status = AI_UNAVAILABLE`, `model_maturity = unavailable`,
+  `authorizes_release = false`, `human_review_required = true`.
+- `inspection_score / risk_level / confidence = null`; `predicted_findings = []`.
+- `technician_declared_observations = ["blood"]` (human, never AI).
+- `baseline_source = manufacturer` (real metadata); `baseline_image_similarity.
+  similarity = null` (no ACTIVE baseline image bytes).
+- Live‑inference health: `model.status = unavailable` (no registered trained
+  model for the tenant).
+- History record for the same inspection: `score_status =
+  supervisor_review_required`, `inspection_score = null`.
+- Clinical report PDF: HTTP 200, no `/ 100` score line.
+
+All clinician‑facing surfaces agree on the honest AI_UNAVAILABLE verdict with no
+fabricated clinical outcome, and human review is required.
+
+## 5. Deployment note (honest limitation)
+
+Render auto‑deploys `main`. Production verification of the live services
+(`lumen-ai-api`, `lumen-ai-1`) must be done from the Render dashboard or an
+environment with network access to `*.onrender.com`; this CI/sandbox cannot reach
+those hosts (outbound proxy returns 403), so deployment status was not confirmed
+from here. Real computer vision is **not** operational — no eligible trained
+model evaluated any uploaded photograph; the serving path already in place will
+use a real model automatically once one is trained, calibrated and promoted.

@@ -139,11 +139,13 @@ class TestEndToEndScoring:
         assert ins.status_code == 201, ins.text
         analysis = ins.json()["analysis"]
 
-        # 3. Scoring must complete with a real score + KPIs (not supervisor review)
-        assert analysis["analysis_status"] == "completed"
+        # 3. The approved manufacturer baseline RESOLVES (real metadata — this is
+        #    the point of the flow), but with no eligible trained model the
+        #    result is the honest AI_UNAVAILABLE verdict: no fabricated score,
+        #    risk level, or KPI findings from the deterministic placeholder.
         assert analysis["baseline_source"] == "manufacturer"
-        assert analysis["inspection_score"] is not None
-        assert 0 <= analysis["inspection_score"] <= 100
-        assert analysis["risk_level"] in ("low", "medium", "high", "critical")
-        assert "blood" in analysis["kpi_summary"]
-        assert "rust" in analysis["kpi_summary"]
+        assert analysis["analysis_status"] == "ai_unavailable"
+        assert analysis["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+        assert analysis["inspection_score"] is None
+        assert analysis["risk_level"] is None
+        assert analysis["predicted_findings"] == []

@@ -628,7 +628,7 @@ export default function NewInspectionPage() {
       setBanner({
         type: "success",
         message: `Inspection #${data.id} submitted. ${allImages.length} image(s) uploaded. ${
-          data.supervisor_review_required
+          data.supervisor_review_required && !data.baseline_source
             ? "⚠ Supervisor review required — no approved baseline found."
             : data.analysis?.ai_analysis?.status === "AI_UNAVAILABLE"
               ? "AI model unavailable — manual inspection required."
@@ -1239,6 +1239,10 @@ function AIPredictionPanel({
   // be shown as "AI analysis complete". With no eligible model (today's state)
   // this is AI_UNAVAILABLE, so the card must not claim a completed AI analysis.
   const aiUnavailable = prediction.analysis?.ai_analysis?.status === "AI_UNAVAILABLE";
+  // Distinguish "supervisor review because no approved baseline exists" from
+  // "an approved baseline resolved but no eligible trained model evaluated the
+  // image". Both require human review, but only the former is a baseline gap.
+  const baselineMissing = isSupervisorRequired && !prediction.analysis?.baseline_source;
   const cardTone = isSupervisorRequired
     ? "border-amber-400 bg-amber-50"
     : aiUnavailable
@@ -1253,7 +1257,7 @@ function AIPredictionPanel({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inspection #{prediction.id}</p>
             <h2 className="text-lg font-bold text-slate-900 mt-0.5">
-              {isSupervisorRequired
+              {baselineMissing
                 ? "⚠ Supervisor Review Required"
                 : aiUnavailable
                   ? "AI model unavailable — manual inspection required"
@@ -1265,7 +1269,7 @@ function AIPredictionPanel({
           </span>
         </div>
 
-        {isSupervisorRequired && (
+        {baselineMissing && (
           <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-1">
             <p className="font-semibold">⚠ Manufacturer baseline not found — Supervisor review required before final scoring.</p>
             <p className="text-xs text-amber-700">
@@ -1279,15 +1283,15 @@ function AIPredictionPanel({
         {/* Authoritative AI verdict — sourced only from the real trained-model
             contract. When unavailable, this is the headline result: manual
             inspection is required and nothing below is a verified AI detection. */}
-        {aiUnavailable && (
+        {aiUnavailable && !baselineMissing && (
           <div className="rounded-lg border border-slate-400 bg-white px-4 py-3 text-sm text-slate-800 space-y-1">
             <p className="font-semibold">AI analysis unavailable — manual inspection required.</p>
             <p className="text-xs text-slate-600">
-              No eligible trained vision model is available for this inspection, so no AI
-              observation, probability, or clinical interpretation has been produced. The
-              baseline-comparison figures below are a pilot heuristic for workflow
-              demonstration only — not verified AI detection. A qualified person must
-              complete this inspection.
+              No eligible trained vision model evaluated this image, so no AI observation,
+              probability, finding, cleanliness score, or clinical interpretation has been
+              produced. Any instrument identification and approved-baseline metadata shown
+              are verified records — not an AI cleanliness assessment. A qualified person
+              must complete this inspection before any release decision.
             </p>
             {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison && (
               <p className="text-xs text-slate-600">
@@ -1429,12 +1433,16 @@ function AIPredictionPanel({
               ? (prediction.analysis.critical_flags && prediction.analysis.critical_flags.length > 0
                   ? prediction.analysis.critical_flags.map((c) => c.replace(/_/g, " ")).join(", ")
                   : "No critical findings")
-              : "Pending AI analysis"
+              : aiUnavailable
+                ? "Not evaluated — AI unavailable"
+                : "Pending AI analysis"
           } />
-          <PredictionField label={aiUnavailable ? "Heuristic Confidence (not AI)" : "Confidence"} value={
+          <PredictionField label={aiUnavailable ? "AI Confidence" : "Confidence"} value={
             prediction.analysis?.analysis_status === "completed" && prediction.analysis.confidence != null
               ? `${prediction.analysis.confidence_level ?? ""} (${Math.round((prediction.analysis.confidence) * 100)}%)`.trim()
-              : "Pending"
+              : aiUnavailable
+                ? "Not evaluated"
+                : "Pending"
           } />
           <div className="flex flex-col">
             <span className="text-xs text-slate-500 font-medium">Predicted Risk</span>
@@ -1443,7 +1451,13 @@ function AIPredictionPanel({
                 {prediction.risk_score} / 100
               </span>
             ) : (
-              <span className="mt-1 text-sm text-slate-400 italic">Not scored — baseline required</span>
+              <span className="mt-1 text-sm text-slate-400 italic">
+                {baselineMissing
+                  ? "Not scored — baseline required"
+                  : aiUnavailable
+                    ? "Not scored — AI unavailable"
+                    : "Not scored"}
+              </span>
             )}
           </div>
           <PredictionField label="Baseline Source" value={

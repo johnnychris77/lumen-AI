@@ -1,5 +1,13 @@
 """Phase 14 — Clinical Mentor: interpretation, why-this-matters, expanded
 actions, standards, learning mode, risk separation, AI Mentor."""
+
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
 from app.db.session import SessionLocal
 from app.models.baseline_library import BaselineLibraryEntry
 from app.services.baseline_comparison_scoring_service import analyze_inspection

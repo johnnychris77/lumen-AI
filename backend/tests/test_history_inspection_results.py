@@ -60,6 +60,10 @@ class TestHistoryShowsInspectionResults:
         assert inspection_id in ids
 
     def test_history_record_includes_result_fields(self):
+        # Clinical-safety contract: with no eligible trained model, the history
+        # UI must surface the honest AI_UNAVAILABLE state — all result fields are
+        # present (so the UI renders consistently) but carry no fabricated score.
+        # Real approved-baseline metadata resolution stays visible.
         itype = "scissors"
         _add_baseline(itype)
         inspection_id = _create_inspection(itype)
@@ -68,7 +72,7 @@ class TestHistoryShowsInspectionResults:
         items = resp.json()["items"]
         record = next(it for it in items if it["id"] == inspection_id)
 
-        # Result fields the history UI renders
+        # Result fields the history UI renders are all present.
         for field in (
             "inspection_score", "score_status", "baseline_status",
             "baseline_source", "supervisor_review_required", "risk_score",
@@ -76,10 +80,13 @@ class TestHistoryShowsInspectionResults:
         ):
             assert field in record, f"missing {field}"
 
-        assert record["score_status"] == "scored"
+        # No trained model evaluated the image → not scored, human review
+        # required, and NO fabricated inspection score is surfaced.
+        assert record["score_status"] == "supervisor_review_required"
+        assert record["supervisor_review_required"] is True
+        assert record["inspection_score"] is None
+        # Real baseline metadata resolution is preserved (not fabricated).
         assert record["baseline_source"] == "manufacturer"
-        assert record["inspection_score"] is not None
-        assert 0 <= record["inspection_score"] <= 100
 
     def test_supervisor_review_record_has_no_score(self):
         # No baseline → supervisor review, inspection_score should be None
@@ -100,8 +107,10 @@ class TestHistoryShowsInspectionResults:
         assert record["inspection_score"] is None
 
     def test_spd_verdict_persisted_and_in_history(self):
-        # The SPD risk-weighted verdict must be stored and surfaced in history,
-        # not just shown in the live analysis panel.
+        # The analysis verdict must be stored and surfaced in history, not just
+        # shown in the live panel. With no trained model the honest verdict is
+        # AI_UNAVAILABLE: NO fabricated risk level, and the technician-declared
+        # "blood" is kept as a HUMAN observation — never an AI finding.
         itype = "scissors"
         _add_baseline(itype)
         create = client.post("/api/inspections", json={
@@ -114,16 +123,24 @@ class TestHistoryShowsInspectionResults:
         }, headers=AUTH_OPERATOR)
         assert create.status_code == 201, create.text
         body = create.json()
-        # Persisted on the create response
-        assert body["risk_level"] in ("low", "medium", "high", "critical")
+        analysis = body["analysis"]
+        # Authoritative AI status is AI_UNAVAILABLE — no fabricated clinical score.
+        assert analysis["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+        assert analysis["analysis_status"] == "ai_unavailable"
+        # No fabricated risk level is persisted; the verdict is the honest
+        # "unavailable — manual inspection" recommendation.
+        assert body["risk_level"] is None
         assert body["recommended_action"]
-        assert body["overall_cleaning_assessment"]
-        # And the live analysis verdict matches what was stored
-        assert body["risk_level"] == body["analysis"]["risk_level"]
+        assert "unavailable" in body["overall_cleaning_assessment"].lower()
+        assert body["risk_level"] == analysis["risk_level"]
+        # The declared finding is a technician observation, not an AI detection.
+        assert analysis["predicted_findings"] == []
+        assert any("blood" in o.lower() for o in analysis["technician_declared_observations"])
 
         inspection_id = body["id"]
         resp = client.get("/api/history?limit=100", headers=AUTH_ADMIN)
         record = next(it for it in resp.json()["items"] if it["id"] == inspection_id)
+        # History faithfully surfaces the same honest verdict.
         assert record["risk_level"] == body["risk_level"]
         assert record["recommended_action"] == body["recommended_action"]
         assert record["overall_cleaning_assessment"] == body["overall_cleaning_assessment"]

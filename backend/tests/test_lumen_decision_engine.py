@@ -7,6 +7,14 @@ hashed baseline-similarity value.
 """
 from __future__ import annotations
 
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
+
 import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")

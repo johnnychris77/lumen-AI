@@ -1251,9 +1251,16 @@ def build_clinical_decision(result: dict, training_mode: bool = False) -> dict:
 
     findings = {x["type"]: x for x in result.get("predicted_findings", [])}
     overall = _overall_result(result)
+    completed = result.get("analysis_status") == "completed"
 
     # Integrity status is needed by the executive summary — stash it on result.
-    integrity_status = _integrity_status(findings) if findings else "Acceptable"
+    # Only a completed analysis may assert "Acceptable" integrity; without one
+    # (no approved baseline, or AI unavailable) nothing was evaluated, so this is
+    # "Not evaluated" — never a fabricated clean-integrity assessment.
+    if not completed:
+        integrity_status = "Not evaluated"
+    else:
+        integrity_status = _integrity_status(findings) if findings else "Acceptable"
     result["clinical_decision_integrity_status"] = integrity_status
 
     # 13.2 Score breakdown
@@ -1284,7 +1291,8 @@ def build_clinical_decision(result: dict, training_mode: bool = False) -> dict:
             "integrity_assessment": integrity_status,
             "overall_risk": result.get("risk_level"),
             "confidence": result.get("confidence_level"),
-            "confidence_pct": round((result.get("confidence") or 0) * 100),
+            # No synthetic 0% confidence for an un-completed analysis — null it.
+            "confidence_pct": round((result.get("confidence") or 0) * 100) if completed else None,
             "baseline_source": result.get("baseline_source"),
         },
         # 13.2
@@ -1350,6 +1358,113 @@ def build_clinical_decision(result: dict, training_mode: bool = False) -> dict:
     }
 
 
+def _ai_unavailable_result(
+    *,
+    instrument_type: str,
+    resolution: dict[str, Any],
+    identification: dict[str, Any],
+    declared: set[str],
+    inspected_zones: Optional[list[str]],
+    image_view_tags: Optional[list[dict]],
+    live_model_result: dict[str, Any],
+    ai_analysis: dict[str, Any],
+) -> dict[str, Any]:
+    """Clinician-facing result when the authoritative AI is unavailable.
+
+    Built strictly from verified evidence: real instrument identification, the
+    resolved approved-baseline metadata, image-quality/coverage, any genuine
+    baseline image comparison (via ``ai_analysis``), and the technician's own
+    declared observations (kept distinct as HUMAN observations). Every
+    AI-derived clinical value is null / "not evaluated" — never a fabricated
+    score, probability, confidence, risk level, or baseline image-match percent.
+    Human review is required; nothing here authorizes instrument release.
+    """
+    from app.services.instrument_anatomy import get_anatomy
+    from app.services.inspection_coverage import (
+        build_risk_map, compute_coverage, missing_image_guidance,
+    )
+
+    source = resolution["baseline_source"]
+    all_kpis = CONTAMINATION_KPIS + CONDITION_KPIS
+    result: dict[str, Any] = {
+        "analysis_status": "ai_unavailable",
+        "instrument_type": instrument_type,
+        "instrument_anatomy": get_anatomy(instrument_type),
+        # Real metadata resolution preserved (requirement 11).
+        "baseline_source": source,
+        "baseline_role": _baseline_role(source),
+        "baseline_comparison_label": _baseline_comparison_label(source),
+        "baseline_version": resolution.get("baseline_version"),
+        # No numeric baseline match without a real compatible-image comparison
+        # (requirement 4). Any genuine similarity lives in
+        # ai_analysis.baseline_image_similarity only.
+        "baseline_match_score": None,
+        "baseline_deviation_score": None,
+        "baseline_match_is_image_similarity": False,
+        "baseline_match_basis": "not_evaluated",
+        # No fabricated clinical outputs (requirements 2, 3).
+        "inspection_score": None,
+        "risk_level": None,
+        "pass_fail": "AI_UNAVAILABLE",
+        "confidence": None,
+        "confidence_level": None,
+        "predicted_findings": [],
+        "kpi_summary": {},
+        "score_adjustments": [],
+        "severity_by_kpi": {},
+        "identification": identification,
+        "identification_status": identification["identification_status"],
+        "decoder_backend": identification.get("decoder_backend", "declared"),
+        "findings_summary": [
+            "AI analysis unavailable — manual visual inspection required before release.",
+        ],
+        "overall_cleaning_assessment": CLEANING_ASSESSMENT_UNAVAILABLE,
+        "recommendation": (
+            "AI analysis unavailable — qualified human inspection is required "
+            "before any release decision."
+        ),
+        "recommended_action": "Manual inspection required — no eligible trained model.",
+        "top_risk_drivers": ["AI analysis unavailable"],
+        "scoring_explanation": [
+            "No eligible trained vision model evaluated this image.",
+            "No inspection score, finding probability, confidence, or baseline "
+            "image match is produced for an unavailable model.",
+            "Qualified human inspection is required before release.",
+        ],
+        # Phase 15 — real coverage / guidance / risk map stay operational.
+        "inspection_coverage": compute_coverage(instrument_type, inspected_zones),
+        "missing_image_guidance": missing_image_guidance(instrument_type, inspected_zones),
+        "risk_map": build_risk_map(instrument_type, {}, inspected_zones),
+        "image_view_tags": image_view_tags or [],
+        # Explicit "not evaluated" surface so the UI shows Not evaluated, never
+        # "No"/"Clear"/"clean" (requirements 5, 6).
+        "not_evaluated": True,
+        "not_evaluated_kpis": [KPI_LABELS.get(k, k) for k in all_kpis],
+        # Technician-declared observations, kept distinct as HUMAN observations
+        # and never attributed to AI (requirement 9).
+        "technician_declared_observations": sorted(
+            {KPI_LABELS.get(k, k) for k in declared}
+        ),
+        "human_review_required": True,
+        "placeholder_scoring": False,
+        "model_label": "No eligible trained model",
+        "production_validated": False,
+        "live_model_result": live_model_result,
+        "ai_analysis": ai_analysis,
+        "ai_observations_source": "live_model",
+    }
+    result["model_result"] = _build_model_result(
+        [], baseline_found=True, analysis_status="ai_unavailable", strict_no_placeholder=True,
+    )
+    # NB: no `clinical_decision` payload is attached (matching the no-baseline
+    # path). The Explainable Clinical Decision Support panel only makes sense for
+    # a completed analysis — building it here from empty findings would fabricate
+    # an "Acceptable" integrity assessment and a 0% confidence. The authoritative
+    # `ai_analysis` surface, the honest Lumen `decision` (NOT_EVALUATED), and the
+    # scope-limited `model_result` already convey the AI_UNAVAILABLE state.
+    return result
+
+
 def analyze_inspection(
     db: Session,
     *,
@@ -1368,14 +1483,32 @@ def analyze_inspection(
     image_bytes: Optional[bytes] = None,
     inspection_id: Optional[int] = None,
     retained_image_id: Optional[int] = None,
+    demo_scoring: Optional[bool] = None,
 ) -> dict[str, Any]:
-    """Run the deterministic baseline-comparison analysis.
+    """Run the baseline-comparison analysis for an inspection.
 
-    Returns the explainable analysis payload. When no approved baseline is
-    found, returns analysis_status="supervisor_review_required" with NO final
-    score, per governance rules.
+    CLINICAL-SAFETY CONTRACT: the deterministic placeholder scorer below is NOT
+    used to produce clinician-facing results. When no eligible trained model
+    evaluated the image (the authoritative AI is unavailable), this returns an
+    AI_UNAVAILABLE result built strictly from VERIFIED evidence — no fabricated
+    inspection score, finding probability, confidence, risk level, clinical
+    interpretation, or baseline image-match percentage. Real instrument
+    identification, approved-baseline metadata resolution, image-quality
+    assessment, and any genuine compatible-image comparison remain operational,
+    and qualified human review is always required.
+
+    ``demo_scoring=True`` is an explicit opt-in for the SEGREGATED development/demo
+    fixture that still exercises the deterministic scorer (and for the unit tests
+    that cover that scorer's math). When left as ``None`` it falls back to the
+    ``AI_ALLOW_DEMO_SCORING`` setting, which defaults to False everywhere
+    (production included). Production routes never pass it, so the live clinical
+    path never surfaces placeholder-derived clinical outcomes.
+
+    When no approved baseline is found, returns
+    analysis_status="supervisor_review_required" with NO final score.
     """
-    logger.info("INFERENCE MODE: deterministic placeholder active — not a trained CV model")
+    if demo_scoring is None:
+        demo_scoring = get_settings().ai_allow_demo_scoring
     declared = {
         _DECLARED_TO_KPI[c]
         for c in (declared_findings or [])
@@ -1534,6 +1667,31 @@ def analyze_inspection(
         "baseline_udi": baseline_udi,
         "decoder_backend": decoder_backend,
     }
+
+    # ── Authoritative AI gate ───────────────────────────────────────────────
+    # The clinician-facing result is driven by the REAL live-model contract, not
+    # the deterministic placeholder below. When no eligible trained model
+    # evaluated this image (every production inspection today), return an
+    # AI_UNAVAILABLE result built only from verified evidence — the placeholder
+    # scoring below never reaches a clinical outcome. The segregated demo/test
+    # fixture opts in with demo_scoring=True.
+    _live = _live_model_result(
+        db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
+        inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+    )
+    _ai = _authoritative_ai_analysis(_live)
+    ai_available = _live.get("analysis_status") == "completed"
+    if not ai_available and not demo_scoring:
+        return _ai_unavailable_result(
+            instrument_type=instrument_type, resolution=resolution, identification=identification,
+            declared=declared, inspected_zones=inspected_zones, image_view_tags=image_view_tags,
+            live_model_result=_live, ai_analysis=_ai,
+        )
+
+    # Reached only under the segregated demo/dev fixture (demo_scoring=True) or
+    # once a real promoted model backs the result. Never the production path.
+    if not ai_available:
+        logger.info("DEMO SCORING: deterministic placeholder active — not a trained CV model, non-clinical")
 
     # ── Baseline match / deviation ──────────────────────────────────────────
     # Deviation grows with declared/positive findings; match is its complement.
@@ -1812,16 +1970,15 @@ def analyze_inspection(
         predicted_findings, baseline_found=True, analysis_status="completed",
         strict_no_placeholder=get_settings().ai_strict_no_placeholder,
     )
-    result["live_model_result"] = _live_model_result(
-        db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
-        inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
-    )
-    # Authoritative AI surface — the ONLY source of "AI observations" presented
-    # to callers/UI, derived from the live contract. With no promoted model
-    # (today's state) this is AI_UNAVAILABLE even though the placeholder score
-    # above is populated, so the placeholder is never read as a verified AI result.
-    result["ai_analysis"] = _authoritative_ai_analysis(result["live_model_result"])
+    # Reuse the live contract + authoritative surface computed at the AI gate
+    # above (this branch only runs under demo_scoring, or once a real model is
+    # available). This keeps the placeholder-derived `result` honest: it still
+    # carries `ai_analysis` (AI_UNAVAILABLE unless a real model actually ran).
+    result["live_model_result"] = _live
+    result["ai_analysis"] = _ai
     result["ai_observations_source"] = "live_model"
+    # Flag demo-scored results so no consumer mistakes them for clinical output.
+    result["demo_scoring"] = not ai_available
     # Phase 13: Explainable Clinical Decision Support payload.
     result["clinical_decision"] = build_clinical_decision(result, training_mode=training_mode)
     return result

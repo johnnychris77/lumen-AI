@@ -97,16 +97,22 @@ class TestMissingBaselineSupervisorReview:
         assert data["baseline_status"] == "no_approved_baseline"
         assert data["risk_score"] == 0
 
-    def test_approved_baseline_scores_normally(self):
-        """When approved baseline exists, inspection is scored normally."""
+    def test_approved_baseline_passes_governance_gate(self):
+        """An approved baseline clears the no-baseline governance gate (so the
+        submission reaches the AI stage). With no eligible trained model the
+        honest result is AI_UNAVAILABLE — human review required, no fabricated
+        score — never a placeholder-derived 'scored' pass."""
         _make_approved_baseline("scissors")
         try:
             resp = client.post("/api/inspections", json=INSPECTION_WITH_IMAGE, headers=AUTH_TECH)
             assert resp.status_code == 201, resp.text
             data = resp.json()
-            assert data["supervisor_review_required"] is False
-            assert data["score_status"] == "scored"
-            assert data["baseline_status"] == "approved_baseline_found"
+            # Baseline governance gate was cleared (baseline resolved)…
+            assert data["baseline_source"] == "manufacturer"
+            # …but the AI is unavailable, so the result is NOT auto-scored.
+            assert data["analysis"]["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+            assert data["score_status"] != "scored"
+            assert data["supervisor_review_required"] is True
         finally:
             _remove_approved_baselines("scissors")
 

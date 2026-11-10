@@ -7,6 +7,14 @@ Context threaded into the real scoring engine, and Learning Dataset v2.
 """
 from __future__ import annotations
 
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
+
 import uuid
 
 from fastapi.testclient import TestClient

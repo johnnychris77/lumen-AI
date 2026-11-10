@@ -8,6 +8,14 @@ PNG-encoded bytes via Pillow), matching this codebase's established
 convention (tests/test_candidate_model_training.py::_img(),
 tests/test_project_lens.py::_img()).
 """
+
+import pytest
+
+# Opt this module into the SEGREGATED deterministic-placeholder scorer. The
+# scorer is OFF by default (production clinical path); these legacy tests
+# specifically cover its demo math/interpretation. See conftest.enable_demo_scoring.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
+
 import hashlib
 import io
 

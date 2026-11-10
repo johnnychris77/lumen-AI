@@ -113,14 +113,24 @@ def build_clinical_report_pdf(row: Any, analysis: dict) -> bytes:
         ("Inspection Date", (getattr(row, "created_at", None) or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")),
     ]))
 
-    # Decision summary
+    # Decision summary. When no completed analysis exists (e.g. AI_UNAVAILABLE —
+    # no eligible trained model), the summary dict is empty: render honest
+    # "Not evaluated" placeholders, never a fabricated score or a synthetic 0%
+    # confidence.
+    _score = summary.get("inspection_score")
+    score_display = f"{_score} / 100" if _score is not None else "Not evaluated"
+    _conf = summary.get("confidence")
+    _conf_pct = summary.get("confidence_pct")
+    confidence_display = (
+        f"{_conf} ({_conf_pct}%)" if _conf and _conf_pct is not None else "Not evaluated"
+    )
     story.append(Paragraph("Clinical Decision Summary", ss["H"]))
     story.append(_kv_table([
-        ("Inspection Score", f"{summary.get('inspection_score', '—')} / 100"),
+        ("Inspection Score", score_display),
         ("Cleaning Assessment", str(summary.get("cleaning_assessment") or "—")),
-        ("Integrity Assessment", str(summary.get("integrity_assessment") or "—")),
-        ("Overall Risk", str(summary.get("overall_risk") or "—")),
-        ("Confidence", f"{summary.get('confidence') or '—'} ({summary.get('confidence_pct', 0)}%)"),
+        ("Integrity Assessment", str(summary.get("integrity_assessment") or "Not evaluated")),
+        ("Overall Risk", str(summary.get("overall_risk") or "Not evaluated")),
+        ("Confidence", confidence_display),
     ]))
 
     # Cleaning + integrity tables
