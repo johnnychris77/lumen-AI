@@ -69,8 +69,6 @@ export default function EnterpriseIntakeHistoryPanel() {
         { raw: true,
           signOutOn401: false,
           headers: {
-            "X-Tenant-Id": "bonsecours",
-            "X-Tenant-Name": "Bon Secours",
           },
         }
       );
@@ -1058,8 +1056,6 @@ async function openEnterpriseCapa(findingId: number) {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "operator",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
       body: JSON.stringify({
         title: "CAPA - Frazier suction retained debris concern",
@@ -1092,8 +1088,6 @@ async function runBaselineComparison(findingId: number) {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "operator",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
     }
   );
@@ -1126,8 +1120,6 @@ async function uploadEnterpriseEvidence(
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "operator",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
       body: formData,
     }
@@ -1149,8 +1141,6 @@ async function listEnterpriseEvidence(findingId: number) {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
     }
   );
@@ -1178,8 +1168,6 @@ async function submitHumanReview(
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "operator",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
       body: JSON.stringify({
         reviewer_name: "Quality Reviewer",
@@ -1208,8 +1196,6 @@ async function exportGovernancePacket(findingId: number) {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
     }
   );
@@ -1293,8 +1279,6 @@ async function downloadGovernancePacketPdf(findingId: number) {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": "viewer",
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
     }
   );
@@ -1331,8 +1315,6 @@ function downloadEvidenceAttachment(evidenceId: number, fileName: string) {
       Authorization: `Bearer ${AUTH_TOKEN}`,
       "X-LumenAI-Role": "viewer",
       "X-LumenAI-Actor": "john-demo",
-      "X-Tenant-Id": "bonsecours",
-      "X-Tenant-Name": "Bon Secours",
     },
   })
     .then((response) => {

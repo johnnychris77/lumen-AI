@@ -70,10 +70,11 @@ def classify_readiness(insp) -> dict:
     detected_issue = (insp.detected_issue or "").strip().lower()
     repair_candidate = False
 
-    if insp.score_status == "supervisor_review_required":
-        # Baseline-gated: an image was submitted but no approved manufacturer
-        # baseline exists, so scoring is locked pending supervisor review —
-        # this is not merely "still analyzing".
+    if insp.score_status in ("supervisor_review_required", "ai_unavailable"):
+        # Baseline-gated OR AI-unavailable: an image was submitted but either no
+        # approved baseline exists, or no eligible validated AI model evaluated
+        # it. Either way scoring is locked pending human review — this is a
+        # concluded "needs a human" outcome, not merely "still analyzing".
         state = REQUIRES_SUPERVISOR_REVIEW
     elif insp.score_status not in ("scored", "scored_after_override"):
         state = PENDING_ANALYSIS

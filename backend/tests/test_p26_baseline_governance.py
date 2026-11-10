@@ -97,22 +97,23 @@ class TestMissingBaselineSupervisorReview:
         assert data["baseline_status"] == "no_approved_baseline"
         assert data["risk_score"] == 0
 
-    def test_approved_baseline_passes_governance_gate(self):
-        """An approved baseline clears the no-baseline governance gate (so the
-        submission reaches the AI stage). With no eligible trained model the
-        honest result is AI_UNAVAILABLE — human review required, no fabricated
-        score — never a placeholder-derived 'scored' pass."""
+    def test_approved_baseline_scores_normally(self):
+        """With an approved baseline AND no eligible validated AI model, the
+        inspection is accepted but marked AI-unavailable (never fabricated as a
+        verified 'scored' clinical result) and routed to supervisor review."""
         _make_approved_baseline("scissors")
         try:
             resp = client.post("/api/inspections", json=INSPECTION_WITH_IMAGE, headers=AUTH_TECH)
             assert resp.status_code == 201, resp.text
             data = resp.json()
-            # Baseline governance gate was cleared (baseline resolved)…
-            assert data["baseline_source"] == "manufacturer"
-            # …but the AI is unavailable, so the result is NOT auto-scored.
-            assert data["analysis"]["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+            # Baseline provenance is preserved...
+            assert data["baseline_status"] == "approved_baseline_found"
+            # ...but with no verified AI model the placeholder is NOT presented as
+            # a verified score: not 'scored', human review required.
+            assert data["score_status"] == "ai_unavailable"
             assert data["score_status"] != "scored"
             assert data["supervisor_review_required"] is True
+            assert data["analysis"]["ai_analysis"]["status"] == "AI_UNAVAILABLE"
         finally:
             _remove_approved_baselines("scissors")
 

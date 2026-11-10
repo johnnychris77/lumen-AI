@@ -152,19 +152,35 @@ def _require_dev_auth_context(
 
             tenant_id = get_request_tenant_id(request)
 
-            # The tenant_id above comes straight from a client-supplied
-            # header and must never be trusted on its own — a real,
-            # JWT-authenticated user could otherwise set X-Tenant-Id to a
-            # tenant they don't belong to and read/act on that tenant's
-            # data (this is exactly the gap the cross-hospital intelligence
-            # routes were found to have). Verify it against a real
-            # TenantMembership row before honoring it.
+            # The tenant_id above may come from a client-supplied header and must
+            # never be trusted on its own. Two cases, both fail-closed:
+            #  * An EXPLICIT X-Tenant-Id is honored only when the user is a
+            #    verified member — a spoofed tenant is rejected (403), never
+            #    silently redirected. (Preserves cross-tenant isolation.)
+            #  * NO explicit tenant header → resolve the user's OWN verified
+            #    tenant from their membership, so a correct request works without
+            #    the client having to know/transmit its tenant id (this is the
+            #    hardcoded-tenant client bug's real fix).
             if db is not None:
-                require_enabled_tenant_membership(
-                    db,
-                    tenant_id=tenant_id,
-                    user_email=username,
+                from app.auth.tenant_membership import resolve_effective_tenant
+
+                explicit_header = (
+                    request.headers.get("x-tenant-id")
+                    or request.headers.get("X-Tenant-Id")
                 )
+                if explicit_header:
+                    require_enabled_tenant_membership(
+                        db, tenant_id=tenant_id, user_email=username,
+                    )
+                else:
+                    effective = resolve_effective_tenant(
+                        db, user_email=username, requested_tenant_id=None
+                    )
+                    if not effective:
+                        require_enabled_tenant_membership(
+                            db, tenant_id=tenant_id, user_email=username,
+                        )
+                    tenant_id = effective
 
             return build_dev_auth_context(
                 actor=username,

@@ -22,6 +22,10 @@ type InspectionRecord = {
   risk_level: string | null;
   recommended_action: string | null;
   overall_cleaning_assessment: string | null;
+  // Fix persisted placeholder scores — authoritative AI-evaluation state.
+  ai_evaluated?: boolean;
+  ai_analysis_status?: string;
+  evaluation_status?: string;
 };
 
 const RISK_LEVEL_STYLE: Record<string, string> = {
@@ -149,7 +153,11 @@ export default function InspectionResultsHistory() {
               </tr>
             </thead>
             <tbody>
-              {items.map((r) => (
+              {items.map((r) => {
+                // An image inspection with no verified AI result: never present
+                // the stored placeholder score/risk/finding as clinical.
+                const aiUnavailable = !!r.has_image && r.ai_evaluated === false;
+                return (
                 <Fragment key={r.id}>
                 <tr className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="px-5 py-2.5 text-slate-500">{r.id}</td>
@@ -159,7 +167,9 @@ export default function InspectionResultsHistory() {
                   <td className="px-5 py-2.5 capitalize text-slate-800">{r.instrument_type.replace(/_/g, " ")}</td>
                   <td className="px-5 py-2.5 text-slate-600">{r.facility_name || r.site_name || "—"}</td>
                   <td className="px-5 py-2.5">
-                    {r.supervisor_review_required ? (
+                    {aiUnavailable ? (
+                      <span className="text-xs italic text-slate-500">Not evaluated</span>
+                    ) : r.supervisor_review_required ? (
                       <span className="text-xs text-amber-600 italic">pending review</span>
                     ) : (
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${scoreColor(r.inspection_score)}`}>
@@ -168,7 +178,9 @@ export default function InspectionResultsHistory() {
                     )}
                   </td>
                   <td className="px-5 py-2.5 text-slate-700">
-                    {r.risk_level ? (
+                    {aiUnavailable ? (
+                      <span className="text-xs italic text-slate-500">Undetermined</span>
+                    ) : r.risk_level ? (
                       <span
                         title={r.recommended_action ?? undefined}
                         className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold capitalize ${RISK_LEVEL_STYLE[r.risk_level] ?? "bg-slate-100 text-slate-600"}`}
@@ -181,13 +193,15 @@ export default function InspectionResultsHistory() {
                       riskLabel(r.inspection_score)
                     )}
                   </td>
-                  <td className={`px-5 py-2.5 text-xs ${r.overall_cleaning_assessment ? (CLEANING_STYLE[r.overall_cleaning_assessment] ?? "text-slate-600") : "text-slate-400"}`}>
-                    {r.overall_cleaning_assessment ?? "—"}
+                  <td className={`px-5 py-2.5 text-xs ${aiUnavailable ? "text-slate-500 italic" : r.overall_cleaning_assessment ? (CLEANING_STYLE[r.overall_cleaning_assessment] ?? "text-slate-600") : "text-slate-400"}`}>
+                    {aiUnavailable ? "Manual inspection required" : (r.overall_cleaning_assessment ?? "—")}
                   </td>
                   <td className="px-5 py-2.5 capitalize text-slate-600">
-                    {r.detected_issue === "unknown" || r.detected_issue === ""
-                      ? "AI analysis"
-                      : r.detected_issue.replace(/_/g, " ")}
+                    {aiUnavailable
+                      ? <span className="normal-case italic text-slate-500">No verified AI observation</span>
+                      : r.detected_issue === "unknown" || r.detected_issue === ""
+                        ? "AI analysis"
+                        : r.detected_issue.replace(/_/g, " ")}
                   </td>
                   <td className="px-5 py-2.5 capitalize text-slate-600">
                     {r.baseline_source ? (
@@ -202,7 +216,11 @@ export default function InspectionResultsHistory() {
                     )}
                   </td>
                   <td className="px-5 py-2.5">
-                    {r.supervisor_review_required ? (
+                    {aiUnavailable ? (
+                      <span className="inline-flex rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800" title="No eligible validated AI vision model evaluated this inspection.">
+                        AI unavailable
+                      </span>
+                    ) : r.supervisor_review_required ? (
                       <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                         Supervisor review
                       </span>
@@ -232,7 +250,8 @@ export default function InspectionResultsHistory() {
                   </tr>
                 )}
                 </Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

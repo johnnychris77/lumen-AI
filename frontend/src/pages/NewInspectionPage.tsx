@@ -1429,19 +1429,19 @@ function AIPredictionPanel({
         {/* Prediction grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <PredictionField label="Predicted Findings" value={
-            prediction.analysis?.analysis_status === "completed"
-              ? (prediction.analysis.critical_flags && prediction.analysis.critical_flags.length > 0
-                  ? prediction.analysis.critical_flags.map((c) => c.replace(/_/g, " ")).join(", ")
-                  : "No critical findings")
-              : aiUnavailable
-                ? "Not evaluated — AI unavailable"
+            aiUnavailable
+              ? "No verified AI observation"
+              : prediction.analysis?.analysis_status === "completed"
+                ? (prediction.analysis.critical_flags && prediction.analysis.critical_flags.length > 0
+                    ? prediction.analysis.critical_flags.map((c) => c.replace(/_/g, " ")).join(", ")
+                    : "No critical findings")
                 : "Pending AI analysis"
           } />
-          <PredictionField label={aiUnavailable ? "AI Confidence" : "Confidence"} value={
-            prediction.analysis?.analysis_status === "completed" && prediction.analysis.confidence != null
-              ? `${prediction.analysis.confidence_level ?? ""} (${Math.round((prediction.analysis.confidence) * 100)}%)`.trim()
-              : aiUnavailable
-                ? "Not evaluated"
+          <PredictionField label="Confidence" value={
+            aiUnavailable
+              ? "Not evaluated"
+              : prediction.analysis?.analysis_status === "completed" && prediction.analysis.confidence != null
+                ? `${prediction.analysis.confidence_level ?? ""} (${Math.round((prediction.analysis.confidence) * 100)}%)`.trim()
                 : "Pending"
           } />
           <div className="flex flex-col">
@@ -1450,6 +1450,8 @@ function AIPredictionPanel({
               <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-sm font-bold w-fit ${riskColor(prediction.risk_score)}`}>
                 {prediction.risk_score} / 100
               </span>
+            ) : aiUnavailable ? (
+              <span className="mt-1 text-sm text-slate-400 italic">Undetermined — AI unavailable</span>
             ) : (
               <span className="mt-1 text-sm text-slate-400 italic">
                 {baselineMissing
@@ -1470,8 +1472,12 @@ function AIPredictionPanel({
         {/* Lumen Decision Engine — Observation Doctrine (Section 15, 4-panel view) */}
         {prediction.decision && <DecisionEnginePanel decision={prediction.decision} />}
 
-        {/* Phase 13 — Explainable Clinical Decision Support (primary view) */}
-        {prediction.analysis?.clinical_decision && (
+        {/* Phase 13 — Explainable Clinical Decision Support (primary view).
+            Suppressed when AI is unavailable: the clinical_decision summary is
+            derived from the deterministic placeholder and must never be shown as
+            a verified clinical result (the card above already reports AI
+            unavailable / manual inspection required). */}
+        {prediction.analysis?.clinical_decision && !aiUnavailable && (
           <ClinicalDecisionPanel
             cd={prediction.analysis.clinical_decision}
             inspectionId={Number(prediction.id)}

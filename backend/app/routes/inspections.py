@@ -468,6 +468,9 @@ async def create_inspection(
     coverage_pct_val: Optional[int] = None
     coverage_quality_val: Optional[str] = None
     ai_confidence_val: Optional[float] = None
+    # Authoritative AI-evaluation status mirrored onto the row (see
+    # app.services.ai_result_integrity). Default "" = manual/legacy/no AI claim.
+    ai_analysis_status_val: str = ""
 
     image_view_tags_dicts = [t.model_dump() for t in (body.image_view_tags or [])]
 
@@ -577,38 +580,79 @@ async def create_inspection(
         coverage_pct_val = coverage.get("overall_coverage")
         coverage_quality_val = coverage.get("quality")
         ai_confidence_val = analysis.get("confidence")
-        if analysis["analysis_status"] == "completed":
+        # The authoritative AI surface governs the clinical outcome — NOT the
+        # deterministic baseline-comparison placeholder. A baseline being found
+        # makes analysis_status "completed", but with no promoted vision model
+        # the real result is AI_UNAVAILABLE; the placeholder score must never be
+        # persisted as a verified clinical conclusion.
+        ai_status = ((analysis.get("ai_analysis") or {}).get("status") or "")
+        if analysis["analysis_status"] == "completed" and ai_status == "COMPLETED":
             baseline_status = "approved_baseline_found"
             baseline_source_val = analysis["baseline_source"]
             # inspection_score is 0–100 quality; risk_score is 0–100 risk (inverse).
             risk_score_val = 100 - int(analysis["inspection_score"])
             score_status = "scored"
+            ai_analysis_status_val = "COMPLETED"
+        elif analysis["analysis_status"] == "completed":
+            # Baseline found but NO verified AI model → AI unavailable. Preserve
+            # the baseline provenance, but do not present heuristic values as a
+            # valid clinical result: explicit evaluation status, human review
+            # required, sentinel risk_score (non-null constraint), null clinical
+            # fields, honest cleaning message.
+            from app.services.baseline_comparison_scoring_service import (
+                CLEANING_ASSESSMENT_UNAVAILABLE,
+            )
+            baseline_status = "approved_baseline_found"
+            baseline_source_val = analysis["baseline_source"]
+            score_status = "ai_unavailable"
+            supervisor_review_required = True
+            risk_score_val = 0
+            risk_level_val = None
+            recommended_action_val = "Manual visual inspection required — AI analysis unavailable."
+            cleaning_assessment_val = CLEANING_ASSESSMENT_UNAVAILABLE
+            disposition_val = None
+            ai_confidence_val = None
+            ai_analysis_status_val = "AI_UNAVAILABLE"
         elif analysis_failed:
             baseline_status = "analysis_unavailable"
             supervisor_review_required = True
             score_status = "supervisor_review_required"
             risk_score_val = 0
+            ai_analysis_status_val = "AI_UNAVAILABLE"
         elif analysis["analysis_status"] == "ai_unavailable":
-            # An approved baseline may have resolved, but no eligible trained
-            # model evaluated the image. Surface the honest AI_UNAVAILABLE state:
-            # no fabricated score, risk level, or confidence is persisted (those
-            # are already None on the analysis). Real baseline metadata stays
-            # visible and qualified human review is required.
-            baseline_status = "ai_unavailable"
+            # The source-level gate in analyze_inspection returns
+            # analysis_status="ai_unavailable" directly (the deterministic scorer
+            # never computed a clinical outcome). Persist the same honest
+            # AI_UNAVAILABLE contract as the completed-but-unavailable branch
+            # above: never "scored", real baseline provenance preserved, null
+            # clinical fields, human review required.
+            from app.services.baseline_comparison_scoring_service import (
+                CLEANING_ASSESSMENT_UNAVAILABLE,
+            )
+            baseline_status = "approved_baseline_found"
             baseline_source_val = analysis.get("baseline_source")
+            score_status = "ai_unavailable"
             supervisor_review_required = True
-            score_status = "supervisor_review_required"
             risk_score_val = 0
+            risk_level_val = None
+            recommended_action_val = "Manual visual inspection required — AI analysis unavailable."
+            cleaning_assessment_val = CLEANING_ASSESSMENT_UNAVAILABLE
+            disposition_val = None
+            ai_confidence_val = None
+            ai_analysis_status_val = "AI_UNAVAILABLE"
         else:
             baseline_status = "no_approved_baseline"
             supervisor_review_required = True
             score_status = "supervisor_review_required"
             risk_score_val = 0
+            ai_analysis_status_val = "AI_UNAVAILABLE"
     else:
-        # No image: score immediately from provided findings
+        # No image: score immediately from provided findings (a manual human
+        # declaration — not an AI claim, so ai_analysis_status stays blank).
         baseline_status = "not_applicable"
         risk_score_val = calculate_risk(detected_issue, conf_val)
         score_status = "scored"
+        ai_analysis_status_val = ""
 
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
@@ -660,6 +704,7 @@ async def create_inspection(
         coverage_pct=coverage_pct_val,
         coverage_quality=coverage_quality_val,
         ai_confidence=ai_confidence_val,
+        ai_analysis_status=ai_analysis_status_val,
         inspected_zones_json=json.dumps(body.inspected_zones),
         coverage_status=readiness["coverage_status"],
         coverage_score=readiness["coverage_score"],

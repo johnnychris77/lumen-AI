@@ -193,7 +193,14 @@ class TestDispositionActionAuditAndFinalization:
         ins = client.post("/api/inspections", json=_payload("cw_preserve"), headers=AUTH_OPERATOR)
         assert ins.status_code == 201, ins.text
         iid = ins.json()["id"]
-        original_analysis = ins.json()["analysis"]
+
+        db = SessionLocal()
+        try:
+            row0 = db.query(models.Inspection).filter(models.Inspection.id == iid).first()
+            persisted_risk_level = row0.risk_level
+            persisted_action = row0.recommended_action
+        finally:
+            db.close()
 
         r = client.post(
             f"/api/inspections/{iid}/disposition-action",
@@ -205,9 +212,10 @@ class TestDispositionActionAuditAndFinalization:
         db = SessionLocal()
         try:
             row = db.query(models.Inspection).filter(models.Inspection.id == iid).first()
-            # The original per-inspection AI verdict snapshot must be unchanged.
-            assert row.risk_level == original_analysis.get("risk_level")
-            assert row.recommended_action == original_analysis.get("recommended_action")
+            # The original per-inspection AI verdict snapshot persisted at
+            # creation must be unchanged by the disposition action.
+            assert row.risk_level == persisted_risk_level
+            assert row.recommended_action == persisted_action
         finally:
             db.close()
 

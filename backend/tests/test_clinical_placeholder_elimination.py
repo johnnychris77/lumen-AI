@@ -253,13 +253,13 @@ def test_api_history_and_report_agree():
 
     # API: AI_UNAVAILABLE, not scored.
     assert body["analysis"]["analysis_status"] == "ai_unavailable"
-    assert body["score_status"] == "supervisor_review_required"
+    assert body["score_status"] == "ai_unavailable"
 
     # History: same inspection surfaces not-scored with no fabricated score.
     hist = client.get("/api/history?limit=100", headers=AUTH_ADMIN)
     assert hist.status_code == 200, hist.text
     record = next(it for it in hist.json()["items"] if it["id"] == inspection_id)
-    assert record["score_status"] == "supervisor_review_required"
+    assert record["score_status"] == "ai_unavailable"
     assert record["inspection_score"] is None
     assert record["supervisor_review_required"] is True
 
