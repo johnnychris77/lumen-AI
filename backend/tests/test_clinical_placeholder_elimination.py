@@ -267,3 +267,44 @@ def test_api_history_and_report_agree():
     pdf = client.get(f"/api/inspections/{inspection_id}/clinical-report.pdf", headers=AUTH_ADMIN)
     assert pdf.status_code == 200, pdf.text
     assert pdf.content[:5] == b"%PDF-"
+
+
+# 13. A baseline override cannot unlock scoring when the blocker is model
+#     availability (not a missing baseline) — it must not bypass the no-model
+#     safety state by marking the record scored_after_override.
+def test_baseline_override_rejected_when_ai_unavailable():
+    itype = "pe_override"
+    _seed_approved_baseline(itype)
+    body = _submit(itype)
+    assert body["score_status"] == "ai_unavailable"
+    inspection_id = body["id"]
+
+    resp = client.post(
+        f"/api/inspections/{inspection_id}/baseline-override",
+        json={"baseline_source": "vendor", "override_reason": "attempting to force a score"},
+        headers=AUTH_ADMIN,
+    )
+    assert resp.status_code == 409, resp.text
+
+    # The record stays in the honest no-model safety state — never scored.
+    hist = client.get("/api/history?limit=100", headers=AUTH_ADMIN)
+    record = next(it for it in hist.json()["items"] if it["id"] == inspection_id)
+    assert record["score_status"] == "ai_unavailable"
+    assert record["inspection_score"] is None
+
+
+# 14. Technician-declared observations survive in the durable record (history)
+#     with human provenance, distinct from AI findings, even when AI is unavailable.
+def test_declared_observations_persisted_in_history():
+    itype = "pe_declared_durable"
+    _seed_approved_baseline(itype)
+    body = _submit(itype, declared=["blood"])
+    inspection_id = body["id"]
+
+    hist = client.get("/api/history?limit=100", headers=AUTH_ADMIN)
+    record = next(it for it in hist.json()["items"] if it["id"] == inspection_id)
+    # Durable human observation is present and attributed to the technician…
+    assert any("blood" in o.lower() for o in record["technician_declared_observations"])
+    # …and never surfaced as an AI finding/score.
+    assert record["inspection_score"] is None
+    assert record["ai_analysis_status"] == "AI_UNAVAILABLE"

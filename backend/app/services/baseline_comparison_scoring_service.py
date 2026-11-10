@@ -1699,7 +1699,14 @@ def analyze_inspection(
         inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
     )
     _ai = _authoritative_ai_analysis(_live)
-    ai_available = _live.get("analysis_status") == "completed"
+    # A completed live result only counts as an available AI evaluation when the
+    # model produced a real (non-abstained) observation. An abstention —
+    # insufficient image quality, confidence below threshold, or unknown class —
+    # is NOT a clinical result: treat it as not evaluated so the deterministic
+    # placeholder below can never fabricate a score for it.
+    _live_observation = _live.get("observation") or {}
+    _abstained = bool(_live_observation.get("abstained"))
+    ai_available = _live.get("analysis_status") == "completed" and not _abstained
     if not ai_available and not demo_scoring:
         return _ai_unavailable_result(
             instrument_type=instrument_type, resolution=resolution, identification=identification,

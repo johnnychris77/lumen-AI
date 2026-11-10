@@ -101,7 +101,47 @@ A representative inspection (approved manufacturer baseline, technician‑declar
 All clinician‑facing surfaces agree on the honest AI_UNAVAILABLE verdict with no
 fabricated clinical outcome, and human review is required.
 
-## 5. Deployment note (honest limitation)
+## 5. Review-driven hardening (post-#149 reconciliation)
+
+Automated code review surfaced ten findings; all were addressed:
+
+- **Reject demo scoring in production** — `Settings.validate()` now fails startup
+  when `AI_ALLOW_DEMO_SCORING` is enabled with `APP_ENV=production`.
+- **Honest AI-unavailable `model_result`** — advertises no supported categories
+  and no model version (every category "not evaluated"), so the UI can't render
+  a contradictory "supported" claim under the AI_UNAVAILABLE banner.
+- **Baseline-override safety** — the override panel is gated on `baselineMissing`
+  (frontend) and the endpoint rejects (409) an override when the blocker is model
+  availability (`score_status == "ai_unavailable"`), so it can't mark an
+  AI-unavailable record `scored_after_override` via the manual risk calculator.
+- **Capture-station bytes** — `/api/capture/ingest` now passes the captured frame
+  bytes into inference so an eligible active model can evaluate station captures;
+  its persistence mirrors the honest `ai_unavailable` contract.
+- **Abstention = not evaluated** — a completed-but-abstained live result
+  (insufficient image quality, confidence below threshold, unknown class) is
+  treated as not evaluated, so the placeholder can never fabricate a score for it.
+- **Durable technician-declared observations** — a new
+  `inspections.declared_findings` column (JSON, + migration) preserves the
+  human's declaration with explicit provenance; history surfaces
+  `technician_declared_observations` and the report prints a
+  "Technician-Declared (human)" line, kept distinct from AI findings.
+- **Honest workflow audit** — the AI_ANALYSIS timeline event records "AI analysis
+  unavailable — manual inspection required" for the no-model path instead of a
+  fabricated "AI analysis completed".
+- **Clinical report byte reload** — the report path reloads and hash-verifies
+  retained image bytes before re-analysis, so a report matches the inspection's
+  original evaluation rather than reporting "not evaluated" for a scored row.
+- **Risk-metric aggregation** — manufacturer instrument-family performance
+  averages only genuinely scored inspections, so an AI-unavailable row's sentinel
+  `risk_score=0` is not counted as a verified zero-risk result.
+- **Baseline status preserved** — the `ai_unavailable` route branch keeps
+  `baseline_status="approved_baseline_found"` (resolved from the #149 merge), so
+  escalation/coverage/dashboard consumers are not misled into "missing baseline".
+
+Two new regression tests cover the override rejection and the durable
+technician-declared record; the full backend suite remains green.
+
+## 6. Deployment note (honest limitation)
 
 Render auto‑deploys `main`. Production verification of the live services
 (`lumen-ai-api`, `lumen-ai-1`) must be done from the Render dashboard or an

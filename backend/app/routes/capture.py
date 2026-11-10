@@ -214,13 +214,33 @@ async def ingest_capture(
         uploaded_by=f"device:{device.id}", consent=consent,
     )
 
+    # Pass the captured frame's real bytes so an eligible active model can
+    # actually evaluate the image. Without this the live adapter always sees
+    # None and every station capture is forced to AI_UNAVAILABLE even when a
+    # promoted model exists.
     analysis = analyze_inspection(
         db, instrument_type=instrument_type, tenant_id=tenant_id, has_image=True,
         image_sha256=sha256, instrument_barcode=barcode or None,
         instrument_udi=udi or None, decoder_backend=identifier_source,
+        image_bytes=data,
     )
 
     completed = analysis["analysis_status"] == "completed"
+    ai_unavailable = analysis["analysis_status"] == "ai_unavailable" or (
+        (analysis.get("ai_analysis") or {}).get("status") == "AI_UNAVAILABLE"
+    )
+    # Mirror the main route's honest persistence: an AI-unavailable capture is
+    # never "scored"; it carries the explicit evaluation status, null clinical
+    # fields, and requires human review.
+    if completed:
+        capture_score_status = "scored"
+        capture_baseline_status = "approved_baseline_found"
+    elif ai_unavailable:
+        capture_score_status = "ai_unavailable"
+        capture_baseline_status = "approved_baseline_found" if analysis.get("baseline_source") else "no_approved_baseline"
+    else:
+        capture_score_status = "supervisor_review_required"
+        capture_baseline_status = "no_approved_baseline"
     row = models.Inspection(
         file_name=image.filename or "capture.jpg",
         tenant_id=tenant_id, tenant_name=tenant_id,
@@ -232,13 +252,14 @@ async def ingest_capture(
         instrument_barcode=barcode or None, instrument_udi=udi or None,
         inference_timestamp=datetime.now(timezone.utc),
         has_image=True, image_sha256=sha256,
-        baseline_status="approved_baseline_found" if completed else "no_approved_baseline",
+        baseline_status=capture_baseline_status,
         baseline_source=analysis.get("baseline_source"),
-        score_status="scored" if completed else "supervisor_review_required",
+        score_status=capture_score_status,
         supervisor_review_required=not completed,
-        risk_level=analysis.get("risk_level"),
+        risk_level=analysis.get("risk_level") if completed else None,
         recommended_action=analysis.get("recommended_action"),
         overall_cleaning_assessment=analysis.get("overall_cleaning_assessment"),
+        ai_analysis_status=("COMPLETED" if completed else "AI_UNAVAILABLE"),
     )
     db.add(row)
     device.last_seen_at = datetime.now(timezone.utc)

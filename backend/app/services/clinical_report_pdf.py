@@ -114,12 +114,16 @@ def build_clinical_report_pdf(row: Any, analysis: dict) -> bytes:
             ("Barcode / UDI", getattr(row, "instrument_barcode", None) or getattr(row, "instrument_udi", None) or "—"),
             ("Inspection Date", (getattr(row, "created_at", None) or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")),
         ]))
+        _declared = analysis.get("technician_declared_observations") or []
         story.append(Paragraph("Clinical Decision Summary", ss["H"]))
         story.append(_kv_table([
             ("Inspection Score", "Not evaluated"),
             ("Risk Classification", "Undetermined"),
             ("Cleaning Assessment", "Manual inspection required"),
             ("AI Finding", "No verified AI observation"),
+            # The technician's own declaration is a HUMAN observation, recorded
+            # distinctly — never attributed to AI.
+            ("Technician-Declared (human)", ", ".join(_declared) if _declared else "None declared"),
             ("Status", "AI unavailable / manual review required"),
         ]))
         story.append(Spacer(1, 8))

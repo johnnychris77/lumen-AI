@@ -108,7 +108,13 @@ def instrument_family_performance(db: Session, manufacturer_id: str) -> dict:
         fam["total"] += 1
         if insp.stain_detected:
             fam["stain_detected_count"] += 1
-        fam["risk_scores"].append(insp.risk_score)
+        # Only a genuinely scored inspection contributes a real risk number. An
+        # AI-unavailable (or otherwise unscored) row persists a sentinel
+        # risk_score of 0 for the non-null constraint; averaging it in would
+        # report an unevaluated inspection as a verified zero-risk result and
+        # depress the family's average risk.
+        if insp.score_status in ("scored", "scored_after_override"):
+            fam["risk_scores"].append(insp.risk_score)
 
     result = {}
     for fam, data in by_family.items():

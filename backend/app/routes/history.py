@@ -21,6 +21,18 @@ from app.services.ai_result_integrity import (
 router = APIRouter(tags=["history"])
 
 
+def _decode_declared(raw: str) -> list[str]:
+    """Decode the JSON-encoded technician-declared finding categories. Tolerant
+    of blank/legacy/malformed values (returns [])."""
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    return [str(v) for v in value] if isinstance(value, list) else []
+
+
 def inspection_response(row: models.Inspection) -> dict:
     # Fix persisted placeholder scores: an image inspection with no verified AI
     # result must never present its heuristic score/risk/confidence/finding as a
@@ -69,6 +81,9 @@ def inspection_response(row: models.Inspection) -> dict:
         # unless there is a verified AI (or manual) score.
         "inspection_score": presented_inspection_score(row),
         "ai_confidence": presented_ai_confidence(row),
+        # Technician-declared observations — a HUMAN record, never an AI finding,
+        # so always surfaced (independent of AI availability) and kept distinct.
+        "technician_declared_observations": _decode_declared(getattr(row, "declared_findings", "")),
         # Authoritative evaluation state the UI/exports gate on.
         "ai_analysis_status": row.ai_analysis_status or "",
         "ai_evaluated": ai_evaluated(row),
