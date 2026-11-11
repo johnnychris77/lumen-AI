@@ -151,6 +151,10 @@ class InspectionCreate(BaseModel):
     instrument_barcode: Optional[str] = Field(None, max_length=255)
     instrument_udi: Optional[str] = Field(None, max_length=255)
     keydot_id: Optional[str] = Field(None, max_length=255)
+    # The instrument's declared manufacturer/model — used to resolve the correct
+    # manufacturer baseline + reference image (never a different manufacturer's).
+    instrument_manufacturer: Optional[str] = Field(None, max_length=200)
+    instrument_model: Optional[str] = Field(None, max_length=200)
     # How identifiers were obtained: "pyzbar" (decoded) or "declared" (typed).
     identifier_source: Optional[str] = Field(None, max_length=20)
     # Zones the technician captured/inspected (anatomy-aware coverage engine).
@@ -525,6 +529,7 @@ async def inspection_clinical_report(
         image_bytes=report_image_bytes,
         retained_image_id=report_retained_id,
         declared_findings=report_declared,
+        instrument_manufacturer=getattr(row, "vendor_name", None),
     )
     pdf = build_clinical_report_pdf(row, analysis)
     return StreamingResponse(
@@ -638,6 +643,8 @@ async def create_inspection(
                 image_view_tags=image_view_tags_dicts,
                 image_bytes=retained_image_bytes,
                 retained_image_id=retained_image_id,
+                instrument_manufacturer=(body.instrument_manufacturer or body.vendor_name),
+                instrument_model=body.instrument_model,
             )
         except Exception:
             # Analysis must never crash the request or silently advance the

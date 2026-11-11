@@ -55,6 +55,23 @@ def strip_exif(data: bytes, content_type: str = "") -> tuple[bytes, bool]:
         return data, False
 
 
+_PIL_FORMAT_TO_MIME = {
+    "JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "BMP": "image/bmp",
+    "TIFF": "image/tiff", "GIF": "image/gif",
+}
+
+
+def _detect_content_type(data: bytes, fallback: str = "") -> str:
+    """Return the real MIME type of the encoded bytes (what they actually are
+    now, after any re-encode), falling back to the provided type if undetectable."""
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as img:
+            return _PIL_FORMAT_TO_MIME.get((img.format or "").upper(), fallback)
+    except Exception:
+        return fallback
+
+
 def _format_from_content_type(content_type: str) -> str:
     ct = (content_type or "").lower()
     if "jpeg" in ct or "jpg" in ct:
@@ -162,6 +179,10 @@ def retain_reference_image(
 
     clean_bytes, stripped = strip_exif(data, content_type)
     sha256 = hashlib.sha256(clean_bytes).hexdigest()
+    # strip_exif may re-encode to a different format (e.g. TIFF -> PNG), so the
+    # stored content type must describe the ACTUAL retained bytes — a download
+    # endpoint serves them under this media type.
+    effective_content_type = _detect_content_type(clean_bytes, fallback=content_type) if stripped else content_type
 
     existing = (
         db.query(RetainedImage)
@@ -179,7 +200,7 @@ def retain_reference_image(
         tenant_id=tenant_id,
         deident_name=f"baseline_{(instrument_type or 'unknown').replace(' ', '_')}_{seq}",
         instrument_type=instrument_type or "unknown",
-        content_type=content_type,
+        content_type=effective_content_type,
         size_bytes=len(clean_bytes),
         sha256=sha256,
         exif_stripped=stripped,

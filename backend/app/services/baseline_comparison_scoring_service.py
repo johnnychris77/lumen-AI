@@ -467,18 +467,24 @@ def _baseline_evidence(
     comp_status = comp.get("status")
     model = live_result.get("model") or {}
 
-    # A governed image link exists at all for this tenant + instrument family
-    # (any non-archived lifecycle state) — "an image has been registered".
-    registered = (
-        db.query(BaselineImageLink)
-        .filter(
-            BaselineImageLink.tenant_id == tenant_id,
-            BaselineImageLink.instrument_family == instrument_type,
-            BaselineImageLink.lifecycle_status != STATE_ARCHIVED,
-        )
-        .first()
-        is not None
+    # A governed image link exists (any non-archived state) for the RESOLVED
+    # baseline — scoped to that baseline record when one resolved, so a different
+    # manufacturer/model baseline's image never makes this true. Falls back to
+    # the instrument family only when no specific baseline record resolved.
+    _registered_q = db.query(BaselineImageLink).filter(
+        BaselineImageLink.tenant_id == tenant_id,
+        BaselineImageLink.lifecycle_status != STATE_ARCHIVED,
     )
+    _baseline_entry_id = resolution.get("baseline_entry_id")
+    if _baseline_entry_id is not None:
+        _registered_q = _registered_q.filter(
+            BaselineImageLink.baseline_library_entry_id == _baseline_entry_id
+        )
+    else:
+        _registered_q = _registered_q.filter(
+            BaselineImageLink.instrument_family == instrument_type
+        )
+    registered = _registered_q.first() is not None
     # An ACTIVE link actually resolved for this context (resolve_baseline_image
     # only ever returns ACTIVE links, and the comparison carries its id).
     active_resolved = comp.get("baseline_id") is not None
@@ -717,20 +723,33 @@ def _pseudo(seed: int, salt: int) -> float:
 _APPROVED_VALUES = {"approved", "active", "vendor_approved", "hospital_approved"}
 
 
-def _resolve_from_library(db: Session, instrument_type: str) -> dict[str, Any] | None:
-    """Check the network BaselineLibraryEntry table (manufacturer → vendor → hospital)."""
+def _resolve_from_library(
+    db: Session, instrument_type: str, *, manufacturer: str = "", model: str = "",
+) -> dict[str, Any] | None:
+    """Check the network BaselineLibraryEntry table (manufacturer → vendor → hospital).
+
+    When the inspection declares its instrument's manufacturer (and model), the
+    lookup is narrowed to that manufacturer/model so an instrument of one
+    manufacturer never resolves a different manufacturer's baseline. When no
+    manufacturer is declared, the broadest approved baseline for the instrument
+    type is returned for metadata only (the image comparator still refuses to
+    match a manufacturer-specific reference without a declared manufacturer)."""
+    from sqlalchemy import func
     from app.models.baseline_library import BaselineLibraryEntry
 
+    mfr = (manufacturer or "").strip()
+    mdl = (model or "").strip()
     for source in BASELINE_PRIORITY:
-        entry = (
-            db.query(BaselineLibraryEntry)
-            .filter(
-                BaselineLibraryEntry.instrument_category == instrument_type,
-                BaselineLibraryEntry.baseline_type == source,
-                BaselineLibraryEntry.approval_status == "approved",
-            )
-            .first()
+        q = db.query(BaselineLibraryEntry).filter(
+            BaselineLibraryEntry.instrument_category == instrument_type,
+            BaselineLibraryEntry.baseline_type == source,
+            BaselineLibraryEntry.approval_status == "approved",
         )
+        if mfr:
+            q = q.filter(func.lower(BaselineLibraryEntry.manufacturer_name) == mfr.lower())
+        if mdl:
+            q = q.filter(func.lower(BaselineLibraryEntry.model_name) == mdl.lower())
+        entry = q.first()
         if entry is not None:
             return {
                 "baseline_found": True,
@@ -805,17 +824,21 @@ def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] 
     }
 
 
-def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[str, Any]:
+def resolve_baseline(
+    db: Session, instrument_type: str, tenant_id: str, *, manufacturer: str = "", model: str = "",
+) -> dict[str, Any]:
     """Resolve the most authoritative approved baseline for an instrument.
 
     Looks in two places so the engine sees baselines wherever they live:
       1. The network BaselineLibraryEntry table.
       2. The EnterpriseVendorBaselineSubscription table that the baseline
          upload + review UI actually populates.
-    Both honour manufacturer → vendor → hospital priority. Returns the first
-    approved match.
+    Both honour manufacturer → vendor → hospital priority. When the inspection
+    declares its instrument's manufacturer/model, the library lookup is narrowed
+    to it so a different manufacturer's baseline can never be selected. Returns
+    the first approved match.
     """
-    resolution = _resolve_from_library(db, instrument_type)
+    resolution = _resolve_from_library(db, instrument_type, manufacturer=manufacturer, model=model)
     if resolution is not None:
         return resolution
 
@@ -1609,6 +1632,8 @@ def analyze_inspection(
     image_bytes: Optional[bytes] = None,
     inspection_id: Optional[int] = None,
     retained_image_id: Optional[int] = None,
+    instrument_manufacturer: Optional[str] = None,
+    instrument_model: Optional[str] = None,
     demo_scoring: Optional[bool] = None,
 ) -> dict[str, Any]:
     """Run the baseline-comparison analysis for an inspection.
@@ -1644,7 +1669,15 @@ def analyze_inspection(
         if c in _DECLARED_TO_KPI
     }
 
-    resolution = resolve_baseline(db, instrument_type, tenant_id)
+    # The inspection's own declared instrument identity — never fabricated from
+    # whichever baseline happened to resolve. "unknown" is treated as undeclared.
+    _decl_mfr = (instrument_manufacturer or "").strip()
+    if _decl_mfr.lower() in {"", "unknown"}:
+        _decl_mfr = ""
+    _decl_model = (instrument_model or "").strip()
+    resolution = resolve_baseline(
+        db, instrument_type, tenant_id, manufacturer=_decl_mfr, model=_decl_model,
+    )
 
     # ── Governance gate: no approved baseline → no final score ──────────────
     if not resolution["baseline_found"]:
@@ -1836,8 +1869,14 @@ def analyze_inspection(
     if not isinstance(_first_tag, dict):
         _first_tag = {}
     _candidate_identity = {
-        "manufacturer": resolution.get("manufacturer_name") or "",
-        "model_name": resolution.get("model_name") or "",
+        # From the INSPECTION's own declared instrument identity — never derived
+        # from whichever baseline resolved. When the inspection declares no
+        # manufacturer, this stays blank, so no manufacturer-specific reference
+        # image can resolve (one manufacturer's instrument never matches
+        # another's reference). resolve_baseline was itself narrowed by the
+        # declared manufacturer/model, so when present the two already agree.
+        "manufacturer": _decl_mfr,
+        "model_name": _decl_model,
         "anatomy_zone": (
             _first_tag.get("anatomy_zone")
             or (inspected_zones[0] if inspected_zones else "")

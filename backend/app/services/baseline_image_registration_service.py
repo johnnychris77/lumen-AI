@@ -58,6 +58,25 @@ class BaselineReferenceImageError(ValueError):
     """Raised when a baseline reference image cannot be governed-registered."""
 
 
+def _nonfrozen_dataset_version(db: Session, *, tenant_id: str):
+    """Return a writable (non-frozen) dataset version for baseline reference
+    images. If the base version has been frozen through the governed
+    dataset-registry workflow, roll onto a numbered successor so future uploads
+    never fail with DatasetVersionFrozenError on a permanently frozen row."""
+    label = BASELINE_DATASET_VERSION_LABEL
+    for suffix in range(0, 1000):
+        candidate_label = label if suffix == 0 else f"{label}-v{suffix + 1}"
+        version = dataset_registry.create_dataset_version(
+            db, tenant_id=tenant_id, version_label=candidate_label,
+            description="Governed manufacturer/organization baseline reference images.",
+        )
+        if not version.frozen:
+            return version
+    raise BaselineReferenceImageError(
+        "No writable baseline-reference dataset version is available (all are frozen)."
+    )
+
+
 def _entry_or_404(db: Session, baseline_library_entry_id: int) -> BaselineLibraryEntry:
     entry = (
         db.query(BaselineLibraryEntry)
@@ -132,14 +151,24 @@ def register_manufacturer_reference_image(
 
     # 2) LCID-register the retained image (idempotent on the image hash: a
     #    re-upload of the same bytes reuses the existing governed entry).
-    version = dataset_registry.create_dataset_version(
-        db, tenant_id=tenant_id, version_label=BASELINE_DATASET_VERSION_LABEL,
-        description="Governed manufacturer/organization baseline reference images.",
-    )
     existing_lcid = dataset_registry.find_duplicate(db, tenant_id=tenant_id, image_sha256=retained.sha256)
     if existing_lcid is not None:
+        # The exact bytes are already LCID-registered. Only reuse the entry when
+        # its governed identity matches THIS baseline — otherwise linking it to
+        # this baseline would copy a different instrument's manufacturer/model
+        # and produce a mismatched governed link.
+        if (
+            (existing_lcid.instrument_family or "") != entry.instrument_category
+            or (existing_lcid.manufacturer or "").strip().lower() != (entry.manufacturer_name or "").strip().lower()
+        ):
+            raise BaselineReferenceImageError(
+                "These exact image bytes are already registered under a different instrument identity "
+                f"(family={existing_lcid.instrument_family!r}, manufacturer={existing_lcid.manufacturer!r}); "
+                "use a distinct reference image for this baseline."
+            )
         lcid_entry = existing_lcid
     else:
+        version = _nonfrozen_dataset_version(db, tenant_id=tenant_id)
         lcid_entry = dataset_registry.register_image(
             db, tenant_id=tenant_id, dataset_version_id=version.id,
             retained_image_id=retained.id, image_sha256=retained.sha256,
