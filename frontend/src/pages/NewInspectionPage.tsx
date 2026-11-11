@@ -769,7 +769,7 @@ export default function NewInspectionPage() {
             </ul>
           </div>
           <div className="px-4 py-3 bg-slate-50">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Determined by AI — not required</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Not entered by the technician</p>
             <ul className="text-xs text-slate-500 space-y-1">
               <li className="flex items-center gap-1.5"><span className="text-slate-400">•</span> Finding Categories (a trained AI model predicts these only when one is available)</li>
               <li className="flex items-center gap-1.5"><span className="text-slate-400">•</span> Risk Level (from a completed AI evaluation or a supervisor — never a placeholder)</li>
@@ -789,11 +789,11 @@ export default function NewInspectionPage() {
             "→",
             "2. Upload Image",
             "→",
-            "3. AI Baseline Check",
+            "3. Resolve Manufacturer Baseline",
             "→",
-            "4. AI Prediction (findings + risk)",
+            "4. AI Evaluation (when an eligible model is available)",
             "→",
-            "5. Supervisor Review (if no baseline)",
+            "5. Human Review & Disposition",
           ].map((step, i) => (
             step === "→"
               ? <span key={i} className="text-blue-400">→</span>
@@ -1424,7 +1424,19 @@ function AIPredictionPanel({
               <span className="text-xs text-slate-600">{prediction.analysis.model_result.unsupported_categories.join(", ") || "none"}</span>
             </div>
             <ul className="text-xs text-slate-500 list-disc list-inside">
-              {prediction.analysis.model_result.limitations.map((l, i) => <li key={i}>{l}</li>)}
+              {/* Defense in depth: when AI is unavailable, show a fixed honest
+                  limitation set. A misconfigured/stale backend may still send a
+                  "current model evaluates debris and corrosion via a deterministic
+                  placeholder pipeline" limitation — which must never appear under
+                  the AI-unavailable banner, as it reads as a model capability. */}
+              {(aiUnavailable
+                ? [
+                    "No eligible trained vision model is available for this deployment, so no category is evaluated by a trained computer-vision model.",
+                    "Image quality is not automatically assessed.",
+                    "Result requires qualified human review.",
+                  ]
+                : prediction.analysis.model_result.limitations
+              ).map((l, i) => <li key={i}>{l}</li>)}
             </ul>
           </div>
         )}
