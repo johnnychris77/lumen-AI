@@ -691,7 +691,7 @@ export default function NewInspectionPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">New Inspection</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Upload an image — AI will identify findings, check the manufacturer baseline, and generate a risk score automatically.
+            Upload an image. When an eligible trained AI model is available it assists with findings against the manufacturer baseline; otherwise the result is marked AI unavailable and a qualified person completes the inspection. Human review is always required.
           </p>
         </div>
         <span className="shrink-0 mt-1 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
@@ -722,12 +722,12 @@ export default function NewInspectionPage() {
             </ul>
           </div>
           <div className="px-4 py-3 bg-slate-50">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Determined by AI — not required</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Not entered by the technician</p>
             <ul className="text-xs text-slate-500 space-y-1">
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Finding Categories (AI predicts from image)</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Risk Level (AI scores after baseline check)</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Match Status (system checks automatically)</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Source (supervisor sets if no match)</li>
+              <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span> Finding categories — from a trained AI model when one is available; otherwise not evaluated</li>
+              <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span> Risk level — only from a completed AI evaluation or a supervisor; never a placeholder</li>
+              <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span> Baseline match status — resolved automatically from the approved baseline</li>
+              <li className="flex items-start gap-1.5"><span className="text-slate-400">•</span> Baseline source — supervisor sets if no approved match</li>
             </ul>
           </div>
         </div>
