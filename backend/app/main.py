@@ -440,12 +440,27 @@ app.add_middleware(
 
 
 # --- Observability endpoints ---
+def _deployed_commit() -> str:
+    """The git commit this process is running, for deployment verification.
+    Render sets RENDER_GIT_COMMIT automatically; GIT_COMMIT/SOURCE_COMMIT are
+    honored as fallbacks. 'unknown' when none is set (local/dev)."""
+    return (
+        os.getenv("RENDER_GIT_COMMIT")
+        or os.getenv("GIT_COMMIT")
+        or os.getenv("SOURCE_COMMIT")
+        or "unknown"
+    )
+
+
 @app.get("/health", include_in_schema=False)
 def health_check():
-    """Liveness probe — returns 200 if the process is alive."""
+    """Liveness probe — returns 200 if the process is alive. Exposes the
+    deployed git commit so a deployment can be confirmed without dashboard
+    access (e.g. that a merge commit actually reached production)."""
     return JSONResponse({
         "status": "ok",
         "version": "P11",
+        "git_commit": _deployed_commit(),
         "environment": os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")),
     })
 

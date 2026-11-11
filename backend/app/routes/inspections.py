@@ -651,12 +651,19 @@ async def create_inspection(
         # tenant-scoped on load, and consumed (bytes nulled) after analysis.
         proc_image_row = None
         if body.image_sha256:
-            from app.services.inspection_image_processing_service import load_processing_bytes
-            proc_bytes, proc_image_row = load_processing_bytes(
-                db, tenant_id=tenant_id, image_sha256=body.image_sha256,
-            )
-            if proc_bytes is not None:
-                retained_image_bytes = proc_bytes
+            try:
+                from app.services.inspection_image_processing_service import load_processing_bytes
+                proc_bytes, proc_image_row = load_processing_bytes(
+                    db, tenant_id=tenant_id, image_sha256=body.image_sha256,
+                )
+                if proc_bytes is not None:
+                    retained_image_bytes = proc_bytes
+            except Exception:
+                # A missing processing table (un-migrated backend) or any load
+                # error must not 500 the inspection — degrade to no pixels; the
+                # comparison honestly reports pixels unavailable.
+                logger.exception("Failed to load temporary processing image (tenant=%s)", tenant_id)
+                proc_image_row = None
         try:
             analysis = analyze_inspection(
                 db,
@@ -1267,7 +1274,14 @@ async def upload_inspection_images(
     """
     from app.services.image_retention_service import retain_image, retention_enabled
 
-    tenant_id = get_request_tenant_id(request)
+    # Resolve the tenant the SAME way as POST /api/inspections (prefer the
+    # authenticated user's own tenant, then the request header). The two MUST
+    # agree: the temporary processing image is stored here under this tenant and
+    # looked up at inspection-create time under the create route's tenant. A
+    # mismatch (e.g. a JWT user whose membership tenant != the request header)
+    # silently loses the processing bytes, so the baseline comparison reports
+    # "no visual comparison performed" even though an ACTIVE reference exists.
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     # Image-source provenance (borescope_capture / file_upload / mixed). Purely
@@ -1341,12 +1355,16 @@ async def upload_inspection_images(
             )
             entry["processing_available"] = True
             entry["processing_expires_at"] = proc.expires_at.isoformat()
-        except Exception:
+        except Exception as exc:
             # Never fail the upload because the processing copy could not be
             # stored — the inspection still records the hash and proceeds (the
-            # comparison will honestly report pixels unavailable).
+            # comparison will honestly report pixels unavailable). Surface the
+            # reason in the response (not only the logs) so a production failure
+            # — e.g. the inspection_processing_images table/migration missing on
+            # a backend that was not restarted — is diagnosable from the API.
             logger.exception("Failed to store temporary processing image (tenant=%s)", tenant_id)
             entry["processing_available"] = False
+            entry["processing_error"] = f"{type(exc).__name__}: {exc}"
         results.append(entry)
 
     log_audit_event(

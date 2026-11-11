@@ -297,3 +297,65 @@ def test_expired_processing_images_purged():
         ).first() is None
     finally:
         db.close()
+
+
+# ── Upload/create tenant resolution must agree (production JWT scenario) ───────
+def test_upload_and_create_resolve_same_tenant_for_jwt_user():
+    """Reproduces the production blocker: a logged-in (JWT) user whose membership
+    tenant is resolved server-side, with NO X-Tenant-Id header. The upload must
+    store the processing image under the SAME tenant the inspection-create route
+    looks it up under, or the comparison silently loses the pixels."""
+    from app.deps import get_current_user
+
+    class _User:
+        tenant_id = "jwt-tenant-xyz"
+        tenant_name = "JWT Tenant"
+        role = "admin"
+        email = "clinician@hospital.example"
+        username = "clinician@hospital.example"
+
+    itype = "rigid_scope"
+    _make_active(itype, _png(1201), tenant="jwt-tenant-xyz")
+
+    app.dependency_overrides[get_current_user] = lambda: _User()
+    try:
+        # NOTE: deliberately no X-Tenant-Id header — tenant comes from the user.
+        plain = {"Authorization": "Bearer dev-token"}
+        up = client.post("/api/inspections/upload-images",
+                         files={"images": ("insp.png", _png(1202), "image/png")},
+                         params={"instrument_type": itype}, headers=plain)
+        assert up.status_code == 200, up.text
+        assert up.json()["images"][0]["processing_available"] is True
+        sha = up.json()["images"][0]["sha256"]
+
+        r = client.post("/api/inspections", json={
+            "instrument_type": itype, "site_name": "P", "facility_name": "P",
+            "has_image": True, "image_sha256": sha, "file_name": "insp.png",
+            "instrument_manufacturer": _mfr(itype), "instrument_model": _model(itype),
+            "vendor_name": _mfr(itype), "finding_categories": [],
+        }, headers=plain)
+        assert r.status_code == 201, r.text
+        ev = r.json()["analysis"]["baseline_evidence"]
+        # The processing image stored at upload time is found at create time
+        # because both resolved tenant='jwt-tenant-xyz' (not 'default-tenant').
+        assert ev["inspection_image_bytes_available"] is True
+        assert ev["real_image_comparison_completed"] is True
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+# ── A failed processing-store surfaces its reason in the upload response ───────
+def test_upload_surfaces_processing_error(monkeypatch):
+    import app.services.inspection_image_processing_service as svc
+
+    def _boom(*a, **k):
+        raise RuntimeError("relation \"inspection_processing_images\" does not exist")
+
+    monkeypatch.setattr(svc, "store_processing_image", _boom)
+    up = client.post("/api/inspections/upload-images",
+                     files={"images": ("x.png", _png(1301), "image/png")},
+                     params={"instrument_type": "rigid_scope"}, headers=_hdr())
+    assert up.status_code == 200
+    img = up.json()["images"][0]
+    assert img["processing_available"] is False
+    assert "does not exist" in img.get("processing_error", "")
