@@ -82,6 +82,20 @@ type Explainability = {
   rationale: string;
 };
 
+type BaselineEvidence = {
+  manufacturer_baseline_metadata_found: boolean;
+  baseline_image_registered: boolean;
+  baseline_image_active: boolean;
+  baseline_image_compatible: boolean;
+  inspection_image_bytes_available: boolean;
+  real_image_comparison_completed: boolean;
+  trained_vision_model_available: boolean;
+  comparison_status?: string | null;
+  baseline_image_link_id?: number | null;
+  resolution_scope?: string | null;
+  resolution_reason?: string | null;
+};
+
 type Analysis = {
   analysis_status: string;
   baseline_source: string | null;
@@ -134,10 +148,17 @@ type Analysis = {
       similarity: number | null;
       is_image_comparison: boolean;
       label: string;
+      resolution_reason?: string | null;
     } | null;
     authorizes_release: boolean;
     human_review_required: boolean;
+    baseline_evidence?: BaselineEvidence | null;
   };
+  // Seven INDEPENDENT provenance facts about this inspection's baseline + model
+  // state. A manufacturer baseline image may be available even while the trained
+  // vision model is correctly unavailable — these are never inferred from each
+  // other.
+  baseline_evidence?: BaselineEvidence | null;
   // Honest, scope-limited result contract (Core Inspection Workflow Closure) —
   // restricted to the categories the deployed model actually supports.
   model_result?: {
@@ -260,6 +281,30 @@ function nowDatetimeLocal() {
   return new Date().toISOString().slice(0, 16);
 }
 
+
+// Honest explanation for why no numeric baseline-IMAGE (pixel) comparison was
+// performed. The approved-baseline *library record* (manufacturer / model / UDI)
+// is separate from an ACTIVE reference *photo* in the Baseline Image Library;
+// only the latter enables a visual comparison.
+function baselineImageStatusText(ev?: BaselineEvidence | null, reason?: string | null): string {
+  if (!ev) return reason || "No visual (pixel) comparison was performed.";
+  if (ev.real_image_comparison_completed) return "Baseline visual comparison available.";
+  if (!ev.manufacturer_baseline_metadata_found) return "No approved manufacturer baseline for this instrument.";
+  if (!ev.baseline_image_registered)
+    return (
+      "Manufacturer image not registered — the approved baseline is a library record only. " +
+      "Upload and govern a reference image in the Baseline Image Library to enable a visual comparison."
+    );
+  if (!ev.baseline_image_active)
+    return "Reference image awaiting approval/activation — not yet ACTIVE, so it is not used for comparison.";
+  if (ev.comparison_status === "BASELINE_INTEGRITY_FAILED")
+    return "Stored reference image failed an integrity check and was not used.";
+  if (!ev.baseline_image_compatible)
+    return reason || "Reference image is incompatible with this inspection view.";
+  if (!ev.inspection_image_bytes_available)
+    return "Inspection image bytes are unavailable (retention/consent off), so no pixel comparison could run.";
+  return reason || "No visual (pixel) comparison was performed.";
+}
 
 function riskColor(score: number) {
   if (score >= 80) return "bg-red-600 text-white";
@@ -691,7 +736,7 @@ export default function NewInspectionPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">New Inspection</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Upload an image — AI will identify findings, check the manufacturer baseline, and generate a risk score automatically.
+            Upload an image. The system checks the manufacturer baseline and, when an ACTIVE reference image exists, shows a visual-similarity comparison. A trained AI model assists with findings and risk only when one is available for this deployment; otherwise the result is marked AI unavailable and a qualified person completes the inspection. Human review is always required.
           </p>
         </div>
         <span className="shrink-0 mt-1 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
@@ -724,8 +769,8 @@ export default function NewInspectionPage() {
           <div className="px-4 py-3 bg-slate-50">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Determined by AI — not required</p>
             <ul className="text-xs text-slate-500 space-y-1">
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Finding Categories (AI predicts from image)</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Risk Level (AI scores after baseline check)</li>
+              <li className="flex items-center gap-1.5"><span className="text-slate-400">•</span> Finding Categories (a trained AI model predicts these only when one is available)</li>
+              <li className="flex items-center gap-1.5"><span className="text-slate-400">•</span> Risk Level (from a completed AI evaluation or a supervisor — never a placeholder)</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Match Status (system checks automatically)</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Baseline Source (supervisor sets if no match)</li>
             </ul>
@@ -974,11 +1019,11 @@ export default function NewInspectionPage() {
           {/* Section 4 — Images (REQUIRED — AI analysis runs on these) */}
           <FormSection
             title="Inspection Images"
-            description="Required. Upload at least one image. AI will check the manufacturer baseline and generate findings and risk score automatically."
+            description="Required. Upload at least one image. The system checks the manufacturer baseline; a trained AI model generates findings and a risk score only when one is available, otherwise the result is marked AI unavailable for human review."
           >
             {/* Pre-upload status — always visible so technician knows what happens next */}
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-              Upload an image first. LumenAI will compare against the approved manufacturer baseline and suggest findings / risk.
+              Upload an image first. LumenAI compares against the approved manufacturer baseline (visual similarity when an ACTIVE reference image exists); a trained AI model suggests findings / risk only when one is available.
               Finding Categories and Risk Level are set by AI — <strong>technicians do not enter them</strong>.
             </div>
 
@@ -1293,12 +1338,24 @@ function AIPredictionPanel({
               are verified records — not an AI cleanliness assessment. A qualified person
               must complete this inspection before any release decision.
             </p>
-            {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison && (
-              <p className="text-xs text-slate-600">
-                Baseline visual similarity:{" "}
+            {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison ? (
+              <p className="text-xs text-slate-700">
+                <span className="font-medium">Baseline reference image:</span>{" "}
+                compared — visual similarity{" "}
                 {Math.round((prediction.analysis.ai_analysis.baseline_image_similarity.similarity ?? 0) * 100)}%
-                {" "}— {prediction.analysis.ai_analysis.baseline_image_similarity.label}
+                {" "}({prediction.analysis.ai_analysis.baseline_image_similarity.label})
               </p>
+            ) : (
+              <p className="text-xs text-slate-600">
+                <span className="font-medium">Baseline reference image:</span>{" "}
+                {baselineImageStatusText(
+                  prediction.analysis?.baseline_evidence,
+                  prediction.analysis?.ai_analysis?.baseline_image_similarity?.resolution_reason,
+                )}
+              </p>
+            )}
+            {prediction.analysis?.baseline_evidence && (
+              <BaselineEvidenceRow ev={prediction.analysis.baseline_evidence} />
             )}
           </div>
         )}
@@ -1592,6 +1649,37 @@ function PredictionField({ label, value }: { label: string; value: string }) {
     <div className="flex flex-col">
       <span className="text-xs text-slate-500 font-medium">{label}</span>
       <span className="mt-1 text-sm font-semibold text-slate-800 capitalize">{value}</span>
+    </div>
+  );
+}
+
+// Seven independent baseline/model provenance facts, shown as explicit yes/no
+// chips so a baseline image being available is never conflated with a trained
+// AI model being available.
+function BaselineEvidenceRow({ ev }: { ev: BaselineEvidence }) {
+  const facts: { label: string; ok: boolean }[] = [
+    { label: "Manufacturer baseline metadata found", ok: ev.manufacturer_baseline_metadata_found },
+    { label: "Baseline image registered", ok: ev.baseline_image_registered },
+    { label: "Baseline image ACTIVE", ok: ev.baseline_image_active },
+    { label: "Baseline image compatible", ok: ev.baseline_image_compatible },
+    { label: "Inspection image bytes available", ok: ev.inspection_image_bytes_available },
+    { label: "Real image comparison completed", ok: ev.real_image_comparison_completed },
+    { label: "Trained vision model available", ok: ev.trained_vision_model_available },
+  ];
+  return (
+    <div className="mt-1 flex flex-wrap gap-1.5">
+      {facts.map((f) => (
+        <span
+          key={f.label}
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            f.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-slate-100 text-slate-500 border border-slate-200"
+          }`}
+          title={f.label}
+        >
+          <span>{f.ok ? "✓" : "—"}</span>
+          {f.label}
+        </span>
+      ))}
     </div>
   );
 }

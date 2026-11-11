@@ -127,3 +127,69 @@ def retain_image(
     db.commit()
     db.refresh(row)
     return row
+
+
+def retain_reference_image(
+    db: Session,
+    *,
+    data: bytes,
+    tenant_id: str,
+    instrument_type: str = "unknown",
+    content_type: str = "",
+    uploaded_by: str = "",
+    usage_rights_attested: bool,
+) -> RetainedImage:
+    """Persist a GOVERNED baseline *reference* image's bytes.
+
+    Distinct from ``retain_image``: a manufacturer/organization baseline
+    reference photograph is reference evidence the organization asserts it has
+    the rights to store, NOT a patient-derived inspection frame retained for
+    training. It is therefore governed by an explicit usage-rights attestation
+    on upload rather than the ``RETAIN_INSPECTION_IMAGES`` training-retention
+    flag — without stored bytes no real comparison is ever possible, so this is
+    the one honest way to make an uploaded baseline image genuinely usable.
+
+    Reuses the same RetainedImage store (no duplicate storage), the same EXIF
+    strip, and the same per-tenant dedup. Raises when rights are not attested;
+    never fabricates or reconstructs bytes.
+    """
+    if not usage_rights_attested:
+        raise PermissionError(
+            "A baseline reference image can only be stored when the uploader attests usage rights for it."
+        )
+    if not data:
+        raise ValueError("No image bytes provided for the baseline reference image.")
+
+    clean_bytes, stripped = strip_exif(data, content_type)
+    sha256 = hashlib.sha256(clean_bytes).hexdigest()
+
+    existing = (
+        db.query(RetainedImage)
+        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.sha256 == sha256)
+        .first()
+    )
+    if existing is not None:
+        existing._lumenai_dedup_hit = True
+        return existing
+
+    seq = (
+        db.query(RetainedImage).filter(RetainedImage.tenant_id == tenant_id).count() + 1
+    )
+    row = RetainedImage(
+        tenant_id=tenant_id,
+        deident_name=f"baseline_{(instrument_type or 'unknown').replace(' ', '_')}_{seq}",
+        instrument_type=instrument_type or "unknown",
+        content_type=content_type,
+        size_bytes=len(clean_bytes),
+        sha256=sha256,
+        exif_stripped=stripped,
+        source="baseline_reference",
+        consent_recorded=True,
+        uploaded_by=uploaded_by,
+        image_bytes=clean_bytes,
+        label_status="unlabeled",
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
