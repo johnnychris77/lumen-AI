@@ -308,3 +308,48 @@ def test_declared_observations_persisted_in_history():
     # …and never surfaced as an AI finding/score.
     assert record["inspection_score"] is None
     assert record["ai_analysis_status"] == "AI_UNAVAILABLE"
+
+
+# 15. PRODUCTION-DEFECT REGRESSION (Inspection #11): a stray
+#     AI_ALLOW_DEMO_SCORING=true on a non-dev deployment must NOT leak the
+#     deterministic placeholder into the clinical HTTP response. The demo scorer
+#     is honored only in an explicit dev/test environment, so outside one the
+#     route returns the honest AI_UNAVAILABLE result with NO placeholder
+#     findings/score/confidence — the values are gone, not merely hidden.
+def test_demo_flag_inert_outside_dev_environment(monkeypatch):
+    # Simulate the production misconfig: demo flag ON, but APP_ENV is not a
+    # recognized dev/test value (get_settings reads env live).
+    monkeypatch.setenv("AI_ALLOW_DEMO_SCORING", "true")
+    monkeypatch.setenv("APP_ENV", "staging")
+
+    from app.config import get_settings
+    assert get_settings().ai_allow_demo_scoring is True        # raw flag is set…
+    assert get_settings().demo_scoring_env_permitted is False  # …but not permitted…
+    assert get_settings().demo_scoring_effective is False      # …so it is inert.
+
+    itype = "pe_misconfig"
+    _seed_approved_baseline(itype)
+    body = _submit(itype, declared=["blood"])
+    a = body["analysis"]
+
+    # The clinical response carries NO placeholder output despite the flag.
+    assert a["analysis_status"] == "ai_unavailable"
+    assert a["ai_analysis"]["status"] == "AI_UNAVAILABLE"
+    assert a["placeholder_scoring"] is False
+    assert a["predicted_findings"] == []
+    assert a["inspection_score"] is None
+    assert a["model_result"]["findings"] == []
+    assert a["model_result"]["supported_categories"] == []
+    assert body["score_status"] == "ai_unavailable"
+    # The declared finding is still kept as a human observation.
+    assert any("blood" in o.lower() for o in a["technician_declared_observations"])
+
+
+# 16. Positive control: in an explicit dev/test environment the segregated demo
+#     scorer IS permitted (so legacy demo-fixture tests keep working), confirming
+#     the gate distinguishes a dev context from a production one.
+def test_demo_flag_permitted_in_explicit_test_env(monkeypatch):
+    monkeypatch.setenv("AI_ALLOW_DEMO_SCORING", "true")
+    monkeypatch.setenv("APP_ENV", "test")
+    from app.config import get_settings
+    assert get_settings().demo_scoring_effective is True

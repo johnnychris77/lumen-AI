@@ -99,9 +99,24 @@ class Settings:
     # does not flip this on — enabling the demo path is always deliberate.
     ai_allow_demo_scoring: bool
 
+    # Defense in depth: the demo scorer is honored ONLY in an explicitly
+    # dev/test environment. True exactly when APP_ENV was explicitly set to one
+    # of the recognized dev/test values (see get_settings). This is computed
+    # from the RAW env var — an unset APP_ENV is NOT permitted — so a stray
+    # AI_ALLOW_DEMO_SCORING=true on a production (or misconfigured/unset-APP_ENV)
+    # deployment can never enable the placeholder on clinical routes.
+    demo_scoring_env_permitted: bool
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
+
+    @property
+    def demo_scoring_effective(self) -> bool:
+        """Whether the deterministic placeholder scorer may actually run. The
+        raw AI_ALLOW_DEMO_SCORING flag is honored only in an explicit dev/test
+        environment, so a misconfigured production env var is inert."""
+        return self.ai_allow_demo_scoring and self.demo_scoring_env_permitted
 
     def validate(self) -> list[str]:
         issues: list[str] = []
@@ -176,6 +191,11 @@ def get_settings() -> Settings:
         allowed_origins=allowed_origins,
         ai_strict_no_placeholder=_bool_env("AI_STRICT_NO_PLACEHOLDER", False),
         ai_allow_demo_scoring=_bool_env("AI_ALLOW_DEMO_SCORING", False),
+        # Permitted ONLY when APP_ENV is explicitly a dev/test value. Read the
+        # raw env var (not the defaulted app_env) so an unset APP_ENV is treated
+        # as NOT permitted — fail-safe against a misconfigured deployment.
+        demo_scoring_env_permitted=(os.getenv("APP_ENV") or "").strip().lower()
+        in {"development", "dev", "test", "testing", "local"},
     )
 
 

@@ -1527,7 +1527,10 @@ def analyze_inspection(
     analysis_status="supervisor_review_required" with NO final score.
     """
     if demo_scoring is None:
-        demo_scoring = get_settings().ai_allow_demo_scoring
+        # Use the EFFECTIVE flag: the raw AI_ALLOW_DEMO_SCORING is honored only
+        # in an explicit dev/test environment, so a stray production env var can
+        # never enable the deterministic placeholder on a clinical route.
+        demo_scoring = get_settings().demo_scoring_effective
     declared = {
         _DECLARED_TO_KPI[c]
         for c in (declared_findings or [])
