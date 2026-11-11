@@ -84,6 +84,19 @@ def inspection_response(row: models.Inspection) -> dict:
         # Technician-declared observations — a HUMAN record, never an AI finding,
         # so always surfaced (independent of AI availability) and kept distinct.
         "technician_declared_observations": _decode_declared(getattr(row, "declared_findings", "")),
+        # Manufacturer baseline IMAGE comparison result recorded at analysis time
+        # (a visual-similarity record, never a cleanliness/defect result). A real
+        # pixel comparison only happened when similarity is non-null.
+        "baseline_image_comparison": {
+            "baseline_image_link_id": getattr(row, "baseline_image_link_id", None),
+            "status": getattr(row, "baseline_comparison_status", None),
+            "similarity": getattr(row, "baseline_comparison_similarity", None),
+            "method": getattr(row, "baseline_comparison_method", None),
+            "comparator_version": getattr(row, "baseline_comparison_version", None),
+            "reference_version": getattr(row, "baseline_reference_version", None),
+            "real_comparison": getattr(row, "baseline_comparison_similarity", None) is not None,
+            "label": "Visual similarity — not verified cleanliness.",
+        },
         # Authoritative evaluation state the UI/exports gate on.
         "ai_analysis_status": row.ai_analysis_status or "",
         "ai_evaluated": ai_evaluated(row),

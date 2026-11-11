@@ -160,3 +160,17 @@ class Inspection(Base):
     # derived from real linked inspections instead of duplicating their state.
     # Nullable — most inspections are not tied to a scheduled OR case.
     case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+    # Manufacturer baseline IMAGE comparison result, persisted at analysis time
+    # so the report and history show the same comparison the New Inspection page
+    # did — WITHOUT re-reading the inspection pixels (which are purged from the
+    # temporary processing store after use). A real pixel comparison only ever
+    # happened when `baseline_comparison_similarity` is non-null. These are a
+    # visual-similarity record, NEVER a cleanliness/defect result. Nullable for
+    # the no-image path and legacy rows.
+    baseline_image_link_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    baseline_comparison_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    baseline_comparison_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    baseline_comparison_method: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    baseline_comparison_version: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    baseline_reference_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
