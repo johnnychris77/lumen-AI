@@ -141,7 +141,42 @@ Automated code review surfaced ten findings; all were addressed:
 Two new regression tests cover the override rejection and the durable
 technician-declared record; the full backend suite remains green.
 
-## 6. Deployment note (honest limitation)
+## 6. Production incident — demo flag leaked the placeholder (Inspection #11)
+
+After #150 merged, a live inspection still showed `MODEL RESULT — EXPERIMENTAL`
+with Debris 73% / Corrosion 77% "model observation" and the "Experimental — Not
+Validated" banner, alongside the correct AI-unavailable headline. Reproduced
+locally: the leak occurs when **`AI_ALLOW_DEMO_SCORING=true` is set on the
+deployment** — the clinical HTTP route honored the flag and ran the deterministic
+placeholder (`analysis_status="completed"`, `placeholder_scoring=true`,
+`model_result.findings=[debris, corrosion]`), even though the authoritative
+`ai_analysis.status` was `AI_UNAVAILABLE`. Root cause: a misconfigured
+environment variable, and the only guard was a startup check scoped to
+`APP_ENV=production`.
+
+Defense in depth (two independent layers, so neither config discipline nor the
+backend alone is the sole safeguard):
+
+- **Backend — the flag is inert outside an explicit dev/test environment.**
+  `AI_ALLOW_DEMO_SCORING` is honored only when `APP_ENV` is explicitly one of
+  `development|dev|test|testing|local` (`Settings.demo_scoring_effective`, read
+  from the raw env var so an **unset** `APP_ENV` is fail-safe NOT permitted).
+  On any production / staging / misconfigured deployment the placeholder cannot
+  run on a clinical route regardless of the flag — the response carries no
+  placeholder findings/score/confidence (values gone, not hidden). The test
+  suite marks itself `APP_ENV=test` so the segregated demo fixture still works.
+- **Frontend — `NewInspectionPage` never renders placeholder output when AI is
+  unavailable.** When `ai_analysis.status === AI_UNAVAILABLE`, the "Experimental
+  — Not Validated" banner, the MODEL RESULT findings/supported-categories, and
+  the Full-KPI-detail breakdown are suppressed and shown as "not evaluated" —
+  even if a stale/misconfigured backend sends placeholder data.
+
+Regression tests reproduce the defect (`AI_ALLOW_DEMO_SCORING=true` +
+`APP_ENV=staging` → clean AI_UNAVAILABLE response) and the positive control
+(`APP_ENV=test` → demo permitted). Full backend suite **3801 passed, 2 skipped**;
+ruff + frontend build clean.
+
+## 7. Deployment note (honest limitation)
 
 Render auto‑deploys `main`. Production verification of the live services
 (`lumen-ai-api`, `lumen-ai-1`) must be done from the Render dashboard or an

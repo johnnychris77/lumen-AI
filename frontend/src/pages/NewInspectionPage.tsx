@@ -1303,13 +1303,12 @@ function AIPredictionPanel({
           </div>
         )}
 
-        {/* The backend already flags every finding from this pathway as
-            placeholder-scored (a deterministic, SHA-256-seeded heuristic --
-            not a trained computer-vision model); surface that instead of
-            silently discarding it, so every KPI/finding below this banner is
-            read in that context rather than as verified image-based
-            detection. */}
-        {prediction.analysis?.placeholder_scoring && (
+        {/* Defense in depth: when the authoritative AI verdict is AI_UNAVAILABLE
+            this banner and the deterministic-placeholder findings below it must
+            NEVER render — even if a misconfigured/stale backend sent
+            placeholder_scoring=true with placeholder findings. A verified AI
+            result is the only thing that may appear as a model observation. */}
+        {prediction.analysis?.placeholder_scoring && !aiUnavailable && (
           <div className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700 space-y-1">
             <p className="font-semibold">ℹ Experimental — Not Validated: not a trained computer-vision model.</p>
             <p className="text-xs text-slate-600">
@@ -1324,15 +1323,19 @@ function AIPredictionPanel({
             with a fabricated probability. */}
         {prediction.analysis?.model_result && (
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm space-y-2">
+            {/* Defense in depth: when AI is unavailable, this block may never
+                advertise supported categories or present placeholder findings as
+                "model observations" — regardless of what the backend sent. The
+                authoritative live-model surface below is the source of truth. */}
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Model Result — {prediction.analysis.model_result.model_status}
-              {prediction.analysis.model_result.model_version ? ` (v${prediction.analysis.model_result.model_version.replace(/^baseline-comparison-placeholder-/, "")})` : ""}
+              Model Result — {aiUnavailable ? "unavailable" : prediction.analysis.model_result.model_status}
+              {!aiUnavailable && prediction.analysis.model_result.model_version ? ` (v${prediction.analysis.model_result.model_version.replace(/^baseline-comparison-placeholder-/, "")})` : ""}
             </p>
             <div>
               <span className="text-xs text-slate-500">Supported categories: </span>
-              <span className="font-medium">{prediction.analysis.model_result.supported_categories.join(", ")}</span>
+              <span className="font-medium">{aiUnavailable ? "none — no eligible trained model" : (prediction.analysis.model_result.supported_categories.join(", ") || "none")}</span>
             </div>
-            {prediction.analysis.model_result.findings.length > 0 ? (
+            {!aiUnavailable && prediction.analysis.model_result.findings.length > 0 ? (
               <ul className="space-y-1">
                 {prediction.analysis.model_result.findings.map((f) => (
                   <li key={f.category} className="flex items-center gap-2">
@@ -1344,7 +1347,9 @@ function AIPredictionPanel({
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-slate-500 italic">No supported-category findings yet.</p>
+              <p className="text-xs text-slate-500 italic">
+                {aiUnavailable ? "Not evaluated — no eligible trained model produced a finding." : "No supported-category findings yet."}
+              </p>
             )}
             <div>
               <span className="text-xs text-slate-500">Not evaluated by current model: </span>
@@ -1490,8 +1495,10 @@ function AIPredictionPanel({
           <InstrumentIntelligencePanel intel={prediction.analysis as InstrumentIntel} />
         )}
 
-        {/* Detailed KPI breakdown (retained below the clinical summary) */}
-        {prediction.analysis && prediction.analysis.analysis_status === "completed" && (
+        {/* Detailed KPI breakdown (retained below the clinical summary).
+            Defense in depth: never shown when AI is unavailable — the raw KPI
+            breakdown is placeholder-derived and must not appear as a model result. */}
+        {prediction.analysis && prediction.analysis.analysis_status === "completed" && !aiUnavailable && (
           <details className="rounded-lg border border-slate-200 bg-white">
             <summary className="cursor-pointer px-4 py-2 text-sm font-semibold text-slate-700">
               Full KPI detail

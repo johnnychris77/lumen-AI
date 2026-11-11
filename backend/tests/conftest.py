@@ -6,6 +6,11 @@ import pytest
 
 # Enable dev-token auth for all tests. Must be set before any app module is
 # imported because deps.py reads these env vars at module load time.
+# Mark the test suite as an explicit dev/test environment so the segregated
+# demo scorer (AI_ALLOW_DEMO_SCORING, opted in per-file via enable_demo_scoring)
+# is permitted here. Production / unset-APP_ENV deployments are NOT permitted, so
+# a stray demo env var can never enable the placeholder on a clinical route.
+os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("ENABLE_DEV_AUTH", "true")
 os.environ.setdefault("DEV_AUTH_TOKEN", "dev-token")
 os.environ.setdefault("DEV_SPD_MANAGER_TOKEN", "manager-token")
