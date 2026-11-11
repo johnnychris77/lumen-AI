@@ -148,6 +148,9 @@ type Analysis = {
       similarity: number | null;
       is_image_comparison: boolean;
       label: string;
+      method?: string | null;
+      comparator_version?: string | null;
+      baseline_id?: number | string | null;
       resolution_reason?: string | null;
     } | null;
     authorizes_release: boolean;
@@ -1341,12 +1344,27 @@ function AIPredictionPanel({
               must complete this inspection before any release decision.
             </p>
             {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison ? (
-              <p className="text-xs text-slate-700">
-                <span className="font-medium">Baseline reference image:</span>{" "}
-                compared — visual similarity{" "}
-                {Math.round((prediction.analysis.ai_analysis.baseline_image_similarity.similarity ?? 0) * 100)}%
-                {" "}({prediction.analysis.ai_analysis.baseline_image_similarity.label})
-              </p>
+              (() => {
+                const sim = prediction.analysis.ai_analysis.baseline_image_similarity!;
+                const pct = Math.round((sim.similarity ?? 0) * 100);
+                const isExact = sim.status === "exact_match";
+                const parts: string[] = [];
+                if (sim.method) parts.push(`method ${sim.method}`);
+                if (sim.baseline_id != null) parts.push(`reference image #${sim.baseline_id}`);
+                const meta = parts.length ? ` (${parts.join(", ")})` : "";
+                return (
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Manufacturer baseline visual similarity:</span>{" "}
+                    {pct}%{isExact ? " — exact same image" : ""}{meta}.
+                    {" "}
+                    <span className="text-slate-600">
+                      {isExact
+                        ? "Identical-image matching is not proof of cleanliness — a qualified person must still complete the inspection."
+                        : sim.label}
+                    </span>
+                  </p>
+                );
+              })()
             ) : (
               <p className="text-xs text-slate-600">
                 <span className="font-medium">Baseline reference image:</span>{" "}

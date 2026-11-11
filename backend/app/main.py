@@ -133,7 +133,22 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.governed_object")          # register GPAE governed object registry table
     importlib.import_module("app.models.scheduler_leader")          # RES-01 register scheduler leader-election lease table
     wait_for_db()
-    Base.metadata.create_all(bind=engine)
+    # Schema-bootstrap outcome, surfaced truthfully by /api/health below. Each
+    # step is fail-OPEN (the process must not crash: on Render a startup crash
+    # fails the deploy's health check and silently keeps the OLD build live, so
+    # merged fixes never reach production). But fail-open must NOT let the app
+    # advertise readiness while a required table is missing — that would silently
+    # degrade the baseline-image comparison to "no comparison performed" while
+    # the health check says "ok". So any bootstrap failure, or a missing
+    # comparison-critical table/column, is recorded here and reported as
+    # `status: "degraded"` by /api/health (never "ok").
+    _schema_issues: list[str] = []
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as _ddl_e:
+        import logging
+        logging.getLogger(__name__).error("create_all at startup failed (continuing): %s", _ddl_e)
+        _schema_issues.append("schema bootstrap (create_all) failed")
     # Back-fill columns added to existing tables (create_all never alters them).
     # Without this, an old production `inspections` table is missing newer columns
     # and every inspection/history query 500s (surfacing as a CORS error).
@@ -150,6 +165,34 @@ async def lifespan(_app: FastAPI):
     except Exception as _mig_e:
         import logging
         logging.getLogger(__name__).warning("Column back-fill skipped: %s", _mig_e)
+        _schema_issues.append("column back-fill incomplete")
+    # Readiness truthfulness: verify the tables/columns the baseline-image
+    # comparison path actually depends on exist. If any is missing, /api/health
+    # reports `degraded` so a partial/failed bootstrap can never be mistaken for
+    # a healthy deployment that is really serving "no comparison performed".
+    try:
+        from sqlalchemy import inspect as _sa_inspect
+        _insp = _sa_inspect(engine)
+        _tables = set(_insp.get_table_names())
+        for _req in ("inspections", "inspection_processing_images", "baseline_image_links"):
+            if _req not in _tables:
+                _schema_issues.append(f"missing required table: {_req}")
+        if "inspections" in _tables:
+            _cols = {c["name"] for c in _insp.get_columns("inspections")}
+            if "baseline_comparison_status" not in _cols:
+                _schema_issues.append("inspections.baseline_comparison_status column missing")
+    except Exception as _chk_e:
+        import logging
+        logging.getLogger(__name__).warning("Schema readiness check error: %s", _chk_e)
+        _schema_issues.append("schema readiness check could not complete")
+    _app.state.schema_ok = not _schema_issues
+    _app.state.schema_issues = list(_schema_issues)
+    if _schema_issues:
+        import logging
+        logging.getLogger(__name__).error(
+            "Startup schema readiness DEGRADED (reported by /api/health): %s",
+            "; ".join(_schema_issues),
+        )
     # Enforce one membership per (user_email, tenant_id) at the DB level. Runs
     # BEFORE the bootstrap below so the bootstrap's own duplicate guard is backed
     # by a real constraint. De-dupes any legacy duplicates first; never fatal.
