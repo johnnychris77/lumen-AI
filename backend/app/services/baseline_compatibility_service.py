@@ -42,6 +42,13 @@ _ORGANIZATION_SOURCE_TYPES = {
     SOURCE_ORGANIZATION_KNOWN_GOOD, SOURCE_NEW_INSTRUMENT_REFERENCE, SOURCE_POST_REPAIR_REFERENCE,
 }
 
+# An instrument-level overview reference covers the whole instrument, so it is a
+# documented, compatible fallback for any specific anatomy zone / view of the
+# same instrument (never a silent cross-zone match between two specific zones).
+# MUST match the registration defaults in baseline_image_registration_service.
+WHOLE_INSTRUMENT_ZONE = "whole_instrument"
+OVERVIEW_VIEW = "overview"
+
 
 @dataclass
 class CandidateContext:
@@ -74,9 +81,18 @@ def check_compatibility(*, candidate: CandidateContext, baseline_link: BaselineI
         return INCOMPATIBLE_INSTRUMENT
     if candidate.instrument_family and baseline_link.instrument_family and candidate.instrument_family != baseline_link.instrument_family:
         return INCOMPATIBLE_INSTRUMENT
-    if candidate.anatomy_zone and baseline_link.anatomy_zone and candidate.anatomy_zone != baseline_link.anatomy_zone:
+    # A whole-instrument overview reference is compatible with any specific zone.
+    if (
+        candidate.anatomy_zone and baseline_link.anatomy_zone
+        and baseline_link.anatomy_zone != WHOLE_INSTRUMENT_ZONE
+        and candidate.anatomy_zone != baseline_link.anatomy_zone
+    ):
         return INCOMPATIBLE_ANATOMY_ZONE
-    if candidate.inspection_view and baseline_link.inspection_view and candidate.inspection_view != baseline_link.inspection_view:
+    if (
+        candidate.inspection_view and baseline_link.inspection_view
+        and baseline_link.inspection_view != OVERVIEW_VIEW
+        and candidate.inspection_view != baseline_link.inspection_view
+    ):
         return INCOMPATIBLE_VIEW
     if candidate.orientation and baseline_link.orientation and candidate.orientation != baseline_link.orientation:
         return INCOMPATIBLE_ORIENTATION
@@ -155,6 +171,31 @@ def resolve_baseline_image(
                 resolution_scope=RESOLUTION_MANUFACTURER_MODEL_ZONE,
                 resolution_reason="Exact manufacturer/model/anatomy-zone approved baseline image found.",
                 version=row.baseline_version,
+            )
+
+    # 2b. Manufacturer/model instrument-level OVERVIEW reference (whole
+    #     instrument) — a documented fallback that covers any anatomy zone of the
+    #     same manufacturer/model, so an overview reference created through the
+    #     Manufacturer Baseline form still resolves once a technician tags a
+    #     specific zone on the inspection image.
+    if candidate.manufacturer and candidate.model_name:
+        row = (
+            _active_links_query(db, candidate.tenant_id)
+            .filter(
+                BaselineImageLink.manufacturer == candidate.manufacturer,
+                BaselineImageLink.model_name == candidate.model_name,
+                BaselineImageLink.anatomy_zone == WHOLE_INSTRUMENT_ZONE,
+            )
+            .order_by(BaselineImageLink.approved_at.desc())
+            .first()
+        )
+        if row is not None:
+            return ResolutionResult(
+                baseline_image_link_id=row.id, baseline_set_id=None,
+                resolution_scope=RESOLUTION_MANUFACTURER_MODEL_ZONE,
+                resolution_reason="Manufacturer/model instrument-level overview reference image (whole instrument).",
+                version=row.baseline_version,
+                limitations=["Instrument-level overview reference — not anatomy-zone specific."],
             )
 
     # 3. Organization-approved instrument-family/anatomy-zone baseline.

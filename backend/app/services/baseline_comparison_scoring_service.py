@@ -239,6 +239,7 @@ def _build_model_result(
 def _live_model_result(
     db: Session, *, tenant_id: str, image_bytes: Optional[bytes], instrument_type: str,
     inspection_id: Optional[int] = None, image_sha256: Optional[str] = None, retained_image_id: Optional[int] = None,
+    candidate_identity: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Project Lens (Section 15) — additive integration only. Populates a
     NEW top-level key (``live_model_result``) with whatever the real live
@@ -266,19 +267,29 @@ def _live_model_result(
     # contamination, and a missing baseline never blocks inference.
     result["baseline_comparison"] = _live_baseline_comparison(
         db, tenant_id=tenant_id, instrument_type=instrument_type, image_bytes=image_bytes,
+        candidate_identity=candidate_identity,
     )
     return result
 
 
 def _live_baseline_comparison(
     db: Session, *, tenant_id: str, instrument_type: str, image_bytes: Optional[bytes],
+    candidate_identity: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Compatibility-first baseline-image comparison for the live path,
     composed entirely from Project Atlas + Project Lens infrastructure:
     resolve the best ACTIVE baseline image for this instrument context
     (5-level hierarchy), verify the stored bytes' hash on access, and only
     then compute a perceptual similarity. Every failure mode returns an
-    honest status with ``similarity: None`` — never a fabricated number."""
+    honest status with ``similarity: None`` — never a fabricated number.
+
+    ``candidate_identity`` carries the inspection's resolved manufacturer,
+    model, anatomy zone, inspection view, orientation, and Digital Twin id so
+    the manufacturer/model/anatomy resolution hierarchy can actually match an
+    approved manufacturer reference image. Without it (the legacy behaviour)
+    only instrument_family was provided, which could match only a governed
+    consensus baseline — a manufacturer-specific reference image never
+    resolved."""
     from app.models.baseline_image_library import COMPATIBLE, BaselineImageLink
     from app.services.baseline_compatibility_service import (
         CandidateContext,
@@ -291,7 +302,17 @@ def _live_baseline_comparison(
     )
     from app.services.ml.image_similarity_service import compare_against_baseline
 
-    candidate = CandidateContext(tenant_id=tenant_id, instrument_family=instrument_type)
+    ident = candidate_identity or {}
+    candidate = CandidateContext(
+        tenant_id=tenant_id,
+        instrument_family=instrument_type,
+        manufacturer=(ident.get("manufacturer") or ""),
+        model_name=(ident.get("model_name") or ""),
+        anatomy_zone=(ident.get("anatomy_zone") or ""),
+        inspection_view=(ident.get("inspection_view") or ""),
+        orientation=(ident.get("orientation") or ""),
+        digital_twin_id=(ident.get("digital_twin_id") or ""),
+    )
     resolution = resolve_baseline_image(db, candidate=candidate)
 
     if resolution.baseline_image_link_id is None:
@@ -348,6 +369,13 @@ def _live_baseline_comparison(
 # integrity failed) must never surface a similarity number.
 _REAL_IMAGE_COMPARISON_STATUSES = frozenset({"exact_match", "comparable", "materially_different"})
 
+# Default anatomy-zone / inspection-view tokens used when neither the inspection
+# nor the baseline reference image scopes them. MUST match the registration
+# defaults in app.services.baseline_image_registration_service so both sides key
+# on the same documented value (an explicit match, never a silent cross-zone one).
+_CANDIDATE_DEFAULT_ANATOMY_ZONE = "whole_instrument"
+_CANDIDATE_DEFAULT_VIEW = "overview"
+
 
 def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
     """The single authoritative source of AI-generated observations for this
@@ -387,10 +415,9 @@ def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
             "baseline_id": comparison.get("baseline_id"),
             "baseline_version": comparison.get("baseline_version"),
             # Why no numeric comparison happened (e.g. an approved baseline
-            # *library record* resolved, but no ACTIVE reference *image* is
-            # stored for a pixel comparison). Surfaced so the clinician-facing
-            # UI can state the reference-image status honestly instead of
-            # silently showing nothing — which reads as "baseline unavailable".
+            # library record resolved but no ACTIVE reference image is stored, or
+            # the stored image was incompatible). Surfaced so the UI states the
+            # reference-image status honestly instead of silently showing nothing.
             "resolution_reason": comparison.get("resolution_reason") or comparison.get("reason"),
             "label": "Visual similarity — not verified cleanliness.",
         }
@@ -412,6 +439,78 @@ def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
         "human_review_required": True,
         "limitations": list(live_result.get("limitations") or []),
         "inference_timestamp": live_result.get("inference_timestamp"),
+    }
+
+
+# Compatibility codes that mean the resolved ACTIVE baseline image is NOT a
+# valid comparison target for this inspection context.
+_INCOMPATIBLE_STATUSES = frozenset({
+    "INCOMPATIBLE_INSTRUMENT", "INCOMPATIBLE_ANATOMY_ZONE", "INCOMPATIBLE_VIEW",
+    "INCOMPATIBLE_ORIENTATION", "INSUFFICIENT_IMAGE_QUALITY", "BASELINE_NOT_ACTIVE",
+    "BASELINE_INTEGRITY_FAILED", "NO_APPROVED_BASELINE",
+})
+
+
+def _baseline_evidence(
+    db: Session, *, tenant_id: str, instrument_type: str,
+    resolution: dict[str, Any], live_result: dict[str, Any], image_bytes: Optional[bytes],
+) -> dict[str, Any]:
+    """Seven INDEPENDENT provenance facts about this inspection's baseline +
+    model state (mission Task 3). These are deliberately distinct so the UI (and
+    audits) can tell apart, e.g., "a manufacturer baseline image is available"
+    from "a trained vision model evaluated the image" — a baseline image may be
+    present and usable even while the trained-model status is correctly
+    AI_UNAVAILABLE. Each is a verified fact, never an inference from another."""
+    from app.models.baseline_image_library import STATE_ARCHIVED, BaselineImageLink
+
+    comp = live_result.get("baseline_comparison") or {}
+    comp_status = comp.get("status")
+    model = live_result.get("model") or {}
+
+    # A governed image link exists (any non-archived state) for the RESOLVED
+    # baseline — scoped to that baseline record when one resolved, so a different
+    # manufacturer/model baseline's image never makes this true. Falls back to
+    # the instrument family only when no specific baseline record resolved.
+    _registered_q = db.query(BaselineImageLink).filter(
+        BaselineImageLink.tenant_id == tenant_id,
+        BaselineImageLink.lifecycle_status != STATE_ARCHIVED,
+    )
+    _baseline_entry_id = resolution.get("baseline_entry_id")
+    if _baseline_entry_id is not None:
+        _registered_q = _registered_q.filter(
+            BaselineImageLink.baseline_library_entry_id == _baseline_entry_id
+        )
+    else:
+        _registered_q = _registered_q.filter(
+            BaselineImageLink.instrument_family == instrument_type
+        )
+    registered = _registered_q.first() is not None
+    # An ACTIVE link actually resolved for this context (resolve_baseline_image
+    # only ever returns ACTIVE links, and the comparison carries its id).
+    active_resolved = comp.get("baseline_id") is not None
+    real_comparison = (
+        comp_status in _REAL_IMAGE_COMPARISON_STATUSES and comp.get("similarity") is not None
+    )
+    # Compatible = an ACTIVE image resolved and passed the compatibility contract
+    # (either a real comparison ran, or it was compatible but the pixel bytes
+    # were unavailable on one side — status "insufficient_quality", lowercase).
+    compatible = active_resolved and (real_comparison or comp_status == "insufficient_quality")
+
+    return {
+        "manufacturer_baseline_metadata_found": bool(resolution.get("baseline_found")),
+        "baseline_image_registered": bool(registered),
+        "baseline_image_active": bool(active_resolved),
+        "baseline_image_compatible": bool(compatible),
+        "inspection_image_bytes_available": image_bytes is not None,
+        "real_image_comparison_completed": bool(real_comparison),
+        # A promoted/registered trained model exists (model_version is only set
+        # when a real model artifact backs the result) — independent of whether
+        # THIS image was evaluated or abstained.
+        "trained_vision_model_available": bool(model.get("model_version")),
+        "comparison_status": comp_status,
+        "baseline_image_link_id": comp.get("baseline_id"),
+        "resolution_scope": comp.get("resolution_scope"),
+        "resolution_reason": comp.get("resolution_reason") or comp.get("reason"),
     }
 
 
@@ -624,20 +723,33 @@ def _pseudo(seed: int, salt: int) -> float:
 _APPROVED_VALUES = {"approved", "active", "vendor_approved", "hospital_approved"}
 
 
-def _resolve_from_library(db: Session, instrument_type: str) -> dict[str, Any] | None:
-    """Check the network BaselineLibraryEntry table (manufacturer → vendor → hospital)."""
+def _resolve_from_library(
+    db: Session, instrument_type: str, *, manufacturer: str = "", model: str = "",
+) -> dict[str, Any] | None:
+    """Check the network BaselineLibraryEntry table (manufacturer → vendor → hospital).
+
+    When the inspection declares its instrument's manufacturer (and model), the
+    lookup is narrowed to that manufacturer/model so an instrument of one
+    manufacturer never resolves a different manufacturer's baseline. When no
+    manufacturer is declared, the broadest approved baseline for the instrument
+    type is returned for metadata only (the image comparator still refuses to
+    match a manufacturer-specific reference without a declared manufacturer)."""
+    from sqlalchemy import func
     from app.models.baseline_library import BaselineLibraryEntry
 
+    mfr = (manufacturer or "").strip()
+    mdl = (model or "").strip()
     for source in BASELINE_PRIORITY:
-        entry = (
-            db.query(BaselineLibraryEntry)
-            .filter(
-                BaselineLibraryEntry.instrument_category == instrument_type,
-                BaselineLibraryEntry.baseline_type == source,
-                BaselineLibraryEntry.approval_status == "approved",
-            )
-            .first()
+        q = db.query(BaselineLibraryEntry).filter(
+            BaselineLibraryEntry.instrument_category == instrument_type,
+            BaselineLibraryEntry.baseline_type == source,
+            BaselineLibraryEntry.approval_status == "approved",
         )
+        if mfr:
+            q = q.filter(func.lower(BaselineLibraryEntry.manufacturer_name) == mfr.lower())
+        if mdl:
+            q = q.filter(func.lower(BaselineLibraryEntry.model_name) == mdl.lower())
+        entry = q.first()
         if entry is not None:
             return {
                 "baseline_found": True,
@@ -645,6 +757,11 @@ def _resolve_from_library(db: Session, instrument_type: str) -> dict[str, Any] |
                 "baseline_entry_id": entry.id,
                 "baseline_version": entry.baseline_version,
                 "baseline_udi": entry.udi or "",
+                # Manufacturer/model carried so the baseline-IMAGE resolution
+                # hierarchy (manufacturer/model/anatomy) can match this entry's
+                # governed reference image — never a different manufacturer.
+                "manufacturer_name": entry.manufacturer_name or "",
+                "model_name": entry.model_name or "",
             }
     return None
 
@@ -707,17 +824,21 @@ def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] 
     }
 
 
-def resolve_baseline(db: Session, instrument_type: str, tenant_id: str) -> dict[str, Any]:
+def resolve_baseline(
+    db: Session, instrument_type: str, tenant_id: str, *, manufacturer: str = "", model: str = "",
+) -> dict[str, Any]:
     """Resolve the most authoritative approved baseline for an instrument.
 
     Looks in two places so the engine sees baselines wherever they live:
       1. The network BaselineLibraryEntry table.
       2. The EnterpriseVendorBaselineSubscription table that the baseline
          upload + review UI actually populates.
-    Both honour manufacturer → vendor → hospital priority. Returns the first
-    approved match.
+    Both honour manufacturer → vendor → hospital priority. When the inspection
+    declares its instrument's manufacturer/model, the library lookup is narrowed
+    to it so a different manufacturer's baseline can never be selected. Returns
+    the first approved match.
     """
-    resolution = _resolve_from_library(db, instrument_type)
+    resolution = _resolve_from_library(db, instrument_type, manufacturer=manufacturer, model=model)
     if resolution is not None:
         return resolution
 
@@ -1374,6 +1495,7 @@ def _ai_unavailable_result(
     image_view_tags: Optional[list[dict]],
     live_model_result: dict[str, Any],
     ai_analysis: dict[str, Any],
+    baseline_evidence: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Clinician-facing result when the authoritative AI is unavailable.
 
@@ -1458,6 +1580,8 @@ def _ai_unavailable_result(
         "live_model_result": live_model_result,
         "ai_analysis": ai_analysis,
         "ai_observations_source": "live_model",
+        # Seven independent baseline/model provenance facts (mission Task 3).
+        "baseline_evidence": baseline_evidence or {},
     }
     # Honest model_result for the AI-unavailable surface: no eligible trained
     # model evaluated the image, so it advertises NO supported categories and NO
@@ -1508,6 +1632,8 @@ def analyze_inspection(
     image_bytes: Optional[bytes] = None,
     inspection_id: Optional[int] = None,
     retained_image_id: Optional[int] = None,
+    instrument_manufacturer: Optional[str] = None,
+    instrument_model: Optional[str] = None,
     demo_scoring: Optional[bool] = None,
 ) -> dict[str, Any]:
     """Run the baseline-comparison analysis for an inspection.
@@ -1543,7 +1669,15 @@ def analyze_inspection(
         if c in _DECLARED_TO_KPI
     }
 
-    resolution = resolve_baseline(db, instrument_type, tenant_id)
+    # The inspection's own declared instrument identity — never fabricated from
+    # whichever baseline happened to resolve. "unknown" is treated as undeclared.
+    _decl_mfr = (instrument_manufacturer or "").strip()
+    if _decl_mfr.lower() in {"", "unknown"}:
+        _decl_mfr = ""
+    _decl_model = (instrument_model or "").strip()
+    resolution = resolve_baseline(
+        db, instrument_type, tenant_id, manufacturer=_decl_mfr, model=_decl_model,
+    )
 
     # ── Governance gate: no approved baseline → no final score ──────────────
     if not resolution["baseline_found"]:
@@ -1594,6 +1728,25 @@ def analyze_inspection(
         # the placeholder. No baseline + no promoted model ⇒ AI_UNAVAILABLE.
         no_baseline["ai_analysis"] = _authoritative_ai_analysis(no_baseline["live_model_result"])
         no_baseline["ai_observations_source"] = "live_model"
+        # No approved baseline metadata at all → every downstream baseline fact
+        # is false; only the trained-model fact can still be independently true.
+        _nb_evidence = {
+            "manufacturer_baseline_metadata_found": False,
+            "baseline_image_registered": False,
+            "baseline_image_active": False,
+            "baseline_image_compatible": False,
+            "inspection_image_bytes_available": image_bytes is not None,
+            "real_image_comparison_completed": False,
+            "trained_vision_model_available": bool(
+                (no_baseline["live_model_result"].get("model") or {}).get("model_version")
+            ),
+            "comparison_status": "no_approved_baseline",
+            "baseline_image_link_id": None,
+            "resolution_scope": "none",
+            "resolution_reason": "No approved manufacturer baseline record for this instrument.",
+        }
+        no_baseline["baseline_evidence"] = _nb_evidence
+        no_baseline["ai_analysis"]["baseline_evidence"] = _nb_evidence
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
         return no_baseline
 
@@ -1703,11 +1856,52 @@ def analyze_inspection(
     # AI_UNAVAILABLE result built only from verified evidence — the placeholder
     # scoring below never reaches a clinical outcome. The segregated demo/test
     # fixture opts in with demo_scoring=True.
+    # Candidate identity for baseline-IMAGE resolution: the resolved
+    # manufacturer/model plus the inspection's anatomy zone / view, so an
+    # approved manufacturer reference image can actually be matched by the
+    # resolution hierarchy (previously only instrument_family was passed, which
+    # could never resolve a manufacturer-specific image). Zone/view default to
+    # the same whole-instrument overview tokens the reference-image registration
+    # uses when neither side scopes them — an explicit match on equal documented
+    # fields, never a silent cross-manufacturer/zone match.
+    from app.services.ml.lcid_service import instrument_digital_twin_id as _twin_id
+    _first_tag = image_view_tags[0] if image_view_tags else {}
+    if not isinstance(_first_tag, dict):
+        _first_tag = {}
+    _candidate_identity = {
+        # From the INSPECTION's own declared instrument identity — never derived
+        # from whichever baseline resolved. When the inspection declares no
+        # manufacturer, this stays blank, so no manufacturer-specific reference
+        # image can resolve (one manufacturer's instrument never matches
+        # another's reference). resolve_baseline was itself narrowed by the
+        # declared manufacturer/model, so when present the two already agree.
+        "manufacturer": _decl_mfr,
+        "model_name": _decl_model,
+        "anatomy_zone": (
+            _first_tag.get("anatomy_zone")
+            or (inspected_zones[0] if inspected_zones else "")
+            or _CANDIDATE_DEFAULT_ANATOMY_ZONE
+        ),
+        "inspection_view": _first_tag.get("image_view") or _CANDIDATE_DEFAULT_VIEW,
+        "orientation": "",
+        "digital_twin_id": _twin_id(
+            instrument_barcode=instrument_barcode, instrument_udi=instrument_udi,
+            instrument_type=instrument_type, inspection_id=inspection_id,
+        ),
+    }
     _live = _live_model_result(
         db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
         inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+        candidate_identity=_candidate_identity,
     )
     _ai = _authoritative_ai_analysis(_live)
+    # Seven independent provenance facts (baseline metadata / image registered /
+    # active / compatible / inspection bytes / real comparison / trained model).
+    _evidence = _baseline_evidence(
+        db, tenant_id=tenant_id, instrument_type=instrument_type,
+        resolution=resolution, live_result=_live, image_bytes=image_bytes,
+    )
+    _ai["baseline_evidence"] = _evidence
     # A completed live result only counts as an available AI evaluation when the
     # model produced a real (non-abstained) observation. An abstention —
     # insufficient image quality, confidence below threshold, or unknown class —
@@ -1720,7 +1914,7 @@ def analyze_inspection(
         return _ai_unavailable_result(
             instrument_type=instrument_type, resolution=resolution, identification=identification,
             declared=declared, inspected_zones=inspected_zones, image_view_tags=image_view_tags,
-            live_model_result=_live, ai_analysis=_ai,
+            live_model_result=_live, ai_analysis=_ai, baseline_evidence=_evidence,
         )
 
     # Reached only under the segregated demo/dev fixture (demo_scoring=True) or
@@ -2012,6 +2206,7 @@ def analyze_inspection(
     result["live_model_result"] = _live
     result["ai_analysis"] = _ai
     result["ai_observations_source"] = "live_model"
+    result["baseline_evidence"] = _evidence
     # Flag demo-scored results so no consumer mistakes them for clinical output.
     result["demo_scoring"] = not ai_available
     # Phase 13: Explainable Clinical Decision Support payload.

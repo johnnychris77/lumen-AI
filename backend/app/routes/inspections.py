@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
@@ -151,6 +151,10 @@ class InspectionCreate(BaseModel):
     instrument_barcode: Optional[str] = Field(None, max_length=255)
     instrument_udi: Optional[str] = Field(None, max_length=255)
     keydot_id: Optional[str] = Field(None, max_length=255)
+    # The instrument's declared manufacturer/model — used to resolve the correct
+    # manufacturer baseline + reference image (never a different manufacturer's).
+    instrument_manufacturer: Optional[str] = Field(None, max_length=200)
+    instrument_model: Optional[str] = Field(None, max_length=200)
     # How identifiers were obtained: "pyzbar" (decoded) or "declared" (typed).
     identifier_source: Optional[str] = Field(None, max_length=20)
     # Zones the technician captured/inspected (anatomy-aware coverage engine).
@@ -292,6 +296,78 @@ async def create_manufacturer_baseline(
         "baseline_type": entry.baseline_type,
         "approval_status": entry.approval_status,
         "approved_by": entry.approved_by,
+    }
+
+
+@router.post("/baselines/{entry_id}/reference-image", status_code=201)
+async def register_baseline_reference_image(
+    entry_id: int,
+    request: Request,
+    image: UploadFile = File(...),
+    source_organization: str = Form(""),
+    source_reference: str = Form(""),
+    anatomy_zone: str = Form(""),
+    inspection_view: str = Form(""),
+    orientation: str = Form(""),
+    usage_rights_attested: bool = Form(False),
+    no_phi_attested: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    """Attach a GOVERNED reference image to an approved manufacturer baseline.
+
+    Unlike the legacy ``/baselines/upload-images`` (hash only), this retains the
+    real bytes, LCID-registers them, and creates a Baseline Image Library link in
+    PENDING_REVIEW. The image becomes usable for inspection comparison only after
+    a reviewer approves it and an authorized role activates it (the governed
+    lifecycle + activation gate) — it is never ACTIVE just because the metadata
+    baseline was approved.
+    """
+    from app.services import baseline_image_registration_service as bir
+
+    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
+
+    content_type = image.content_type or ""
+    if content_type not in _ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"File '{image.filename}' has unsupported type '{content_type}'. Allowed: {sorted(_ALLOWED_TYPES)}",
+        )
+    data = await image.read()
+    if len(data) == 0:
+        raise HTTPException(status_code=422, detail=f"File '{image.filename}' is empty.")
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail=f"File '{image.filename}' exceeds 10 MB limit.")
+
+    try:
+        result = bir.register_manufacturer_reference_image(
+            db, tenant_id=tenant_id, baseline_library_entry_id=entry_id,
+            image_bytes=data, content_type=content_type, uploaded_by=actor,
+            source_organization=source_organization, source_reference=source_reference,
+            usage_rights_attested=usage_rights_attested, no_phi_attested=no_phi_attested,
+            anatomy_zone=anatomy_zone, inspection_view=inspection_view, orientation=orientation,
+        )
+    except bir.BaselineReferenceImageError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except bir.bil.ProvenanceRequiredError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    link = result["link"]
+    return {
+        "baseline_library_entry_id": entry_id,
+        "baseline_image_link_id": link.id,
+        "lcid_image_id": result["lcid_image_id"],
+        "retained_image_id": result["retained_image_id"],
+        "image_sha256": result["image_sha256"],
+        "image_quality": result["image_quality"],
+        "lifecycle_status": result["lifecycle_status"],
+        "duplicate_bytes": result["duplicate_bytes"],
+        "note": (
+            "Reference image retained and registered. It is now PENDING_REVIEW — a reviewer must "
+            "approve it and an authorized role must activate it before inspections compare against it. "
+            "An image is never ACTIVE merely because the baseline metadata was approved."
+        ),
     }
 
 
@@ -453,6 +529,7 @@ async def inspection_clinical_report(
         image_bytes=report_image_bytes,
         retained_image_id=report_retained_id,
         declared_findings=report_declared,
+        instrument_manufacturer=getattr(row, "vendor_name", None),
     )
     pdf = build_clinical_report_pdf(row, analysis)
     return StreamingResponse(
@@ -566,6 +643,8 @@ async def create_inspection(
                 image_view_tags=image_view_tags_dicts,
                 image_bytes=retained_image_bytes,
                 retained_image_id=retained_image_id,
+                instrument_manufacturer=(body.instrument_manufacturer or body.vendor_name),
+                instrument_model=body.instrument_model,
             )
         except Exception:
             # Analysis must never crash the request or silently advance the
