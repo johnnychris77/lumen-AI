@@ -133,7 +133,17 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.governed_object")          # register GPAE governed object registry table
     importlib.import_module("app.models.scheduler_leader")          # RES-01 register scheduler leader-election lease table
     wait_for_db()
-    Base.metadata.create_all(bind=engine)
+    # Create any missing tables. Fail-OPEN (match every other startup step
+    # below): a schema-bootstrap error must never crash the process, because on
+    # Render that fails the deploy's health check and silently keeps the OLD
+    # build live — so merged fixes never reach production. A genuinely missing
+    # table instead surfaces as a 500 on its own route (visible), not a
+    # black-holed deploy.
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as _ddl_e:
+        import logging
+        logging.getLogger(__name__).error("create_all at startup failed (continuing): %s", _ddl_e)
     # Back-fill columns added to existing tables (create_all never alters them).
     # Without this, an old production `inspections` table is missing newer columns
     # and every inspection/history query 500s (surfacing as a CORS error).

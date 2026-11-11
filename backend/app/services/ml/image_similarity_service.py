@@ -63,19 +63,22 @@ def compare_image_bytes(image_a: bytes, image_b: bytes) -> dict[str, Any]:
     compatibility (that is the caller's job, before this is even called;
     see ``compare_against_baseline`` below for the compatibility-first
     flow Section 18 requires)."""
-    sha_a, sha_b = hashlib.sha256(image_a).hexdigest(), hashlib.sha256(image_b).hexdigest()
-    if sha_a == sha_b:
-        return {
-            "status": STATUS_EXACT_MATCH, "similarity": 1.0, "hamming_distance": 0,
-            "method": "sha256_exact", "comparator_version": COMPARATOR_VERSION,
-        }
-
+    # Validate BOTH inputs decode as images BEFORE accepting an exact match —
+    # a byte-identical pair of non-images is not an image comparison, so it must
+    # never be reported as exact_match (it is reported insufficient_quality).
     hash_a, hash_b = compute_average_hash(image_a), compute_average_hash(image_b)
     if hash_a is None or hash_b is None:
         return {
             "status": STATUS_INSUFFICIENT_QUALITY, "similarity": None, "hamming_distance": None,
             "method": "average_hash_hamming", "comparator_version": COMPARATOR_VERSION,
             "reason": "One or both images could not be decoded for comparison.",
+        }
+
+    sha_a, sha_b = hashlib.sha256(image_a).hexdigest(), hashlib.sha256(image_b).hexdigest()
+    if sha_a == sha_b:
+        return {
+            "status": STATUS_EXACT_MATCH, "similarity": 1.0, "hamming_distance": 0,
+            "method": "sha256_exact", "comparator_version": COMPARATOR_VERSION,
         }
 
     distance = hamming_distance(hash_a, hash_b)
