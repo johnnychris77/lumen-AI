@@ -162,6 +162,30 @@ def test_metadata_only_baseline_no_similarity_percentage():
     assert sim is None or sim.get("similarity") is None
 
 
+# 6b. A library-record-only baseline (no ACTIVE reference IMAGE) must report the
+#     reference-image comparison status HONESTLY — no numeric similarity, but an
+#     explicit status + reason — so the clinician-facing UI can state why no
+#     visual comparison ran instead of silently showing nothing (which a pilot
+#     user reasonably read as "the baseline I provided is not available").
+def test_metadata_only_baseline_reports_honest_reference_image_status():
+    itype = "pe_meta_status"
+    _seed_approved_baseline(itype)
+    analysis = _submit(itype)["analysis"]
+
+    # Approved-baseline METADATA still resolves (never reported as "missing").
+    assert analysis["baseline_source"] == "manufacturer"
+
+    sim = analysis["ai_analysis"]["baseline_image_similarity"]
+    assert sim is not None, "the reference-image comparison status must be surfaced"
+    # No ACTIVE reference image exists → no numeric comparison, stated plainly.
+    assert sim["status"] == "no_approved_baseline"
+    assert sim["is_image_comparison"] is False
+    assert sim["similarity"] is None
+    # The honest reason is carried through for the UI to display.
+    assert sim.get("resolution_reason")
+    assert "active baseline image" in sim["resolution_reason"].lower()
+
+
 # 7. A GENUINE compatible-image comparison is labelled visual similarity —
 #    explicitly not verified cleanliness (the only place a real % may appear).
 def test_real_image_comparison_is_labelled_visual_similarity():

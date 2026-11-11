@@ -134,6 +134,7 @@ type Analysis = {
       similarity: number | null;
       is_image_comparison: boolean;
       label: string;
+      resolution_reason?: string | null;
     } | null;
     authorizes_release: boolean;
     human_review_required: boolean;
@@ -266,6 +267,36 @@ function riskColor(score: number) {
   if (score >= 60) return "bg-orange-500 text-white";
   if (score >= 40) return "bg-amber-400 text-slate-900";
   return "bg-emerald-100 text-emerald-800";
+}
+
+// Honest explanation for why no numeric baseline-IMAGE (pixel) comparison was
+// performed. The approved-baseline *library record* (manufacturer / model / UDI)
+// is a separate thing from an ACTIVE reference *photo* in the Baseline Image
+// Library; only the latter enables a visual similarity comparison. Silently
+// showing nothing reads as "baseline unavailable", so state the status plainly.
+function baselineImageUnavailableText(status: string | null, reason?: string | null): string {
+  switch (status) {
+    case "no_approved_baseline":
+      return (
+        "An approved baseline record is on file for this instrument, but it is a " +
+        "library entry (manufacturer / model / UDI), not an ACTIVE reference photo. " +
+        "To enable a visual comparison, activate a reference image for this instrument " +
+        "in the Baseline Image Library."
+      );
+    case "incompatible_view":
+      return reason
+        ? reason
+        : "The stored reference image is not compatible with this instrument view, so no comparison was made.";
+    case "insufficient_quality":
+      return (
+        "Image bytes were not available for one or both images (image retention / consent " +
+        "not enabled), so no pixel comparison could run."
+      );
+    case "BASELINE_INTEGRITY_FAILED":
+      return "The stored reference image failed an integrity check, so it was not used for comparison.";
+    default:
+      return reason || "No visual (pixel) comparison was performed.";
+  }
 }
 
 const initialForm: FormFields = {
@@ -1293,12 +1324,24 @@ function AIPredictionPanel({
               are verified records — not an AI cleanliness assessment. A qualified person
               must complete this inspection before any release decision.
             </p>
-            {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison && (
-              <p className="text-xs text-slate-600">
-                Baseline visual similarity:{" "}
-                {Math.round((prediction.analysis.ai_analysis.baseline_image_similarity.similarity ?? 0) * 100)}%
-                {" "}— {prediction.analysis.ai_analysis.baseline_image_similarity.label}
-              </p>
+            {prediction.analysis?.ai_analysis?.baseline_image_similarity && (
+              prediction.analysis.ai_analysis.baseline_image_similarity.is_image_comparison ? (
+                <p className="text-xs text-slate-600">
+                  <span className="font-medium">Baseline reference image:</span>{" "}
+                  compared — visual similarity{" "}
+                  {Math.round((prediction.analysis.ai_analysis.baseline_image_similarity.similarity ?? 0) * 100)}%
+                  {" "}({prediction.analysis.ai_analysis.baseline_image_similarity.label})
+                </p>
+              ) : (
+                <p className="text-xs text-slate-600">
+                  <span className="font-medium">Baseline reference image:</span>{" "}
+                  no visual comparison was performed.{" "}
+                  {baselineImageUnavailableText(
+                    prediction.analysis.ai_analysis.baseline_image_similarity.status,
+                    prediction.analysis.ai_analysis.baseline_image_similarity.resolution_reason,
+                  )}
+                </p>
+              )
             )}
           </div>
         )}

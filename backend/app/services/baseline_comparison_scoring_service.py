@@ -386,6 +386,12 @@ def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
             "comparator_version": comparison.get("comparator_version"),
             "baseline_id": comparison.get("baseline_id"),
             "baseline_version": comparison.get("baseline_version"),
+            # Why no numeric comparison happened (e.g. an approved baseline
+            # *library record* resolved, but no ACTIVE reference *image* is
+            # stored for a pixel comparison). Surfaced so the clinician-facing
+            # UI can state the reference-image status honestly instead of
+            # silently showing nothing — which reads as "baseline unavailable".
+            "resolution_reason": comparison.get("resolution_reason") or comparison.get("reason"),
             "label": "Visual similarity — not verified cleanliness.",
         }
 
