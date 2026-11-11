@@ -531,6 +531,22 @@ async def inspection_clinical_report(
         declared_findings=report_declared,
         instrument_manufacturer=getattr(row, "vendor_name", None),
     )
+    # The inspection pixels were purged after the original analysis, so a
+    # re-analysis here cannot recompute the baseline image comparison. Restore
+    # the comparison the inspection actually recorded from the persisted columns
+    # so the report matches the API response and the New Inspection page.
+    if getattr(row, "baseline_comparison_status", None):
+        _ai = analysis.setdefault("ai_analysis", {})
+        _ai["baseline_image_similarity"] = {
+            "status": row.baseline_comparison_status,
+            "similarity": row.baseline_comparison_similarity,
+            "is_image_comparison": row.baseline_comparison_similarity is not None,
+            "method": row.baseline_comparison_method,
+            "comparator_version": row.baseline_comparison_version,
+            "baseline_id": row.baseline_image_link_id,
+            "baseline_version": row.baseline_reference_version,
+            "label": "Visual similarity — not verified cleanliness.",
+        }
     pdf = build_clinical_report_pdf(row, analysis)
     return StreamingResponse(
         io.BytesIO(pdf),
@@ -562,6 +578,9 @@ async def create_inspection(
     risk_score_val = 0
     baseline_source_val: Optional[str] = None
     analysis: Optional[dict] = None
+    # Temporary processing image consumed after analysis (set only on the image
+    # path); initialized here so the post-commit consume is always safe.
+    proc_image_row = None
 
     # Clean declared findings — drop the "pending_ai_analysis" placeholder.
     declared = [
@@ -626,6 +645,18 @@ async def create_inspection(
                         "rejecting stored bytes for this analysis.",
                         retained_row.id, retained_row.sha256, recomputed, body.image_sha256,
                     )
+        # Prefer the temporary PROCESSING image: it is available even when
+        # long-term training retention is off, so the baseline image comparison
+        # can run on the pixels the user just uploaded. It is hash-verified and
+        # tenant-scoped on load, and consumed (bytes nulled) after analysis.
+        proc_image_row = None
+        if body.image_sha256:
+            from app.services.inspection_image_processing_service import load_processing_bytes
+            proc_bytes, proc_image_row = load_processing_bytes(
+                db, tenant_id=tenant_id, image_sha256=body.image_sha256,
+            )
+            if proc_bytes is not None:
+                retained_image_bytes = proc_bytes
         try:
             analysis = analyze_inspection(
                 db,
@@ -783,6 +814,12 @@ async def create_inspection(
     coverage_gate_status = readiness["gate_status"]
     is_draft_val = body.save_as_draft or coverage_gate_status == "blocked_pending_override"
 
+    # Persist the manufacturer baseline IMAGE comparison result so the report and
+    # history show the same comparison the New Inspection page did, without
+    # re-reading the inspection pixels (purged from the processing store after
+    # use). A real pixel comparison only happened when similarity is non-null.
+    _bcmp = ((analysis or {}).get("ai_analysis") or {}).get("baseline_image_similarity") or {}
+    _bcmp_similarity = _bcmp.get("similarity") if _bcmp.get("is_image_comparison") else None
     row = models.Inspection(
         file_name=body.file_name or "manual-entry",
         tenant_id=tenant_id,
@@ -829,10 +866,25 @@ async def create_inspection(
         is_draft=is_draft_val,
         procedure_priority=body.procedure_priority,
         is_loaner_instrument=body.is_loaner_instrument,
+        baseline_image_link_id=_bcmp.get("baseline_id"),
+        baseline_comparison_status=_bcmp.get("status"),
+        baseline_comparison_similarity=_bcmp_similarity,
+        baseline_comparison_method=_bcmp.get("method"),
+        baseline_comparison_version=_bcmp.get("comparator_version"),
+        baseline_reference_version=_bcmp.get("baseline_version"),
     )
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    # Processing finished — remove the temporary inspection pixels (bytes nulled,
+    # row marked consumed) so they do not linger beyond their bounded purpose.
+    if proc_image_row is not None:
+        try:
+            from app.services.inspection_image_processing_service import consume_processing_image
+            consume_processing_image(db, row=proc_image_row, inspection_id=row.id)
+        except Exception:
+            logger.exception("Failed to consume processing image for inspection %s", row.id)
 
     # Project Vision Sprint 2 (Section 16) — the result contract's
     # inspection_id isn't known until the Inspection row is committed above;
@@ -1278,6 +1330,23 @@ async def upload_inspection_images(
             entry["duplicate_of_existing_retained_image"] = bool(
                 getattr(retained, "_lumenai_dedup_hit", False),
             )
+        # Temporary PROCESSING copy (separate from training retention above):
+        # the pixels needed to run the baseline image comparison the user just
+        # requested, held in a bounded, tenant-scoped store and purged after the
+        # inspection is processed. This does NOT enroll the image in training.
+        try:
+            from app.services.inspection_image_processing_service import store_processing_image
+            proc = store_processing_image(
+                db, tenant_id=tenant_id, data=data, content_type=content_type, uploaded_by=actor,
+            )
+            entry["processing_available"] = True
+            entry["processing_expires_at"] = proc.expires_at.isoformat()
+        except Exception:
+            # Never fail the upload because the processing copy could not be
+            # stored — the inspection still records the hash and proceeds (the
+            # comparison will honestly report pixels unavailable).
+            logger.exception("Failed to store temporary processing image (tenant=%s)", tenant_id)
+            entry["processing_available"] = False
         results.append(entry)
 
     log_audit_event(

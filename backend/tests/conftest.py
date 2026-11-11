@@ -184,6 +184,7 @@ def _force_import_models():
         "app.models.renewal_risk_case",
         "app.models.report_run",
         "app.models.retained_image",
+        "app.models.inspection_processing_image",
         "app.models.retention_event",
         "app.models.root_cause",
         "app.models.saved_report",

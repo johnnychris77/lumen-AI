@@ -126,13 +126,37 @@ def build_clinical_report_pdf(row: Any, analysis: dict) -> bytes:
             ("Technician-Declared (human)", ", ".join(_declared) if _declared else "None declared"),
             ("Status", "AI unavailable / manual review required"),
         ]))
+        # Manufacturer baseline REFERENCE-IMAGE comparison — a real perceptual
+        # comparison against the approved reference image, when one ran. This is
+        # a visual-similarity measure ONLY, never a cleanliness/defect result,
+        # and is shown separately from (and does not change) the AI-unavailable
+        # clinical verdict above.
+        _bsim = ai_analysis.get("baseline_image_similarity") or {}
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Manufacturer Baseline Reference Comparison", ss["H"]))
+        if _bsim.get("is_image_comparison") and _bsim.get("similarity") is not None:
+            story.append(_kv_table([
+                ("Reference Image (baseline link)", str(_bsim.get("baseline_id") or "—")),
+                ("Reference Version", str(_bsim.get("baseline_version") or "—")),
+                ("Comparison Status", str(_bsim.get("status") or "—")),
+                ("Visual Similarity", f"{round(_bsim.get('similarity') * 100)}%"),
+                ("Method / Version", f"{_bsim.get('method') or '—'} / {_bsim.get('comparator_version') or '—'}"),
+                ("Interpretation", "Visual similarity only — NOT verified cleanliness or defect detection."),
+            ]))
+        else:
+            story.append(Paragraph(
+                "No visual (pixel) comparison was performed for this inspection "
+                "(no ACTIVE compatible reference image, or inspection image bytes unavailable).",
+                ss["Small"],
+            ))
         story.append(Spacer(1, 8))
         story.append(Paragraph(
             "No eligible, validated AI vision model evaluated this inspection, so LumenAI "
             "makes no clinical determination. A qualified technician must perform a full "
-            "manual visual inspection before this instrument is released. Any stored "
-            "baseline-comparison value is a non-clinical placeholder and is not shown here. "
-            "LumenAI makes no claim of FDA clearance or regulatory approval.",
+            "manual visual inspection before this instrument is released. The manufacturer "
+            "baseline reference comparison above, when shown, is a visual-similarity measure "
+            "only — never a cleanliness score, contamination diagnosis, or release "
+            "authorization. LumenAI makes no claim of FDA clearance or regulatory approval.",
             ss["Small"],
         ))
         doc.build(story)
