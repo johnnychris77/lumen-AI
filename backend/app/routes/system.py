@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.authz import require_roles
@@ -5,12 +7,44 @@ from app.authz import require_roles
 router = APIRouter(tags=["system"])
 
 
+def _deployed_commit() -> str:
+    """The git commit this process is running, for deployment verification.
+    Render sets RENDER_GIT_COMMIT automatically; GIT_COMMIT/SOURCE_COMMIT/
+    BUILD_MAIN_SHA are honored as fallbacks. 'unknown' when none is set."""
+    return (
+        os.getenv("RENDER_GIT_COMMIT")
+        or os.getenv("GIT_COMMIT")
+        or os.getenv("SOURCE_COMMIT")
+        or os.getenv("BUILD_MAIN_SHA")
+        or "unknown"
+    )
+
+
 @router.get("/health")
-async def health():
+async def health(request: Request):
+    """Healthcheck for edge / k8s / docker — and the Render deploy health gate
+    (``render.yaml`` healthCheckPath = /api/health).
+
+    - ``git_commit`` lets an operator confirm which commit production is actually
+      running (e.g. that a merge reached the backend) without dashboard access.
+    - ``schema_ok`` reports the startup schema-bootstrap outcome TRUTHFULLY: when
+      a required table/column for the baseline-image comparison is missing (a
+      failed or partial bootstrap), ``status`` is ``"degraded"``, never ``"ok"``
+      — so this check can never certify readiness while the app would silently
+      serve "no comparison performed". HTTP stays 200 so the deploy is still
+      observable (crashing startup instead black-holes the deploy and keeps the
+      stale build live). Only sanitized issue labels are exposed; full
+      exceptions stay in the logs.
     """
-    Simple healthcheck for edge / k8s / docker.
-    """
-    return {"status": "ok"}
+    schema_ok = bool(getattr(request.app.state, "schema_ok", True))
+    body = {
+        "status": "ok" if schema_ok else "degraded",
+        "git_commit": _deployed_commit(),
+        "schema_ok": schema_ok,
+    }
+    if not schema_ok:
+        body["schema_issues"] = list(getattr(request.app.state, "schema_issues", []))
+    return body
 
 
 @router.post("/auth/login")

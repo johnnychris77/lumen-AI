@@ -95,23 +95,53 @@ but **not** exact (byte identity required); `compare_against_baseline` threads
 similarity surface, `baseline_evidence`, persisted columns, no-release safety,
 trained-model-still-unavailable, and the clinical PDF rendering.
 
+## `/api/health` — the real route, deployment verification + honest readiness
+
+The served `/api/health` is **`app/routes/system.py`** (`/health` under the `/api`
+prefix), *not* `app/routes/health.py` (which is never included — dead code). The
+real route now returns:
+
+- `git_commit` — so an operator can confirm which commit production is actually
+  running without dashboard access (`RENDER_GIT_COMMIT` / `GIT_COMMIT` / … /
+  `unknown`).
+- `schema_ok` + `status` — the startup schema-bootstrap outcome, reported
+  **truthfully**. If a comparison-critical table/column
+  (`inspection_processing_images`, `baseline_image_links`,
+  `inspections.baseline_comparison_status`) is missing, `status` is
+  `"degraded"` (never `"ok"`) with sanitized `schema_issues`. A health check can
+  therefore never certify readiness while the app would silently serve
+  "no comparison performed".
+
+Startup stays **fail-open** (a schema error must not crash the process — on
+Render that fails the deploy's health check and silently keeps the OLD build
+live, which is the stale-deploy failure mode behind Inspections #14–#18). HTTP
+stays 200 so the new build is observable; the *body* carries the truth. Full
+exceptions stay in the logs, not the public health body.
+
 ## Task 5 — production acceptance (operator step)
 
 This sandbox cannot reach `*.onrender.com`. The backend and comparator are
-verified correct locally; the persistent production symptom
-(*"No visual (pixel) comparison was performed."*) is the generic
-`if (!ev)` frontend branch, which only renders when the API response carries **no
-`baseline_evidence` at all** — something current `main` never produces (every
-path emits it). That points to a **stale backend deploy** (predating
-`baseline_evidence`, added in #153), not the comparison logic.
+verified correct locally. Operator checks:
 
-Operator checks:
-
-1. `GET https://<backend>.onrender.com/api/health` → confirm `git_commit` matches
-   the merged commit. If it does not, the backend is not running the merged code
-   — redeploy/restart it (schema is bootstrapped at startup, so the new
-   processing table/columns only appear after a restart onto the merged code).
+1. `GET https://<backend>.onrender.com/api/health` → read `git_commit`
+   (confirm it matches the merged commit) **and** `schema_ok`/`status`. If
+   `status` is `"degraded"`, the listed `schema_issues` name the missing
+   table(s); if `git_commit` does not match the merge, the backend is stale —
+   redeploy/restart (schema bootstraps at startup, so new processing
+   table/columns only appear after a restart onto the merged code).
 2. Re-run the identical-image inspection and inspect the raw API response: if
    `analysis.baseline_evidence` is **absent**, the backend is stale (step 1); if
    present with `real_image_comparison_completed=true` and
    `comparison_status=exact_match`, the exact match is working.
+
+### Inspection #22 (rotary orthopedic) — "no comparison" is expected without an ACTIVE reference image
+
+When a manufacturer **metadata** record resolves but **no ACTIVE reference
+image** is registered for the instrument, the backend returns a fully populated
+`baseline_evidence` with `baseline_image_registered=false`,
+`comparison_status="no_approved_baseline"`, and the current frontend shows the
+*specific* message *"Manufacturer image not registered — the approved baseline is
+a library record only…"* (not the generic line). The exact-match 100% result
+requires an **ACTIVE** manufacturer reference **image** governed for that same
+instrument (DRAFT → PENDING_REVIEW → APPROVED → ACTIVE). "Baseline Source:
+Manufacturer" proves only a metadata record, not a reference image.
