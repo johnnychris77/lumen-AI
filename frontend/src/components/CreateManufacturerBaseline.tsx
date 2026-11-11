@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth, API_BASE } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { ImageAcquisition } from "@/components/ui/image-acquisition";
 
@@ -34,8 +34,6 @@ function slugifyType(text: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/tiff"];
-
 export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: () => void }) {
   const { headers, role, logout } = useAuth();
   const [instrumentType, setInstrumentType] = useState("");
@@ -43,6 +41,11 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  // Governance evidence for a genuine manufacturer-reference image.
+  const [sourceOrganization, setSourceOrganization] = useState("");
+  const [sourceReference, setSourceReference] = useState("");
+  const [rightsAttested, setRightsAttested] = useState(false);
+  const [noPhiAttested, setNoPhiAttested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -55,7 +58,17 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
       setBanner({ type: "error", message: "Instrument type, manufacturer, and a baseline image are required." });
       return;
     }
-    // Resolve the effective instrument type: a custom entry when "Other" is chosen.
+    if (!sourceOrganization.trim() || !sourceReference.trim()) {
+      setBanner({
+        type: "error",
+        message: "A manufacturer reference image needs a source organization and a source reference (document id, PO, or vendor-portal submission id).",
+      });
+      return;
+    }
+    if (!rightsAttested || !noPhiAttested) {
+      setBanner({ type: "error", message: "Please attest usage rights and that the image contains no PHI." });
+      return;
+    }
     const effectiveType = instrumentType === "other" ? slugifyType(customType) : instrumentType;
     if (instrumentType === "other" && !effectiveType) {
       setBanner({ type: "error", message: "Enter the instrument type name for “Other”." });
@@ -66,27 +79,7 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
     try {
       const hdrs = headers();
 
-      // 1. Upload the baseline image (records SHA-256)
-      const fd = new FormData();
-      fd.append("images", image);
-      const imgRes = await apiFetch(`/api/baselines/upload-images`, { raw: true,
-        method: "POST",
-        headers: { Authorization: hdrs["Authorization"] },
-        body: fd,
-      });
-      if (imgRes.status === 401) {
-        logout();
-        return;
-      }
-      if (!imgRes.ok) {
-        const e1 = await imgRes.json().catch(() => ({}));
-        setBanner({ type: "error", message: e1?.detail || `Image upload failed (${imgRes.status}).` });
-        return;
-      }
-      const imgData = await imgRes.json();
-      const sha = imgData?.images?.[0]?.sha256;
-
-      // 2. Create the approved manufacturer baseline keyed to the instrument type
+      // 1. Create the approved manufacturer baseline metadata record.
       const res = await apiFetch(`/api/baselines/manufacturer`, { raw: true,
         method: "POST",
         headers: hdrs,
@@ -94,13 +87,9 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
           instrument_type: effectiveType,
           manufacturer_name: manufacturer.trim(),
           model_name: model.trim(),
-          image_sha256: sha,
         }),
       });
-      if (res.status === 401) {
-        logout();
-        return;
-      }
+      if (res.status === 401) { logout(); return; }
       if (res.status === 403) {
         setBanner({ type: "error", message: "You need admin or SPD-manager access to create a baseline." });
         return;
@@ -114,15 +103,43 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
         return;
       }
       const data = await res.json();
+
+      // 2. Register the GOVERNED reference image (retains bytes + LCID + link
+      //    in PENDING_REVIEW). This replaces the old hash-only upload: the image
+      //    only becomes usable for comparison after review + activation.
+      const fd = new FormData();
+      fd.append("image", image);
+      fd.append("source_organization", sourceOrganization.trim());
+      fd.append("source_reference", sourceReference.trim());
+      fd.append("usage_rights_attested", "true");
+      fd.append("no_phi_attested", "true");
+      const imgRes = await apiFetch(`/api/baselines/${data.id}/reference-image`, { raw: true,
+        method: "POST",
+        headers: { Authorization: hdrs["Authorization"] },
+        body: fd,
+      });
+      if (imgRes.status === 401) { logout(); return; }
+      if (!imgRes.ok) {
+        const e1 = await imgRes.json().catch(() => ({}));
+        const msg = typeof e1?.detail === "string" ? e1.detail : `Reference image registration failed (${imgRes.status}).`;
+        setBanner({
+          type: "error",
+          message: `Baseline #${data.id} metadata created, but the reference image was not registered: ${msg}`,
+        });
+        return;
+      }
+      const imgData = await imgRes.json();
       setBanner({
         type: "success",
-        message: `Approved manufacturer baseline #${data.id} created for ${data.instrument_type.replace(/_/g, " ")}. Inspections of this instrument type will now be scored against it.`,
+        message:
+          `Baseline #${data.id} created for ${data.instrument_type.replace(/_/g, " ")}. ` +
+          `Reference image registered (status: ${imgData.lifecycle_status}). ` +
+          `It becomes usable for inspection comparison only after a reviewer approves it and an authorized role activates it — ` +
+          `it is not ACTIVE just because the metadata baseline was approved.`,
       });
-      setInstrumentType("");
-      setCustomType("");
-      setManufacturer("");
-      setModel("");
-      setImage(null);
+      setInstrumentType(""); setCustomType(""); setManufacturer(""); setModel("");
+      setImage(null); setSourceOrganization(""); setSourceReference("");
+      setRightsAttested(false); setNoPhiAttested(false);
       onCreated?.();
     } finally {
       setSubmitting(false);
@@ -134,7 +151,8 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
       <div>
         <h3 className="text-sm font-semibold text-slate-900">Add Manufacturer Baseline</h3>
         <p className="text-xs text-slate-500">
-          Enter the instrument, upload its reference image, and it becomes the approved baseline the AI scores against.
+          Enter the instrument and upload its reference image. The image is retained and governed; it is
+          used for a visual-similarity comparison only after it is reviewed and activated — not automatically.
         </p>
       </div>
 
@@ -206,6 +224,29 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
           />
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Source Organization *</label>
+            <input
+              value={sourceOrganization}
+              onChange={(e) => setSourceOrganization(e.target.value)}
+              disabled={!canCreate}
+              placeholder="e.g. Karl Storz GmbH"
+              className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Source Reference *</label>
+            <input
+              value={sourceReference}
+              onChange={(e) => setSourceReference(e.target.value)}
+              disabled={!canCreate}
+              placeholder="Document id, PO, or vendor-portal submission id"
+              className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Baseline Image *</label>
           <ImageAcquisition
@@ -218,13 +259,30 @@ export default function CreateManufacturerBaseline({ onCreated }: { onCreated?: 
           />
         </div>
 
+        <div className="space-y-1.5 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+          <label className="flex items-start gap-2 text-xs text-slate-700">
+            <input type="checkbox" checked={rightsAttested} disabled={!canCreate}
+              onChange={(e) => setRightsAttested(e.target.checked)} className="mt-0.5" />
+            I attest the organization has the rights to store and use this reference image.
+          </label>
+          <label className="flex items-start gap-2 text-xs text-slate-700">
+            <input type="checkbox" checked={noPhiAttested} disabled={!canCreate}
+              onChange={(e) => setNoPhiAttested(e.target.checked)} className="mt-0.5" />
+            I attest this is a manufacturer reference instrument image and contains no PHI.
+          </label>
+        </div>
+
         <button
           type="submit"
           disabled={submitting || !canCreate}
           className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {submitting ? "Creating baseline…" : "Create Approved Baseline"}
+          {submitting ? "Creating baseline…" : "Create Baseline + Register Reference Image"}
         </button>
+        <p className="text-[11px] text-slate-500">
+          The reference image is submitted for review. A reviewer must approve it and an authorized role must
+          activate it before inspections compare against it.
+        </p>
       </form>
     </div>
   );

@@ -269,7 +269,9 @@ def test_analyze_inspection_live_model_result_is_additive_only():
         # `live_model_result` and its derived projection `ai_analysis` are the
         # live-model surface and legitimately reflect the real contract (and its
         # per-call inference_timestamp), so they are excluded here.
-        live_surface = {"live_model_result", "ai_analysis", "demo_scoring"}
+        # `baseline_evidence` is likewise the real baseline/model provenance
+        # surface — `inspection_image_bytes_available` must change with bytes.
+        live_surface = {"live_model_result", "ai_analysis", "demo_scoring", "baseline_evidence"}
         for key in without_bytes:
             if key in live_surface:
                 continue
