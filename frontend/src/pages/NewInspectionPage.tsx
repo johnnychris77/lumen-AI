@@ -584,6 +584,8 @@ export default function NewInspectionPage() {
         instrument_type: form.instrument_type,
         site_name: form.facility_name,
         vendor_name: form.manufacturer || "unknown",
+        instrument_manufacturer: form.manufacturer || undefined,
+        instrument_model: form.model_number || undefined,
         facility_name: form.facility_name,
         department: form.department || undefined,
         tray_id: form.tray_id || undefined,
@@ -1354,9 +1356,18 @@ function AIPredictionPanel({
                 )}
               </p>
             )}
-            {prediction.analysis?.baseline_evidence && (
-              <BaselineEvidenceRow ev={prediction.analysis.baseline_evidence} />
-            )}
+          </div>
+        )}
+
+        {/* Baseline + model provenance — rendered for EVERY result state (not
+            only AI-unavailable): the seven facts are meaningful when a model
+            completes (trained_vision_model_available=true) and when no approved
+            baseline exists (all baseline facts false), and the backend returns
+            them in every case. */}
+        {prediction.analysis?.baseline_evidence && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 space-y-1">
+            <p className="text-xs font-medium text-slate-600">Baseline &amp; model provenance</p>
+            <BaselineEvidenceRow ev={prediction.analysis.baseline_evidence} />
           </div>
         )}
 

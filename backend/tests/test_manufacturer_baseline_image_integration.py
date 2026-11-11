@@ -84,13 +84,14 @@ def _seed_entry(db, *, instrument_type, manufacturer=None, model=None) -> Baseli
     return entry
 
 
-def _register_reference(db, *, entry, image_bytes, tenant="default-tenant"):
+def _register_reference(db, *, entry, image_bytes, tenant="default-tenant", anatomy_zone="", inspection_view=""):
     return bir.register_manufacturer_reference_image(
         db, tenant_id=tenant, baseline_library_entry_id=entry.id,
         image_bytes=image_bytes, content_type="image/png", uploaded_by="spd@x",
         source_organization="Karl Storz GmbH",
         source_reference="PO-2024-0199 / vendor-portal submission 55",
         usage_rights_attested=True, no_phi_attested=True,
+        anatomy_zone=anatomy_zone, inspection_view=inspection_view,
     )
 
 
@@ -173,12 +174,15 @@ def test_compatibility_enforced():
     try:
         itype = "mbi_compat"
         entry = _seed_entry(db, instrument_type=itype)
-        reg = _register_reference(db, entry=entry, image_bytes=_texture_png(4))
+        # Register with a SPECIFIC zone/view so zone/view incompatibility is
+        # testable (a whole_instrument overview is compatible with any zone).
+        reg = _register_reference(db, entry=entry, image_bytes=_texture_png(4),
+                                  anatomy_zone="jaw", inspection_view="closed")
         link = _approve_and_activate(db, link=reg["link"])
 
         base = dict(tenant_id="default-tenant", instrument_family=itype,
                     manufacturer=_mfr(itype), model_name=_model(itype),
-                    anatomy_zone="whole_instrument", inspection_view="overview")
+                    anatomy_zone="jaw", inspection_view="closed")
         assert check_compatibility(candidate=CandidateContext(**base), baseline_link=link) == COMPATIBLE
         assert check_compatibility(
             candidate=CandidateContext(**{**base, "manufacturer": "Olympus"}), baseline_link=link
@@ -272,7 +276,8 @@ def test_real_comparison_produces_traceable_similarity():
 
         analysis = analyze_inspection(
             db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
-            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img, demo_scoring=False,
+            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img,
+            instrument_manufacturer=_mfr(itype), instrument_model=_model(itype), demo_scoring=False,
         )
         sim = analysis["ai_analysis"]["baseline_image_similarity"]
         assert sim["is_image_comparison"] is True
@@ -295,7 +300,8 @@ def test_no_inspection_bytes_unavailable_comparison():
 
         analysis = analyze_inspection(
             db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
-            image_sha256="c" * 64, image_bytes=None, demo_scoring=False,
+            image_sha256="c" * 64, image_bytes=None,
+            instrument_manufacturer=_mfr(itype), instrument_model=_model(itype), demo_scoring=False,
         )
         ev = analysis["baseline_evidence"]
         assert ev["inspection_image_bytes_available"] is False
@@ -317,7 +323,8 @@ def test_comparison_success_still_ai_unavailable():
 
         analysis = analyze_inspection(
             db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
-            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img, demo_scoring=False,
+            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img,
+            instrument_manufacturer=_mfr(itype), instrument_model=_model(itype), demo_scoring=False,
         )
         ev = analysis["baseline_evidence"]
         # Baseline image comparison genuinely ran …
@@ -342,11 +349,70 @@ def test_no_fabricated_finding_or_clearance():
 
         analysis = analyze_inspection(
             db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
-            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img, demo_scoring=False,
+            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img,
+            instrument_manufacturer=_mfr(itype), instrument_model=_model(itype), demo_scoring=False,
         )
         assert analysis["predicted_findings"] == []
         assert analysis["inspection_score"] is None
         assert analysis["ai_analysis"]["authorizes_release"] is False
         assert analysis["human_review_required"] is True
+    finally:
+        db.close()
+
+
+# ── 12. No cross-manufacturer false match (Codex P1) ──────────────────────────
+def test_no_cross_manufacturer_false_match():
+    db = SessionLocal()
+    try:
+        itype = "mbi_xmfr"
+        img = _texture_png(12)
+        # One ACTIVE manufacturer-A reference image for this instrument type.
+        entry = _seed_entry(db, instrument_type=itype, manufacturer="Alpha Surgical", model="A-1")
+        reg = _register_reference(db, entry=entry, image_bytes=img)
+        _approve_and_activate(db, link=reg["link"])
+
+        # An inspection of a DIFFERENT manufacturer's instrument of the same type
+        # must never resolve or compare against Alpha's reference image.
+        analysis = analyze_inspection(
+            db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
+            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img,
+            instrument_manufacturer="Beta Medical", instrument_model="B-9", demo_scoring=False,
+        )
+        ev = analysis["baseline_evidence"]
+        assert ev["real_image_comparison_completed"] is False
+        assert analysis["ai_analysis"]["baseline_image_similarity"] is None or \
+            analysis["ai_analysis"]["baseline_image_similarity"]["similarity"] is None
+
+        # The correct manufacturer DOES resolve and compare.
+        ok = analyze_inspection(
+            db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
+            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img,
+            instrument_manufacturer="Alpha Surgical", instrument_model="A-1", demo_scoring=False,
+        )
+        assert ok["baseline_evidence"]["real_image_comparison_completed"] is True
+    finally:
+        db.close()
+
+
+# ── 13. An overview reference resolves a zone-tagged inspection (Codex P1) ─────
+def test_overview_reference_matches_zone_tagged_inspection():
+    db = SessionLocal()
+    try:
+        itype = "mbi_overview"
+        img = _texture_png(13)
+        entry = _seed_entry(db, instrument_type=itype)  # registered whole_instrument/overview
+        reg = _register_reference(db, entry=entry, image_bytes=img)
+        _approve_and_activate(db, link=reg["link"])
+
+        # The technician tags a specific anatomy zone/view on the inspection image.
+        analysis = analyze_inspection(
+            db, instrument_type=itype, tenant_id="default-tenant", has_image=True,
+            image_sha256=hashlib.sha256(img).hexdigest(), image_bytes=img,
+            instrument_manufacturer=_mfr(itype), instrument_model=_model(itype),
+            image_view_tags=[{"anatomy_zone": "jaw", "image_view": "jaw"}], demo_scoring=False,
+        )
+        # The whole-instrument overview reference still resolves + compares.
+        assert analysis["baseline_evidence"]["real_image_comparison_completed"] is True
+        assert analysis["ai_analysis"]["baseline_image_similarity"]["similarity"] is not None
     finally:
         db.close()
