@@ -1,0 +1,25 @@
+# OPTIONAL research-only dependencies for Project Lens Stage 5 vision experiments.
+#
+# DO NOT install these in the production FastAPI image or in CI. They are kept
+# separate on purpose: the production API and the test suite run without them, and
+# every module under backend/research/ imports cleanly with none of these present
+# (CPU smoke tests use a deterministic stub embedder instead of PyTorch).
+#
+# Install ONLY in an isolated research environment, e.g.:
+#     python -m venv .venv-research && . .venv-research/bin/activate
+#     pip install -r backend/requirements.txt -r backend/requirements-research.txt
+# For a CPU-only Torch build:
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#
+# Never commit model weights, datasets, or patient images.
+
+torch>=2.2,<3
+torchvision>=0.17,<1
+numpy>=1.26,<3
+
+# DINOv2 can be loaded via torch.hub or the HuggingFace transformers AutoModel
+# path; uncomment if the transformers route is used (verify license upstream):
+# transformers>=4.40,<5
+
+# Stage 5B anomaly localization (PatchCore / PaDiM); uncomment when that work starts:
+# anomalib>=1.0,<2
