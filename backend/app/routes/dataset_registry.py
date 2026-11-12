@@ -432,6 +432,11 @@ def _sample_from_entry(db: Session, entry: DatasetRegistryEntry, retained: Retai
         "exposure_flag": quality.exposure_flag if quality else None,
         "cropping_flag": quality.cropping_flag if quality else None,
         "annotation_disagreement": (review.agreement is False) if review else False,
+        # Stage 4 — carry the verified structured provenance so candidate
+        # advancement is gated on real_clinical+approved provenance, never on
+        # trained status alone.
+        "data_provenance_class": entry.data_provenance_class,
+        "provenance_approval_status": entry.provenance_approval_status,
     }
 
 

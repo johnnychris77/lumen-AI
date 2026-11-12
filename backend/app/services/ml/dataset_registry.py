@@ -12,8 +12,16 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models.dataset_governance import DatasetRegistryEntry, DatasetVersion, UNLABELED
+from app.models.dataset_governance import (
+    PROVENANCE_APPROVAL_NOT_REQUIRED,
+    PROVENANCE_APPROVAL_PENDING,
+    RESEARCH_PROVENANCE_CLASSES,
+    DatasetRegistryEntry,
+    DatasetVersion,
+    UNLABELED,
+)
 from app.services.ml.lcid_service import generate_lcid, instrument_digital_twin_id, resolve_baseline_id
+from app.services.ml.provenance_governance import normalize_provenance_class
 
 # Required, non-empty on every registered image (Section 1's field list,
 # minus the ones populated later in the lifecycle — current_label/reviewer/
@@ -145,6 +153,12 @@ def register_image(
     inspection_region: str = "",
     image_type: str = "",
     reviewer_notes: str = "",
+    data_provenance_class: str = "",
+    provenance_source_id: str = "",
+    provenance_source_version: str = "",
+    provenance_source_institution: str = "",
+    provenance_rights_evidence_ref: str = "",
+    provenance_specimen_id: str = "",
 ) -> DatasetRegistryEntry:
     """Register one image into the governed dataset registry (Section 1).
 
@@ -186,8 +200,28 @@ def register_image(
         db, instrument_type=instrument_family, manufacturer=manufacturer,
     )
 
+    # Stage 4 — structured provenance recorded at ingestion. A declared class is
+    # normalised (unknown/blank → legacy_unverified, fail-closed). Ingestion can
+    # DECLARE a class but can never APPROVE it: real_clinical/unknown stay
+    # "pending" and only an authorized governance role may approve them later via
+    # provenance_governance.set_provenance_classification. Research classes need
+    # no clinical approval and are marked "not_required" (still never clinical).
+    _prov_class = normalize_provenance_class(data_provenance_class)
+    _prov_approval = (
+        PROVENANCE_APPROVAL_NOT_REQUIRED
+        if _prov_class in RESEARCH_PROVENANCE_CLASSES
+        else PROVENANCE_APPROVAL_PENDING
+    )
+
     row = DatasetRegistryEntry(
         lcid=lcid,
+        data_provenance_class=_prov_class,
+        provenance_source_id=provenance_source_id,
+        provenance_source_version=provenance_source_version,
+        provenance_source_institution=provenance_source_institution,
+        provenance_rights_evidence_ref=provenance_rights_evidence_ref,
+        provenance_specimen_id=provenance_specimen_id,
+        provenance_approval_status=_prov_approval,
         digital_twin_id=resolved_twin_id,
         baseline_id=resolved_baseline_id,
         tenant_id=tenant_id,

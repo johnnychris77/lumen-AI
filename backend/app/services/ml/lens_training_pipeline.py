@@ -283,6 +283,10 @@ def run_lens_training(
         "label_counts": eligibility["label_counts"],
         "not_evaluated_classes": eligibility["excluded_classes"],
         "data_provenance": eligibility["data_provenance"],
+        # Stage 4 — carried verbatim from the governed eligibility report so
+        # model registration can gate clinical Candidate advancement on verified
+        # provenance, never on a bare "real" string.
+        "clinical_promotion_eligible": bool(eligibility.get("clinical_promotion_eligible")),
         "note": (
             "Real, deterministic, pure-Python hierarchical (Stage B abnormality / Stage C category) "
             "one-vs-rest logistic-regression baseline over Pillow-computed image features. "

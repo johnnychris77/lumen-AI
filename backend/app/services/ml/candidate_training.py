@@ -298,6 +298,16 @@ def run_full_candidate_pipeline(
     artifact_path = export_artifact(run, model_id=model_id, model_version=model_version, artifact_dir=artifact_dir)
 
     trained = run["training_status"] == "trained"
+    # Stage 4 — Data Provenance Enforcement. Candidate advancement requires
+    # VERIFIED, APPROVED real_clinical provenance for the WHOLE cohort, not merely
+    # "trained" status (the confirmed implicit advancement removed here). A model
+    # built from any synthetic / external / laboratory / unknown / unapproved /
+    # mixed data stays "Experimental" — it can never automatically advance toward
+    # clinical serving. The human-led promotion ladder beyond Candidate is
+    # unchanged.
+    from app.services.ml.provenance_governance import summarize_cohort_provenance
+    _cohort = summarize_cohort_provenance(samples)
+    clinical_eligible = trained and _cohort["clinical_promotion_eligible"]
     row = ModelRegistryEntry(
         tenant_id=tenant_id,
         model_id=model_id,
@@ -317,11 +327,18 @@ def run_full_candidate_pipeline(
         error_analysis_report=json.dumps(run.get("error_analysis") or {}),
         artifact_path=artifact_path,
         training_run_id=run.get("config_hash", ""),
-        candidate_stage="Candidate" if trained else "Experimental",
+        candidate_stage="Candidate" if clinical_eligible else "Experimental",
         known_limitations=(
-            "Foundation-scale, small-sample logistic-regression baseline over Pillow-computed "
-            "image features. Not clinically validated. Eligible only for Prospective "
-            "Shadow-Mode Clinical Validation, never direct deployment."
+            (
+                "Foundation-scale, small-sample logistic-regression baseline over Pillow-computed "
+                "image features. Not clinically validated. Eligible only for Prospective "
+                "Shadow-Mode Clinical Validation, never direct deployment."
+                if clinical_eligible else
+                "Trained, but NOT advanced to Candidate: the training cohort is not verified "
+                "real_clinical provenance (synthetic / external / laboratory / unknown / "
+                "unapproved / mixed). Research/experimental evidence only — never automatically "
+                "eligible for clinical serving."
+            )
             if trained else
             "Insufficient real, labeled, decodable training data at run time — no validated performance."
         ),

@@ -95,6 +95,59 @@ ELIGIBILITY_RESEARCH_ONLY = "research_only"
 ELIGIBILITY_RIGHTS_RESTRICTED = "rights_restricted"
 ELIGIBILITY_ARCHIVED = "archived"
 
+# ── Data provenance classification (Stage 4 — Data Provenance Enforcement) ───
+# The authoritative, STRUCTURED provenance of an image's source. Clinical model
+# promotion requires VERIFIED, APPROVED real_clinical provenance — it is never
+# inferred from facility / manufacturer names, filenames, image bytes, or
+# user-declared free text (that is the confirmed fail-open these constants
+# replace). Rows that predate this classification are conservatively
+# LEGACY_UNVERIFIED and are never treated as clinical until a governance
+# authority reviews them.
+PROVENANCE_SYNTHETIC_EXPERIMENTAL = "synthetic_experimental"
+PROVENANCE_EXTERNAL_NONCLINICAL = "external_nonclinical"
+PROVENANCE_LABORATORY_CONTROLLED = "laboratory_controlled"
+PROVENANCE_REAL_CLINICAL = "real_clinical"
+PROVENANCE_UNKNOWN = "unknown"
+PROVENANCE_LEGACY_UNVERIFIED = "legacy_unverified"
+
+PROVENANCE_CLASSES = [
+    PROVENANCE_SYNTHETIC_EXPERIMENTAL, PROVENANCE_EXTERNAL_NONCLINICAL,
+    PROVENANCE_LABORATORY_CONTROLLED, PROVENANCE_REAL_CLINICAL,
+    PROVENANCE_UNKNOWN, PROVENANCE_LEGACY_UNVERIFIED,
+]
+
+# The ONLY class that may satisfy a clinical-data provenance gate — and only
+# when its approval state is PROVENANCE_APPROVAL_APPROVED.
+CLINICAL_PROVENANCE_CLASS = PROVENANCE_REAL_CLINICAL
+
+# Classes usable for explicitly-approved research/experiment training only.
+# They may support an approved experiment but NEVER become clinical training
+# evidence automatically.
+RESEARCH_PROVENANCE_CLASSES = frozenset({
+    PROVENANCE_SYNTHETIC_EXPERIMENTAL, PROVENANCE_EXTERNAL_NONCLINICAL,
+    PROVENANCE_LABORATORY_CONTROLLED,
+})
+
+# Classes that carry no established provenance and must never qualify as
+# clinical or research-training evidence without explicit review.
+UNVERIFIED_PROVENANCE_CLASSES = frozenset({
+    PROVENANCE_UNKNOWN, PROVENANCE_LEGACY_UNVERIFIED,
+})
+
+# Approval state of the provenance CLASSIFICATION itself (distinct from the
+# dataset-eligibility states above). A client cannot self-certify real_clinical
+# by supplying an API field: only an authorized governance role may set
+# APPROVED, and the transition is recorded in the immutable audit chain.
+PROVENANCE_APPROVAL_PENDING = "pending"
+PROVENANCE_APPROVAL_APPROVED = "approved"
+PROVENANCE_APPROVAL_REJECTED = "rejected"
+PROVENANCE_APPROVAL_NOT_REQUIRED = "not_required"
+
+PROVENANCE_APPROVAL_STATES = [
+    PROVENANCE_APPROVAL_PENDING, PROVENANCE_APPROVAL_APPROVED,
+    PROVENANCE_APPROVAL_REJECTED, PROVENANCE_APPROVAL_NOT_REQUIRED,
+]
+
 
 class DatasetVersion(Base):
     """An immutable, named dataset snapshot (Section 2).
@@ -207,6 +260,27 @@ class DatasetRegistryEntry(Base):
     inspection_region: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     image_type: Mapped[str] = mapped_column(String(30), default="", nullable=False, index=True)
     reviewer_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    # ── Stage 4: structured data provenance (authoritative, fail-closed) ─────
+    # The verified source class. Defaults to LEGACY_UNVERIFIED so any row created
+    # or migrated without an explicit, governed classification is NEVER treated
+    # as clinical evidence (fail-closed). The remaining columns carry the
+    # provenance evidence and the authority-gated approval of the classification.
+    data_provenance_class: Mapped[str] = mapped_column(
+        String(40), default=PROVENANCE_LEGACY_UNVERIFIED, nullable=False, index=True,
+    )
+    provenance_source_id: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    provenance_source_version: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    provenance_source_institution: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    provenance_rights_evidence_ref: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    provenance_specimen_id: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    # Approval of the CLASSIFICATION by an authorized governance role. real_clinical
+    # must be APPROVED before it can satisfy any clinical-data provenance gate.
+    provenance_approval_status: Mapped[str] = mapped_column(
+        String(20), default=PROVENANCE_APPROVAL_PENDING, nullable=False, index=True,
+    )
+    provenance_approved_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    provenance_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class LcidSequenceCounter(Base):
