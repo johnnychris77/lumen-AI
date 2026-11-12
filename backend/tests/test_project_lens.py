@@ -63,6 +63,20 @@ def _train_and_register(db: Session, *, tenant_id: str = TENANT, samples_per_cla
     model = register_lens_model(db, tenant_id=tenant_id, run=run, model_version=model_version)
     if candidate_stage is not None:
         model.candidate_stage = candidate_stage
+        # A model that is promoted to a serving stage in a test is, by that
+        # test's intent, a legitimately-authorized model: give it the human-led
+        # clinical-review, approval, and deployment sign-offs the live adapter
+        # now (correctly) requires, so these tests exercise a properly-governed
+        # served model rather than relying on the stage-only bypass that
+        # hardening removed. Tests that want to prove the bypass is closed set
+        # these fields themselves (see the not-authorized regression tests).
+        if live_inference_adapter._serving_authorization_reason(model) is not None and (
+            live_inference_adapter._stage_rank(candidate_stage)
+            >= live_inference_adapter._stage_rank(live_inference_adapter.MIN_STAGE_FOR_LIVE_SERVING)
+        ):
+            model.clinical_review_status = "approved"
+            model.approval_status = "validated"
+            model.deployment_status = "deployed"
         db.commit()
         db.refresh(model)
     return model, run

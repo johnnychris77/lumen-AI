@@ -12,8 +12,17 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models.dataset_governance import DatasetRegistryEntry, DatasetVersion, UNLABELED
+from app.models.dataset_governance import (
+    PROVENANCE_APPROVAL_NOT_REQUIRED,
+    PROVENANCE_APPROVAL_PENDING,
+    RESEARCH_PROVENANCE_CLASSES,
+    DatasetRegistryEntry,
+    DatasetVersion,
+    UNLABELED,
+)
+from app.models.retained_image import RetainedImage
 from app.services.ml.lcid_service import generate_lcid, instrument_digital_twin_id, resolve_baseline_id
+from app.services.ml.provenance_governance import normalize_provenance_class
 
 # Required, non-empty on every registered image (Section 1's field list,
 # minus the ones populated later in the lifecycle — current_label/reviewer/
@@ -45,6 +54,76 @@ class DuplicateImageError(ValueError):
         super().__init__(
             f"Image with sha256={image_sha256} is already registered as dataset entry {existing_entry_id}."
         )
+
+
+class RetainedImageNotFoundError(ValueError):
+    """The referenced RetainedImage does not exist for this tenant."""
+
+    def __init__(self, retained_image_id: int):
+        self.retained_image_id = retained_image_id
+        super().__init__(f"Retained image {retained_image_id} not found for this tenant.")
+
+
+class CrossTenantImageError(ValueError):
+    """The referenced RetainedImage exists but belongs to a different tenant.
+
+    Raised instead of silently reading another tenant's image, enforcing the
+    tenant-data-isolation guarantee. Callers map this to a 404 so existence
+    under another tenant is never confirmed to the requester.
+    """
+
+    def __init__(self, retained_image_id: int):
+        self.retained_image_id = retained_image_id
+        super().__init__(f"Retained image {retained_image_id} not found for this tenant.")
+
+
+class ImageIdentityMismatchError(ValueError):
+    """The declared ``image_sha256`` does not match the retained image's stored
+    content hash — the registration is describing different bytes than the
+    retained image it points at (identity spoofing / wrong reference)."""
+
+    def __init__(self, retained_image_id: int, expected_sha256: str, declared_sha256: str):
+        self.retained_image_id = retained_image_id
+        self.expected_sha256 = expected_sha256
+        self.declared_sha256 = declared_sha256
+        super().__init__(
+            f"Declared image_sha256 does not match the retained image's recorded content hash "
+            f"for retained image {retained_image_id}."
+        )
+
+
+def verify_retained_image_for_registration(
+    db: Session, *, tenant_id: str, retained_image_id: int, image_sha256: str
+) -> RetainedImage:
+    """Fail-closed ownership + identity check for a dataset registration that
+    references a ``RetainedImage``.
+
+    Enforces, against the authenticated tenant context:
+      * ownership — the retained image exists AND belongs to ``tenant_id`` (a
+        tenant can never register another tenant's raw image into its dataset);
+      * identity / SHA-256 consistency — the declared ``image_sha256`` matches
+        the retained image's recorded content hash, so an entry cannot claim to
+        be bytes other than the ones actually retained.
+
+    Call this from the authenticated registration entrypoints (routes). It is
+    deliberately NOT embedded in ``register_image`` itself so lower-level,
+    already-trusted callers/fixtures that pass opaque identifiers are
+    unaffected; the security boundary is the tenant-authenticated request.
+    """
+    retained = (
+        db.query(RetainedImage)
+        .filter(RetainedImage.id == retained_image_id)
+        .first()
+    )
+    if retained is None:
+        raise RetainedImageNotFoundError(retained_image_id)
+    if retained.tenant_id != tenant_id:
+        raise CrossTenantImageError(retained_image_id)
+    # Identity: the declared hash must match the retained image's recorded hash
+    # when the retained image carries one (fail-closed on a real mismatch).
+    if retained.sha256 and retained.sha256 != image_sha256:
+        raise ImageIdentityMismatchError(retained_image_id, retained.sha256, image_sha256)
+    return retained
 
 
 def create_dataset_version(
@@ -145,6 +224,12 @@ def register_image(
     inspection_region: str = "",
     image_type: str = "",
     reviewer_notes: str = "",
+    data_provenance_class: str = "",
+    provenance_source_id: str = "",
+    provenance_source_version: str = "",
+    provenance_source_institution: str = "",
+    provenance_rights_evidence_ref: str = "",
+    provenance_specimen_id: str = "",
 ) -> DatasetRegistryEntry:
     """Register one image into the governed dataset registry (Section 1).
 
@@ -186,8 +271,28 @@ def register_image(
         db, instrument_type=instrument_family, manufacturer=manufacturer,
     )
 
+    # Stage 4 — structured provenance recorded at ingestion. A declared class is
+    # normalised (unknown/blank → legacy_unverified, fail-closed). Ingestion can
+    # DECLARE a class but can never APPROVE it: real_clinical/unknown stay
+    # "pending" and only an authorized governance role may approve them later via
+    # provenance_governance.set_provenance_classification. Research classes need
+    # no clinical approval and are marked "not_required" (still never clinical).
+    _prov_class = normalize_provenance_class(data_provenance_class)
+    _prov_approval = (
+        PROVENANCE_APPROVAL_NOT_REQUIRED
+        if _prov_class in RESEARCH_PROVENANCE_CLASSES
+        else PROVENANCE_APPROVAL_PENDING
+    )
+
     row = DatasetRegistryEntry(
         lcid=lcid,
+        data_provenance_class=_prov_class,
+        provenance_source_id=provenance_source_id,
+        provenance_source_version=provenance_source_version,
+        provenance_source_institution=provenance_source_institution,
+        provenance_rights_evidence_ref=provenance_rights_evidence_ref,
+        provenance_specimen_id=provenance_specimen_id,
+        provenance_approval_status=_prov_approval,
         digital_twin_id=resolved_twin_id,
         baseline_id=resolved_baseline_id,
         tenant_id=tenant_id,

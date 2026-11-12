@@ -67,6 +67,12 @@ def _diverse_samples(prefix: str, n_per_class: int = 8):
                 "instrument_family": f"inst{sid % 3}",
                 "anatomy_zone": "hinge",
                 "image_sha256": f"{prefix}-sha-{sid}",
+                # Stage 4 — a governed clinical dataset: verified, APPROVED
+                # real_clinical provenance is what legitimately permits Candidate
+                # advancement (non-clinical cohorts are covered separately in
+                # tests/test_stage4_provenance_enforcement.py).
+                "data_provenance_class": "real_clinical",
+                "provenance_approval_status": "approved",
             })
             sid += 1
     return samples
@@ -465,7 +471,7 @@ class TestApiEndToEnd:
                         "/api/dataset-registry/images",
                         json={
                             "dataset_version_id": vid, "retained_image_id": retained.id,
-                            "image_sha256": f"api-sha-{label}-{i}", "instrument_family": f"inst{i % 3}",
+                            "image_sha256": f"api-{label}-{i}", "instrument_family": f"inst{i % 3}",
                             "manufacturer": f"M{i % 3}", "facility": f"F{i % 3}", "operator": "tech",
                             "capture_device": "phone", "image_resolution": "300x300",
                             "anatomy_zone": "hinge", "phi_verification": "verified",
@@ -478,6 +484,11 @@ class TestApiEndToEnd:
                     entry.current_label = label
                     entry.training_eligibility = True
                     entry.image_quality = "Good"
+                    # Stage 4 — verified, APPROVED real_clinical provenance is what
+                    # legitimately permits Candidate advancement for this governed
+                    # clinical cohort (set by an authorized governance role).
+                    entry.data_provenance_class = "real_clinical"
+                    entry.provenance_approval_status = "approved"
                     db.commit()
                     client.post(f"/api/dataset-registry/images/{eid}/annotation-transition", json={"to_state": "LABELED"}, headers=AUTH_ADMIN)
                     client.post(f"/api/dataset-registry/images/{eid}/annotation-transition", json={"to_state": "SECOND_REVIEW"}, headers=AUTH_ADMIN)

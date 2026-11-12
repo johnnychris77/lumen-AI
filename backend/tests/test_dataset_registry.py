@@ -196,7 +196,7 @@ class TestAnnotationWorkflow:
         vid = vr.json()["id"]
         ir = client.post(
             "/api/dataset-registry/images",
-            json={"dataset_version_id": vid, "retained_image_id": rid, "image_sha256": "j" * 64, **_valid_metadata()},
+            json={"dataset_version_id": vid, "retained_image_id": rid, "image_sha256": "r" * 56 + "api1", **_valid_metadata()},
             headers=AUTH_ADMIN,
         )
         eid = ir.json()["id"]
@@ -220,7 +220,7 @@ class TestAnnotationWorkflow:
         vr = client.post("/api/dataset-registry/versions", json={"version_label": "test-v-anno-viewer"}, headers=AUTH_ADMIN)
         ir = client.post(
             "/api/dataset-registry/images",
-            json={"dataset_version_id": vr.json()["id"], "retained_image_id": rid, "image_sha256": "k" * 64, **_valid_metadata()},
+            json={"dataset_version_id": vr.json()["id"], "retained_image_id": rid, "image_sha256": "r" * 56 + "api2", **_valid_metadata()},
             headers=AUTH_ADMIN,
         )
         eid = ir.json()["id"]
@@ -313,7 +313,7 @@ class TestImageQualityAssessment:
         vr = client.post("/api/dataset-registry/versions", json={"version_label": "test-v-quality"}, headers=AUTH_ADMIN)
         ir = client.post(
             "/api/dataset-registry/images",
-            json={"dataset_version_id": vr.json()["id"], "retained_image_id": rid, "image_sha256": "l" * 64, **_valid_metadata()},
+            json={"dataset_version_id": vr.json()["id"], "retained_image_id": rid, "image_sha256": "r" * 56 + "quality1", **_valid_metadata()},
             headers=AUTH_ADMIN,
         )
         eid = ir.json()["id"]

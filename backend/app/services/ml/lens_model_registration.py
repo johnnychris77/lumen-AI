@@ -9,6 +9,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.models.dataset_governance import PROVENANCE_REAL_CLINICAL
 from app.models.model_registry import ModelRegistryEntry
 from app.services.ml.lens_training_pipeline import export_artifact
 from app.services.ml.model_card import generate_model_card
@@ -36,8 +37,20 @@ def register_lens_model(
         run, model_id=MODEL_ID, model_version=model_version, artifact_dir=artifact_dir,
     )
     trained = run.get("training_status") == "trained"
-    is_real_data = run.get("data_provenance") == "real"
-    candidate_stage = "Candidate" if (trained and is_real_data) else "Experimental"
+    # Stage 4 — Data Provenance Enforcement. Clinical Candidate advancement
+    # requires VERIFIED, APPROVED real_clinical provenance for the WHOLE cohort,
+    # expressed as the explicit `clinical_promotion_eligible` flag computed from
+    # the governed registry records — never a bare ``data_provenance == "real"``
+    # string (the confirmed fail-open removed here). A run built from any
+    # synthetic, external_nonclinical, laboratory_controlled, unknown,
+    # unapproved, legacy, or mixed data stays "Experimental" no matter how well
+    # it trained. This tightens only the Experimental->Candidate assignment; the
+    # human-led Candidate/Validated/Pilot/Production ladder is unchanged.
+    clinical_eligible = (
+        run.get("clinical_promotion_eligible") is True
+        and run.get("data_provenance") == PROVENANCE_REAL_CLINICAL
+    )
+    candidate_stage = "Candidate" if (trained and clinical_eligible) else "Experimental"
 
     row = ModelRegistryEntry(
         tenant_id=tenant_id,
@@ -67,7 +80,7 @@ def register_lens_model(
                 "synthetic images pushed through the real governed review/Ground-Truth "
                 "pipeline, never real clinical images. Never presented as, or promoted "
                 "toward, a real clinical candidate. "
-            ) if not is_real_data else ""
+            ) if not clinical_eligible else ""
         ) + (
             "Hierarchical Stage B (abnormality)/Stage C (category) one-vs-rest "
             "logistic-regression baseline over Pillow-computed image features "

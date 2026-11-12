@@ -26,6 +26,11 @@ from sqlalchemy.orm import Session
 from app.models.annotation_database import GROUND_TRUTH_ACTIVE, Annotation
 from app.models.dataset_governance import ARCHIVED, QUALITY_REJECT, DatasetRegistryEntry
 from app.models.retained_image import RetainedImage
+from app.services.ml.provenance_governance import (
+    clinical_exclusion_reason,
+    normalize_provenance_class,
+    summarize_cohort_provenance,
+)
 from app.services.observation_taxonomy import (
     NOT_EVALUATED_BY_CURRENT_MODEL,
     OBSERVATION_TAXONOMY,
@@ -126,6 +131,17 @@ def compute_training_eligibility(db: Session, *, tenant_id: str) -> dict[str, An
             "image_quality": entry.image_quality or "unknown",
             "image_sha256": entry.image_sha256,
             "digital_twin_id": ann.digital_twin_id or "",
+            # Grouping identities carried through to the leakage-safe split so no
+            # same-specimen / same-instrument / same-image set straddles the
+            # train/validation/test boundary (Project Canvas -> Project Lens).
+            "specimen_id": entry.provenance_specimen_id or entry.instrument_id or "",
+            "instrument_id": entry.instrument_id or "",
+            # Stage 4 — structured, VERIFIED provenance carried from the governed
+            # registry row (never inferred from facility/manufacturer strings).
+            "data_provenance_class": normalize_provenance_class(entry.data_provenance_class),
+            "provenance_approval_status": entry.provenance_approval_status,
+            "provenance_source_id": entry.provenance_source_id or "",
+            "clinical_exclusion_reason": clinical_exclusion_reason(entry),
         })
 
     label_counts = Counter(s["label"] for s in samples)
@@ -136,14 +152,23 @@ def compute_training_eligibility(db: Session, *, tenant_id: str) -> dict[str, An
         if c not in _NON_TRAINABLE_CATEGORIES and c not in eligible_classes
     ]
 
-    # Declared-experimental-run disclosure (Section 3 / FIRST_MODEL_SCOPE.md):
-    # any facility name containing this marker identifies synthetic images
-    # pushed through the real governed pipeline for this sprint's one
-    # declared experimental run — never silently counted as real clinical
-    # evidence.
-    experimental_marker = "Synthetic Experimental Lab"
-    is_experimental = any(experimental_marker in f for f in provenance_facilities) or not provenance_facilities
-    data_provenance = "synthetic_experimental" if is_experimental else "real"
+    # Stage 4 — Data Provenance Enforcement. Provenance is derived from the
+    # VERIFIED structured registry records (data_provenance_class +
+    # provenance_approval_status), NOT from facility-name string matching (the
+    # confirmed fail-open removed here). A cohort is clinically promotable only
+    # when every sample is verified real_clinical + approved; a mixed, unknown,
+    # legacy, unapproved, or empty cohort is never granted clinical status.
+    provenance = summarize_cohort_provenance(samples)
+    clinical_promotion_eligible = provenance["clinical_promotion_eligible"]
+    # Back-compat ``data_provenance``: downstream (model registration) must only
+    # ever treat "real_clinical" as clinical, and only together with the
+    # explicit clinical_promotion_eligible flag below. A homogeneous approved
+    # clinical cohort reports "real_clinical"; anything else reports its honest
+    # aggregate class (mixed / a research class / unknown / legacy / none) and
+    # is never clinically promotable.
+    data_provenance = (
+        "real_clinical" if clinical_promotion_eligible else provenance["aggregate_class"]
+    )
 
     return {
         "tenant_id": tenant_id,
@@ -156,6 +181,12 @@ def compute_training_eligibility(db: Session, *, tenant_id: str) -> dict[str, An
         "not_evaluated_marker": NOT_EVALUATED_BY_CURRENT_MODEL,
         "min_samples_per_class": MIN_SAMPLES_PER_CLASS,
         "data_provenance": data_provenance,
+        # Stage 4 — explicit, structured provenance surface.
+        "provenance_breakdown": provenance["class_counts"],
+        "provenance_excluded_from_clinical": provenance["excluded_from_clinical"],
+        "clinical_promotion_eligible": clinical_promotion_eligible,
+        "research_experiment_eligible": provenance["research_experiment_eligible"],
+        "clinical_sample_count": provenance["clinical_sample_count"],
         "facilities": sorted(provenance_facilities),
         "samples": samples,
     }

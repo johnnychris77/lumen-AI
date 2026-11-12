@@ -41,7 +41,70 @@ HEALTH_CHECKSUM_FAILED = "checksum_failed"
 HEALTH_INCOMPATIBLE_PREPROCESSING = "incompatible_preprocessing"
 HEALTH_INCOMPATIBLE_LABEL_MAP = "incompatible_label_map"
 HEALTH_NOT_PROMOTED = "not_promoted"
+HEALTH_NOT_AUTHORIZED = "not_authorized"
+HEALTH_SHADOW_ONLY = "shadow_only"
 HEALTH_INITIALIZATION_FAILED = "initialization_failed"
+
+# A model's pipeline STAGE (candidate_stage) is necessary but NOT sufficient to
+# serve it for a live clinical inference. Per ModelRegistryEntry's own contract
+# (approval_status "governs whether a model may drive a clinical recommendation"),
+# serving additionally requires the human-led governance signals below, so a
+# model is never served solely because it was trained and marked Candidate:
+#   - clinical review signed off  (clinical_review_status == "approved")
+#   - model approved to drive a clinical recommendation
+#     (approval_status in APPROVAL_STATUSES_FOR_SERVING)
+#   - deployment authorized for the requested mode (see below)
+#
+# Deployment authorization is mode-specific, separating SHADOW EVALUATION from
+# CLINICALLY ACTIONABLE serving:
+#   - "deployed" → the model may produce technician-facing, clinically actionable
+#     output (the live `predict()` path).
+#   - "shadow"   → the model may ONLY be evaluated silently (shadow mode); it must
+#     never generate a technician-facing clinical recommendation. It is therefore
+#     loadable only via the shadow-evaluation path (require_actionable=False) and
+#     is refused by the actionable `predict()` path (HEALTH_SHADOW_ONLY).
+CLINICAL_REVIEW_APPROVED = "approved"
+APPROVAL_STATUSES_FOR_SERVING = frozenset({"pilot", "validated"})
+DEPLOYMENT_STATUSES_FOR_ACTIONABLE = frozenset({"deployed"})
+DEPLOYMENT_STATUSES_FOR_SHADOW_EVAL = frozenset({"shadow", "deployed"})
+
+
+def _serving_authorization_reason(
+    model: ModelRegistryEntry, *, require_actionable: bool = True
+) -> tuple[str, str] | None:
+    """None when ``model`` carries the human-led clinical-review, approval, and
+    deployment-authorization sign-offs required to drive the requested inference;
+    otherwise ``(health_state, reason)``. Never infers authorization from
+    candidate_stage, training_status, or provenance alone.
+
+    ``require_actionable`` True demands deployment_status == "deployed" (a
+    technician-facing, clinically actionable inference). False allows a shadow or
+    deployed model (silent shadow evaluation only). A model authorized only for
+    shadow, asked for actionable serving, is reported as HEALTH_SHADOW_ONLY so
+    the caller can keep it out of the technician-facing path.
+    """
+    if getattr(model, "clinical_review_status", "") != CLINICAL_REVIEW_APPROVED:
+        return (HEALTH_NOT_AUTHORIZED,
+                "clinical review is not approved "
+                f"(clinical_review_status='{getattr(model, 'clinical_review_status', '')}').")
+    if getattr(model, "approval_status", "") not in APPROVAL_STATUSES_FOR_SERVING:
+        return (HEALTH_NOT_AUTHORIZED,
+                "model is not approved to drive a clinical recommendation "
+                f"(approval_status='{getattr(model, 'approval_status', '')}').")
+    deployment = getattr(model, "deployment_status", "")
+    allowed = DEPLOYMENT_STATUSES_FOR_ACTIONABLE if require_actionable else DEPLOYMENT_STATUSES_FOR_SHADOW_EVAL
+    if deployment not in allowed:
+        # A shadow-authorized model asked for actionable serving is a distinct,
+        # expected state — never a clinical recommendation, only shadow eval.
+        if require_actionable and deployment == "shadow":
+            return (HEALTH_SHADOW_ONLY,
+                    "model is authorized for shadow evaluation only and must not "
+                    "produce a technician-facing clinical recommendation "
+                    "(deployment_status='shadow').")
+        return (HEALTH_NOT_AUTHORIZED,
+                "deployment is not authorized "
+                f"(deployment_status='{deployment}').")
+    return None
 
 # A model must be promoted at least this far up the (Experimental ->
 # Candidate -> Validated Candidate -> Pilot -> Production) ladder before the
@@ -58,7 +121,9 @@ def _stage_rank(stage: str) -> int:
     return CANDIDATE_STAGES.index(stage) if stage in CANDIDATE_STAGES else -1
 
 
-def load_active_model(db: Session, *, tenant_id: str, model_id: str = MODEL_ID) -> dict[str, Any]:
+def load_active_model(
+    db: Session, *, tenant_id: str, model_id: str = MODEL_ID, require_actionable: bool = True
+) -> dict[str, Any]:
     """Returns ``{"status": <health state>, "reason": str, "model": entry|None,
     "artifact": payload|None}``. Only ever returns ``status="available"``
     when a real artifact file exists on disk, its checksum matches the
@@ -85,6 +150,25 @@ def load_active_model(db: Session, *, tenant_id: str, model_id: str = MODEL_ID) 
                 f"The most advanced registered model (id={best.id}) is at stage "
                 f"'{best.candidate_stage}', below the minimum '{MIN_STAGE_FOR_LIVE_SERVING}' "
                 "required for live inference."
+            ),
+        }
+
+    # Stage is necessary but not sufficient: a model is never served for a live
+    # clinical inference solely because it is trained and marked Candidate. It
+    # must additionally carry the human-led clinical-review, model-approval, and
+    # deployment-authorization sign-offs (fail-closed). Shadow-only models are
+    # refused on the actionable path (HEALTH_SHADOW_ONLY) so they never reach a
+    # technician as a clinical recommendation.
+    auth = _serving_authorization_reason(best, require_actionable=require_actionable)
+    if auth is not None:
+        health_state, auth_reason = auth
+        return {
+            "status": health_state, "model": best, "artifact": None,
+            "reason": (
+                f"The most advanced registered model (id={best.id}) is at stage "
+                f"'{best.candidate_stage}' but is not authorized for "
+                f"{'clinically actionable' if require_actionable else 'shadow'} "
+                f"inference: {auth_reason}"
             ),
         }
 
@@ -115,6 +199,60 @@ def load_active_model(db: Session, *, tenant_id: str, model_id: str = MODEL_ID) 
                 "reason": "Artifact label map is missing or malformed."}
 
     return {"status": HEALTH_AVAILABLE, "model": best, "artifact": artifact, "reason": ""}
+
+
+def shadow_evaluate(
+    db: Session, *, tenant_id: str, image_bytes: bytes | None, model_id: str = MODEL_ID,
+) -> dict[str, Any]:
+    """Silent SHADOW-mode evaluation — deliberately separate from ``predict()``.
+
+    Loads a shadow- OR deployed-authorized model (``require_actionable=False``)
+    and returns a non-actionable payload intended only for silent logging/
+    comparison via ``shadow_mode.record_shadow_prediction``. It NEVER returns a
+    technician-facing clinical-recommendation contract: no ``analysis_status``,
+    no ``observation`` block, and ``clinical_recommendation_shown`` is always
+    False. A shadow-only model (which ``predict()`` refuses) is served here.
+    """
+    loaded = load_active_model(db, tenant_id=tenant_id, model_id=model_id, require_actionable=False)
+    base = {
+        "mode": "shadow",
+        "actionable": False,
+        "clinical_recommendation_shown": False,
+        "model_id": model_id,
+    }
+    if loaded["status"] != HEALTH_AVAILABLE:
+        return {**base, "shadow_available": False, "status": loaded["status"], "reason": loaded["reason"],
+                "predicted_label": None, "predicted_confidence": None}
+
+    model, artifact = loaded["model"], loaded["artifact"]
+    if image_bytes is None:
+        return {**base, "shadow_available": False, "status": HEALTH_UNAVAILABLE,
+                "reason": "No real image bytes were retained for this submission.",
+                "model_version": model.model_version, "predicted_label": None, "predicted_confidence": None}
+
+    vec = _feature_vector(image_bytes)
+    if vec is None:
+        return {**base, "shadow_available": False, "status": HEALTH_INITIALIZATION_FAILED,
+                "reason": "Image bytes could not be decoded for shadow evaluation.",
+                "model_version": model.model_version, "predicted_label": None, "predicted_confidence": None}
+
+    label, raw_probability = predict_hierarchical_from_weights(
+        stage_b_weights=artifact.get("stage_b_weights"),
+        stage_c_weights_by_class=artifact.get("stage_c_weights_by_class") or {},
+        eligible_classes=artifact["eligible_classes"], feature_vector=vec,
+    )
+    temperature = artifact["calibration"]["temperature"]
+    calibrated = round(apply_temperature(raw_probability, temperature), 4) if raw_probability else raw_probability
+    return {
+        **base,
+        "shadow_available": True,
+        "status": HEALTH_AVAILABLE,
+        "model_version": model.model_version,
+        "deployment_status": model.deployment_status,
+        "predicted_label": label,
+        "predicted_confidence": calibrated,
+        "note": "Shadow evaluation only — never shown to the technician as a clinical recommendation.",
+    }
 
 
 def _limitations() -> list[str]:
