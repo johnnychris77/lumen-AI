@@ -377,6 +377,46 @@ _CANDIDATE_DEFAULT_ANATOMY_ZONE = "whole_instrument"
 _CANDIDATE_DEFAULT_VIEW = "overview"
 
 
+def _candidate_identity_for(
+    *,
+    decl_mfr: str,
+    decl_model: str,
+    instrument_type: str,
+    image_view_tags: Optional[list[dict]],
+    inspected_zones: Optional[list[str]],
+    instrument_barcode: Optional[str],
+    instrument_udi: Optional[str],
+    inspection_id: Optional[int],
+) -> dict[str, Any]:
+    """Candidate identity for baseline-IMAGE resolution: the INSPECTION's own
+    declared manufacturer/model plus its anatomy zone / view, so the resolution
+    hierarchy can match an approved ACTIVE manufacturer reference image. Built
+    from the inspection's identity only — never derived from whichever baseline
+    resolved. Zone/view default to the same whole-instrument overview tokens the
+    reference-image registration uses when neither side scopes them (an explicit
+    match on equal documented fields, never a silent cross-zone match)."""
+    from app.services.ml.lcid_service import instrument_digital_twin_id as _twin_id
+
+    _first_tag = image_view_tags[0] if image_view_tags else {}
+    if not isinstance(_first_tag, dict):
+        _first_tag = {}
+    return {
+        "manufacturer": decl_mfr,
+        "model_name": decl_model,
+        "anatomy_zone": (
+            _first_tag.get("anatomy_zone")
+            or (inspected_zones[0] if inspected_zones else "")
+            or _CANDIDATE_DEFAULT_ANATOMY_ZONE
+        ),
+        "inspection_view": _first_tag.get("image_view") or _CANDIDATE_DEFAULT_VIEW,
+        "orientation": "",
+        "digital_twin_id": _twin_id(
+            instrument_barcode=instrument_barcode, instrument_udi=instrument_udi,
+            instrument_type=instrument_type, inspection_id=inspection_id,
+        ),
+    }
+
+
 def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
     """The single authoritative source of AI-generated observations for this
     inspection, derived ONLY from the real live-model contract
@@ -475,10 +515,15 @@ def _baseline_evidence(
         BaselineImageLink.tenant_id == tenant_id,
         BaselineImageLink.lifecycle_status != STATE_ARCHIVED,
     )
-    _baseline_entry_id = resolution.get("baseline_entry_id")
-    if _baseline_entry_id is not None:
+    # ONLY a genuine BaselineLibraryEntry id may be matched against
+    # BaselineImageLink.baseline_library_entry_id. A vendor-subscription id
+    # (from the uploaded-baseline path) is a different table's key and would
+    # silently match the wrong link or none, so it is never used here — when no
+    # library-entry id resolved, fall back to instrument-family scoping.
+    _library_entry_id = resolution.get("baseline_library_entry_id")
+    if _library_entry_id is not None:
         _registered_q = _registered_q.filter(
-            BaselineImageLink.baseline_library_entry_id == _baseline_entry_id
+            BaselineImageLink.baseline_library_entry_id == _library_entry_id
         )
     else:
         _registered_q = _registered_q.filter(
@@ -754,6 +799,12 @@ def _resolve_from_library(
             return {
                 "baseline_found": True,
                 "baseline_source": source,
+                # Typed, explicit identifier: this id belongs to BaselineLibraryEntry
+                # and is the ONLY id that may be compared to
+                # BaselineImageLink.baseline_library_entry_id. `baseline_entry_id`
+                # is kept as a legacy alias for existing readers.
+                "baseline_library_entry_id": entry.id,
+                "vendor_subscription_id": None,
                 "baseline_entry_id": entry.id,
                 "baseline_version": entry.baseline_version,
                 "baseline_udi": entry.udi or "",
@@ -817,6 +868,14 @@ def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] 
     return {
         "baseline_found": True,
         "baseline_source": source,
+        # `best.id` is an EnterpriseVendorBaselineSubscription id — a DIFFERENT
+        # table from BaselineLibraryEntry. It must NEVER be compared to
+        # BaselineImageLink.baseline_library_entry_id, so it is exposed under its
+        # own typed key and baseline_library_entry_id is left None. (`baseline_entry_id`
+        # is kept as a legacy alias only; downstream baseline-image scoping uses
+        # baseline_library_entry_id exclusively.)
+        "baseline_library_entry_id": None,
+        "vendor_subscription_id": best.id,
         "baseline_entry_id": best.id,
         "baseline_version": best.baseline_version,
         # Uploaded vendor-subscription baselines carry no UDI to verify against.
@@ -849,6 +908,8 @@ def resolve_baseline(
     return {
         "baseline_found": False,
         "baseline_source": None,
+        "baseline_library_entry_id": None,
+        "vendor_subscription_id": None,
         "baseline_entry_id": None,
         "baseline_version": None,
         "baseline_udi": "",
@@ -1720,31 +1781,39 @@ def analyze_inspection(
             [], baseline_found=False, analysis_status="supervisor_review_required",
             strict_no_placeholder=get_settings().ai_strict_no_placeholder,
         )
+        # Baseline-IMAGE resolution is INDEPENDENT of approved metadata: pass the
+        # inspection's candidate identity so an ACTIVE, compatible, tenant-scoped
+        # reference image can still resolve and be compared here — even though no
+        # approved baseline-library metadata was found (Inspection #30 fix). The
+        # previous early return hardcoded every baseline fact to False and never
+        # ran the image resolver, so a governed ACTIVE reference image was
+        # silently ignored whenever its metadata record was absent/unapproved.
+        _nb_candidate_identity = _candidate_identity_for(
+            decl_mfr=_decl_mfr, decl_model=_decl_model, instrument_type=instrument_type,
+            image_view_tags=image_view_tags, inspected_zones=inspected_zones,
+            instrument_barcode=instrument_barcode, instrument_udi=instrument_udi,
+            inspection_id=inspection_id,
+        )
         no_baseline["live_model_result"] = _live_model_result(
             db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
             inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,
+            candidate_identity=_nb_candidate_identity,
         )
         # Authoritative AI surface — derived ONLY from the live contract, never
-        # the placeholder. No baseline + no promoted model ⇒ AI_UNAVAILABLE.
+        # the placeholder. No promoted model ⇒ AI_UNAVAILABLE; any genuine
+        # baseline-image similarity from the comparison above is carried here.
         no_baseline["ai_analysis"] = _authoritative_ai_analysis(no_baseline["live_model_result"])
         no_baseline["ai_observations_source"] = "live_model"
-        # No approved baseline metadata at all → every downstream baseline fact
-        # is false; only the trained-model fact can still be independently true.
-        _nb_evidence = {
-            "manufacturer_baseline_metadata_found": False,
-            "baseline_image_registered": False,
-            "baseline_image_active": False,
-            "baseline_image_compatible": False,
-            "inspection_image_bytes_available": image_bytes is not None,
-            "real_image_comparison_completed": False,
-            "trained_vision_model_available": bool(
-                (no_baseline["live_model_result"].get("model") or {}).get("model_version")
-            ),
-            "comparison_status": "no_approved_baseline",
-            "baseline_image_link_id": None,
-            "resolution_scope": "none",
-            "resolution_reason": "No approved manufacturer baseline record for this instrument.",
-        }
+        # Seven independent provenance facts computed from the REAL resolver +
+        # comparison result: manufacturer_baseline_metadata_found stays False (no
+        # approved metadata), but baseline_image_registered / active / compatible /
+        # real_image_comparison_completed reflect the real ACTIVE reference image
+        # and comparison whenever one resolves — decoupled from the metadata gate.
+        _nb_evidence = _baseline_evidence(
+            db, tenant_id=tenant_id, instrument_type=instrument_type,
+            resolution=resolution, live_result=no_baseline["live_model_result"],
+            image_bytes=image_bytes,
+        )
         no_baseline["baseline_evidence"] = _nb_evidence
         no_baseline["ai_analysis"]["baseline_evidence"] = _nb_evidence
         no_baseline["clinical_decision"] = build_clinical_decision(no_baseline, training_mode=training_mode)
@@ -1864,31 +1933,12 @@ def analyze_inspection(
     # the same whole-instrument overview tokens the reference-image registration
     # uses when neither side scopes them — an explicit match on equal documented
     # fields, never a silent cross-manufacturer/zone match.
-    from app.services.ml.lcid_service import instrument_digital_twin_id as _twin_id
-    _first_tag = image_view_tags[0] if image_view_tags else {}
-    if not isinstance(_first_tag, dict):
-        _first_tag = {}
-    _candidate_identity = {
-        # From the INSPECTION's own declared instrument identity — never derived
-        # from whichever baseline resolved. When the inspection declares no
-        # manufacturer, this stays blank, so no manufacturer-specific reference
-        # image can resolve (one manufacturer's instrument never matches
-        # another's reference). resolve_baseline was itself narrowed by the
-        # declared manufacturer/model, so when present the two already agree.
-        "manufacturer": _decl_mfr,
-        "model_name": _decl_model,
-        "anatomy_zone": (
-            _first_tag.get("anatomy_zone")
-            or (inspected_zones[0] if inspected_zones else "")
-            or _CANDIDATE_DEFAULT_ANATOMY_ZONE
-        ),
-        "inspection_view": _first_tag.get("image_view") or _CANDIDATE_DEFAULT_VIEW,
-        "orientation": "",
-        "digital_twin_id": _twin_id(
-            instrument_barcode=instrument_barcode, instrument_udi=instrument_udi,
-            instrument_type=instrument_type, inspection_id=inspection_id,
-        ),
-    }
+    _candidate_identity = _candidate_identity_for(
+        decl_mfr=_decl_mfr, decl_model=_decl_model, instrument_type=instrument_type,
+        image_view_tags=image_view_tags, inspected_zones=inspected_zones,
+        instrument_barcode=instrument_barcode, instrument_udi=instrument_udi,
+        inspection_id=inspection_id,
+    )
     _live = _live_model_result(
         db, tenant_id=tenant_id, image_bytes=image_bytes, instrument_type=instrument_type,
         inspection_id=inspection_id, image_sha256=image_sha256, retained_image_id=retained_image_id,

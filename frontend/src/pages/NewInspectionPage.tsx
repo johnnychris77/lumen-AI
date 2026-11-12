@@ -1319,13 +1319,59 @@ function AIPredictionPanel({
           </span>
         </div>
 
+        {/* Panel A — Manufacturer Reference Comparison. Rendered INDEPENDENTLY of
+            the clinical-scoring / AI state: a governed ACTIVE reference image can
+            resolve and be compared even when no approved baseline METADATA exists
+            (Inspection #30) and even when the trained vision model is unavailable.
+            Visual similarity is never a cleanliness/clinical result. */}
+        {prediction.analysis?.baseline_evidence && (
+          <div className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Manufacturer Reference Comparison
+            </p>
+            {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison ? (
+              (() => {
+                const sim = prediction.analysis.ai_analysis.baseline_image_similarity!;
+                const pct = Math.round((sim.similarity ?? 0) * 100);
+                const isExact = sim.status === "exact_match";
+                const parts: string[] = [];
+                if (sim.method) parts.push(`method ${sim.method}`);
+                if (sim.baseline_id != null) parts.push(`reference image #${sim.baseline_id}`);
+                const meta = parts.length ? ` (${parts.join(", ")})` : "";
+                return (
+                  <>
+                    <p className="text-slate-800">
+                      <span className="font-medium">Visual similarity:</span>{" "}
+                      {pct}%{isExact ? " — exact same image" : ""}{meta}.
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      {isExact
+                        ? "Identical-image matching is not proof of cleanliness — a qualified person must still complete the inspection."
+                        : sim.label}
+                    </p>
+                  </>
+                );
+              })()
+            ) : (
+              <p className="text-xs text-slate-600">
+                {baselineImageStatusText(
+                  prediction.analysis?.baseline_evidence,
+                  prediction.analysis?.ai_analysis?.baseline_image_similarity?.resolution_reason,
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
         {baselineMissing && (
           <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-1">
             <p className="font-semibold">⚠ Manufacturer baseline not found — Supervisor review required before final scoring.</p>
             <p className="text-xs text-amber-700">
-              No approved manufacturer baseline exists for this instrument type.
-              Risk scoring is locked until a supervisor or admin applies a baseline override.
-              Technicians cannot set baseline status — this is system-controlled.
+              No approved manufacturer baseline record exists for this instrument type, so
+              <span className="font-medium"> clinical risk scoring</span> is withheld until a supervisor or
+              admin applies a baseline override. This does not affect the manufacturer reference-image
+              visual comparison above, which is calculated independently whenever an ACTIVE reference
+              image resolves. Technicians cannot set baseline status — this is system-controlled.
             </p>
           </div>
         )}
@@ -1343,37 +1389,8 @@ function AIPredictionPanel({
               are verified records — not an AI cleanliness assessment. A qualified person
               must complete this inspection before any release decision.
             </p>
-            {prediction.analysis?.ai_analysis?.baseline_image_similarity?.is_image_comparison ? (
-              (() => {
-                const sim = prediction.analysis.ai_analysis.baseline_image_similarity!;
-                const pct = Math.round((sim.similarity ?? 0) * 100);
-                const isExact = sim.status === "exact_match";
-                const parts: string[] = [];
-                if (sim.method) parts.push(`method ${sim.method}`);
-                if (sim.baseline_id != null) parts.push(`reference image #${sim.baseline_id}`);
-                const meta = parts.length ? ` (${parts.join(", ")})` : "";
-                return (
-                  <p className="text-xs text-slate-700">
-                    <span className="font-medium">Manufacturer baseline visual similarity:</span>{" "}
-                    {pct}%{isExact ? " — exact same image" : ""}{meta}.
-                    {" "}
-                    <span className="text-slate-600">
-                      {isExact
-                        ? "Identical-image matching is not proof of cleanliness — a qualified person must still complete the inspection."
-                        : sim.label}
-                    </span>
-                  </p>
-                );
-              })()
-            ) : (
-              <p className="text-xs text-slate-600">
-                <span className="font-medium">Baseline reference image:</span>{" "}
-                {baselineImageStatusText(
-                  prediction.analysis?.baseline_evidence,
-                  prediction.analysis?.ai_analysis?.baseline_image_similarity?.resolution_reason,
-                )}
-              </p>
-            )}
+            {/* Manufacturer reference comparison is shown in its own panel (A)
+                above, independently of AI availability. */}
           </div>
         )}
 
