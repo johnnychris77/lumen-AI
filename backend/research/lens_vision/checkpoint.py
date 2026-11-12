@@ -52,6 +52,10 @@ class CheckpointRecord:
     approved: bool            # a human approved this checkpoint for research use
     rights_cleared: bool      # data/usage rights for this checkpoint are verified
     requires_file: bool       # whether a real weights file must be present + verified
+    architecture: str = ""    # the architecture this checkpoint IS (compatibility check)
+    # Checkpoint-specific preprocessing contract (resize + normalization), so a
+    # run can never silently apply the wrong transform to the wrong weights.
+    preprocessing: dict | None = None
 
 
 # The approval registry. DINOv2 is listed but intentionally NOT approved and NOT
@@ -79,6 +83,11 @@ _REGISTRY: dict[str, CheckpointRecord] = {
         approved=False,       # BLOCKED: awaiting license + data-rights verification
         rights_cleared=False,
         requires_file=True,
+        architecture="vit_small_patch14_dinov2",
+        preprocessing={
+            "resize": [224, 224], "interpolation": "bicubic",
+            "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225],
+        },
     ),
     "dinov2_vitb14": CheckpointRecord(
         checkpoint_id="dinov2_vitb14",
@@ -89,6 +98,11 @@ _REGISTRY: dict[str, CheckpointRecord] = {
         approved=False,
         rights_cleared=False,
         requires_file=True,
+        architecture="vit_base_patch14_dinov2",
+        preprocessing={
+            "resize": [224, 224], "interpolation": "bicubic",
+            "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225],
+        },
     ),
 }
 

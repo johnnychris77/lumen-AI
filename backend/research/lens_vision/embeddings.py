@@ -65,38 +65,83 @@ class StubEmbedder(Embedder):
         return vec
 
 
+class ArchitectureMismatchError(RuntimeError):
+    """The loaded model's architecture does not match the checkpoint's declared
+    architecture — a checkpoint/architecture compatibility violation."""
+
+
 class Dinov2Embedder(Embedder):
     """Frozen DINOv2 backbone. Requires torch + an approved, verified checkpoint.
 
-    This class is intentionally import-safe without torch; torch is only imported
-    when an instance is actually constructed/used, and only after the checkpoint
-    passes governance verification.
+    Import-safe without torch; torch is imported only when an instance is actually
+    constructed, and only after the checkpoint passes governance verification.
+    A real benchmark therefore requires, by construction:
+      * an explicitly approved, rights-cleared, hash-VERIFIED checkpoint;
+      * checkpoint/architecture COMPATIBILITY (the loaded model must report the
+        checkpoint's declared architecture);
+      * the checkpoint-SPECIFIC preprocessing/normalization (from the record);
+      * evaluation mode + disabled gradients;
+      * deterministic behaviour where the backend supports it;
+      * a recorded checkpoint digest + architecture (``self.digest`` /
+        ``self.architecture``) for the model card.
+    Automatic weight download is deliberately not implemented.
     """
 
     name = "dinov2"
 
-    def __init__(self, *, checkpoint_id: str, file_path: str | None = None, model_loader=None):
+    def __init__(self, *, checkpoint_id: str, file_path: str | None = None, model_loader=None, seed: int = 1337):
         # Governance first: refuse unless approved + rights-cleared + hash-verified.
         self.record = verify_checkpoint(checkpoint_id, file_path=file_path)
+        self.checkpoint_id = checkpoint_id
+        self.architecture = self.record.architecture
+        self.preprocessing = self.record.preprocessing or {}
+        self.digest = self.record.expected_sha256
         require_torch()  # raises ResearchDependencyMissing when torch is absent
+        if not self.architecture or not self.preprocessing:
+            raise ArchitectureMismatchError(
+                f"Checkpoint '{checkpoint_id}' has no declared architecture/preprocessing; "
+                "a real embedding run requires both."
+            )
         if model_loader is None:
             raise NotImplementedError(
-                "A model_loader(file_path)->callable must be supplied to load approved "
-                "DINOv2 weights in an isolated research environment. Automatic download "
-                "is deliberately not implemented."
+                "A model_loader(file_path)->(model, architecture) must be supplied to load "
+                "approved DINOv2 weights in an isolated research environment. Automatic "
+                "download is deliberately not implemented."
             )
-        self._model = model_loader(file_path)
+        import torch  # noqa: PLC0415
+
+        # Determinism where supported (guarded — some ops have no deterministic impl).
+        torch.manual_seed(seed)
+        try:
+            torch.use_deterministic_algorithms(True, warn_only=True)
+        except (RuntimeError, AttributeError):
+            pass
+
+        model, loaded_arch = model_loader(file_path)
+        if loaded_arch != self.architecture:
+            raise ArchitectureMismatchError(
+                f"Loaded model architecture '{loaded_arch}' does not match checkpoint "
+                f"'{checkpoint_id}' declared architecture '{self.architecture}'."
+            )
+        model.eval()  # evaluation mode — no dropout/batchnorm updates
+        self._model = model
+
+    def _transform(self, image_bytes: bytes | None):  # pragma: no cover - needs torch
+        import numpy as np  # noqa: PLC0415
+        import torch  # noqa: PLC0415
+
+        size = tuple(self.preprocessing.get("resize", [224, 224]))
+        img = decode_rgb(image_bytes, size=size)
+        arr = np.asarray(img, dtype="float32") / 255.0
+        mean = np.asarray(self.preprocessing.get("mean", [0.0, 0.0, 0.0]), dtype="float32")
+        std = np.asarray(self.preprocessing.get("std", [1.0, 1.0, 1.0]), dtype="float32")
+        arr = (arr - mean) / std
+        return torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)
 
     def embed(self, image_bytes: bytes | None) -> list[float]:  # pragma: no cover - needs torch
         import torch  # noqa: PLC0415
 
-        img = decode_rgb(image_bytes, size=(224, 224))
-        # Minimal, explicit preprocessing; a real run pins the exact transform in
-        # the model card. Kept here only so the path is complete when torch exists.
-        import numpy as np  # noqa: PLC0415
-
-        arr = np.asarray(img, dtype="float32") / 255.0
-        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)
-        with torch.no_grad():
+        tensor = self._transform(image_bytes)
+        with torch.no_grad():  # disabled gradient computation
             out = self._model(tensor)
         return out.flatten().tolist()

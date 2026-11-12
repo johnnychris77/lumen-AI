@@ -23,11 +23,17 @@ RESEARCH_ONLY_BANNER = (
 def build_model_card(config: ResearchRunConfig, result: dict[str, Any]) -> dict[str, Any]:
     checkpoint_license = "n/a"
     checkpoint_status = "none"
+    checkpoint_architecture = ""
+    checkpoint_digest = ""
+    checkpoint_preprocessing = None
     try:
         rec = get_record(config.checkpoint_id) if config.checkpoint_id else None
         if rec is not None:
             checkpoint_license = rec.license
             checkpoint_status = "approved" if (rec.approved and rec.rights_cleared) else "blocked"
+            checkpoint_architecture = rec.architecture
+            checkpoint_digest = rec.expected_sha256
+            checkpoint_preprocessing = rec.preprocessing
     except Exception:
         checkpoint_status = "unregistered"
 
@@ -41,6 +47,9 @@ def build_model_card(config: ResearchRunConfig, result: dict[str, Any]) -> dict[
             "id": config.checkpoint_id,
             "license": checkpoint_license,
             "status": checkpoint_status,
+            "architecture": checkpoint_architecture,
+            "digest_sha256": checkpoint_digest,
+            "preprocessing": checkpoint_preprocessing,
         },
         "source_provenance": {
             "class": config.source_provenance_class,

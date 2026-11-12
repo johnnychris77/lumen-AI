@@ -101,6 +101,50 @@ Executed results are recorded in the PR description.
   pipeline evidence only, not a model comparison.
 - No anomaly-localization prototype was trained (awaiting permitted data).
 
+## Pre-5B hardening pass (four findings)
+
+**H1 — Authorized data USAGE, not just provenance class.** `data_loader` now
+routes every entry through `governance.authorize_research_entry`, reusing the
+Project Canvas controls: tenant match, research-authorized provenance, the
+structural **rights / quality / PHI / archival** gate (`_structural_reason`),
+**retention** status, and — for clinical data — an opt-in **and** a verified
+**research-use scope** (a granted, non-withdrawn `ConsentRecord` of a research-use
+type), never a caller boolean alone. `external_nonclinical` / `laboratory_controlled`
+are no longer eligible on class alone — they must also pass the usage gate.
+
+**H2 — Ground-truth integrity.** The implicit `current_label or
+"no_observable_abnormality"` default is removed. `governance.ground_truth_status`
+reads the authoritative Annotation Database (`ground_truth_status == ACTIVE`) and
+distinguishes **verified_normal / abnormal / unknown / unlabeled**. The loader
+drops unlabeled images (`require_ground_truth`), the benchmark drops None-labelled
+rows (never a phantom class), and `verified_normal_only()` admits only
+verified-normal images to a normal-only cohort — so unlabeled/unknown/abnormal
+images cannot contaminate normal-only anomaly training or evaluation.
+
+**H3 — Leakage / physical-instrument identity.** The loader reuses
+`lcid_service.is_untracked_twin`; an `untracked:` digital twin is never used as a
+reliable instrument serial (nulled), so it cannot create a false grouping. The
+benchmark continues to reuse the production leakage-safe splitter and reports
+`grouping_reliable`.
+
+**H4 — Scientific reproducibility (DINOv2 adapter).** A real benchmark now
+requires: checkpoint/architecture **compatibility** (loaded model must report the
+checkpoint's declared architecture), **checkpoint-specific preprocessing/
+normalization**, **eval mode + `torch.no_grad()`**, **deterministic** behaviour
+where supported (`manual_seed` + `use_deterministic_algorithms(warn_only=True)`),
+and **embedder-identity == config** (the benchmark raises `EmbedderIdentityError`
+on mismatch). The checkpoint **digest, architecture, and preprocessing** are
+recorded in the model card. No automatic downloads; no unlicensed datasets.
+
+### Added negative tests (executed)
+`test_stage5a_research_foundation.py` grew to **27 passed, 1 skipped**: rights/PHI/
+retention rejection; external/lab not eligible by class alone; clinical requires
+opt-in **and** verified research-use scope; unlabeled not loaded as normal;
+`verified_normal_only` excludes unlabeled/unknown/abnormal; untracked twin not
+used as a serial; embedder-identity mismatch rejected; checkpoint records
+architecture/preprocessing; model card records architecture/digest. Full backend
+suite: **3923 passed, 3 skipped**; Ruff (app, tests, research): clean.
+
 ## Stage 5B readiness
 
 Ready to proceed to Stage 5B (localization research) once: (1) an isolated torch

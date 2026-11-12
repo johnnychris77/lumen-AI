@@ -23,6 +23,11 @@ from research.lens_vision.provenance import assert_research_authorized
 from research.lens_vision.research_classifier import ResearchClassifier, accuracy
 
 
+class EmbedderIdentityError(RuntimeError):
+    """The embedder actually used does not match the one the experiment config
+    declares — a reproducibility violation."""
+
+
 def _to_split_sample(s: dict) -> dict:
     return {
         "id": s["id"],
@@ -52,17 +57,30 @@ def run_research_benchmark(
     # 1) Provenance gate — only research-authorized inputs may enter.
     assert_research_authorized(samples, allow_approved_clinical=allow_approved_clinical)
 
+    emb = embedder or StubEmbedder()
+    # Reproducibility: the embedder actually used MUST match the one the config
+    # declares, so recorded results can never be attributed to the wrong model.
+    if emb.name != config.embedder:
+        raise EmbedderIdentityError(
+            f"Embedder identity '{emb.name}' does not match config.embedder '{config.embedder}'."
+        )
+
+    # Ground-truth integrity: a supervised benchmark trains only on images that
+    # carry a real label; None-labelled (unknown/unlabeled) images are dropped
+    # here and NEVER become a phantom class.
+    labelled = [s for s in samples if s.get("label")]
+    dropped_unlabelled = len(samples) - len(labelled)
+
     # 2) Group-safe split (reuse the production leakage-safe splitter).
-    split = split_dataset([_to_split_sample(s) for s in samples], seed=str(config.seed), group_by_serial=True)
+    split = split_dataset([_to_split_sample(s) for s in labelled], seed=str(config.seed), group_by_serial=True)
     assignments = split["assignments"]
     reliable = grouping_is_reliable(split)
 
-    by_id = {s["id"]: s for s in samples}
+    by_id = {s["id"]: s for s in labelled}
     train = [by_id[i] for i, sp in assignments.items() if sp == "train" and i in by_id]
     test = [by_id[i] for i, sp in assignments.items() if sp == "test" and i in by_id]
 
-    classes = sorted({s["label"] for s in samples})
-    emb = embedder or StubEmbedder()
+    classes = sorted({s["label"] for s in labelled})
 
     def _eval_with_features(feature_fn) -> float | None:
         Xtr, ytr, Xte, yte = [], [], [], []
@@ -92,8 +110,10 @@ def run_research_benchmark(
         "clinical_promotion_eligible": False,
         "status": "completed" if research_acc is not None else "insufficient_data",
         "embedder": emb.name,
+        "embedder_identity_verified": True,
         "checkpoint_id": config.checkpoint_id,
         "classes": classes,
+        "dropped_unlabelled_count": dropped_unlabelled,
         "split_counts": {k: len(v) for k, v in {"train": train, "test": test}.items()},
         "grouping_reliable": reliable,
         "ungrouped_sample_count": split.get("ungrouped_sample_count", 0),
