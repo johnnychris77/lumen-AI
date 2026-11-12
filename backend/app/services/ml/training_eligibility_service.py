@@ -131,6 +131,11 @@ def compute_training_eligibility(db: Session, *, tenant_id: str) -> dict[str, An
             "image_quality": entry.image_quality or "unknown",
             "image_sha256": entry.image_sha256,
             "digital_twin_id": ann.digital_twin_id or "",
+            # Grouping identities carried through to the leakage-safe split so no
+            # same-specimen / same-instrument / same-image set straddles the
+            # train/validation/test boundary (Project Canvas -> Project Lens).
+            "specimen_id": entry.provenance_specimen_id or entry.instrument_id or "",
+            "instrument_id": entry.instrument_id or "",
             # Stage 4 — structured, VERIFIED provenance carried from the governed
             # registry row (never inferred from facility/manufacturer strings).
             "data_provenance_class": normalize_provenance_class(entry.data_provenance_class),

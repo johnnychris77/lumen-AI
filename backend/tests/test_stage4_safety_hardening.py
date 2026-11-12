@@ -25,7 +25,10 @@ from app.services.ml.live_inference_adapter import (
     HEALTH_ARTIFACT_MISSING,
     HEALTH_NOT_AUTHORIZED,
     HEALTH_NOT_PROMOTED,
+    HEALTH_SHADOW_ONLY,
     load_active_model,
+    predict as live_predict,
+    shadow_evaluate,
 )
 from app.services.ml.lens_model_registration import MODEL_ID
 from app.services.ml.provenance_governance import (
@@ -77,6 +80,32 @@ def _registered_entry(db, tenant: str):
         operator="tech", capture_device="phone", image_resolution="300x300",
         data_provenance_class="real_clinical",
     )
+
+
+def _grant_governance_role(db, actor="admin@x", role="admin"):
+    from app.models.user_role_assignment import UserRoleAssignment
+    if db.query(UserRoleAssignment).filter(UserRoleAssignment.username == actor).first() is None:
+        db.add(UserRoleAssignment(username=actor, role=role))
+        db.commit()
+
+
+def _clinical_evidence_records(db, tenant):
+    from app.models.consent_record import ConsentRecord
+    from app.models.veritas_evidence import VeritasEvidenceProvenanceRecord
+    src = VeritasEvidenceProvenanceRecord(
+        tenant_id=tenant, evidence_type="clinical_image", source="hospital-ground-truth",
+        organization="St. Example Hospital",
+    )
+    db.add(src)
+    db.commit()
+    db.refresh(src)
+    consent = ConsentRecord(
+        id=str(uuid.uuid4()), tenant_id=tenant, user_email="deident@example",
+        consent_type="regulatory_evidence", jurisdiction="us", granted=True,
+    )
+    db.add(consent)
+    db.commit()
+    return str(src.id), consent.id
 
 
 def _add_model(db, tenant, **overrides):
@@ -190,6 +219,80 @@ def test_fully_authorized_model_passes_governance_gate():
         )
         result = load_active_model(db, tenant_id=tenant)
         assert result["status"] == HEALTH_ARTIFACT_MISSING
+    finally:
+        db.query(ModelRegistryEntry).filter(ModelRegistryEntry.tenant_id == tenant).delete()
+        db.commit()
+        db.close()
+
+
+def test_shadow_only_model_is_not_actionable_via_predict():
+    """A model authorized only for shadow evaluation (deployment_status=shadow)
+    must never reach the technician-facing clinical path: load_active_model on
+    the actionable path reports HEALTH_SHADOW_ONLY and predict() returns a
+    non-actionable ai_unavailable contract with no observation."""
+    tenant = f"hard-shadow-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        _add_model(
+            db, tenant,
+            clinical_review_status="approved",
+            approval_status="validated",
+            deployment_status="shadow",
+        )
+        loaded = load_active_model(db, tenant_id=tenant)  # actionable path (default)
+        assert loaded["status"] == HEALTH_SHADOW_ONLY
+        result = live_predict(db, tenant_id=tenant, image_bytes=None)
+        assert result["analysis_status"] == "ai_unavailable"
+        assert result["model"]["status"] == HEALTH_SHADOW_ONLY
+        assert result["observation"] is None
+        assert result["human_review_required"] is True
+    finally:
+        db.query(ModelRegistryEntry).filter(ModelRegistryEntry.tenant_id == tenant).delete()
+        db.commit()
+        db.close()
+
+
+def test_shadow_model_loadable_in_shadow_eval_mode_only():
+    """The SAME shadow model is loadable on the shadow-evaluation path
+    (require_actionable=False) — it passes authorization there (reaching the
+    artifact check) — and shadow_evaluate never returns an actionable payload."""
+    tenant = f"hard-shadoweval-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        _add_model(
+            db, tenant,
+            clinical_review_status="approved",
+            approval_status="validated",
+            deployment_status="shadow",
+        )
+        # Shadow-eval path passes governance and proceeds to the artifact check
+        # (no artifact on disk here) — i.e. it is NOT blocked as shadow_only.
+        loaded = load_active_model(db, tenant_id=tenant, require_actionable=False)
+        assert loaded["status"] == HEALTH_ARTIFACT_MISSING
+        ev = shadow_evaluate(db, tenant_id=tenant, image_bytes=None)
+        assert ev["actionable"] is False
+        assert ev["clinical_recommendation_shown"] is False
+        assert "analysis_status" not in ev and "observation" not in ev
+    finally:
+        db.query(ModelRegistryEntry).filter(ModelRegistryEntry.tenant_id == tenant).delete()
+        db.commit()
+        db.close()
+
+
+def test_deployed_model_remains_actionable():
+    """A deployed, reviewed, approved model still passes the actionable gate
+    (reaching the artifact check), so the hardening does not over-block."""
+    tenant = f"hard-deployed-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        _add_model(
+            db, tenant,
+            clinical_review_status="approved",
+            approval_status="validated",
+            deployment_status="deployed",
+        )
+        loaded = load_active_model(db, tenant_id=tenant)
+        assert loaded["status"] == HEALTH_ARTIFACT_MISSING  # passed governance
     finally:
         db.query(ModelRegistryEntry).filter(ModelRegistryEntry.tenant_id == tenant).delete()
         db.commit()
@@ -350,6 +453,7 @@ def test_provenance_clinical_approval_requires_verified_evidence():
     db = SessionLocal()
     try:
         entry = _registered_entry(db, tenant)
+        _grant_governance_role(db)
         # Authorized admin, correct tenant, but NO supporting source/rights
         # evidence — must be refused rather than approved on blank strings.
         with pytest.raises(ProvenanceEvidenceError):
@@ -366,6 +470,7 @@ def test_provenance_clinical_approval_requires_rights_evidence_specifically():
     db = SessionLocal()
     try:
         entry = _registered_entry(db, tenant)
+        _grant_governance_role(db)
         # Source present but rights/licence evidence missing — still refused.
         with pytest.raises(ProvenanceEvidenceError):
             set_provenance_classification(
@@ -397,14 +502,120 @@ def test_provenance_fully_evidenced_authorized_approval_succeeds():
     db = SessionLocal()
     try:
         entry = _registered_entry(db, tenant)
+        _grant_governance_role(db)
+        source_id, rights_ref = _clinical_evidence_records(db, tenant)
         result = set_provenance_classification(
             db, entry=entry, provenance_class="real_clinical", actor="admin@x",
             actor_role="admin", approve=True, tenant_id=tenant,
-            source_id="HOSP-GT-42", source_institution="St. Example Hospital",
-            rights_evidence_ref="RIGHTS-DOC-42",
+            source_id=source_id, source_institution="St. Example Hospital",
+            rights_evidence_ref=rights_ref,
         )
         assert result.provenance_approval_status == "approved"
         assert result.provenance_approved_by == "admin@x"
+    finally:
+        db.close()
+
+
+# ── T1.2 — approval requires verifiable authorized source/rights + real role ──
+
+def test_approval_rejects_unresolvable_source_record():
+    tenant = f"prov-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        entry = _registered_entry(db, tenant)
+        _grant_governance_role(db)
+        _, rights_ref = _clinical_evidence_records(db, tenant)
+        with pytest.raises(ProvenanceEvidenceError):
+            set_provenance_classification(
+                db, entry=entry, provenance_class="real_clinical", actor="admin@x",
+                actor_role="admin", approve=True, tenant_id=tenant,
+                source_id="999999999", source_institution="St. Example",  # no such record
+                rights_evidence_ref=rights_ref,
+            )
+    finally:
+        db.close()
+
+
+def test_approval_rejects_unresolvable_rights_record():
+    tenant = f"prov-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        entry = _registered_entry(db, tenant)
+        _grant_governance_role(db)
+        source_id, _ = _clinical_evidence_records(db, tenant)
+        with pytest.raises(ProvenanceEvidenceError):
+            set_provenance_classification(
+                db, entry=entry, provenance_class="real_clinical", actor="admin@x",
+                actor_role="admin", approve=True, tenant_id=tenant,
+                source_id=source_id, source_institution="St. Example",
+                rights_evidence_ref=str(uuid.uuid4()),  # no such consent record
+            )
+    finally:
+        db.close()
+
+
+def test_approval_rejects_withdrawn_rights_record():
+    from app.models.consent_record import ConsentRecord
+    from app.models.veritas_evidence import VeritasEvidenceProvenanceRecord
+    tenant = f"prov-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        entry = _registered_entry(db, tenant)
+        _grant_governance_role(db)
+        from datetime import datetime, timezone
+        src = VeritasEvidenceProvenanceRecord(tenant_id=tenant, evidence_type="clinical_image", source="h")
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+        consent = ConsentRecord(
+            id=str(uuid.uuid4()), tenant_id=tenant, user_email="d@x",
+            consent_type="regulatory_evidence", granted=True,
+            withdrawn_at=datetime.now(timezone.utc),  # withdrawn
+        )
+        db.add(consent)
+        db.commit()
+        with pytest.raises(ProvenanceEvidenceError):
+            set_provenance_classification(
+                db, entry=entry, provenance_class="real_clinical", actor="admin@x",
+                actor_role="admin", approve=True, tenant_id=tenant,
+                source_id=str(src.id), source_institution="H", rights_evidence_ref=consent.id,
+            )
+    finally:
+        db.close()
+
+
+def test_approval_rejects_actor_without_authenticated_role():
+    """A caller-supplied role is not proof: an actor with no UserRoleAssignment
+    cannot approve, even claiming actor_role='admin'."""
+    tenant = f"prov-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        entry = _registered_entry(db, tenant)
+        source_id, rights_ref = _clinical_evidence_records(db, tenant)
+        with pytest.raises(ProvenanceAuthorityError):
+            set_provenance_classification(
+                db, entry=entry, provenance_class="real_clinical", actor="ghost@x",  # no role record
+                actor_role="admin", approve=True, tenant_id=tenant,
+                source_id=source_id, source_institution="H", rights_evidence_ref=rights_ref,
+            )
+    finally:
+        db.close()
+
+
+def test_approval_rejects_role_claim_mismatching_authenticated_role():
+    tenant = f"prov-{uuid.uuid4().hex[:8]}"
+    db = SessionLocal()
+    try:
+        entry = _registered_entry(db, tenant)
+        _grant_governance_role(db, actor="spd@x", role="spd_manager")
+        source_id, rights_ref = _clinical_evidence_records(db, tenant)
+        with pytest.raises(ProvenanceAuthorityError):
+            set_provenance_classification(
+                db, entry=entry, provenance_class="real_clinical", actor="spd@x",
+                actor_role="admin",  # claims admin but authenticated role is spd_manager
+                approve=True, tenant_id=tenant,
+                source_id=source_id, source_institution="H", rights_evidence_ref=rights_ref,
+            )
     finally:
         db.close()
 
@@ -478,3 +689,80 @@ def test_cohort_with_grouping_identity_is_reliable():
     r = split_dataset(samples, seed="group-seed")
     assert r["grouping_reliable"] is True
     assert grouping_is_reliable(r) is True
+
+
+# ── T1.3 — identities propagate through Canvas→Lens; promotion needs grouping ──
+
+def test_to_split_sample_propagates_grouping_identities():
+    from app.services.ml.lens_training_pipeline import _to_split_sample
+    out = _to_split_sample({
+        "id": 1, "inspection_id": 7, "digital_twin_id": "SER-123",
+        "specimen_id": "SPEC-9", "session_id": "SESS-3", "image_sha256": "abc123",
+        "label": "probable_retained_debris",
+    })
+    assert out["specimen_id"] == "SPEC-9"
+    assert out["session_id"] == "SESS-3"
+    assert out["image_sha256"] == "abc123"
+    assert out["instrument_serial"] == "SER-123"
+    assert out["inspection_id"] == 7
+
+
+def _png(seed: int) -> bytes:
+    import io
+    import random
+    from PIL import Image
+    rnd = random.Random(seed)
+    raw = bytes(rnd.getrandbits(8) for _ in range(48 * 48 * 3))
+    buf = io.BytesIO()
+    Image.frombytes("RGB", (48, 48), raw).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _lens_eligibility(grouped: bool):
+    from app.services.ml.lens_training_pipeline import NEGATIVE_LABEL
+    pos = "probable_retained_debris"
+    samples = []
+    sid = 0
+    for label in (pos, NEGATIVE_LABEL):
+        for _ in range(6):
+            sample = {
+                "id": sid, "label": label, "image_bytes": _png(sid),
+                "image_sha256": f"lenssha-{sid}",
+                "instrument_family": "scissors", "anatomy_zone": "hinge",
+                "manufacturer": "Acme", "image_quality": "Good",
+                # Grouped: each sample anchored to a real inspection identity.
+                # Ungrouped: no instrument/inspection/specimen/session identity.
+                "inspection_id": sid if grouped else None,
+                "specimen_id": f"SPEC-{sid}" if grouped else "",
+                "digital_twin_id": "",
+                "session_id": None,
+            }
+            samples.append(sample)
+            sid += 1
+    return {
+        "samples": samples,
+        "eligible_classes": [pos, NEGATIVE_LABEL],
+        "label_counts": {pos: 6, NEGATIVE_LABEL: 6},
+        "excluded_classes": [],
+        "data_provenance": "real_clinical",
+        "clinical_promotion_eligible": True,
+    }
+
+
+def test_lens_run_clinical_promotion_requires_reliable_grouping():
+    """A provenance-clinical-eligible cohort whose samples lack real grouping
+    identity must NOT be clinically promotable from the run (grouping gate),
+    while a reliably-grouped cohort is."""
+    from app.services.ml.lens_training_pipeline import run_lens_training
+    from app.services.ml.training_config import TrainingConfig
+
+    ungrouped = run_lens_training(_lens_eligibility(grouped=False), config=TrainingConfig(seed=3, epochs=40))
+    assert ungrouped["training_status"] == "trained"
+    assert ungrouped["grouping_reliable"] is False
+    assert ungrouped["provenance_clinical_promotion_eligible"] is True
+    assert ungrouped["clinical_promotion_eligible"] is False  # grouping gate blocks it
+
+    grouped = run_lens_training(_lens_eligibility(grouped=True), config=TrainingConfig(seed=3, epochs=40))
+    assert grouped["training_status"] == "trained"
+    assert grouped["grouping_reliable"] is True
+    assert grouped["clinical_promotion_eligible"] is True

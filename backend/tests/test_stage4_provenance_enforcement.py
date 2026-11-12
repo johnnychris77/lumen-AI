@@ -41,6 +41,36 @@ def _png(seed: int) -> bytes:
     return buf.getvalue()
 
 
+def _grant_governance_role(db, actor="admin@x", role="admin"):
+    """Get-or-create the authenticated governance role the approver must hold."""
+    from app.models.user_role_assignment import UserRoleAssignment
+    existing = db.query(UserRoleAssignment).filter(UserRoleAssignment.username == actor).first()
+    if existing is None:
+        db.add(UserRoleAssignment(username=actor, role=role))
+        db.commit()
+
+
+def _clinical_evidence_records(db, tenant):
+    """Create the verifiable source + data-rights records a real clinical
+    provenance approval must reference; return (source_id, rights_evidence_ref)."""
+    from app.models.consent_record import ConsentRecord
+    from app.models.veritas_evidence import VeritasEvidenceProvenanceRecord
+    src = VeritasEvidenceProvenanceRecord(
+        tenant_id=tenant, evidence_type="clinical_image", source="hospital-ground-truth",
+        organization="St. Example Hospital",
+    )
+    db.add(src)
+    db.commit()
+    db.refresh(src)
+    consent = ConsentRecord(
+        id=str(uuid.uuid4()), tenant_id=tenant, user_email="deident@example",
+        consent_type="regulatory_evidence", jurisdiction="us", granted=True,
+    )
+    db.add(consent)
+    db.commit()
+    return str(src.id), consent.id
+
+
 def _retained(db, tenant, sha):
     from app.models.retained_image import RetainedImage
     r = RetainedImage(
@@ -70,11 +100,13 @@ def _entry(db, tenant, *, provenance_class="", approve=False, label="probable_re
     entry.current_label = label
     db.commit()
     if approve:
+        _grant_governance_role(db)
+        source_id, rights_ref = _clinical_evidence_records(db, tenant)
         set_provenance_classification(
             db, entry=entry, provenance_class=provenance_class or "real_clinical",
             actor="admin@x", actor_role="admin", approve=True, tenant_id=tenant,
-            source_id="HOSP-GT-SRC", source_institution="St. Example Hospital",
-            rights_evidence_ref="RIGHTS-DOC-001",
+            source_id=source_id, source_institution="St. Example Hospital",
+            rights_evidence_ref=rights_ref,
         )
     ann = Annotation(
         tenant_id=tenant, ann_id=f"ANN-{uuid.uuid4().hex[:10]}", retained_image_id=r.id,
@@ -162,10 +194,12 @@ def test_authorized_approval_is_audited():
     try:
         t = f"t-{uuid.uuid4().hex[:8]}"
         e = _entry(db, t, provenance_class="real_clinical", approve=False)
+        _grant_governance_role(db)
+        source_id, rights_ref = _clinical_evidence_records(db, t)
         set_provenance_classification(
             db, entry=e, provenance_class="real_clinical", actor="admin@x",
-            actor_role="admin", approve=True, tenant_id=t, source_id="HOSP-GT-9",
-            source_institution="St. Example", rights_evidence_ref="RIGHTS-DOC-7",
+            actor_role="admin", approve=True, tenant_id=t, source_id=source_id,
+            source_institution="St. Example", rights_evidence_ref=rights_ref,
         )
         assert e.provenance_approval_status == PROVENANCE_APPROVAL_APPROVED
         assert e.provenance_approved_by == "admin@x"

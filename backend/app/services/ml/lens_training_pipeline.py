@@ -97,6 +97,14 @@ def _to_split_sample(s: dict[str, Any]) -> dict[str, Any]:
         "id": s["id"],
         "inspection_id": s.get("inspection_id"),
         "instrument_serial": instrument_serial,
+        # Propagate the full set of leakage-grouping identities (Section 6 fix +
+        # Stage 4 hardening): specimen, capture session (inspection bounds a
+        # capture session in this schema), and the image content hash, so the
+        # splitter co-locates every same-specimen / same-image sample and can
+        # report whether grouping is reliable enough for independent validation.
+        "specimen_id": s.get("specimen_id") or None,
+        "session_id": s.get("session_id") or None,
+        "image_sha256": s.get("image_sha256") or None,
         "instrument_family": s.get("instrument_family", "unknown"),
         "anatomy_zone": s.get("anatomy_zone", "unknown"),
         "finding": s.get("label", "none"),
@@ -146,6 +154,12 @@ def run_lens_training(
     leakage_free = has_no_group_leakage(split)
     if not leakage_free:
         raise DatasetInvalidError({"leakage_free": leakage_free})
+    # Reliable grouping is a precondition for claiming INDEPENDENT validation and
+    # for permitting clinical model promotion: every sample must be anchored to a
+    # real grouping identity (instrument/inspection/specimen/session), not merely
+    # distinct image bytes. A cohort that lacks it cannot be presented as a clean
+    # independent validation.
+    grouping_reliable = bool(split.get("grouping_reliable"))
 
     assignments = split["assignments"]
     by_id = {s["id"]: s for s in usable}
@@ -263,6 +277,9 @@ def run_lens_training(
         "excluded_undecodable_image": excluded_undecodable,
         "split_counts": {"train": len(train_samples), "validation": len(val_samples), "test": len(test_samples)},
         "leakage_free": leakage_free,
+        "grouping_reliable": grouping_reliable,
+        "independent_validation_reliable": grouping_reliable,
+        "ungrouped_sample_count": split.get("ungrouped_sample_count", 0),
         "diversity": diversity,
         "class_balance": balance,
         "stage_b_weights": stage_b_weights,
@@ -283,10 +300,14 @@ def run_lens_training(
         "label_counts": eligibility["label_counts"],
         "not_evaluated_classes": eligibility["excluded_classes"],
         "data_provenance": eligibility["data_provenance"],
-        # Stage 4 — carried verbatim from the governed eligibility report so
-        # model registration can gate clinical Candidate advancement on verified
-        # provenance, never on a bare "real" string.
-        "clinical_promotion_eligible": bool(eligibility.get("clinical_promotion_eligible")),
+        # Stage 4 — clinical Candidate advancement requires BOTH verified
+        # provenance (from the governed eligibility report, never a bare "real"
+        # string) AND reliable leakage grouping, so a model is never promoted on
+        # a cohort whose independent validation cannot be trusted.
+        "clinical_promotion_eligible": (
+            bool(eligibility.get("clinical_promotion_eligible")) and grouping_reliable
+        ),
+        "provenance_clinical_promotion_eligible": bool(eligibility.get("clinical_promotion_eligible")),
         "note": (
             "Real, deterministic, pure-Python hierarchical (Stage B abnormality / Stage C category) "
             "one-vs-rest logistic-regression baseline over Pillow-computed image features. "

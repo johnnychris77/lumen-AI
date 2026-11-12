@@ -48,26 +48,33 @@ class ProvenanceValidationError(ValueError):
 
 class ProvenanceEvidenceError(ValueError):
     """Approving clinical (``real_clinical``) provenance was attempted without the
-    required, verified supporting source + rights evidence. Clinical approval may
-    not rest on blank or placeholder strings."""
+    required, VERIFIED supporting source + rights evidence. Clinical approval may
+    not rest on blank, placeholder, or unverifiable references — the source and
+    data-rights references must resolve to real authorized records."""
 
 
 # Minimum length for a supporting-evidence reference to count as present (a
 # non-blank, non-trivial identifier rather than a single stray character).
 _MIN_EVIDENCE_LEN = 3
 
+# A data-rights (consent) record must be one of these data-use types to authorize
+# using clinical images as governed clinical training/evidence data.
+DATA_RIGHTS_CONSENT_TYPES = frozenset(
+    {"regulatory_evidence", "data_processing", "benchmarking_contribution"}
+)
+
 
 def _missing_clinical_evidence(
-    *, source_id: str, source_institution: str, rights_evidence_ref: str
+    *, source_institution: str, rights_evidence_ref: str
 ) -> list[str]:
     """The required clinical-approval evidence fields that are blank/trivial.
 
-    Clinical ground-truth approval must carry a governed source record id, the
-    originating institution, and a rights/licence evidence reference — each a
-    real, non-trivial value, not an arbitrary or empty string.
+    Clinical ground-truth approval must carry the originating institution and a
+    rights/licence evidence reference — each a real, non-trivial value. (The
+    ``source_id`` and ``rights_evidence_ref`` are additionally resolved to real
+    authorized records by ``_verify_source_record`` / ``_verify_rights_record``.)
     """
     required = {
-        "source_id": source_id,
         "source_institution": source_institution,
         "rights_evidence_ref": rights_evidence_ref,
     }
@@ -75,6 +82,75 @@ def _missing_clinical_evidence(
         name for name, value in required.items()
         if len((value or "").strip()) < _MIN_EVIDENCE_LEN
     )
+
+
+def resolve_authorized_role(db: Session, actor: str) -> str | None:
+    """The actor's EFFECTIVE governance role from the authoritative role store
+    (``UserRoleAssignment``), or None if the actor holds no assignment.
+
+    Authorization is decided from this authenticated record — never from a
+    caller-supplied ``actor_role`` string, which can be forged.
+    """
+    from app.models.user_role_assignment import UserRoleAssignment
+
+    row = (
+        db.query(UserRoleAssignment)
+        .filter(UserRoleAssignment.username == actor)
+        .first()
+    )
+    return (row.role or "").strip().lower() if row and row.role else None
+
+
+def _verify_source_record(db: Session, *, tenant_id: str, source_id: str) -> None:
+    """The source reference must resolve to a governed evidence-provenance record
+    (``VeritasEvidenceProvenanceRecord``) owned by this tenant."""
+    from app.models.veritas_evidence import VeritasEvidenceProvenanceRecord
+
+    try:
+        sid = int(str(source_id).strip())
+    except (TypeError, ValueError):
+        raise ProvenanceEvidenceError(
+            f"source_id '{source_id}' is not a valid governed source-record reference."
+        )
+    rec = (
+        db.query(VeritasEvidenceProvenanceRecord)
+        .filter(
+            VeritasEvidenceProvenanceRecord.id == sid,
+            VeritasEvidenceProvenanceRecord.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if rec is None:
+        raise ProvenanceEvidenceError(
+            f"source_id '{source_id}' does not resolve to an authorized source record for this tenant."
+        )
+
+
+def _verify_rights_record(db: Session, *, tenant_id: str, rights_evidence_ref: str) -> None:
+    """The rights reference must resolve to a granted, non-withdrawn data-use
+    ``ConsentRecord`` of an appropriate type, owned by this tenant."""
+    from app.models.consent_record import ConsentRecord
+
+    rec = (
+        db.query(ConsentRecord)
+        .filter(
+            ConsentRecord.id == str(rights_evidence_ref).strip(),
+            ConsentRecord.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if rec is None:
+        raise ProvenanceEvidenceError(
+            f"rights_evidence_ref '{rights_evidence_ref}' does not resolve to a data-rights record for this tenant."
+        )
+    if not rec.granted or rec.withdrawn_at is not None:
+        raise ProvenanceEvidenceError(
+            f"rights_evidence_ref '{rights_evidence_ref}' is not an active (granted, non-withdrawn) data-rights record."
+        )
+    if (rec.consent_type or "") not in DATA_RIGHTS_CONSENT_TYPES:
+        raise ProvenanceEvidenceError(
+            f"rights_evidence_ref '{rights_evidence_ref}' consent_type '{rec.consent_type}' does not authorize data use."
+        )
 
 
 def normalize_provenance_class(value: str | None) -> str:
@@ -152,20 +228,30 @@ def set_provenance_classification(
         raise ProvenanceAuthorityError("Cross-tenant provenance change denied.")
 
     wants_clinical = cls == CLINICAL_PROVENANCE_CLASS
+    effective_role = actor_role
     if wants_clinical or approve:
         if not (actor or "").strip():
             raise ProvenanceAuthorityError("An authenticated actor identity is required to approve provenance.")
-        if actor_role not in PROVENANCE_APPROVAL_ROLES:
+        # Authority comes from the authenticated governance store, NOT the
+        # caller-supplied actor_role claim. A claim that disagrees with the
+        # authenticated role is rejected as a spoofing attempt.
+        effective_role = resolve_authorized_role(db, actor)
+        if effective_role is None or effective_role not in PROVENANCE_APPROVAL_ROLES:
             raise ProvenanceAuthorityError(
-                f"Role '{actor_role}' may not approve or assign clinical provenance."
+                f"Actor '{actor}' holds no authorized governance role to approve or assign clinical provenance."
+            )
+        if (actor_role or "").strip() and (actor_role or "").strip().lower() != effective_role:
+            raise ProvenanceAuthorityError(
+                f"Claimed role '{actor_role}' does not match the actor's authenticated governance role."
             )
 
-    # Clinical approval must rest on verified supporting evidence, not arbitrary
-    # or empty strings (checked only after authority, so an unauthorized attempt
-    # still fails as an authority error).
+    # Clinical approval must rest on VERIFIED supporting evidence that resolves to
+    # real authorized records — not arbitrary or empty strings (checked only
+    # after authority, so an unauthorized attempt still fails as an authority
+    # error).
     if approve and wants_clinical:
         missing = _missing_clinical_evidence(
-            source_id=source_id, source_institution=source_institution,
+            source_institution=source_institution,
             rights_evidence_ref=rights_evidence_ref,
         )
         if missing:
@@ -173,6 +259,8 @@ def set_provenance_classification(
                 "Clinical provenance approval requires verified supporting evidence; "
                 f"missing or trivial: {', '.join(missing)}."
             )
+        _verify_source_record(db, tenant_id=entry.tenant_id, source_id=source_id)
+        _verify_rights_record(db, tenant_id=entry.tenant_id, rights_evidence_ref=rights_evidence_ref)
 
     prev_class = entry.data_provenance_class
     prev_status = entry.provenance_approval_status
@@ -211,7 +299,7 @@ def set_provenance_classification(
         resource_type="dataset_registry_entry",
         resource_id=entry.id,
         actor=actor,
-        actor_role=actor_role,
+        actor_role=effective_role,  # the authenticated governance role, not the claim
         tenant_id=entry.tenant_id,
         status="success",
         details={
