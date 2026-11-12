@@ -46,6 +46,37 @@ class ProvenanceValidationError(ValueError):
     """An invalid provenance class was supplied."""
 
 
+class ProvenanceEvidenceError(ValueError):
+    """Approving clinical (``real_clinical``) provenance was attempted without the
+    required, verified supporting source + rights evidence. Clinical approval may
+    not rest on blank or placeholder strings."""
+
+
+# Minimum length for a supporting-evidence reference to count as present (a
+# non-blank, non-trivial identifier rather than a single stray character).
+_MIN_EVIDENCE_LEN = 3
+
+
+def _missing_clinical_evidence(
+    *, source_id: str, source_institution: str, rights_evidence_ref: str
+) -> list[str]:
+    """The required clinical-approval evidence fields that are blank/trivial.
+
+    Clinical ground-truth approval must carry a governed source record id, the
+    originating institution, and a rights/licence evidence reference — each a
+    real, non-trivial value, not an arbitrary or empty string.
+    """
+    required = {
+        "source_id": source_id,
+        "source_institution": source_institution,
+        "rights_evidence_ref": rights_evidence_ref,
+    }
+    return sorted(
+        name for name, value in required.items()
+        if len((value or "").strip()) < _MIN_EVIDENCE_LEN
+    )
+
+
 def normalize_provenance_class(value: str | None) -> str:
     """Return a known provenance class. Anything missing, blank, or unrecognised
     resolves conservatively to LEGACY_UNVERIFIED — never to a clinical or
@@ -91,31 +122,57 @@ def set_provenance_classification(
     rights_evidence_ref: str = "",
     specimen_id: str = "",
     approve: bool = False,
-    tenant_id: str | None = None,
+    tenant_id: str,
     commit: bool = True,
 ) -> DatasetRegistryEntry:
     """Assign/approve an entry's structured provenance — authority-gated and
     recorded in the immutable audit chain.
 
-    - Assigning ``real_clinical``, or any ``approve=True``, requires an
-      authorized governance role (``PROVENANCE_APPROVAL_ROLES``); otherwise
-      ``ProvenanceAuthorityError``. This is what stops a client self-certifying
-      clinical provenance via an API field.
+    - Tenant isolation is MANDATORY: ``tenant_id`` must be supplied by the
+      authenticated governance context and must match ``entry`` (a missing or
+      mismatched tenant is refused — no implicit "trust the caller" path).
+    - Actor authority comes from the authenticated governance context: assigning
+      ``real_clinical``, or any ``approve=True``, requires a non-empty ``actor``
+      identity AND an authorized governance role (``PROVENANCE_APPROVAL_ROLES``);
+      otherwise ``ProvenanceAuthorityError``. This stops a client self-certifying
+      clinical provenance via API fields.
+    - Clinical approval requires VERIFIED supporting evidence: a ``real_clinical``
+      approval must carry a real source id, originating institution, and a
+      rights/licence evidence reference (not blank/placeholder) or
+      ``ProvenanceEvidenceError`` is raised.
     - Non-clinical research classes may be recorded without approval (they are
       marked ``not_required`` and never become clinical).
-    - Tenant isolation: when ``tenant_id`` is given it must match ``entry``.
     """
     cls = (provenance_class or "").strip().lower()
     if cls not in PROVENANCE_CLASSES:
         raise ProvenanceValidationError(f"Unknown provenance class: {provenance_class!r}")
-    if tenant_id is not None and entry.tenant_id != tenant_id:
+    if not (tenant_id or "").strip():
+        raise ProvenanceAuthorityError("A tenant identity is required for a provenance change.")
+    if entry.tenant_id != tenant_id:
         raise ProvenanceAuthorityError("Cross-tenant provenance change denied.")
 
     wants_clinical = cls == CLINICAL_PROVENANCE_CLASS
-    if (wants_clinical or approve) and actor_role not in PROVENANCE_APPROVAL_ROLES:
-        raise ProvenanceAuthorityError(
-            f"Role '{actor_role}' may not approve or assign clinical provenance."
+    if wants_clinical or approve:
+        if not (actor or "").strip():
+            raise ProvenanceAuthorityError("An authenticated actor identity is required to approve provenance.")
+        if actor_role not in PROVENANCE_APPROVAL_ROLES:
+            raise ProvenanceAuthorityError(
+                f"Role '{actor_role}' may not approve or assign clinical provenance."
+            )
+
+    # Clinical approval must rest on verified supporting evidence, not arbitrary
+    # or empty strings (checked only after authority, so an unauthorized attempt
+    # still fails as an authority error).
+    if approve and wants_clinical:
+        missing = _missing_clinical_evidence(
+            source_id=source_id, source_institution=source_institution,
+            rights_evidence_ref=rights_evidence_ref,
         )
+        if missing:
+            raise ProvenanceEvidenceError(
+                "Clinical provenance approval requires verified supporting evidence; "
+                f"missing or trivial: {', '.join(missing)}."
+            )
 
     prev_class = entry.data_provenance_class
     prev_status = entry.provenance_approval_status

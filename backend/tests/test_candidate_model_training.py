@@ -471,7 +471,7 @@ class TestApiEndToEnd:
                         "/api/dataset-registry/images",
                         json={
                             "dataset_version_id": vid, "retained_image_id": retained.id,
-                            "image_sha256": f"api-sha-{label}-{i}", "instrument_family": f"inst{i % 3}",
+                            "image_sha256": f"api-{label}-{i}", "instrument_family": f"inst{i % 3}",
                             "manufacturer": f"M{i % 3}", "facility": f"F{i % 3}", "operator": "tech",
                             "capture_device": "phone", "image_resolution": "300x300",
                             "anatomy_zone": "hinge", "phi_verification": "verified",

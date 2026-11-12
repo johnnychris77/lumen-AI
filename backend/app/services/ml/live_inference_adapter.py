@@ -41,7 +41,44 @@ HEALTH_CHECKSUM_FAILED = "checksum_failed"
 HEALTH_INCOMPATIBLE_PREPROCESSING = "incompatible_preprocessing"
 HEALTH_INCOMPATIBLE_LABEL_MAP = "incompatible_label_map"
 HEALTH_NOT_PROMOTED = "not_promoted"
+HEALTH_NOT_AUTHORIZED = "not_authorized"
 HEALTH_INITIALIZATION_FAILED = "initialization_failed"
+
+# A model's pipeline STAGE (candidate_stage) is necessary but NOT sufficient to
+# serve it for a live clinical inference. Per ModelRegistryEntry's own contract
+# (approval_status "governs whether a model may drive a clinical recommendation"),
+# serving additionally requires the human-led governance signals below, so a
+# model is never served solely because it was trained and marked Candidate:
+#   - clinical review signed off  (clinical_review_status == "approved")
+#   - model approved to drive a clinical recommendation
+#     (approval_status in APPROVAL_STATUSES_FOR_SERVING)
+#   - deployment authorized        (deployment_status in DEPLOYMENT_STATUSES_FOR_SERVING)
+CLINICAL_REVIEW_APPROVED = "approved"
+APPROVAL_STATUSES_FOR_SERVING = frozenset({"pilot", "validated"})
+DEPLOYMENT_STATUSES_FOR_SERVING = frozenset({"shadow", "deployed"})
+
+
+def _serving_authorization_reason(model: ModelRegistryEntry) -> str | None:
+    """None when ``model`` carries the human-led clinical-review, approval, and
+    deployment-authorization sign-offs required to drive a live inference;
+    otherwise a specific reason string. Never infers authorization from
+    candidate_stage, training_status, or provenance alone."""
+    if getattr(model, "clinical_review_status", "") != CLINICAL_REVIEW_APPROVED:
+        return (
+            "clinical review is not approved "
+            f"(clinical_review_status='{getattr(model, 'clinical_review_status', '')}')."
+        )
+    if getattr(model, "approval_status", "") not in APPROVAL_STATUSES_FOR_SERVING:
+        return (
+            "model is not approved to drive a clinical recommendation "
+            f"(approval_status='{getattr(model, 'approval_status', '')}')."
+        )
+    if getattr(model, "deployment_status", "") not in DEPLOYMENT_STATUSES_FOR_SERVING:
+        return (
+            "deployment is not authorized "
+            f"(deployment_status='{getattr(model, 'deployment_status', '')}')."
+        )
+    return None
 
 # A model must be promoted at least this far up the (Experimental ->
 # Candidate -> Validated Candidate -> Pilot -> Production) ladder before the
@@ -85,6 +122,21 @@ def load_active_model(db: Session, *, tenant_id: str, model_id: str = MODEL_ID) 
                 f"The most advanced registered model (id={best.id}) is at stage "
                 f"'{best.candidate_stage}', below the minimum '{MIN_STAGE_FOR_LIVE_SERVING}' "
                 "required for live inference."
+            ),
+        }
+
+    # Stage is necessary but not sufficient: a model is never served for a live
+    # clinical inference solely because it is trained and marked Candidate. It
+    # must additionally carry the human-led clinical-review, model-approval, and
+    # deployment-authorization sign-offs (fail-closed).
+    auth_reason = _serving_authorization_reason(best)
+    if auth_reason is not None:
+        return {
+            "status": HEALTH_NOT_AUTHORIZED, "model": best, "artifact": None,
+            "reason": (
+                f"The most advanced registered model (id={best.id}) is at stage "
+                f"'{best.candidate_stage}' but is not authorized for live clinical "
+                f"inference: {auth_reason}"
             ),
         }
 

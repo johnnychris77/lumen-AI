@@ -134,6 +134,17 @@ def register_image(
     current_user=Depends(require_roles(*_WRITE_ROLES)),
 ):
     tenant_id = _tenant(current_user, request)
+    # Fail-closed: the referenced retained image must exist, belong to this
+    # tenant, and match the declared content hash before any registration.
+    try:
+        dataset_registry.verify_retained_image_for_registration(
+            db, tenant_id=tenant_id, retained_image_id=body.retained_image_id,
+            image_sha256=body.image_sha256,
+        )
+    except (dataset_registry.RetainedImageNotFoundError, dataset_registry.CrossTenantImageError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except dataset_registry.ImageIdentityMismatchError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     try:
         row = dataset_registry.register_image(
             db, tenant_id=tenant_id, dataset_version_id=body.dataset_version_id,
@@ -455,7 +466,18 @@ def run_candidate_training_endpoint(
 
     samples = []
     for entry in eligible:
-        retained = db.query(RetainedImage).filter(RetainedImage.id == entry.retained_image_id).first()
+        # Tenant-scoped: never pull another tenant's retained image bytes into
+        # this tenant's training run, even if an entry somehow references a
+        # cross-tenant retained_image_id (defense in depth alongside the
+        # registration-time ownership check).
+        retained = (
+            db.query(RetainedImage)
+            .filter(
+                RetainedImage.id == entry.retained_image_id,
+                RetainedImage.tenant_id == tenant_id,
+            )
+            .first()
+        )
         if retained is not None and retained.image_bytes:
             samples.append(_sample_from_entry(db, entry, retained))
 
@@ -560,6 +582,17 @@ def promote_unknown_finding(
     review = db.query(UnknownFindingReview).filter(UnknownFindingReview.id == review_id).first()
     if not review or review.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Unknown-finding review not found")
+
+    # Fail-closed: same ownership + identity check as direct registration.
+    try:
+        dataset_registry.verify_retained_image_for_registration(
+            db, tenant_id=tenant_id, retained_image_id=body.retained_image_id,
+            image_sha256=body.image_sha256,
+        )
+    except (dataset_registry.RetainedImageNotFoundError, dataset_registry.CrossTenantImageError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except dataset_registry.ImageIdentityMismatchError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     try:
         entry = unknown_finding_service.promote_to_candidate_dataset(

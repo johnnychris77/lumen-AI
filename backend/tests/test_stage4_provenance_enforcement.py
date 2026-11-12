@@ -72,7 +72,9 @@ def _entry(db, tenant, *, provenance_class="", approve=False, label="probable_re
     if approve:
         set_provenance_classification(
             db, entry=entry, provenance_class=provenance_class or "real_clinical",
-            actor="admin@x", actor_role="admin", approve=True,
+            actor="admin@x", actor_role="admin", approve=True, tenant_id=tenant,
+            source_id="HOSP-GT-SRC", source_institution="St. Example Hospital",
+            rights_evidence_ref="RIGHTS-DOC-001",
         )
     ann = Annotation(
         tenant_id=tenant, ann_id=f"ANN-{uuid.uuid4().hex[:10]}", retained_image_id=r.id,
@@ -148,7 +150,7 @@ def test_unauthorized_role_cannot_approve_clinical_provenance():
         with pytest.raises(ProvenanceAuthorityError):
             set_provenance_classification(
                 db, entry=e, provenance_class="real_clinical", actor="tech@x",
-                actor_role="technician", approve=True,
+                actor_role="technician", approve=True, tenant_id=t,
             )
     finally:
         db.close()
@@ -162,7 +164,8 @@ def test_authorized_approval_is_audited():
         e = _entry(db, t, provenance_class="real_clinical", approve=False)
         set_provenance_classification(
             db, entry=e, provenance_class="real_clinical", actor="admin@x",
-            actor_role="admin", approve=True, source_id="HOSP-GT-9", source_institution="St. Example",
+            actor_role="admin", approve=True, tenant_id=t, source_id="HOSP-GT-9",
+            source_institution="St. Example", rights_evidence_ref="RIGHTS-DOC-7",
         )
         assert e.provenance_approval_status == PROVENANCE_APPROVAL_APPROVED
         assert e.provenance_approved_by == "admin@x"

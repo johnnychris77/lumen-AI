@@ -20,6 +20,7 @@ from app.models.dataset_governance import (
     DatasetVersion,
     UNLABELED,
 )
+from app.models.retained_image import RetainedImage
 from app.services.ml.lcid_service import generate_lcid, instrument_digital_twin_id, resolve_baseline_id
 from app.services.ml.provenance_governance import normalize_provenance_class
 
@@ -53,6 +54,76 @@ class DuplicateImageError(ValueError):
         super().__init__(
             f"Image with sha256={image_sha256} is already registered as dataset entry {existing_entry_id}."
         )
+
+
+class RetainedImageNotFoundError(ValueError):
+    """The referenced RetainedImage does not exist for this tenant."""
+
+    def __init__(self, retained_image_id: int):
+        self.retained_image_id = retained_image_id
+        super().__init__(f"Retained image {retained_image_id} not found for this tenant.")
+
+
+class CrossTenantImageError(ValueError):
+    """The referenced RetainedImage exists but belongs to a different tenant.
+
+    Raised instead of silently reading another tenant's image, enforcing the
+    tenant-data-isolation guarantee. Callers map this to a 404 so existence
+    under another tenant is never confirmed to the requester.
+    """
+
+    def __init__(self, retained_image_id: int):
+        self.retained_image_id = retained_image_id
+        super().__init__(f"Retained image {retained_image_id} not found for this tenant.")
+
+
+class ImageIdentityMismatchError(ValueError):
+    """The declared ``image_sha256`` does not match the retained image's stored
+    content hash — the registration is describing different bytes than the
+    retained image it points at (identity spoofing / wrong reference)."""
+
+    def __init__(self, retained_image_id: int, expected_sha256: str, declared_sha256: str):
+        self.retained_image_id = retained_image_id
+        self.expected_sha256 = expected_sha256
+        self.declared_sha256 = declared_sha256
+        super().__init__(
+            f"Declared image_sha256 does not match the retained image's recorded content hash "
+            f"for retained image {retained_image_id}."
+        )
+
+
+def verify_retained_image_for_registration(
+    db: Session, *, tenant_id: str, retained_image_id: int, image_sha256: str
+) -> RetainedImage:
+    """Fail-closed ownership + identity check for a dataset registration that
+    references a ``RetainedImage``.
+
+    Enforces, against the authenticated tenant context:
+      * ownership — the retained image exists AND belongs to ``tenant_id`` (a
+        tenant can never register another tenant's raw image into its dataset);
+      * identity / SHA-256 consistency — the declared ``image_sha256`` matches
+        the retained image's recorded content hash, so an entry cannot claim to
+        be bytes other than the ones actually retained.
+
+    Call this from the authenticated registration entrypoints (routes). It is
+    deliberately NOT embedded in ``register_image`` itself so lower-level,
+    already-trusted callers/fixtures that pass opaque identifiers are
+    unaffected; the security boundary is the tenant-authenticated request.
+    """
+    retained = (
+        db.query(RetainedImage)
+        .filter(RetainedImage.id == retained_image_id)
+        .first()
+    )
+    if retained is None:
+        raise RetainedImageNotFoundError(retained_image_id)
+    if retained.tenant_id != tenant_id:
+        raise CrossTenantImageError(retained_image_id)
+    # Identity: the declared hash must match the retained image's recorded hash
+    # when the retained image carries one (fail-closed on a real mismatch).
+    if retained.sha256 and retained.sha256 != image_sha256:
+        raise ImageIdentityMismatchError(retained_image_id, retained.sha256, image_sha256)
+    return retained
 
 
 def create_dataset_version(
