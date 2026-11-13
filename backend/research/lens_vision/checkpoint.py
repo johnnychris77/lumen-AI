@@ -104,6 +104,37 @@ _REGISTRY: dict[str, CheckpointRecord] = {
             "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225],
         },
     ),
+    # Stage 5B anomaly-localization backbones (Anomalib PaDiM/PatchCore). Listed
+    # but BLOCKED until license + data-rights are verified and a digest recorded.
+    "resnet18_imagenet": CheckpointRecord(
+        checkpoint_id="resnet18_imagenet",
+        description="ResNet-18 ImageNet-pretrained backbone for PaDiM/PatchCore feature extraction.",
+        license="BSD-3 (torchvision weights) — verify ImageNet terms before use",
+        source_url="https://pytorch.org/vision/stable/models.html",
+        expected_sha256="",   # operator records the real digest when approving
+        approved=False,        # BLOCKED: awaiting license + data-rights verification
+        rights_cleared=False,
+        requires_file=True,
+        architecture="resnet18",
+        preprocessing={
+            "resize": [256, 256], "center_crop": [224, 224], "interpolation": "bilinear",
+            "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225],
+        },
+    ),
+    # Deterministic, no-weights backbone for CPU anomaly-localization smoke tests.
+    # Explicitly NOT a learned model; produces engineering heatmaps, not science.
+    "stub_backbone": CheckpointRecord(
+        checkpoint_id="stub_backbone",
+        description="Deterministic Pillow-based stub backbone for anomaly-localization smoke tests ONLY.",
+        license="n/a (internal stub)",
+        source_url="",
+        expected_sha256="",
+        approved=True,
+        rights_cleared=True,
+        requires_file=False,
+        architecture="stub",
+        preprocessing={"resize": [96, 96], "mean": [0.0, 0.0, 0.0], "std": [1.0, 1.0, 1.0]},
+    ),
 }
 
 
