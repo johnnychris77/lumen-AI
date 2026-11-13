@@ -12,7 +12,7 @@
     "padim": {
       "executed_through_governed_localizer": true,
       "checkpoint_id": "resnet18_research_exec_padim",
-      "backbone_sha256": "68a421e7931708df9ddc01cbcac0e608359a9b94219c43f32af02f57f5665260",
+      "backbone_sha256": "e0cfd0b0d990703e85b14c32b904385d7f8314049a007f317d226527df26b138",
       "backbone_load": {
         "n_target_tensors": 90,
         "n_matched": 90,
@@ -49,7 +49,7 @@
     "patchcore": {
       "executed_through_governed_localizer": true,
       "checkpoint_id": "resnet18_research_exec_patchcore",
-      "backbone_sha256": "764bce02e2cafc47bd47989d2ad44de9f96043bce42c20d934e579a4d84cea5d",
+      "backbone_sha256": "8eae019091247a03aee16bdfeb2ffffa2d6d27d3af65461fabe3c9e3f18de972",
       "backbone_load": {
         "n_target_tensors": 90,
         "n_matched": 90,
@@ -85,25 +85,63 @@
     }
   },
   "real_image_benchmark": {
-    "status": "BLOCKED",
-    "reason": "No authorized, independently-reviewed real-image cohort is present.",
+    "status": "BLOCKED_REAL_IMAGE_BENCHMARK",
+    "missing_requirements": [
+      "no authorized, independently-reviewed real-image cohort present",
+      "model_execution_readiness_not_ready",
+      "statistical_adequacy_not_ready",
+      "no scientifically-approved (license+source-verified, non-random-weight) checkpoint"
+    ],
     "cohort_readiness": {
-      "schema": "lumenai.stage6a.cohort_readiness.v1",
+      "schema": "lumenai.stage6b.cohort_readiness.v2",
       "n_images": 0,
       "n_ready": 0,
-      "ready_for_benchmark": false,
-      "missing_evidence": {},
-      "by_modality_ready_counts": {},
-      "modality_ready": {
-        "external_camera": false,
-        "borescope": false
+      "dimensions": {
+        "metadata_completeness": {
+          "ready": true,
+          "blockers": []
+        },
+        "verified_authorization": {
+          "ready": true,
+          "blockers": []
+        },
+        "ground_truth_readiness": {
+          "ready": true,
+          "blockers": []
+        },
+        "model_execution_readiness": {
+          "ready": false,
+          "blockers": [
+            "no_scientifically_approved_checkpoint"
+          ]
+        },
+        "statistical_adequacy": {
+          "ready": false,
+          "blockers": [
+            "no_modality_meets_minimum_cohort_sizes",
+            "statistical_reviewer_signoff_absent"
+          ]
+        }
       },
       "cross_split_leakage": [],
+      "leakage_free": true,
+      "by_modality_ready_counts": {},
+      "min_cohort_sizes": {
+        "fit": 20,
+        "calibration": 20,
+        "validation": 20,
+        "sealed_test": 30
+      },
+      "ready_for_scientific_benchmark": false,
+      "ready_for_benchmark": false,
+      "missing_evidence": {},
       "blockers": [
-        "no modality has a complete fit+calibration+sealed_test cohort"
+        "model_execution_readiness_not_ready",
+        "statistical_adequacy_not_ready"
       ],
       "per_image": [],
-      "note": "Readiness only \u2014 no images ingested, no performance measured. Real benchmarking requires every blocker cleared and authorized data present."
-    }
+      "note": "Readiness only \u2014 no images ingested, no performance measured. A complete manifest or one image per split does NOT make a benchmark scientifically ready; statistical adequacy requires minimum cohort sizes AND a statistical reviewer sign-off, and an approved scientific checkpoint must exist."
+    },
+    "note": "Random-weight execution above is pipeline verification only and is NEVER real-image scientific performance."
   }
 }

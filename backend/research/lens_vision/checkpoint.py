@@ -42,6 +42,11 @@ class CheckpointVerificationError(CheckpointError):
     pass
 
 
+class CheckpointScientificUseError(CheckpointError):
+    """A checkpoint not approved for scientific performance claims was used for one
+    (e.g. a locally-generated random-weight backbone, or missing license evidence)."""
+
+
 @dataclass(frozen=True)
 class CheckpointRecord:
     checkpoint_id: str
@@ -61,6 +66,13 @@ class CheckpointRecord:
     # fully initialized from the checkpoint (every tensor, exact shapes). A policy
     # may set scientifically_valid=False (research-execution smoke only).
     compatibility_policy: dict | None = None
+    # Stage 6B checkpoint-governance evidence (fail-closed). Rights clearance and
+    # scientific use require an authenticated approver and verifiable license/source
+    # evidence; a random-weight / research-execution backbone is never scientific.
+    approver_id: str = ""
+    license_evidence_ref: str = ""
+    source_evidence_ref: str = ""
+    scientific_use_approved: bool = False
 
 
 # The approval registry. DINOv2 is listed but intentionally NOT approved and NOT
@@ -146,29 +158,76 @@ _REGISTRY: dict[str, CheckpointRecord] = {
 def register_operator_approved_checkpoint(
     checkpoint_id: str, *, file_path: str, architecture: str, license: str, source_url: str,
     description: str, preprocessing: dict | None = None, compatibility_policy: dict | None = None,
-    rights_cleared: bool = True,
+    approver_id: str = "", license_evidence_ref: str = "", source_evidence_ref: str = "",
+    research_execution_only: bool = False,
 ) -> CheckpointRecord:
-    """Register a checkpoint an OPERATOR has approved in an isolated research
-    environment, computing and recording the on-disk file's SHA-256.
+    """Register a checkpoint an OPERATOR approved in an isolated research environment,
+    computing and recording the on-disk file's SHA-256. **Fail-closed (Stage 6B).**
 
-    This never downloads anything and never relaxes the verification gate: the
-    returned record requires the file and is verified against the digest computed
-    here, so a later swap of the file is rejected. Use it to approve a
-    public-rights-cleared backbone (e.g. an operator-placed ResNet18 whose licensing
-    the operator has verified) or a locally-generated research-execution backbone
-    (`compatibility_policy` with ``scientifically_valid=False``). Rights clearance is
-    the operator's explicit assertion — this function does NOT infer it.
+    An authenticated ``approver_id`` is always required. Then:
+
+    * ``research_execution_only=True`` — a locally-generated / non-scientific backbone
+      (its ``compatibility_policy`` is ``scientifically_valid=False``). It is cleared
+      for pipeline EXECUTION only; ``scientific_use_approved`` stays False, so
+      :func:`assert_scientific_checkpoint` refuses it for any performance claim.
+    * otherwise (a real scientific backbone) — rights clearance AND scientific use
+      require **verifiable license and source evidence** (``license_evidence_ref`` +
+      ``source_evidence_ref``) and genuinely scientific weights. Without that evidence
+      the record is registered with ``rights_cleared=False`` and
+      ``scientific_use_approved=False``, so ``verify_checkpoint`` refuses it.
+
+    Never downloads anything; the record requires the file and is digest-verified, so
+    a later file swap is rejected.
     """
     if not os.path.exists(file_path):
         raise CheckpointFileMissingError(f"No checkpoint file at {file_path!r} to approve.")
+    if not str(approver_id or "").strip():
+        raise CheckpointRightsError(
+            f"Checkpoint '{checkpoint_id}' requires an authenticated approver_id (fail-closed)."
+        )
+    policy_sci_valid = (compatibility_policy or {}).get("scientifically_valid", True)
+    has_evidence = bool(str(license_evidence_ref or "").strip() and str(source_evidence_ref or "").strip())
+
+    if research_execution_only:
+        rights_cleared = True              # may be CONSTRUCTED / run for pipeline verification
+        scientific_use_approved = False    # never for scientific performance claims
+    else:
+        rights_cleared = has_evidence
+        scientific_use_approved = has_evidence and bool(policy_sci_valid)
+
     digest = _file_sha256(file_path)
     rec = CheckpointRecord(
         checkpoint_id=checkpoint_id, description=description, license=license, source_url=source_url,
-        expected_sha256=digest, approved=True, rights_cleared=bool(rights_cleared), requires_file=True,
+        expected_sha256=digest, approved=True, rights_cleared=rights_cleared, requires_file=True,
         architecture=architecture, preprocessing=preprocessing, compatibility_policy=compatibility_policy,
+        approver_id=str(approver_id).strip(), license_evidence_ref=str(license_evidence_ref or "").strip(),
+        source_evidence_ref=str(source_evidence_ref or "").strip(), scientific_use_approved=scientific_use_approved,
     )
     _REGISTRY[checkpoint_id] = rec
     return rec
+
+
+def assert_scientific_checkpoint(record: CheckpointRecord) -> None:
+    """Fail-closed: raise unless a checkpoint may back a SCIENTIFIC performance claim.
+
+    Requires it to be approved, rights-cleared, carry verifiable license + source
+    evidence, and be approved for scientific use (which excludes random-weight /
+    research-execution backbones). A benchmark that reports scientific metrics must
+    call this first.
+    """
+    if not (record.approved and record.rights_cleared):
+        raise CheckpointScientificUseError(
+            f"Checkpoint '{record.checkpoint_id}' is not approved/rights-cleared."
+        )
+    if not record.scientific_use_approved:
+        raise CheckpointScientificUseError(
+            f"Checkpoint '{record.checkpoint_id}' is NOT approved for scientific performance claims "
+            "(random-weight / research-execution backbone, or missing license/source evidence)."
+        )
+    if not (record.license_evidence_ref and record.source_evidence_ref and record.approver_id):
+        raise CheckpointScientificUseError(
+            f"Checkpoint '{record.checkpoint_id}' lacks authenticated approval or license/source evidence."
+        )
 
 
 def get_record(checkpoint_id: str) -> CheckpointRecord:

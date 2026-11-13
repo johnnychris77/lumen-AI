@@ -116,7 +116,8 @@ def run() -> dict:
                 ckpt_id, file_path=path, architecture="resnet18",
                 license="n/a (locally generated this run; no third-party weights)",
                 source_url="", description=f"Stage 6A research-execution backbone for {name}.",
-                preprocessing=preproc, compatibility_policy=policy, rights_cleared=True,
+                preprocessing=preproc, compatibility_policy=policy,
+                approver_id="stage6a-research-operator", research_execution_only=True,
             )
             cfg = ResearchRunConfig(run_id=f"stage6a_{name}", seed=5, checkpoint_id=ckpt_id,
                                     source_provenance_class="synthetic_experimental", embedder=name)
@@ -159,11 +160,19 @@ def run() -> dict:
         with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
     readiness = generate_cohort_readiness_report(manifest)
+    missing: list[str] = []
+    if not manifest:
+        missing.append("no authorized, independently-reviewed real-image cohort present")
+    missing.extend(readiness["blockers"])
+    missing.append("no scientifically-approved (license+source-verified, non-random-weight) checkpoint")
+    ready = readiness["ready_for_scientific_benchmark"]
     record["real_image_benchmark"] = {
-        "status": "BLOCKED" if not readiness["ready_for_benchmark"] else "READY",
-        "reason": "No authorized, independently-reviewed real-image cohort is present."
-                  if not manifest else "Cohort manifest provided; see readiness.",
+        # Explicit Stage 6B sentinel — never substitute random-weight metrics.
+        "status": "READY" if ready else "BLOCKED_REAL_IMAGE_BENCHMARK",
+        "missing_requirements": missing,
         "cohort_readiness": readiness,
+        "note": "Random-weight execution above is pipeline verification only and is "
+                "NEVER real-image scientific performance.",
     }
     return record
 
