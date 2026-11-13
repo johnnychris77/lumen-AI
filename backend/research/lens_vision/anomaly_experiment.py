@@ -57,14 +57,77 @@ def _real_identity(s: dict) -> bool:
     return any(s.get(k) not in (None, "") for k in ("instrument_serial", "inspection_id", "specimen_id", "session_id"))
 
 
+# Fine-grained physical identity that must never straddle the fit / calibration
+# boundary: a single specimen / session / instrument / inspection / exact image
+# belongs wholly to one split, so calibration is never contaminated by a fit-set
+# specimen. (Laboratory BATCH is deliberately excluded here — fit and calibration
+# may draw different specimens from the same batch — but batch still separates
+# train from the held-out TEST set via the full identity tokens below.)
+_GROUP_KEYS = ("specimen_id", "session_id", "instrument_serial", "inspection_id", "image_sha256")
+
+
+def _group_key(s: dict) -> str:
+    """The grouping identity of a sample (strongest available), or its image id
+    when no physical grouping identity exists (each such image is its own group)."""
+    for k in _GROUP_KEYS:
+        v = s.get(k)
+        if v not in (None, ""):
+            return f"{k}:{v}"
+    return f"id:{s.get('id')}"
+
+
 def _split_fit_calibration(normal_samples: list[dict]) -> tuple[list[dict], list[dict]]:
     """Deterministically split verified-normal images into a FIT set and a
-    dedicated CALIBRATION set (~30%), disjoint by construction."""
-    ordered = sorted(normal_samples, key=lambda s: str(s.get("id")))
-    n_cal = max(1, round(len(ordered) * 0.3))
-    calibration = ordered[:n_cal]
-    fit = ordered[n_cal:]
+    dedicated CALIBRATION set (~30%), GROUPED so that a single specimen / session /
+    batch / instrument is never split across the two (no calibration leakage)."""
+    groups: dict[str, list[dict]] = {}
+    for s in normal_samples:
+        groups.setdefault(_group_key(s), []).append(s)
+    ordered_groups = sorted(groups)  # deterministic
+    n_groups = len(ordered_groups)
+    # Take ~30% of GROUPS (at least one) into calibration; the rest fit.
+    n_cal_groups = max(1, round(n_groups * 0.3)) if n_groups > 1 else 1
+    if n_groups == 1:
+        # Only one group: it cannot be both fit and calibration without leakage.
+        # Fall back to a within-group image split only when the group is a set of
+        # identity-less images (each its own group would normally prevent this).
+        only = ordered_groups[0]
+        imgs = sorted(groups[only], key=lambda s: str(s.get("id")))
+        n_cal = max(1, round(len(imgs) * 0.3))
+        return imgs[n_cal:], imgs[:n_cal]
+    cal_group_set = set(ordered_groups[:n_cal_groups])
+    fit, calibration = [], []
+    for g in ordered_groups:
+        (calibration if g in cal_group_set else fit).extend(groups[g])
     return fit, calibration
+
+
+def _assert_split_group_separation(fit: list[dict], calib: list[dict], test: list[dict]) -> None:
+    """Fail-closed separation across the three splits:
+
+    * **fit vs calibration** — no shared fine-grained physical identity
+      (specimen / session / instrument / inspection / exact image), so calibration
+      is never contaminated by a fit-set specimen;
+    * **(fit ∪ calibration) vs test** — no shared identity of ANY kind, INCLUDING
+      laboratory batch, so a batch effect can't leak labels into the held-out set.
+    """
+    fit_g = {_group_key(s) for s in fit}
+    cal_g = {_group_key(s) for s in calib}
+    if fit_g & cal_g:
+        raise LeakageError(
+            "Fit and calibration sets share a specimen/session/instrument/image identity "
+            f"({sorted(fit_g & cal_g)[:3]}) — calibration leakage."
+        )
+    train_tok: set[str] = set()
+    for s in fit + calib:
+        train_tok |= _identity_tokens(s)
+    for s in test:
+        shared = _identity_tokens(s) & train_tok
+        if shared:
+            raise LeakageError(
+                f"Held-out image {s.get('id')} shares an identity {sorted(shared)[:3]} with the "
+                "fit/calibration set (instrument/specimen/session/image/laboratory-batch)."
+            )
 
 
 def _pixel_scores(heatmap: list[list[float]]) -> list[float]:
@@ -102,13 +165,11 @@ def run_anomaly_experiment(
             raise ValueError("At least 2 verified-normal images are required (fit + dedicated calibration).")
         fit_normals, calib_normals = _split_fit_calibration(normal_samples)
 
-    # 4) Leakage: train-side (fit + calibration) must not share identity with held-out.
-    train_tokens: set[str] = set()
-    for s in fit_normals + calib_normals:
-        train_tokens |= _identity_tokens(s)
-    for s in test_samples:
-        if _identity_tokens(s) & train_tokens:
-            raise LeakageError(f"Held-out image {s.get('id')} shares an identity with the training/calibration set.")
+    # 4) Leakage: fit, calibration AND held-out test must each be disjoint by
+    #    physical grouping identity (specimen/session/batch/instrument/image). This
+    #    covers calibration leakage (a fit specimen reused for calibration), not
+    #    only train-vs-test.
+    _assert_split_group_separation(fit_normals, calib_normals, test_samples)
 
     all_have_identity = all(_real_identity(s) for s in everything)
     grouping_limitations = [] if all_have_identity else [

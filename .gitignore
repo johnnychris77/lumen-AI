@@ -85,3 +85,6 @@ data/
 # never commit backups or local cookie jars
 *.bak
 cookies.txt
+
+# Stage 5D isolated research venv (never commit)
+.venv-research/

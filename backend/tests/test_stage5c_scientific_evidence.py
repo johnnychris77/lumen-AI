@@ -48,6 +48,7 @@ from research.lens_vision.scientific_evidence import (
     REL_SUPPORTED,
     ForbiddenInferenceError,
     LaboratoryEvidence,
+    ReviewerAuthorization,
     infer_identity_from_rgb,
     is_lab_confirmed,
     link_observation,
@@ -159,15 +160,20 @@ def test_uncertainty_not_fabricated():
 
 
 def test_observation_keeps_layers_separate():
-    ai = {"image_level_anomaly_score": 9.0, "research_only": True, "confirmed_diagnosis": None}
+    # The anomaly must carry the image/specimen identity it was detected on, so lab
+    # evidence from a DIFFERENT image/specimen can never be attached to it.
+    ai = {"image_level_anomaly_score": 9.0, "research_only": True, "confirmed_diagnosis": None,
+          "image_sha256": "a" * 64, "specimen_id": "SPEC-1"}
     ev = _evidence(CORROSION_LIKE, reference_method="eds", measurement_value=10, measurement_units="mm2",
                    verified_material_identity="iron_oxide")
-    # Without a reviewer link -> indeterminate, no confirmed identity.
-    obs = link_observation(ai, laboratory_evidence=ev, reviewer_linked=False)
+    authz = ReviewerAuthorization(reviewer_id="rev@x", authenticated=True, roles=("scientific_reviewer",))
+    # Without an authorized reviewer -> indeterminate, no confirmed identity.
+    obs = link_observation(ai, laboratory_evidence=ev, reviewer_authorization=None)
     assert obs.ai_to_material_relationship == REL_INDETERMINATE
     assert obs.confirmed_material_identity is None
-    # With reviewer link + verified evidence -> supported + identity from LAB only.
-    obs2 = link_observation(ai, laboratory_evidence=ev, reviewer_linked=True)
+    # With an authenticated, authorized, matching reviewer + verified evidence ->
+    # supported + identity from LAB only.
+    obs2 = link_observation(ai, laboratory_evidence=ev, reviewer_authorization=authz)
     assert obs2.ai_to_material_relationship == REL_SUPPORTED
     assert obs2.confirmed_material_identity == "iron_oxide"
     # Invariants
@@ -262,9 +268,9 @@ def test_results_are_research_only_and_finite():
 def test_artifact_store_integrity(tmp_path):
     store = ResearchArtifactStore(str(tmp_path))
     ref = store.store_heatmap(tenant_id="t", run_id="r", image_id="img1", heatmap=[[0.1, 0.2], [0.3, 0.4]])
-    assert ref and store.exists(ref) and store.resolve(ref)
+    assert ref and store.exists(ref, requesting_tenant_id="t") and store.resolve(ref, requesting_tenant_id="t")
     assert store.store_heatmap(tenant_id="t", run_id="r", image_id="bad", heatmap=[[0.1], [0.2, 0.3]]) is None  # malformed
-    assert store.resolve("artifact://t/r/does-not-exist") is None
+    assert store.resolve("artifact://t/r/does-not-exist", requesting_tenant_id="t") is None
     with pytest.raises(NonFiniteValueError):
         sanitize_score(float("nan"))
     with pytest.raises(MalformedHeatmapError):
@@ -278,7 +284,8 @@ def test_experiment_heatmap_refs_resolve(tmp_path):
     normal, test = synthetic_anomaly_dataset(n_normal=8, n_anomalous=4)
     rep = run_anomaly_experiment(normal, test, config=_cfg(), localizer=StubLocalizer(), artifact_store=store)
     refs = [r["heatmap_ref"] for r in rep["results"]]
-    assert all(ref and store.exists(ref) for ref in refs)        # every ref resolves to a stored artifact
+    # Every ref resolves to a stored artifact for its OWNING tenant only.
+    assert all(ref and store.exists(ref, requesting_tenant_id="research-tenant") for ref in refs)
 
 
 def test_no_store_means_no_dangling_reference():
