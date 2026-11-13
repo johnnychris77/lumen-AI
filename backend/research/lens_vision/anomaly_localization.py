@@ -17,7 +17,6 @@ severity, or release decision.
 """
 from __future__ import annotations
 
-import os
 from collections import deque
 
 from research.lens_vision.anomaly_feasibility import AnomalyRegion
@@ -154,6 +153,7 @@ class _AnomalibLocalizer(AnomalyLocalizer):
         # Populated by _build_model() once real weights are verified + loaded.
         self.load_report = None
         self.backbone_scientifically_valid = True
+        self._fitted = False
 
     @staticmethod
     def _require_anomalib() -> None:
@@ -177,6 +177,15 @@ class _AnomalibLocalizer(AnomalyLocalizer):
 
         # Defense in depth: forbid implicit weight downloads during construction.
         set_offline_environment()
+
+        # Reproducibility: PaDiM randomly selects a feature subset at construction
+        # (not part of the loaded weights), so seed RNGs deterministically first.
+        import random  # noqa: PLC0415
+
+        import torch  # noqa: PLC0415
+        seed = int(getattr(self, "build_seed", 0))
+        random.seed(seed)
+        torch.manual_seed(seed)
 
         layers = ["layer1", "layer2", "layer3"]
         if self.anomalib_model == "padim":
@@ -211,46 +220,74 @@ class _AnomalibLocalizer(AnomalyLocalizer):
         model.eval()
         return model
 
-    def fit(self, normal_images: list[bytes]) -> "_AnomalibLocalizer":  # pragma: no cover - needs env
-        import tempfile  # noqa: PLC0415
+    @staticmethod
+    def _patch_anomalib_progress() -> None:
+        """Bypass an anomalib/rich progress-bar incompatibility in the coreset
+        sampler (UI only — the algorithm is unchanged)."""
+        try:
+            import anomalib.models.components.sampling.k_center_greedy as kcg  # noqa: PLC0415
+            import anomalib.utils.rich as arich  # noqa: PLC0415
+            arich.safe_track = lambda sequence=None, **_kw: sequence if sequence is not None else []
+            kcg.safe_track = arich.safe_track
+        except Exception:  # pragma: no cover
+            pass
 
-        from anomalib.data import Folder  # noqa: PLC0415
-        from anomalib.engine import Engine  # noqa: PLC0415
+    def _to_tensor(self, image_bytes: bytes | None):  # pragma: no cover - needs env
+        import numpy as np  # noqa: PLC0415
+        import torch  # noqa: PLC0415
+
         from research.lens_vision.images import decode_rgb
+        size = tuple(self.preprocessing.get("resize", [256, 256]))
+        mean = self.preprocessing.get("mean", [0.485, 0.456, 0.406])
+        std = self.preprocessing.get("std", [0.229, 0.224, 0.225])
+        arr = (np.asarray(decode_rgb(image_bytes, size=size), dtype="float32") / 255.0
+               - np.asarray(mean, dtype="float32")) / np.asarray(std, dtype="float32")
+        return torch.from_numpy(arr.astype("float32")).permute(2, 0, 1).unsqueeze(0).contiguous()
+
+    def fit(self, normal_images: list[bytes]) -> "_AnomalibLocalizer":  # pragma: no cover - needs env
+        import torch  # noqa: PLC0415
 
         if not normal_images:
             raise ValueError("fit requires at least one verified-normal image.")
+        self._patch_anomalib_progress()
         self._model = self._build_model()
-        # Materialize the verified-normal images to an access-controlled temp dir,
-        # then fit PaDiM/PatchCore on the 'normal' split only (no abnormal images).
-        self._tmpdir = tempfile.mkdtemp(prefix="lumen_anom_fit_")
-        size = tuple(self.preprocessing.get("resize", [256, 256]))
-        for i, b in enumerate(normal_images):
-            decode_rgb(b, size=size).save(os.path.join(self._tmpdir, f"normal_{i:05d}.png"))
-        datamodule = Folder(name="lumen_research", root=self._tmpdir, normal_dir=".")
-        self._engine = Engine(accelerator="cpu")
-        self._engine.fit(model=self._model, datamodule=datamodule)
+        tm = self._model.model  # the torch model (PadimModel / PatchcoreModel)
+        batch = torch.cat([self._to_tensor(b) for b in normal_images], dim=0)
+        tm.train()
+        with torch.no_grad():
+            emb = tm(batch)  # training forward returns embeddings
+        # Fit the normal-only statistics on the VERIFIED-NORMAL embeddings only.
+        if self.anomalib_model == "padim":
+            with torch.no_grad():
+                tm.gaussian.fit(emb)
+        elif self.anomalib_model == "patchcore":
+            with torch.no_grad():
+                tm.subsample_embedding(emb, sampling_ratio=getattr(self, "coreset_sampling_ratio", 0.1))
+        tm.eval()
+        self._fitted = True
         return self
 
     def score(self, image_bytes: bytes | None):  # pragma: no cover - needs env
         import torch  # noqa: PLC0415
 
-        from research.lens_vision.images import decode_rgb
-        if self._model is None:
+        if self._model is None or not getattr(self, "_fitted", False):
             raise RuntimeError("Localizer must be fit() before scoring.")
         orig_w, orig_h = _original_size(image_bytes)
-        size = tuple(self.preprocessing.get("resize", [256, 256]))
-        mean = self.preprocessing.get("mean", [0.485, 0.456, 0.406])
-        std = self.preprocessing.get("std", [0.229, 0.224, 0.225])
-        import numpy as np  # noqa: PLC0415
-        arr = (np.asarray(decode_rgb(image_bytes, size=size), dtype="float32") / 255.0 - mean) / std
-        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)
+        tensor = self._to_tensor(image_bytes)
+        tm = self._model.model
+        tm.eval()
         with torch.no_grad():
-            out = self._model.model(tensor)
-        amap = out["anomaly_map"] if isinstance(out, dict) else out
+            out = tm(tensor)
+        # PaDiM returns the anomaly-map Tensor; PatchCore returns a dict/InferenceBatch.
+        if hasattr(out, "anomaly_map"):
+            amap = out.anomaly_map
+        elif isinstance(out, dict):
+            amap = out.get("anomaly_map", next(iter(out.values())))
+        else:
+            amap = out
         amap = torch.nn.functional.interpolate(
-            amap.view(1, 1, *amap.shape[-2:]), size=(orig_h, orig_w), mode="bilinear", align_corners=False
-        ).squeeze().tolist()
+            amap.reshape(1, 1, *amap.shape[-2:]), size=(orig_h, orig_w), mode="bilinear", align_corners=False
+        ).squeeze(0).squeeze(0).tolist()
         image_score = float(max(max(r) for r in amap))
         return amap, image_score
 
