@@ -1,0 +1,109 @@
+{
+  "status": "EXECUTED",
+  "disclaimer": "Governed-interface execution verification on SYNTHETIC non-clinical inputs with a locally-generated research-execution backbone (scientifically_valid=False). NOT scientific or clinical performance. The real-image benchmark is BLOCKED (see below).",
+  "environment": {
+    "python": "3.11.18",
+    "torch": "2.15.0+cu132",
+    "numpy": "1.26.4",
+    "anomalib": "1.1.3",
+    "cuda_available": false
+  },
+  "governed_execution": {
+    "padim": {
+      "executed_through_governed_localizer": true,
+      "checkpoint_id": "resnet18_research_exec_padim",
+      "backbone_sha256": "68a421e7931708df9ddc01cbcac0e608359a9b94219c43f32af02f57f5665260",
+      "backbone_load": {
+        "n_target_tensors": 90,
+        "n_matched": 90,
+        "n_missing": 0,
+        "n_unexpected": 0,
+        "n_shape_mismatch": 0,
+        "coverage": 1.0,
+        "policy_id": "stage6a_research_execution",
+        "scientifically_valid": false,
+        "missing": [],
+        "shape_mismatch": []
+      },
+      "scientifically_valid_backbone": false,
+      "n_fit_normal": 7,
+      "n_calibration_normal": 3,
+      "frozen_threshold": {
+        "image_threshold": 6.338837623596191,
+        "pixel_threshold": 0.9978068470954895,
+        "method": "normal_calibration_quantile(q=0.95)",
+        "target_fpr": 0.05,
+        "n_calibration": 3,
+        "frozen": true
+      },
+      "deterministic": true,
+      "synthetic_technical_test": true,
+      "research_only": true,
+      "example_image_level_scores": [
+        3.136,
+        4.7965,
+        1.5567,
+        15.6908
+      ]
+    },
+    "patchcore": {
+      "executed_through_governed_localizer": true,
+      "checkpoint_id": "resnet18_research_exec_patchcore",
+      "backbone_sha256": "764bce02e2cafc47bd47989d2ad44de9f96043bce42c20d934e579a4d84cea5d",
+      "backbone_load": {
+        "n_target_tensors": 90,
+        "n_matched": 90,
+        "n_missing": 0,
+        "n_unexpected": 0,
+        "n_shape_mismatch": 0,
+        "coverage": 1.0,
+        "policy_id": "stage6a_research_execution",
+        "scientifically_valid": false,
+        "missing": [],
+        "shape_mismatch": []
+      },
+      "scientifically_valid_backbone": false,
+      "n_fit_normal": 7,
+      "n_calibration_normal": 3,
+      "frozen_threshold": {
+        "image_threshold": 0.2941621243953705,
+        "pixel_threshold": 0.0411413237452507,
+        "method": "normal_calibration_quantile(q=0.95)",
+        "target_fpr": 0.05,
+        "n_calibration": 3,
+        "frozen": true
+      },
+      "deterministic": true,
+      "synthetic_technical_test": true,
+      "research_only": true,
+      "example_image_level_scores": [
+        0.1759,
+        0.2141,
+        0.1139,
+        4.1457
+      ]
+    }
+  },
+  "real_image_benchmark": {
+    "status": "BLOCKED",
+    "reason": "No authorized, independently-reviewed real-image cohort is present.",
+    "cohort_readiness": {
+      "schema": "lumenai.stage6a.cohort_readiness.v1",
+      "n_images": 0,
+      "n_ready": 0,
+      "ready_for_benchmark": false,
+      "missing_evidence": {},
+      "by_modality_ready_counts": {},
+      "modality_ready": {
+        "external_camera": false,
+        "borescope": false
+      },
+      "cross_split_leakage": [],
+      "blockers": [
+        "no modality has a complete fit+calibration+sealed_test cohort"
+      ],
+      "per_image": [],
+      "note": "Readiness only \u2014 no images ingested, no performance measured. Real benchmarking requires every blocker cleared and authorized data present."
+    }
+  }
+}

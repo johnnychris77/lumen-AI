@@ -143,6 +143,34 @@ _REGISTRY: dict[str, CheckpointRecord] = {
 }
 
 
+def register_operator_approved_checkpoint(
+    checkpoint_id: str, *, file_path: str, architecture: str, license: str, source_url: str,
+    description: str, preprocessing: dict | None = None, compatibility_policy: dict | None = None,
+    rights_cleared: bool = True,
+) -> CheckpointRecord:
+    """Register a checkpoint an OPERATOR has approved in an isolated research
+    environment, computing and recording the on-disk file's SHA-256.
+
+    This never downloads anything and never relaxes the verification gate: the
+    returned record requires the file and is verified against the digest computed
+    here, so a later swap of the file is rejected. Use it to approve a
+    public-rights-cleared backbone (e.g. an operator-placed ResNet18 whose licensing
+    the operator has verified) or a locally-generated research-execution backbone
+    (`compatibility_policy` with ``scientifically_valid=False``). Rights clearance is
+    the operator's explicit assertion — this function does NOT infer it.
+    """
+    if not os.path.exists(file_path):
+        raise CheckpointFileMissingError(f"No checkpoint file at {file_path!r} to approve.")
+    digest = _file_sha256(file_path)
+    rec = CheckpointRecord(
+        checkpoint_id=checkpoint_id, description=description, license=license, source_url=source_url,
+        expected_sha256=digest, approved=True, rights_cleared=bool(rights_cleared), requires_file=True,
+        architecture=architecture, preprocessing=preprocessing, compatibility_policy=compatibility_policy,
+    )
+    _REGISTRY[checkpoint_id] = rec
+    return rec
+
+
 def get_record(checkpoint_id: str) -> CheckpointRecord:
     rec = _REGISTRY.get(checkpoint_id)
     if rec is None:
