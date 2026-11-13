@@ -17,7 +17,6 @@ from research.lens_vision import checkpoint as ckpt
 from research.lens_vision.cohort_readiness import (
     GT_ABNORMAL,
     GT_VERIFIED_NORMAL,
-    MODALITY_BORESCOPE,
     MODALITY_EXTERNAL,
     generate_cohort_readiness_report,
     validate_image_readiness,
@@ -84,23 +83,27 @@ def test_report_flags_cross_split_leakage_and_blocks_benchmark():
     assert any("straddle" in b for b in rep["blockers"])
 
 
-def test_report_counts_and_modalities():
+def test_small_complete_manifest_is_not_scientifically_ready():
+    # A handful of fully-populated images must NOT be reported as benchmark-ready:
+    # statistical adequacy (min sizes + reviewer sign-off) and an approved scientific
+    # checkpoint are both missing.
     manifest = [
         _img(image_id="a", split="fit", specimen_id="S1", image_sha256="1" * 64),
         _img(image_id="b", split="calibration", specimen_id="S2", image_sha256="2" * 64),
         _img(image_id="c", split="sealed_test", specimen_id="S3", image_sha256="3" * 64),
-        _img(image_id="d", modality=MODALITY_BORESCOPE, split="fit", specimen_id="S4", image_sha256="4" * 64),
     ]
     rep = generate_cohort_readiness_report(manifest)
-    assert rep["n_images"] == 4 and rep["n_ready"] == 4
-    assert rep["modality_ready"][MODALITY_EXTERNAL] is True       # fit+cal+sealed present, no leak
-    assert rep["modality_ready"][MODALITY_BORESCOPE] is False     # only a fit image
-    assert rep["ready_for_benchmark"] is True                     # external cohort is complete
+    assert rep["n_images"] == 3 and rep["n_ready"] == 3
+    assert rep["dimensions"]["metadata_completeness"]["ready"] is True
+    assert rep["dimensions"]["statistical_adequacy"]["ready"] is False   # too few + no sign-off
+    assert rep["dimensions"]["model_execution_readiness"]["ready"] is False
+    assert rep["ready_for_scientific_benchmark"] is False
+    assert rep["ready_for_benchmark"] is False
 
 
 def test_empty_manifest_is_not_ready():
     rep = generate_cohort_readiness_report([])
-    assert rep["ready_for_benchmark"] is False and rep["n_images"] == 0
+    assert rep["ready_for_scientific_benchmark"] is False and rep["n_images"] == 0
 
 
 # ── checkpoint governance (operator approval + SHA verification) ──────────────
@@ -108,19 +111,53 @@ def test_empty_manifest_is_not_ready():
 def test_register_operator_approved_checkpoint_verifies_sha(tmp_path):
     w = tmp_path / "bb.pt"
     w.write_bytes(b"backbone-weights")
+    # Research-execution backbone: approved for execution, NOT for scientific claims.
     rec = ckpt.register_operator_approved_checkpoint(
         "op_bb", file_path=str(w), architecture="resnet18", license="verified-by-operator",
         source_url="", description="operator approved", preprocessing={"resize": [256, 256]},
         compatibility_policy={"policy_id": "p", "reason": "r", "scientifically_valid": False},
+        approver_id="op@x", research_execution_only=True,
     )
     assert rec.approved and rec.rights_cleared and rec.requires_file
+    assert rec.scientific_use_approved is False
     assert rec.expected_sha256 == hashlib.sha256(b"backbone-weights").hexdigest()
-    # Verification passes for the exact file, fails on tamper.
     assert ckpt.verify_checkpoint("op_bb", file_path=str(w)).checkpoint_id == "op_bb"
+    with pytest.raises(ckpt.CheckpointScientificUseError):
+        ckpt.assert_scientific_checkpoint(rec)          # never for scientific claims
     w.write_bytes(b"tampered")
     with pytest.raises(ckpt.CheckpointVerificationError):
         ckpt.verify_checkpoint("op_bb", file_path=str(w))
     del ckpt._REGISTRY["op_bb"]
+
+
+def test_checkpoint_governance_fails_closed_without_approver(tmp_path):
+    w = tmp_path / "bb.pt"
+    w.write_bytes(b"w")
+    # No approver_id -> fail-closed.
+    with pytest.raises(ckpt.CheckpointRightsError):
+        ckpt.register_operator_approved_checkpoint(
+            "no_approver", file_path=str(w), architecture="resnet18", license="x",
+            source_url="", description="x")
+    # Scientific approval without license/source evidence -> not rights-cleared.
+    rec = ckpt.register_operator_approved_checkpoint(
+        "no_evidence", file_path=str(w), architecture="resnet18", license="x", source_url="",
+        description="x", approver_id="op@x")
+    assert rec.rights_cleared is False and rec.scientific_use_approved is False
+    with pytest.raises(ckpt.CheckpointRightsError):
+        ckpt.verify_checkpoint("no_evidence", file_path=str(w))
+    del ckpt._REGISTRY["no_evidence"]
+
+
+def test_scientific_checkpoint_requires_license_and_source_evidence(tmp_path):
+    w = tmp_path / "real.pt"
+    w.write_bytes(b"real-weights")
+    rec = ckpt.register_operator_approved_checkpoint(
+        "sci_bb", file_path=str(w), architecture="resnet18", license="Apache-2.0",
+        source_url="https://example/model", description="real scientific backbone",
+        approver_id="reviewer@x", license_evidence_ref="LIC-1", source_evidence_ref="SRC-1")
+    assert rec.rights_cleared is True and rec.scientific_use_approved is True
+    ckpt.assert_scientific_checkpoint(rec)              # passes with full evidence
+    del ckpt._REGISTRY["sci_bb"]
 
 
 def test_imagenet_backbone_still_blocked():
@@ -186,7 +223,8 @@ def test_governed_padim_executes_through_localizer(tmp_path):
         "rn18_test", file_path=str(path), architecture="resnet18", license="local", source_url="",
         description="test", preprocessing={"resize": [256, 256], "mean": [0.485, 0.456, 0.406],
                                            "std": [0.229, 0.224, 0.225]},
-        compatibility_policy={"policy_id": "t", "reason": "t", "scientifically_valid": False})
+        compatibility_policy={"policy_id": "t", "reason": "t", "scientifically_valid": False},
+        approver_id="op@x", research_execution_only=True)
     normal, test = synthetic_anomaly_dataset(n_normal=4, n_anomalous=2)
     lz = PadimLocalizer(backbone_checkpoint_id="rn18_test", file_path=str(path))
     lz.fit([s["image_bytes"] for s in normal])
