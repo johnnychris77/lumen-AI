@@ -21,5 +21,10 @@ numpy>=1.26,<3
 # path; uncomment if the transformers route is used (verify license upstream):
 # transformers>=4.40,<5
 
-# Stage 5B anomaly localization (PatchCore / PaDiM); uncomment when that work starts:
-# anomalib>=1.0,<2
+# Stage 5B anomaly localization (PaDiM / PatchCore) via Anomalib (Apache-2.0).
+# Optional + isolated: CI and production never install this. VERIFY the installed
+# Anomalib API version and use the documented interfaces for that version — the
+# 0.x and 1.x APIs differ. The research adapter imports Anomalib lazily and only
+# after the backbone checkpoint passes the approval + SHA-256 gate.
+anomalib>=1.1,<2
+# Anomalib pulls its own torch/lightning stack; keep torch pinned above compatible.

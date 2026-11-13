@@ -48,6 +48,66 @@ def _class_image(label: str, idx: int, size: int = 96) -> bytes:
     return buf.getvalue()
 
 
+def _anomaly_image(size: int, anomalous: bool, idx: int) -> tuple[bytes, list[list[int]]]:
+    """A deterministic 'normal' (uniform-ish) image, or an 'anomalous' one with a
+    bright square at a known location. Returns (png_bytes, binary_mask[size][size])."""
+    base = 150 + (idx * 3) % 10
+    img = Image.new("RGB", (size, size), (base, base, base))
+    px = img.load()
+    # Deterministic per-sample marker (top-left, away from the patch region) so
+    # every synthetic image has a unique SHA — no accidental duplicate/leakage.
+    # Hash-spread so the marker's distribution is similar across all samples
+    # (its variance is modeled), rather than correlating with the train/test split.
+    _hv = hashlib.sha256(f"marker-{idx}".encode()).digest()
+    px[0, 0] = (_hv[0], _hv[1], _hv[2])
+    mask = [[0] * size for _ in range(size)]
+    if anomalous:
+        # A bright patch in the lower-right quadrant (fixed, known location).
+        y0, y1 = int(size * 0.6), int(size * 0.85)
+        x0, x1 = int(size * 0.6), int(size * 0.85)
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                px[x, y] = (250, 40, 40)
+                mask[y][x] = 1
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue(), mask
+
+
+def synthetic_anomaly_dataset(
+    *, n_normal: int = 10, n_anomalous: int = 6, size: int = 64, tenant_id: str = "research-tenant",
+) -> tuple[list[dict], list[dict]]:
+    """Deterministic (normal_samples, test_samples) for an anomaly-localization
+    smoke experiment. Normal samples are VERIFIED-NORMAL synthetic images; test
+    samples mix held-out normals and anomalous images carrying a ground-truth mask
+    and ``anomaly_label`` (0/1). SYNTHETIC — a technical test, not model performance.
+    """
+    def _mk(i, anomalous):
+        data, mask = _anomaly_image(size, anomalous, i)
+        sha = hashlib.sha256(data).hexdigest()
+        return {
+            "id": f"anom-{'a' if anomalous else 'n'}-{i}",
+            "image_bytes": data,
+            "image_sha256": sha,
+            "tenant_id": tenant_id,
+            "data_provenance_class": PROVENANCE_SYNTHETIC_EXPERIMENTAL,
+            "provenance_approval_status": "not_required",
+            "ground_truth_status": "verified_normal" if not anomalous else "abnormal",
+            "label": "no_observable_abnormality" if not anomalous else "probable_corrosion_like_degradation",
+            "anomaly_label": 1 if anomalous else 0,
+            "anomaly_mask": mask,
+            "inspection_id": i if not anomalous else 1000 + i,
+            "specimen_id": f"SPEC-{'a' if anomalous else 'n'}-{i}",
+            "instrument_serial": f"SER-{'a' if anomalous else 'n'}-{i}",
+        }
+
+    normal_samples = [_mk(i, False) for i in range(n_normal)]
+    # Held-out set: a few unseen normals + the anomalous images.
+    test_samples = [_mk(1000 + i, False) for i in range(max(2, n_anomalous // 2))]
+    test_samples += [_mk(i, True) for i in range(n_anomalous)]
+    return normal_samples, test_samples
+
+
 def synthetic_research_dataset(
     *, n_per_class: int = 6, classes: list[str] | None = None, tenant_id: str = "research-tenant",
     reliable_grouping: bool = True,
