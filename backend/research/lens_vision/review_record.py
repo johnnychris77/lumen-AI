@@ -94,27 +94,31 @@ def build_review_record(
     *, specimen_id: str, image_id, image_sha256: str, modality: str = "",
     model_name: str, predicted_positive: bool, anomaly_score: float | None = None,
     spatial_mask_ref: str = "", human_visual_interpretation: str = "", visual_reviewer_id: str = "",
-    laboratory_evidence_ref: str = "", lab_confirmed: bool = False,
-    confirmed_material_identity: str | None = None, approved_ground_truth_label: str | None = None,
+    lab_confirmation=None, approved_ground_truth_label: str | None = None,
     limitations: list[str] | None = None,
 ) -> ReviewRecord:
     """Assemble a traceable review record and compute the match/miss/conflict outcome.
 
-    A confirmed material identity is carried ONLY when laboratory-confirmed; the AI
-    prediction never establishes it. No diagnosis, severity, or release decision is
-    produced.
+    Laboratory confirmation must be a **resolved** object (an object with ``.confirmed``
+    and ``.identity`` — see ``scientific_authorization.resolve_lab_confirmation``),
+    **never an arbitrary boolean**. A confirmed material identity and the evidence
+    reference are taken from that resolved object only; the AI prediction never
+    establishes them. No diagnosis, severity, or release decision is produced.
     """
+    confirmed = bool(getattr(lab_confirmation, "confirmed", False))
+    identity = getattr(lab_confirmation, "identity", None) if confirmed else None
+    evidence_id = getattr(lab_confirmation, "evidence_record_id", None)
+    evidence_ref = f"veritas_evidence:{evidence_id}" if (confirmed and evidence_id is not None) else ""
     outcome = compare_prediction_to_ground_truth(
         predicted_positive=predicted_positive, ground_truth_label=approved_ground_truth_label,
-        lab_confirmed=lab_confirmed,
+        lab_confirmed=confirmed,
     )
-    identity = confirmed_material_identity if lab_confirmed else None
     return ReviewRecord(
         specimen_id=specimen_id, image_id=image_id, image_sha256=image_sha256, modality=modality,
         model_name=model_name, predicted_positive=bool(predicted_positive), anomaly_score=anomaly_score,
         spatial_mask_ref=spatial_mask_ref, human_visual_interpretation=human_visual_interpretation,
-        visual_reviewer_id=visual_reviewer_id, laboratory_evidence_ref=laboratory_evidence_ref,
-        lab_confirmed=bool(lab_confirmed), confirmed_material_identity=identity,
+        visual_reviewer_id=visual_reviewer_id, laboratory_evidence_ref=evidence_ref,
+        lab_confirmed=confirmed, confirmed_material_identity=identity,
         approved_ground_truth_label=approved_ground_truth_label, outcome=outcome,
         limitations=list(limitations or []),
     )
