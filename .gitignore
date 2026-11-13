@@ -88,3 +88,9 @@ cookies.txt
 
 # Stage 5D isolated research venv (never commit)
 .venv-research/
+
+# TRC-001 private intake kit and operator images (never commit)
+TRC-001-private-intake-kit.zip
+**/TRC-001*intake*kit*
+**/*TRC-001*.jpg
+**/*TRC-001*.jpeg
