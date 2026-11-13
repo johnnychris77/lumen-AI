@@ -12,7 +12,7 @@
     "padim": {
       "executed_through_governed_localizer": true,
       "checkpoint_id": "resnet18_research_exec_padim",
-      "backbone_sha256": "e0cfd0b0d990703e85b14c32b904385d7f8314049a007f317d226527df26b138",
+      "backbone_sha256": "699e5aa8c6beaa3de5cf2eaa087a86ae722e7d3b785eea553b543b55723e0be7",
       "backbone_load": {
         "n_target_tensors": 90,
         "n_matched": 90,
@@ -49,7 +49,7 @@
     "patchcore": {
       "executed_through_governed_localizer": true,
       "checkpoint_id": "resnet18_research_exec_patchcore",
-      "backbone_sha256": "8eae019091247a03aee16bdfeb2ffffa2d6d27d3af65461fabe3c9e3f18de972",
+      "backbone_sha256": "e9e7cbf20bf3d1fc88e5e111ed1b4fbe1ef9cabd6250ec299c25cc6e410bc566",
       "backbone_load": {
         "n_target_tensors": 90,
         "n_matched": 90,
@@ -90,7 +90,9 @@
       "no authorized, independently-reviewed real-image cohort present",
       "model_execution_readiness_not_ready",
       "statistical_adequacy_not_ready",
-      "no scientifically-approved (license+source-verified, non-random-weight) checkpoint"
+      "scientific_authorization:data_authorization:BLOCKED: ScientificAuthorizationError: No research_data_authorization evidence record id supplied.",
+      "scientific_authorization:statistical_signoff:BLOCKED: ScientificAuthorizationError: No approver identity supplied.",
+      "scientific_authorization:scientific_checkpoint:BLOCKED: CheckpointScientificUseError: Checkpoint 'smoke_stub' is NOT approved for scientific performance claims (random-weight / research-execution backbone, or missing license/source evidence)."
     ],
     "cohort_readiness": {
       "schema": "lumenai.stage6b.cohort_readiness.v2",
@@ -141,6 +143,16 @@
       ],
       "per_image": [],
       "note": "Readiness only \u2014 no images ingested, no performance measured. A complete manifest or one image per split does NOT make a benchmark scientifically ready; statistical adequacy requires minimum cohort sizes AND a statistical reviewer sign-off, and an approved scientific checkpoint must exist."
+    },
+    "scientific_readiness": {
+      "schema": "lumenai.stage6c.scientific_readiness.v1",
+      "ready_for_scientific_benchmark": false,
+      "checks": {
+        "data_authorization": "BLOCKED: ScientificAuthorizationError: No research_data_authorization evidence record id supplied.",
+        "statistical_signoff": "BLOCKED: ScientificAuthorizationError: No approver identity supplied.",
+        "scientific_checkpoint": "BLOCKED: CheckpointScientificUseError: Checkpoint 'smoke_stub' is NOT approved for scientific performance claims (random-weight / research-execution backbone, or missing license/source evidence)."
+      },
+      "note": "All prerequisites resolved against authoritative records; fail-closed. Readiness here is necessary, not a clinical-validation claim."
     },
     "note": "Random-weight execution above is pipeline verification only and is NEVER real-image scientific performance."
   }
