@@ -44,6 +44,7 @@ REQ_CHECKPOINT_LICENSE = "scientific_checkpoint_license"
 REQ_CHECKPOINT_SOURCE = "scientific_checkpoint_source"
 REQ_DATA_AUTHORIZATION = "research_data_authorization"
 REQ_RESEARCH_CONSENT = "research_use_consent"            # dataset-scoped consent record
+REQ_RETENTION_AUTHORIZATION = "research_retention_authorization"  # dataset-scoped retention approval
 REQ_STATISTICAL_PROTOCOL = "statistical_protocol_approval"
 
 # The use scope a scientific-checkpoint approval must carry.
@@ -117,6 +118,26 @@ def authorize_scientific_actor(db: Session, auth: AuthContext, *, allowed_roles:
             f"Authenticated role '{auth.role}' does not match the recorded role '{record_role}' "
             f"for actor '{auth.actor}' (possible impersonation)."
         )
+    return auth.actor
+
+
+def authorize_tenant_actor(db: Session, auth, *, tenant_id: str) -> str:
+    """Require a TRUSTED, AUTHENTICATED, tenant-matched actor for a research action.
+
+    Fail-closed: ``auth`` must be an ``AuthContext`` (not None / not an untrusted
+    object), carry a non-empty actor, have ``tenant_id`` matching the action's tenant,
+    and resolve to a real ``UserRoleAssignment`` (an authenticated identity, any role).
+    This is weaker than a scientific-approver check but strictly stronger than a bare
+    caller-supplied username or a ``consent=True`` flag."""
+    if not isinstance(auth, AuthContext) or not str(getattr(auth, "actor", "") or "").strip():
+        raise ScientificAuthorizationError("A trusted authenticated request context is required (auth=None refused).")
+    if str(auth.tenant_id or "") != str(tenant_id or ""):
+        raise ScientificAuthorizationError(
+            f"Authenticated actor tenant '{auth.tenant_id}' does not match the action tenant '{tenant_id}'."
+        )
+    row = db.query(UserRoleAssignment).filter(UserRoleAssignment.username == auth.actor).first()
+    if row is None:
+        raise ScientificAuthorizationError(f"Actor '{auth.actor}' is not an authenticated identity.")
     return auth.actor
 
 

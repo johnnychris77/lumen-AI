@@ -69,6 +69,7 @@ class ImageIntakeResult:
     checksum_match: bool | None = None
     retrieval_verified: bool = False
     tenant_isolation_ok: bool | None = None
+    tenant_access_authorized: bool | None = None
     exif_stripped: bool | None = None
     ground_truth_status: str = "unknown"
     baseline_review: str = "pending_review"
@@ -106,6 +107,19 @@ def _blocked_images(reason: str) -> list:
             for k, v in TRC001_IMAGES.items()]
 
 
+def _safe_kit_path(kit_dir: str, filename: str) -> str:
+    """Resolve a manifest filename to a path INSIDE the kit directory. Rejects
+    absolute paths, home expansion, and any traversal that escapes the kit dir."""
+    name = str(filename or "")
+    if not name or os.path.isabs(name) or name.startswith("~") or "\x00" in name:
+        raise ValueError("unsafe_or_absolute_filename")
+    base = os.path.realpath(kit_dir)
+    full = os.path.realpath(os.path.join(base, name))
+    if full != base and not full.startswith(base + os.sep):
+        raise ValueError("path_escapes_kit_dir")
+    return full
+
+
 def _validate_decode(data: bytes) -> tuple:
     """Return (width, height) if the bytes decode as a readable image; raise otherwise."""
     from PIL import Image, UnidentifiedImageError  # noqa: PLC0415
@@ -120,11 +134,48 @@ def _validate_decode(data: bytes) -> tuple:
         raise ValueError(f"image did not decode: {exc}") from exc
 
 
+def _manifest_dimensions(entry: dict) -> tuple | None:
+    """Pull declared (width, height) from a manifest entry, if present. Supports
+    flat ``width``/``height`` keys and a ``dimensions``/``size`` [w, h] pair."""
+    w = entry.get("width")
+    h = entry.get("height")
+    if w is None or h is None:
+        pair = entry.get("dimensions") or entry.get("size")
+        if isinstance(pair, (list, tuple)) and len(pair) == 2:
+            w, h = pair[0], pair[1]
+    if w is None or h is None:
+        return None
+    try:
+        return (int(w), int(h))
+    except (TypeError, ValueError):
+        return None
+
+
 def run_trc001_intake(
     db: Session, *, kit_dir: str | None, tenant_id: str, dataset_id: str, auth=None,
 ) -> IntakeReport:
     """Execute the TRC-001 intake, fail-closed. See module docstring for the order."""
-    # 1) Private intake kit present?
+    from research.lens_vision.scientific_authorization import (  # noqa: PLC0415
+        REQ_RETENTION_AUTHORIZATION,
+        ScientificAuthorizationError,
+        authorize_tenant_actor,
+        resolve_governance_approval,
+        verify_data_authorization,
+    )
+
+    # 1) Trusted, authenticated, tenant-matched actor. auth=None or an untrusted /
+    #    cross-tenant context is refused BEFORE the kit or manifest is even read.
+    try:
+        authorized_actor = authorize_tenant_actor(db, auth, tenant_id=tenant_id)
+    except ScientificAuthorizationError as exc:
+        return IntakeReport(
+            status="BLOCKED_AUTHORIZATION", images=_blocked_images(f"actor_not_authorized: {exc}"),
+            missing_documentation=list(_REQUIRED_AUTHORIZATION_DOCS),
+            note="No trusted authenticated tenant-matched actor. auth=None or an untrusted / "
+                 "cross-tenant request context is refused; nothing loaded or retained; no IDs created.",
+        )
+
+    # 2) Private intake kit present?
     manifest_path = os.path.join(kit_dir, "manifest.json") if kit_dir else ""
     if not kit_dir or not os.path.exists(manifest_path):
         return IntakeReport(
@@ -133,29 +184,33 @@ def run_trc001_intake(
             note="No private intake kit/manifest present. Nothing loaded or retained; no IDs created.",
         )
 
-    # 2) Authorization (fail-closed), resolved against governance records.
-    from research.lens_vision.scientific_authorization import (  # noqa: PLC0415
-        ScientificAuthorizationError,
-        verify_data_authorization,
-    )
+    # 3) Authorization (fail-closed), resolved against governance records:
+    #    (a) dataset-specific institutional + research-use authorization + tenant consent,
+    #    (b) a dataset-scoped RETENTION authorization — so retention is gated by a resolved
+    #        approval to keep THESE images, not by the caller passing consent=True alone.
     try:
         verify_data_authorization(db, tenant_id=tenant_id, dataset_id=dataset_id, auth=auth)
+        retention_approval = resolve_governance_approval(
+            db, tenant_id=tenant_id, request_type=REQ_RETENTION_AUTHORIZATION,
+            target_resource_id=dataset_id)
     except ScientificAuthorizationError as exc:
         return IntakeReport(
             status="BLOCKED_AUTHORIZATION", images=_blocked_images(f"authorization_unresolved: {exc}"),
             missing_documentation=list(_REQUIRED_AUTHORIZATION_DOCS),
-            note="Authorization not resolved against governance records. No bytes retained; no IDs created. "
+            note="Authorization not resolved against governance records (institutional / research-use / "
+                 "tenant consent / dataset retention approval). No bytes retained; no IDs created. "
                  "Capturing an image personally does not establish institutional/research-use permission.",
         )
 
-    # 3) Authorized — load the manifest and ingest each image.
+    # 4) Authorized — load the manifest and ingest each image.
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
     entries = {e.get("image_id"): e for e in manifest.get("images", [])}
 
-    from app.services.image_retention_service import retain_image  # noqa: PLC0415
     from app.models.retained_image import RetainedImage  # noqa: PLC0415
+    from app.services.image_retention_service import retain_image  # noqa: PLC0415
 
+    kit_base = os.path.realpath(kit_dir)
     results: list = []
     imported = 0
     for image_id, spec in TRC001_IMAGES.items():
@@ -169,8 +224,14 @@ def run_trc001_intake(
             r.reason = "image_absent_from_manifest"
             results.append(r)
             continue
-        fpath = os.path.join(kit_dir, str(entry.get("filename") or ""))
-        if not os.path.exists(fpath):
+        # Reject absolute filenames or any path that escapes the private kit directory.
+        try:
+            fpath = _safe_kit_path(kit_base, entry.get("filename"))
+        except ValueError as exc:
+            r.reason = f"unsafe_filename_rejected: {exc}"
+            results.append(r)
+            continue
+        if not os.path.isfile(fpath):
             r.reason = "image_file_absent"
             results.append(r)
             continue
@@ -182,19 +243,28 @@ def run_trc001_intake(
             r.reason = "manifest_hash_mismatch"
             results.append(r)
             continue
-        # Validate decode / dimensions / readability BEFORE retaining.
+        # Validate decode / readability BEFORE retaining.
         try:
             r.dimensions = _validate_decode(data)
         except ValueError as exc:
             r.reason = f"decode_failed: {exc}"      # do not persist malformed bytes
             results.append(r)
             continue
-        # Retain through the existing service (real DB; EXIF-stripped; consent-gated).
+        # Validate the ACTUAL decoded dimensions against the manifest metadata.
+        declared = _manifest_dimensions(entry)
+        if declared is not None and tuple(r.dimensions) != declared:
+            r.reason = f"dimension_mismatch: decoded {tuple(r.dimensions)} != manifest {declared}"
+            results.append(r)
+            continue
+        # Retain through the existing service (real DB; EXIF-stripped). Consent is a
+        # necessary service precondition, but retention here is authorized by the
+        # resolved dataset retention approval resolved in step 3 — not consent alone.
+        r.authorization = f"resolved:retention_approval={retention_approval.id}"
         r.ingestion_attempted = True
         retained = retain_image(
             db, data=data, tenant_id=tenant_id, instrument_type=TRC001_INSTRUMENT_ID,
             content_type=str(entry.get("content_type") or "image/jpeg"),
-            source="trc001_research_intake", uploaded_by="research-operator", consent=True)
+            source="trc001_research_intake", uploaded_by=authorized_actor, consent=True)
         if retained is None:
             r.reason = "retention_disabled_or_no_consent"
             results.append(r)
@@ -215,14 +285,27 @@ def run_trc001_intake(
                 _validate_decode(fetched.image_bytes)
             except ValueError:
                 r.checksum_match = False
-        # Tenant isolation: the row is not visible under a different tenant.
+        # Explicit tenant-access AUTHORIZATION test (not a storage lookup): the
+        # authenticated actor's tenant, the ingestion tenant and the stored row's tenant
+        # must all be the same principal. This gates success on authorization, not on a
+        # query happening to return a row.
+        r.tenant_access_authorized = bool(
+            retained is not None
+            and str(getattr(auth, "tenant_id", "") or "") == str(tenant_id or "")
+            and str(retained.tenant_id or "") == str(tenant_id or "")
+        )
+        # Defence-in-depth storage integrity check: the row is not visible to a different
+        # tenant. This is a SECONDARY isolation check, never the authorization decision.
         other = (
             db.query(RetainedImage)
             .filter(RetainedImage.tenant_id != tenant_id, RetainedImage.id == retained.id)
             .first()
         )
         r.tenant_isolation_ok = other is None
-        r.ingestion_successful = bool(r.retrieval_verified and r.checksum_match and r.tenant_isolation_ok)
+        r.ingestion_successful = bool(
+            r.retrieval_verified and r.checksum_match
+            and r.tenant_access_authorized and r.tenant_isolation_ok
+        )
         if r.ingestion_successful:
             imported += 1
         results.append(r)
