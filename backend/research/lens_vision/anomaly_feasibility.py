@@ -71,7 +71,9 @@ class AnomalyRegion:
     width: float
     height: float
     anomaly_score: float          # higher = more anomalous (uncalibrated)
-    uncertainty: float            # retained, never dropped
+    # Uncertainty is retained but NEVER fabricated: None means "not measured"
+    # (reported as 'unknown' downstream). Non-finite values (NaN/inf) are forbidden.
+    uncertainty: float | None = None
     research_only: bool = True
     confirmed_diagnosis: None = None  # always None — never a clinical class
 

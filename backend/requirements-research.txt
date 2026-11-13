@@ -26,5 +26,5 @@ numpy>=1.26,<3
 # Anomalib API version and use the documented interfaces for that version — the
 # 0.x and 1.x APIs differ. The research adapter imports Anomalib lazily and only
 # after the backbone checkpoint passes the approval + SHA-256 gate.
-anomalib>=1.1,<2
+anomalib>=1.1,<1.2   # pinned minor: the adapter targets the Anomalib 1.1.x API
 # Anomalib pulls its own torch/lightning stack; keep torch pinned above compatible.
