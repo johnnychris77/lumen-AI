@@ -151,6 +151,9 @@ class _AnomalibLocalizer(AnomalyLocalizer):
         self._require_anomalib()
         self._model = None
         self._engine = None
+        # Populated by _build_model() once real weights are verified + loaded.
+        self.load_report = None
+        self.backbone_scientifically_valid = True
 
     @staticmethod
     def _require_anomalib() -> None:
@@ -163,8 +166,17 @@ class _AnomalibLocalizer(AnomalyLocalizer):
             )
 
     def _build_model(self):  # pragma: no cover - requires isolated torch+anomalib env
-        import torch  # noqa: PLC0415
         from anomalib.models import Padim, Patchcore  # noqa: PLC0415  (anomalib 1.1.x)
+
+        from research.lens_vision.backbone_loader import (  # noqa: PLC0415
+            CompatibilityPolicy,
+            load_verified_backbone,
+            safe_torch_load,
+            set_offline_environment,
+        )
+
+        # Defense in depth: forbid implicit weight downloads during construction.
+        set_offline_environment()
 
         layers = ["layer1", "layer2", "layer3"]
         if self.anomalib_model == "padim":
@@ -176,12 +188,24 @@ class _AnomalibLocalizer(AnomalyLocalizer):
             )
         else:  # pragma: no cover
             raise ValueError(self.anomalib_model)
-        # Load the APPROVED, verified backbone weights from the local file — never a download.
-        state = torch.load(self.backbone_file_path, map_location="cpu")
-        state = state.get("state_dict", state) if isinstance(state, dict) else state
+
+        # Load the APPROVED, verified backbone weights from the local file — never a
+        # download, never arbitrary pickled code (weights_only), and never a silent
+        # partial/uninitialized backbone (names + shapes verified before loading).
+        state = safe_torch_load(self.backbone_file_path, map_location="cpu")
         feat = getattr(model.model, "feature_extractor", None) or getattr(model.model, "backbone", None)
-        if feat is not None:
-            feat.load_state_dict(state, strict=False)
+        if feat is None:  # pragma: no cover - defensive: unknown anomalib layout
+            from research.lens_vision.backbone_loader import BackboneInitializationError
+            raise BackboneInitializationError(
+                "Could not locate the backbone feature extractor on the Anomalib model to verify weight loading."
+            )
+        policy = None
+        if self.record.compatibility_policy:
+            policy = CompatibilityPolicy(**self.record.compatibility_policy)
+        self.load_report = load_verified_backbone(feat, state, policy=policy)
+        # Carry the honest scientific-validity flag from the compatibility policy.
+        self.backbone_scientifically_valid = self.load_report.scientifically_valid
+
         for p in model.parameters():
             p.requires_grad_(False)
         model.eval()

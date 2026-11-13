@@ -54,6 +54,38 @@ class ForbiddenInferenceError(RuntimeError):
     """An attempt to infer material identity/age from RGB appearance alone."""
 
 
+class LinkageAuthorizationError(RuntimeError):
+    """A laboratory-evidence linkage lacked an authorized reviewer or the image/
+    specimen identity of the anomaly did not match the evidence."""
+
+
+# The role an authenticated reviewer must hold to link laboratory evidence to an
+# AI anomaly. Linking confers a confirmed material identity, so it is privileged.
+SCIENTIFIC_REVIEWER_ROLE = "scientific_reviewer"
+
+
+@dataclass
+class ReviewerAuthorization:
+    """An authenticated reviewer's authorization to link laboratory evidence.
+
+    A bare boolean is not enough: the reviewer must be authenticated, hold the
+    scientific-reviewer role, and carry a non-empty identity. The identity must
+    also match the reviewer that actually verified the evidence (checked by
+    ``link_observation``), so one reviewer cannot ratify another's unverified work.
+    """
+
+    reviewer_id: str
+    authenticated: bool = False
+    roles: tuple = ()
+
+    def is_authorized(self) -> bool:
+        return (
+            bool(str(self.reviewer_id or "").strip())
+            and self.authenticated is True
+            and SCIENTIFIC_REVIEWER_ROLE in tuple(self.roles or ())
+        )
+
+
 @dataclass
 class LaboratoryEvidence:
     """Independently-verified laboratory evidence for one research image/region."""
@@ -198,28 +230,72 @@ class ScientificObservation:
         return asdict(self)
 
 
+def _anomaly_identity(ai_anomaly: dict) -> tuple[str, str]:
+    """Best-effort (image_sha256, specimen_id) an AI anomaly dict carries."""
+    return (
+        str(ai_anomaly.get("image_sha256") or ai_anomaly.get("image_hash") or "").strip(),
+        str(ai_anomaly.get("specimen_id") or "").strip(),
+    )
+
+
 def link_observation(
     ai_anomaly: dict, *, laboratory_evidence: LaboratoryEvidence | None = None,
-    human_interpretation: str = "", reviewer_linked: bool = False,
+    human_interpretation: str = "", reviewer_authorization: ReviewerAuthorization | None = None,
 ) -> ScientificObservation:
     """Assemble a scientific observation that keeps the four layers separate.
 
     The AI↔material relationship defaults to ``indeterminate``. A confirmed
-    material identity is recorded ONLY when (a) the lab evidence is verified AND
-    (b) an authorized reviewer explicitly links it (``reviewer_linked``). The AI
-    anomaly alone can never confirm an identity or produce a disposition.
+    material identity is recorded ONLY when ALL of the following hold:
+
+    * the laboratory evidence is category-appropriate AND verified+approved
+      (:func:`is_lab_confirmed`);
+    * an **authenticated, authorized** reviewer presents
+      (``reviewer_authorization.is_authorized()``) whose identity matches the
+      reviewer that verified the evidence; and
+    * the anomaly's image hash and specimen id **match** the evidence's — you
+      cannot attach lab evidence from a different image or specimen.
+
+    A mismatch of image/specimen identity is an error (``LinkageAuthorizationError``);
+    a missing or unauthorized reviewer simply leaves the relationship
+    ``indeterminate``. The AI anomaly alone never confirms an identity or produces
+    a clinical disposition.
     """
     obs = ScientificObservation(ai_anomaly=dict(ai_anomaly), human_interpretation=human_interpretation)
-    if laboratory_evidence is not None:
-        obs.laboratory_evidence = laboratory_evidence.to_dict()
-        obs.limitations = list(laboratory_evidence.limitations) + list(laboratory_evidence.unresolved_ambiguities)
-        if reviewer_linked and is_lab_confirmed(laboratory_evidence):
-            obs.ai_to_material_relationship = REL_SUPPORTED
-            obs.confirmed_material_identity = (
-                laboratory_evidence.verified_material_identity or laboratory_evidence.physical_condition or None
-            )
-        else:
-            obs.ai_to_material_relationship = REL_INDETERMINATE
+    if laboratory_evidence is None:
+        return obs
+
+    obs.laboratory_evidence = laboratory_evidence.to_dict()
+    obs.limitations = list(laboratory_evidence.limitations) + list(laboratory_evidence.unresolved_ambiguities)
+    obs.ai_to_material_relationship = REL_INDETERMINATE
+
+    if reviewer_authorization is None or not reviewer_authorization.is_authorized():
+        return obs  # no authorized reviewer -> stays indeterminate, no confirmed identity
+
+    # The authorizing reviewer must be the one who actually verified the evidence.
+    if (reviewer_authorization.reviewer_id or "").strip() != (laboratory_evidence.reviewer_id or "").strip():
+        raise LinkageAuthorizationError(
+            "Linking reviewer does not match the reviewer that verified the laboratory evidence."
+        )
+
+    # Image + specimen identity of the anomaly must match the evidence.
+    a_hash, a_specimen = _anomaly_identity(ai_anomaly)
+    if a_hash and a_hash != (laboratory_evidence.image_sha256 or "").strip():
+        raise LinkageAuthorizationError(
+            "Anomaly image hash does not match the laboratory evidence image; refusing to link."
+        )
+    if a_specimen and a_specimen != (laboratory_evidence.specimen_id or "").strip():
+        raise LinkageAuthorizationError(
+            "Anomaly specimen id does not match the laboratory evidence specimen; refusing to link."
+        )
+    if not a_hash and not a_specimen:
+        # The anomaly carries no verifiable identity to match against the evidence.
+        return obs  # indeterminate — cannot confirm the link belongs to this image
+
+    if is_lab_confirmed(laboratory_evidence):
+        obs.ai_to_material_relationship = REL_SUPPORTED
+        obs.confirmed_material_identity = (
+            laboratory_evidence.verified_material_identity or laboratory_evidence.physical_condition or None
+        )
     return obs
 
 

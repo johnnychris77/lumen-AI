@@ -56,6 +56,11 @@ class CheckpointRecord:
     # Checkpoint-specific preprocessing contract (resize + normalization), so a
     # run can never silently apply the wrong transform to the wrong weights.
     preprocessing: dict | None = None
+    # Optional, explicit authorization to deviate from full, exact weight loading
+    # (see backbone_loader.CompatibilityPolicy). None => the backbone must be
+    # fully initialized from the checkpoint (every tensor, exact shapes). A policy
+    # may set scientifically_valid=False (research-execution smoke only).
+    compatibility_policy: dict | None = None
 
 
 # The approval registry. DINOv2 is listed but intentionally NOT approved and NOT
