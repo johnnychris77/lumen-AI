@@ -164,13 +164,31 @@ def run() -> dict:
     if not manifest:
         missing.append("no authorized, independently-reviewed real-image cohort present")
     missing.extend(readiness["blockers"])
-    missing.append("no scientifically-approved (license+source-verified, non-random-weight) checkpoint")
-    ready = readiness["ready_for_scientific_benchmark"]
+
+    # Stage 6C: resolve record-backed scientific-readiness prerequisites (fail-closed).
+    scientific_readiness = None
+    try:
+        from research.lens_vision.scientific_authorization import assess_scientific_readiness  # noqa: PLC0415
+        scientific_readiness = assess_scientific_readiness(
+            SessionLocal(), tenant_id=os.environ.get("STAGE6C_TENANT", "research-tenant"),
+            dataset_id=os.environ.get("STAGE6C_DATASET", ""), dataset_owner_email="",
+            checkpoint_id=os.environ.get("STAGE6C_CHECKPOINT", "smoke_stub"),
+            statistical_reviewer_username="", statistical_protocol_id="",
+        )
+        for name, state in scientific_readiness["checks"].items():
+            if state != "resolved":
+                missing.append(f"scientific_authorization:{name}:{state}")
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"scientific_authorization_unavailable:{type(exc).__name__}")
+
+    ready = readiness["ready_for_scientific_benchmark"] and bool(
+        scientific_readiness and scientific_readiness["ready_for_scientific_benchmark"])
     record["real_image_benchmark"] = {
-        # Explicit Stage 6B sentinel — never substitute random-weight metrics.
+        # Explicit sentinel — never substitute random-weight metrics.
         "status": "READY" if ready else "BLOCKED_REAL_IMAGE_BENCHMARK",
         "missing_requirements": missing,
         "cohort_readiness": readiness,
+        "scientific_readiness": scientific_readiness,
         "note": "Random-weight execution above is pipeline verification only and is "
                 "NEVER real-image scientific performance.",
     }
