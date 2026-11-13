@@ -93,6 +93,34 @@ def ground_truth_status(db: Session, *, tenant_id: str, retained_image_id: int) 
     return GT_ABNORMAL, label
 
 
+class SuppliedDatasetGovernanceError(PermissionError):
+    """A directly-supplied research dataset failed the same usage/provenance/
+    consent/tenant checks Project Canvas enforces."""
+
+
+def enforce_supplied_dataset_governance(samples, *, allow_approved_clinical: bool = False) -> None:
+    """A dataset handed directly to a research experiment (not loaded through the
+    governed DB loader) must still pass the same gates: research-authorized
+    provenance, no cross-tenant mixing, image integrity, and — for clinical data —
+    explicit approval. Fail-closed; a supplied dataset can never bypass governance.
+    """
+    from research.lens_vision.provenance import is_research_authorized
+    tenants = set()
+    for idx, s in enumerate(samples):
+        if not is_research_authorized(s, allow_approved_clinical=allow_approved_clinical):
+            raise SuppliedDatasetGovernanceError(
+                f"Supplied sample {idx} provenance is not research-authorized."
+            )
+        if not str(s.get("image_sha256") or "").strip():
+            raise SuppliedDatasetGovernanceError(f"Supplied sample {idx} lacks an image_sha256 (integrity).")
+        if s.get("tenant_id"):
+            tenants.add(s["tenant_id"])
+    if len(tenants) > 1:
+        raise SuppliedDatasetGovernanceError(
+            f"Supplied dataset mixes tenants {sorted(tenants)} — cross-tenant research data is refused."
+        )
+
+
 def authorize_research_entry(
     db: Session, entry: DatasetRegistryEntry, *, tenant_id: str, allow_approved_clinical: bool = False,
 ) -> str | None:

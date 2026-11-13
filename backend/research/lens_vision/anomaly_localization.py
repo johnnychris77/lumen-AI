@@ -17,6 +17,7 @@ severity, or release decision.
 """
 from __future__ import annotations
 
+import os
 from collections import deque
 
 from research.lens_vision.anomaly_feasibility import AnomalyRegion
@@ -121,19 +122,35 @@ def _governed_backbone(checkpoint_id: str, file_path: str | None):
     return record
 
 
-class PadimLocalizer(AnomalyLocalizer):
-    """Anomalib PaDiM over a frozen, approved backbone. Governed + torch-required."""
+# Pinned Anomalib release this adapter targets. The 0.x and 1.x APIs differ; the
+# code below uses the 1.1.x model/engine interface. VERIFY the installed version
+# matches before running in an isolated research environment.
+ANOMALIB_PINNED = "1.1"
 
-    name = "padim"
+
+class _AnomalibLocalizer(AnomalyLocalizer):
+    """Base for the REAL Anomalib backends (PaDiM, PatchCore).
+
+    Construction is fail-closed: it refuses unless the backbone checkpoint is
+    approved + rights-cleared + SHA-256-verified AND torch + a compatible Anomalib
+    are installed. The approved backbone weights are loaded from the verified local
+    file; Anomalib's own pretrained download is DISABLED (``pre_trained=False``) so
+    no weights are ever fetched automatically. These methods run only in an
+    isolated research environment — they are a genuine implementation, never a
+    stub, and are reported BLOCKED where the environment is unavailable.
+    """
+
+    anomalib_model = ""  # "padim" | "patchcore"
 
     def __init__(self, *, backbone_checkpoint_id: str = "resnet18_imagenet", file_path: str | None = None):
-        # Governance first: refuses unless approved + rights-cleared + hash-verified,
-        # and refuses if torch/Anomalib are absent. No auto-download.
         self.record = _governed_backbone(backbone_checkpoint_id, file_path)
         self.backbone = self.record.architecture
         self.preprocessing = self.record.preprocessing or {}
         self.digest = self.record.expected_sha256
+        self.backbone_file_path = file_path
         self._require_anomalib()
+        self._model = None
+        self._engine = None
 
     @staticmethod
     def _require_anomalib() -> None:
@@ -141,29 +158,96 @@ class PadimLocalizer(AnomalyLocalizer):
         if importlib.util.find_spec("anomalib") is None:  # pragma: no cover - needs anomalib
             from research.lens_vision.deps import ResearchDependencyMissing
             raise ResearchDependencyMissing(
-                "Anomalib is not installed. Install backend/requirements-research.txt in an "
-                "isolated research environment; verify the Anomalib API version before use."
+                f"Anomalib is not installed. Install backend/requirements-research.txt (anomalib~={ANOMALIB_PINNED}) "
+                "in an isolated research environment; verify the Anomalib API version before use."
             )
 
-    def fit(self, normal_images: list[bytes]) -> "PadimLocalizer":  # pragma: no cover - needs anomalib
-        raise NotImplementedError(
-            "The real Anomalib PaDiM fit runs only in an isolated research environment with "
-            "an approved backbone checkpoint; see docs/model-development/STAGE_5B_ANOMALY_LOCALIZATION.md."
-        )
+    def _build_model(self):  # pragma: no cover - requires isolated torch+anomalib env
+        import torch  # noqa: PLC0415
+        from anomalib.models import Padim, Patchcore  # noqa: PLC0415  (anomalib 1.1.x)
 
-    def score(self, image_bytes):  # pragma: no cover - needs anomalib
-        raise NotImplementedError
+        layers = ["layer1", "layer2", "layer3"]
+        if self.anomalib_model == "padim":
+            model = Padim(backbone=self.backbone, layers=layers, pre_trained=False)
+        elif self.anomalib_model == "patchcore":
+            model = Patchcore(
+                backbone=self.backbone, layers=layers, pre_trained=False,
+                coreset_sampling_ratio=getattr(self, "coreset_sampling_ratio", 0.1),
+            )
+        else:  # pragma: no cover
+            raise ValueError(self.anomalib_model)
+        # Load the APPROVED, verified backbone weights from the local file — never a download.
+        state = torch.load(self.backbone_file_path, map_location="cpu")
+        state = state.get("state_dict", state) if isinstance(state, dict) else state
+        feat = getattr(model.model, "feature_extractor", None) or getattr(model.model, "backbone", None)
+        if feat is not None:
+            feat.load_state_dict(state, strict=False)
+        for p in model.parameters():
+            p.requires_grad_(False)
+        model.eval()
+        return model
+
+    def fit(self, normal_images: list[bytes]) -> "_AnomalibLocalizer":  # pragma: no cover - needs env
+        import tempfile  # noqa: PLC0415
+
+        from anomalib.data import Folder  # noqa: PLC0415
+        from anomalib.engine import Engine  # noqa: PLC0415
+        from research.lens_vision.images import decode_rgb
+
+        if not normal_images:
+            raise ValueError("fit requires at least one verified-normal image.")
+        self._model = self._build_model()
+        # Materialize the verified-normal images to an access-controlled temp dir,
+        # then fit PaDiM/PatchCore on the 'normal' split only (no abnormal images).
+        self._tmpdir = tempfile.mkdtemp(prefix="lumen_anom_fit_")
+        size = tuple(self.preprocessing.get("resize", [256, 256]))
+        for i, b in enumerate(normal_images):
+            decode_rgb(b, size=size).save(os.path.join(self._tmpdir, f"normal_{i:05d}.png"))
+        datamodule = Folder(name="lumen_research", root=self._tmpdir, normal_dir=".")
+        self._engine = Engine(accelerator="cpu")
+        self._engine.fit(model=self._model, datamodule=datamodule)
+        return self
+
+    def score(self, image_bytes: bytes | None):  # pragma: no cover - needs env
+        import torch  # noqa: PLC0415
+
+        from research.lens_vision.images import decode_rgb
+        if self._model is None:
+            raise RuntimeError("Localizer must be fit() before scoring.")
+        orig_w, orig_h = _original_size(image_bytes)
+        size = tuple(self.preprocessing.get("resize", [256, 256]))
+        mean = self.preprocessing.get("mean", [0.485, 0.456, 0.406])
+        std = self.preprocessing.get("std", [0.229, 0.224, 0.225])
+        import numpy as np  # noqa: PLC0415
+        arr = (np.asarray(decode_rgb(image_bytes, size=size), dtype="float32") / 255.0 - mean) / std
+        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)
+        with torch.no_grad():
+            out = self._model.model(tensor)
+        amap = out["anomaly_map"] if isinstance(out, dict) else out
+        amap = torch.nn.functional.interpolate(
+            amap.view(1, 1, *amap.shape[-2:]), size=(orig_h, orig_w), mode="bilinear", align_corners=False
+        ).squeeze().tolist()
+        image_score = float(max(max(r) for r in amap))
+        return amap, image_score
 
 
-class PatchCoreLocalizer(PadimLocalizer):
-    """Anomalib PatchCore comparison model (same governed interface as PaDiM)."""
+class PadimLocalizer(_AnomalibLocalizer):
+    """Anomalib PaDiM over a frozen, approved backbone. Governed + torch-required."""
+
+    name = "padim"
+    anomalib_model = "padim"
+
+
+class PatchCoreLocalizer(_AnomalibLocalizer):
+    """Anomalib PatchCore comparison model (same governed research interface)."""
 
     name = "patchcore"
+    anomalib_model = "patchcore"
 
     def __init__(self, *, backbone_checkpoint_id: str = "resnet18_imagenet", file_path: str | None = None,
                  coreset_sampling_ratio: float = 0.1):
-        super().__init__(backbone_checkpoint_id=backbone_checkpoint_id, file_path=file_path)
         self.coreset_sampling_ratio = coreset_sampling_ratio
+        super().__init__(backbone_checkpoint_id=backbone_checkpoint_id, file_path=file_path)
 
 
 def propose_regions(
@@ -199,7 +283,7 @@ def propose_regions(
                         q.append((ny, nx))
             regions.append(AnomalyRegion(
                 x=float(minx), y=float(miny), width=float(maxx - minx + 1), height=float(maxy - miny + 1),
-                anomaly_score=float(peak), uncertainty=float("nan"),  # unmeasured -> caller marks 'unknown'
+                anomaly_score=float(peak), uncertainty=None,  # unmeasured -> reported as 'unknown'
             ))
     regions.sort(key=lambda r: r.anomaly_score, reverse=True)
     return regions[:max_regions]
