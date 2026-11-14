@@ -45,6 +45,7 @@ REQ_CHECKPOINT_SOURCE = "scientific_checkpoint_source"
 REQ_DATA_AUTHORIZATION = "research_data_authorization"
 REQ_RESEARCH_CONSENT = "research_use_consent"            # dataset-scoped consent record
 REQ_RETENTION_AUTHORIZATION = "research_retention_authorization"  # dataset-scoped retention approval
+REQ_OWNER_ATTESTATION = "research_owner_attestation"      # owner-attested privately controlled asset
 REQ_STATISTICAL_PROTOCOL = "statistical_protocol_approval"
 
 # The use scope a scientific-checkpoint approval must carry.
@@ -57,6 +58,29 @@ class ScientificAuthorizationError(PermissionError):
     """A scientific-approval check could not be resolved against authoritative
     records (impersonation, forged/absent approver, missing/withdrawn evidence or
     permission, wrong use scope, or unlinked laboratory confirmation)."""
+
+
+@dataclass(frozen=True)
+class OwnerAttestation:
+    """A resolved, record-backed OWNER-ATTESTED research authorization for a privately
+    controlled, nonclinical asset.
+
+    This basis is deliberately and explicitly distinct from institutional approval and
+    from independent scientific verification: ``institutional_approved`` and
+    ``scientifically_verified`` are always ``False``. It authorizes research INTAKE and
+    retention of the owner's own assets only; it never establishes ground truth,
+    verified-normal eligibility, clinical use, or manufacturer-baseline status."""
+
+    dataset_id: str
+    owner: str
+    image_hashes: tuple
+    permissible_use: str
+    retention_authorized: bool
+    withdrawal_procedure: str
+    approval_id: int
+    basis: str = "owner_attested"
+    institutional_approved: bool = False
+    scientifically_verified: bool = False
 
 
 @dataclass(frozen=True)
@@ -204,6 +228,81 @@ def verify_data_authorization(db: Session, *, tenant_id: str, dataset_id: str, a
         )
     _audit(db, auth, action="research_data_authorization_resolved", resource_type="research_dataset",
            resource_id=dataset_id, status="success", details={"dataset_id": dataset_id})
+
+
+# ── owner-attested private-asset authorization (distinct from institutional) ──
+
+def resolve_owner_attestation(
+    db: Session, auth, *, tenant_id: str, dataset_id: str, image_hashes,
+) -> OwnerAttestation:
+    """Resolve an OWNER-ATTESTED research authorization (fail-closed) for privately
+    controlled, nonclinical assets. Requirements:
+
+    * a genuine authenticated, tenant-matched actor (``authorize_tenant_actor`` — a bare
+      constructed ``AuthContext`` with no backing ``UserRoleAssignment`` is refused);
+    * an approved (``status == approved``; a withdrawn record is any other status) owner
+      attestation ``GovernanceApproval`` of type ``REQ_OWNER_ATTESTATION`` for THIS dataset,
+      authored/reviewed by that same authenticated actor (a genuine owner action);
+    * a payload that asserts ownership, states a permissible research use, authorizes
+      retention, documents a withdrawal procedure, and whose declared image SHA-256 set
+      covers EXACTLY the hashes presented for intake.
+
+    It never implies institutional approval or scientific ground truth. If institutional
+    policy additionally requires independent review for a given use, that remains a
+    separate, unmet gate (the caller returns ``BLOCKED_REVIEW``)."""
+    actor = authorize_tenant_actor(db, auth, tenant_id=tenant_id)
+    rid = str(dataset_id or "").strip()
+    if not rid:
+        raise ScientificAuthorizationError("No dataset id supplied for owner attestation.")
+    rec = (
+        db.query(GovernanceApproval)
+        .filter(
+            GovernanceApproval.tenant_id == tenant_id,
+            GovernanceApproval.request_type == REQ_OWNER_ATTESTATION,
+            GovernanceApproval.target_resource_id == rid,
+            GovernanceApproval.status == _APPROVED,
+        )
+        .order_by(GovernanceApproval.id.desc())
+        .first()
+    )
+    if rec is None:
+        raise ScientificAuthorizationError(
+            f"No approved (non-withdrawn) owner attestation for dataset '{rid}' in tenant '{tenant_id}'."
+        )
+    # The attestation must be the authenticated owner's own genuine action, not a third
+    # party's record presented on their behalf.
+    if actor not in {str(rec.reviewed_by or "").strip(), str(rec.requested_by or "").strip()}:
+        raise ScientificAuthorizationError(
+            "Owner attestation was not made by the authenticated operator (genuine owner action required)."
+        )
+    try:
+        payload = json.loads(rec.requested_payload or "{}")
+    except (ValueError, TypeError) as exc:
+        raise ScientificAuthorizationError(f"Owner attestation payload is not valid JSON: {exc}") from exc
+    if not bool(payload.get("ownership_asserted")):
+        raise ScientificAuthorizationError("Owner attestation does not assert ownership/use rights.")
+    permissible = str(payload.get("permissible_research_use") or "").strip()
+    if not permissible:
+        raise ScientificAuthorizationError("Owner attestation does not state a permissible research use.")
+    if not bool(payload.get("retention_authorized")):
+        raise ScientificAuthorizationError("Owner attestation does not authorize retention.")
+    withdrawal = str(payload.get("withdrawal_procedure") or "").strip()
+    if not withdrawal:
+        raise ScientificAuthorizationError("Owner attestation does not document a withdrawal procedure.")
+    declared = {str(h).strip().lower() for h in (payload.get("image_sha256") or []) if str(h).strip()}
+    requested = {str(h).strip().lower() for h in (image_hashes or []) if str(h).strip()}
+    if not requested or declared != requested:
+        raise ScientificAuthorizationError(
+            "Owner attestation image hashes do not cover exactly the images presented for intake."
+        )
+    _audit(db, auth, action="owner_attestation_resolved", resource_type="research_dataset",
+           resource_id=rid, status="success",
+           details={"dataset_id": rid, "basis": "owner_attested", "images": sorted(requested)})
+    return OwnerAttestation(
+        dataset_id=rid, owner=actor, image_hashes=tuple(sorted(requested)),
+        permissible_use=permissible, retention_authorized=True,
+        withdrawal_procedure=withdrawal, approval_id=rec.id,
+    )
 
 
 # ── statistical reviewer sign-off (bound to authenticated context) ───────────

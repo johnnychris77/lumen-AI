@@ -90,12 +90,14 @@ class IntakeReport:
     instrument_id: str = TRC001_INSTRUMENT_ID
     images: list = field(default_factory=list)
     imported_count: int = 0
+    authorization_basis: str = ""
     missing_documentation: list = field(default_factory=list)
     note: str = ""
 
     def to_dict(self) -> dict:
         return {"status": self.status, "instrument_id": self.instrument_id,
                 "images": [i.to_dict() for i in self.images], "imported_count": self.imported_count,
+                "authorization_basis": self.authorization_basis,
                 "missing_documentation": list(self.missing_documentation), "note": self.note}
 
 
@@ -153,13 +155,27 @@ def _manifest_dimensions(entry: dict) -> tuple | None:
 
 def run_trc001_intake(
     db: Session, *, kit_dir: str | None, tenant_id: str, dataset_id: str, auth=None,
+    authorization_basis: str = "institutional",
 ) -> IntakeReport:
-    """Execute the TRC-001 intake, fail-closed. See module docstring for the order."""
+    """Execute the TRC-001 intake, fail-closed. See module docstring for the order.
+
+    ``authorization_basis`` selects how dataset authorization is resolved (both are
+    fail-closed, both require a trusted authenticated tenant-matched actor):
+
+    * ``"institutional"`` (default): approved institutional data-authorization +
+      research-use consent + tenant consent + a dataset retention approval.
+    * ``"owner_attested"``: an approved, non-withdrawn OWNER attestation for privately
+      controlled nonclinical assets, authored by the authenticated owner, covering exactly
+      the images' hashes, asserting ownership + permissible research use + retention +
+      withdrawal. This is NOT institutional approval and NOT scientific verification;
+      ground truth stays ``unknown`` and the images stay training-ineligible either way.
+    """
     from research.lens_vision.scientific_authorization import (  # noqa: PLC0415
         REQ_RETENTION_AUTHORIZATION,
         ScientificAuthorizationError,
         authorize_tenant_actor,
         resolve_governance_approval,
+        resolve_owner_attestation,
         verify_data_authorization,
     )
 
@@ -184,29 +200,41 @@ def run_trc001_intake(
             note="No private intake kit/manifest present. Nothing loaded or retained; no IDs created.",
         )
 
-    # 3) Authorization (fail-closed), resolved against governance records:
-    #    (a) dataset-specific institutional + research-use authorization + tenant consent,
-    #    (b) a dataset-scoped RETENTION authorization — so retention is gated by a resolved
-    #        approval to keep THESE images, not by the caller passing consent=True alone.
-    try:
-        verify_data_authorization(db, tenant_id=tenant_id, dataset_id=dataset_id, auth=auth)
-        retention_approval = resolve_governance_approval(
-            db, tenant_id=tenant_id, request_type=REQ_RETENTION_AUTHORIZATION,
-            target_resource_id=dataset_id)
-    except ScientificAuthorizationError as exc:
-        return IntakeReport(
-            status="BLOCKED_AUTHORIZATION", images=_blocked_images(f"authorization_unresolved: {exc}"),
-            missing_documentation=list(_REQUIRED_AUTHORIZATION_DOCS),
-            note="Authorization not resolved against governance records (institutional / research-use / "
-                 "tenant consent / dataset retention approval). No bytes retained; no IDs created. "
-                 "Capturing an image personally does not establish institutional/research-use permission.",
-        )
-
-    # 4) Authorized — load the manifest and ingest each image.
+    # 3) Load the manifest (needed for owner-attestation hash binding below).
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
     entries = {e.get("image_id"): e for e in manifest.get("images", [])}
+    declared_hashes = [str(entries[k].get("sha256") or "") for k in TRC001_IMAGES
+                       if k in entries and entries[k].get("sha256")]
 
+    # 4) Authorization (fail-closed), resolved against governance records by basis:
+    basis = str(authorization_basis or "institutional")
+    try:
+        if basis == "owner_attested":
+            # Owner-attested privately controlled nonclinical asset. Distinct from
+            # institutional approval; covers rights + permissible use + retention +
+            # withdrawal, bound to exactly these image hashes.
+            attestation = resolve_owner_attestation(
+                db, auth, tenant_id=tenant_id, dataset_id=dataset_id, image_hashes=declared_hashes)
+            authorization_label = f"resolved:owner_attested:attestation={attestation.approval_id}"
+        else:
+            # Institutional authorization: data-authorization + research-use consent +
+            # tenant consent, plus a dataset-scoped RETENTION approval (not consent alone).
+            verify_data_authorization(db, tenant_id=tenant_id, dataset_id=dataset_id, auth=auth)
+            retention_approval = resolve_governance_approval(
+                db, tenant_id=tenant_id, request_type=REQ_RETENTION_AUTHORIZATION,
+                target_resource_id=dataset_id)
+            authorization_label = f"resolved:institutional:retention_approval={retention_approval.id}"
+    except ScientificAuthorizationError as exc:
+        return IntakeReport(
+            status="BLOCKED_AUTHORIZATION", images=_blocked_images(f"authorization_unresolved: {exc}"),
+            authorization_basis=basis, missing_documentation=list(_REQUIRED_AUTHORIZATION_DOCS),
+            note="Authorization not resolved against governance records "
+                 f"(basis={basis}). No bytes retained; no IDs created. "
+                 "Capturing an image personally does not by itself establish research permission.",
+        )
+
+    # 5) Authorized — ingest each image.
     from app.models.retained_image import RetainedImage  # noqa: PLC0415
     from app.services.image_retention_service import retain_image  # noqa: PLC0415
 
@@ -258,8 +286,9 @@ def run_trc001_intake(
             continue
         # Retain through the existing service (real DB; EXIF-stripped). Consent is a
         # necessary service precondition, but retention here is authorized by the
-        # resolved dataset retention approval resolved in step 3 — not consent alone.
-        r.authorization = f"resolved:retention_approval={retention_approval.id}"
+        # resolved authorization (institutional retention approval, or owner attestation)
+        # resolved in step 4 — not by the caller passing consent=True alone.
+        r.authorization = authorization_label
         r.ingestion_attempted = True
         retained = retain_image(
             db, data=data, tenant_id=tenant_id, instrument_type=TRC001_INSTRUMENT_ID,
@@ -312,7 +341,9 @@ def run_trc001_intake(
 
     status = "INGESTED" if imported == len(TRC001_IMAGES) else "PARTIAL" if imported else "NOT_INGESTED"
     return IntakeReport(
-        status=status, images=results, imported_count=imported,
+        status=status, images=results, imported_count=imported, authorization_basis=basis,
         note="Both images remain ground_truth_status=unknown, baseline pending_review, and "
-             "research-training-ineligible. The borescope image is a display photograph, not a raw export.",
+             "research-training-ineligible (owner-attested authorization does not confer "
+             "verified-normal/scientific/clinical status). The borescope image is a display "
+             "photograph, not a raw export.",
     )

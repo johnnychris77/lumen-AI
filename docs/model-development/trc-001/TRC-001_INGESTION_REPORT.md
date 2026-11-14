@@ -7,16 +7,42 @@ ZIP, original images, or retained bytes are committed to git.
 
 ## Outcome in this environment
 
-A corrected kit (`TRC-001-Codex-compatible-private-kit.zip`) was expected for this run.
-A full filesystem search confirmed **no such kit (or any TRC-001 intake kit / manifest /
-operator JPEG) is present** in this environment, and **no authorization governance
-records** exist for a TRC-001 dataset. Both prerequisites are therefore unresolved, so —
-per the stop condition — **no bytes were loaded or retained and no storage IDs were
-created or invented. Successful ingestion was not simulated.**
+The private intake kit is now present and **both operator photographs verify exactly
+against their manifest** (SHA-256, byte size, and 1152×1536 dimensions all match; both
+decode as valid JPEG). The borescope image is a display photograph, not a raw export.
 
-Determination: **`BLOCKED_AUTHORIZATION`.** With no trusted, authenticated,
-tenant-matched actor to supply (and no kit or governance records), the hardened runner
-fails closed at the first authorization gate:
+Real ingestion nonetheless **cannot proceed in this disposable cloud environment**:
+
+- **`BLOCKED_RESEARCH_DATABASE`** — there is no authorized, isolated research PostgreSQL
+  bound here (`DATABASE_URL` unset; nothing on :5432; no admin/secrets-manager handoff).
+  Provisioning the operator's research database must happen on their authorized local
+  machine, not in a disposable cloud coding environment, and must never target production.
+- Consequently there is no governance store in which a genuine authenticated owner could
+  record an authorization, so ingestion is not attempted and no IDs are invented.
+
+A new **owner-attested authorization basis** was added to the runner (see below) so that,
+once the local research database and a genuine authenticated owner declaration exist, the
+owner's privately controlled nonclinical assets can be ingested — without ever implying
+institutional approval or scientific ground truth.
+
+### Owner-attested authorization basis (privately controlled nonclinical assets)
+
+`run_trc001_intake(..., authorization_basis="owner_attested")` resolves authorization from
+an approved, non-withdrawn `GovernanceApproval(request_type="research_owner_attestation")`
+authored by the **authenticated owner**, covering **exactly** the two image SHA-256s and
+asserting ownership + permissible research use + retention + a withdrawal procedure
+(`resolve_owner_attestation`). It is deliberately distinct from institutional approval
+(`institutional_approved=False`) and from independent scientific verification
+(`scientifically_verified=False`); ground truth stays `unknown`, baseline `pending_review`,
+and both images remain training-ineligible. A manually constructed `AuthContext` with no
+backing `UserRoleAssignment` cannot establish authority. Negative tests cover forged/
+non-`AuthContext` contexts, cross-tenant actors, missing attestation, withdrawn
+attestation, unauthorized retention, and image-hash mismatch.
+
+### Institutional-authorization determination (kit absent → still applies when present)
+
+With no trusted, authenticated, tenant-matched actor to supply (and no governance
+records), the hardened runner fails closed at the first authorization gate:
 
 - `BLOCKED_AUTHORIZATION` — no trusted authenticated actor; and the required governance
   records (below) do not exist. `auth=None` / untrusted / cross-tenant contexts are refused.

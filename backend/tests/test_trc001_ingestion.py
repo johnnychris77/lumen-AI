@@ -302,3 +302,150 @@ def test_unknown_ground_truth_excluded_from_normal_only_fit(db):
                             source_provenance_class="synthetic_experimental", embedder="stub_padim_like")
     with pytest.raises(NormalOnlyViolation):
         run_anomaly_experiment(normal, test, config=cfg, localizer=StubLocalizer())
+
+
+# ── owner-attested privately controlled asset authorization (Phases B & C) ───
+
+def _kit_hashes(tmp_path):
+    """The SHA-256s the kit's manifest declares for the two TRC-001 images."""
+    man = json.loads((tmp_path / "manifest.json").read_text())
+    return [e["sha256"] for e in man["images"]]
+
+
+def _grant_owner_attestation(s, created, dataset_id, image_hashes, *, owner="owner@x",
+                             role="technician", status="approved", retention=True,
+                             ownership=True, hashes_override=None):
+    """Create a genuine-looking OWNER attestation GovernanceApproval authored by an
+    authenticated owner. Nothing here is institutional or scientific approval."""
+    _seed_actor(s, created, username=owner, role=role)
+    payload = {
+        "ownership_asserted": ownership,
+        "permissible_research_use": "independent LumenAI engineering/provenance research",
+        "retention_authorized": retention,
+        "withdrawal_procedure": "owner emails governance to withdraw; records are deleted",
+        "image_sha256": hashes_override if hashes_override is not None else list(image_hashes),
+    }
+    row = GovernanceApproval(tenant_id=TENANT, tenant_name="T", request_type=sa.REQ_OWNER_ATTESTATION,
+                             target_resource="dataset", target_resource_id=dataset_id,
+                             requested_by=owner, status=status, reviewed_by=owner,
+                             requested_payload=json.dumps(payload))
+    s.add(row)
+    s.commit()
+    created["approvals"].append(row.id)
+    return row.id
+
+
+def test_runner_ingests_owner_attested(db, tmp_path, monkeypatch):
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path))
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=_auth(actor="owner@x", role="technician"),
+                            authorization_basis="owner_attested")
+    assert rep.status == "INGESTED" and rep.imported_count == 2
+    assert rep.authorization_basis == "owner_attested"
+    for img in rep.images:
+        created["retained"].append(img.retained_image_id)
+        assert img.ingestion_successful is True and img.retained_image_id is not None
+        assert img.checksum_match is True and img.tenant_access_authorized is True
+        # Owner attestation never confers verified-normal / scientific / clinical status.
+        assert img.ground_truth_status == "unknown" and img.baseline_review == "pending_review"
+        assert img.research_training_eligible is False
+        assert "owner_attested" in img.authorization
+
+
+def test_owner_attested_forged_context_refused(db, tmp_path, monkeypatch):
+    # A manually constructed AuthContext with NO backing UserRoleAssignment cannot
+    # independently establish authority, even with a valid attestation present.
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path))
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=AuthContext(actor="ghost@nowhere", role="technician", tenant_id=TENANT),
+                            authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def test_owner_attested_non_authcontext_refused(db, tmp_path, monkeypatch):
+    # A non-AuthContext object (duck-typed) is refused outright.
+    import types
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path))
+    fake = types.SimpleNamespace(actor="owner@x", role="technician", tenant_id=TENANT)
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=fake, authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def test_owner_attested_cross_tenant_refused(db, tmp_path, monkeypatch):
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path))
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=_auth(tenant_id=OTHER_TENANT, actor="owner@x", role="technician"),
+                            authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def test_owner_attested_missing_ownership_evidence_refused(db, tmp_path, monkeypatch):
+    # Authenticated owner, but NO attestation record -> blocked.
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    _seed_actor(s, created, username="owner@x", role="technician")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=_auth(actor="owner@x", role="technician"),
+                            authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def test_owner_attested_withdrawn_refused(db, tmp_path, monkeypatch):
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path), status="withdrawn")
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=_auth(actor="owner@x", role="technician"),
+                            authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def test_owner_attested_retention_not_authorized_refused(db, tmp_path, monkeypatch):
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path), retention=False)
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=_auth(actor="owner@x", role="technician"),
+                            authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def test_owner_attested_hash_mismatch_refused(db, tmp_path, monkeypatch):
+    # Attestation covers different hashes than the images presented -> blocked.
+    s, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(s, created, "TRC-001-DS", _kit_hashes(tmp_path),
+                             hashes_override=["deadbeef" * 8, "feedface" * 8])
+    rep = run_trc001_intake(s, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+                            auth=_auth(actor="owner@x", role="technician"),
+                            authorization_basis="owner_attested")
+    assert rep.status == "BLOCKED_AUTHORIZATION" and rep.imported_count == 0
+    assert _no_trc_rows(s)
+
+
+def _no_trc_rows(s):
+    return s.query(RetainedImage).filter(RetainedImage.tenant_id == TENANT,
+                                         RetainedImage.source == "trc001_research_intake").count() == 0
