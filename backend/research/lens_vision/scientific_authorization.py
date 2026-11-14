@@ -51,6 +51,11 @@ REQ_STATISTICAL_PROTOCOL = "statistical_protocol_approval"
 # The use scope a scientific-checkpoint approval must carry.
 USE_SCOPE_SCIENTIFIC = "scientific_research"
 
+# Auth providers that denote a genuinely verified authentication session (as opposed to a
+# locally-constructed / dev AuthContext). A real OIDC session carries auth_provider="oidc"
+# plus a non-empty subject (the IdP `sub`). Owner self-attestation requires such a session.
+VERIFIED_SESSION_PROVIDERS = frozenset({"oidc"})
+
 _APPROVED = "approved"
 
 
@@ -78,9 +83,12 @@ class OwnerAttestation:
     retention_authorized: bool
     withdrawal_procedure: str
     approval_id: int
+    declarant_subject: str = ""
     basis: str = "owner_attested"
     institutional_approved: bool = False
     scientifically_verified: bool = False
+    # Owner self-attestation is NEVER independent ownership verification.
+    independent_ownership_verified: bool = False
 
 
 @dataclass(frozen=True)
@@ -232,6 +240,31 @@ def verify_data_authorization(db: Session, *, tenant_id: str, dataset_id: str, a
 
 # ── owner-attested private-asset authorization (distinct from institutional) ──
 
+def authorize_verified_owner(db: Session, auth, *, tenant_id: str) -> tuple[str, str]:
+    """Require a VERIFIED authenticated session for an owner self-attestation, returning
+    ``(actor, subject)``.
+
+    Stronger than ``authorize_tenant_actor``: in addition to a trusted tenant-matched actor
+    backed by a ``UserRoleAssignment``, the context must originate from a verified session
+    (``auth_provider`` in ``VERIFIED_SESSION_PROVIDERS``) and carry a non-empty ``subject``
+    (the IdP ``sub``). A locally-constructed / dev ``AuthContext`` — even one naming an
+    EXISTING legitimate owner account — is refused, because for self-attestation the actor
+    is the sole authority and a bare username match is not proof of a genuine session."""
+    actor = authorize_tenant_actor(db, auth, tenant_id=tenant_id)
+    provider = str(getattr(auth, "auth_provider", "") or "").strip().lower()
+    subject = str(getattr(auth, "subject", "") or "").strip()
+    if provider not in VERIFIED_SESSION_PROVIDERS:
+        raise ScientificAuthorizationError(
+            f"Owner attestation requires a verified authenticated session; auth_provider "
+            f"'{provider or '(none)'}' is not a verified provider (a constructed/dev context is refused)."
+        )
+    if not subject:
+        raise ScientificAuthorizationError(
+            "Owner attestation requires a verified session subject (the IdP 'sub'); none present."
+        )
+    return actor, subject
+
+
 def resolve_owner_attestation(
     db: Session, auth, *, tenant_id: str, dataset_id: str, image_hashes,
 ) -> OwnerAttestation:
@@ -247,10 +280,16 @@ def resolve_owner_attestation(
       retention, documents a withdrawal procedure, and whose declared image SHA-256 set
       covers EXACTLY the hashes presented for intake.
 
-    It never implies institutional approval or scientific ground truth. If institutional
-    policy additionally requires independent review for a given use, that remains a
-    separate, unmet gate (the caller returns ``BLOCKED_REVIEW``)."""
-    actor = authorize_tenant_actor(db, auth, tenant_id=tenant_id)
+    It never implies institutional approval, independent ownership verification, or
+    scientific ground truth. If institutional policy additionally requires independent
+    review for a given use, that remains a separate, unmet gate (``BLOCKED_REVIEW``).
+
+    Declarant identity is pinned to a VERIFIED session (``authorize_verified_owner``) and
+    the attestation must record that same declarant unambiguously: ``requested_by`` and
+    ``reviewed_by`` both equal the authenticated actor, the payload names the declarant
+    actor + session subject, and the subject matches the presented session. A forged /
+    constructed context that merely names an existing legitimate owner account is refused."""
+    actor, subject = authorize_verified_owner(db, auth, tenant_id=tenant_id)
     rid = str(dataset_id or "").strip()
     if not rid:
         raise ScientificAuthorizationError("No dataset id supplied for owner attestation.")
@@ -269,16 +308,29 @@ def resolve_owner_attestation(
         raise ScientificAuthorizationError(
             f"No approved (non-withdrawn) owner attestation for dataset '{rid}' in tenant '{tenant_id}'."
         )
-    # The attestation must be the authenticated owner's own genuine action, not a third
-    # party's record presented on their behalf.
-    if actor not in {str(rec.reviewed_by or "").strip(), str(rec.requested_by or "").strip()}:
+    # Unambiguous declarant: the attestation must be the authenticated owner's own genuine
+    # signing action — BOTH requested_by and reviewed_by are that actor, not a third party's
+    # record presented on their behalf.
+    if str(rec.requested_by or "").strip() != actor or str(rec.reviewed_by or "").strip() != actor:
         raise ScientificAuthorizationError(
-            "Owner attestation was not made by the authenticated operator (genuine owner action required)."
+            "Owner attestation requested_by/reviewed_by do not both identify the authenticated declarant."
         )
     try:
         payload = json.loads(rec.requested_payload or "{}")
     except (ValueError, TypeError) as exc:
         raise ScientificAuthorizationError(f"Owner attestation payload is not valid JSON: {exc}") from exc
+    # The signing action must bind to the authenticated SESSION identity, not just a
+    # username: a forged context naming an existing owner lacks the recorded subject.
+    if not bool(payload.get("attestation_signed")):
+        raise ScientificAuthorizationError("Owner attestation records no genuine signing action.")
+    if str(payload.get("declarant_actor") or "").strip() != actor:
+        raise ScientificAuthorizationError("Owner attestation declarant_actor does not match the authenticated actor.")
+    declarant_subject = str(payload.get("declarant_subject") or "").strip()
+    if not declarant_subject or declarant_subject != subject:
+        raise ScientificAuthorizationError(
+            "Owner attestation declarant session subject does not match the authenticated session "
+            "(a forged context naming an existing owner is refused)."
+        )
     if not bool(payload.get("ownership_asserted")):
         raise ScientificAuthorizationError("Owner attestation does not assert ownership/use rights.")
     permissible = str(payload.get("permissible_research_use") or "").strip()
@@ -297,11 +349,12 @@ def resolve_owner_attestation(
         )
     _audit(db, auth, action="owner_attestation_resolved", resource_type="research_dataset",
            resource_id=rid, status="success",
-           details={"dataset_id": rid, "basis": "owner_attested", "images": sorted(requested)})
+           details={"dataset_id": rid, "basis": "owner_attested", "declarant_subject": subject,
+                    "independent_ownership_verified": False, "images": sorted(requested)})
     return OwnerAttestation(
         dataset_id=rid, owner=actor, image_hashes=tuple(sorted(requested)),
         permissible_use=permissible, retention_authorized=True,
-        withdrawal_procedure=withdrawal, approval_id=rec.id,
+        withdrawal_procedure=withdrawal, approval_id=rec.id, declarant_subject=subject,
     )
 
 

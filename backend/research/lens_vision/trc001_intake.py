@@ -207,8 +207,17 @@ def run_trc001_intake(
     declared_hashes = [str(entries[k].get("sha256") or "") for k in TRC001_IMAGES
                        if k in entries and entries[k].get("sha256")]
 
-    # 4) Authorization (fail-closed), resolved against governance records by basis:
+    # 4) Authorization (fail-closed), resolved against governance records by basis.
+    #    An unsupported basis is refused — never silently treated as institutional.
     basis = str(authorization_basis or "institutional")
+    if basis not in {"institutional", "owner_attested"}:
+        return IntakeReport(
+            status="BLOCKED_AUTHORIZATION",
+            images=_blocked_images(f"unsupported_authorization_basis: {basis}"),
+            authorization_basis=basis, missing_documentation=list(_REQUIRED_AUTHORIZATION_DOCS),
+            note=f"Unsupported authorization_basis '{basis}'. Must be 'institutional' or "
+                 "'owner_attested'. Nothing loaded or retained; no IDs created.",
+        )
     try:
         if basis == "owner_attested":
             # Owner-attested privately controlled nonclinical asset. Distinct from

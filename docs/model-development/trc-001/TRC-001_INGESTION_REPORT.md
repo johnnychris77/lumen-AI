@@ -39,19 +39,22 @@ backing `UserRoleAssignment` cannot establish authority. Negative tests cover fo
 non-`AuthContext` contexts, cross-tenant actors, missing attestation, withdrawn
 attestation, unauthorized retention, and image-hash mismatch.
 
-### Institutional-authorization determination (kit absent → still applies when present)
+### Verified-session hardening for owner self-attestation (Step 1)
 
-With no trusted, authenticated, tenant-matched actor to supply (and no governance
-records), the hardened runner fails closed at the first authorization gate:
+Because, for owner self-attestation, the actor is the sole authority, the attestation path
+additionally requires a VERIFIED authenticated session (`authorize_verified_owner`):
 
-- `BLOCKED_AUTHORIZATION` — no trusted authenticated actor; and the required governance
-  records (below) do not exist. `auth=None` / untrusted / cross-tenant contexts are refused.
-- `BLOCKED_MISSING_INTAKE_KIT` — the manifest + operator JPEG bytes were not supplied
-  (reached only once an authenticated actor is present).
-
-Capturing a photograph personally does **not** establish institutional or research-use
-permission; the runner fails closed on that basis. Governance approvals were **not**
-fabricated and records were **not** created merely to force a successful run.
+- `auth_provider` must be a verified provider (`oidc`) with a non-empty session `subject`;
+  a locally-constructed / dev `AuthContext` — even one naming an **existing legitimate
+  owner account** — is refused.
+- The attestation must record a genuine signing action (`attestation_signed`), name the
+  declarant (`declarant_actor`) with `requested_by == reviewed_by == authenticated actor`,
+  and bind the declarant's session `subject`; at ingestion the presented session subject
+  must match (a forged context with the right username but a different subject is refused).
+- Unsupported `authorization_basis` values are rejected, never silently treated as
+  institutional. Institutional approval rules are unchanged for institution-controlled
+  datasets. Owner self-attestation is explicitly **not** independent ownership
+  verification (`independent_ownership_verified = False`).
 
 ## Runner hardening applied before ingestion (§2)
 
@@ -85,15 +88,15 @@ real authorization and the bytes are validated fail-closed:
 | Modality | external_camera | borescope (display photograph, **not** a raw export) |
 | Source | operator captured | operator captured |
 | Reference status | — | provisional baseline (**not** a manufacturer baseline) |
-| Original file SHA-256 | not available (kit absent) | not available (kit absent) |
-| Image dimensions | not available | not available |
-| Authorization outcome | **BLOCKED** | **BLOCKED** |
-| Ingestion attempted | **no** | **no** |
+| Original file SHA-256 | `98ab44ed…fb09` (verified vs manifest) | `a8e35f5e…567f` (verified vs manifest) |
+| Image dimensions | 1152×1536 (verified) | 1152×1536 (verified) |
+| Authorization outcome | **pending** (see blocker below) | **pending** (see blocker below) |
+| Ingestion attempted | **no** (no bound research DB) | **no** (no bound research DB) |
 | Ingestion successful | **no** | **no** |
 | RetainedImage ID | **none** (not created) | **none** (not created) |
-| Original vs stored checksum | n/a | n/a |
-| Retrieval verification | n/a | n/a |
-| Tenant isolation result | n/a | n/a |
+| Original vs stored checksum | n/a (not retained) | n/a (not retained) |
+| Retrieval verification | n/a (not retained) | n/a (not retained) |
+| Tenant isolation result | n/a (not retained) | n/a (not retained) |
 | ground_truth_status | **unknown** | **unknown** |
 | Baseline review | **pending_review** | **pending_review** |
 | Research-training eligibility | **false** | **false** |
@@ -101,37 +104,45 @@ real authorization and the bytes are validated fail-closed:
 Both images link to the same physical trocar (`TRC-001`) with distinct image identities
 and modalities. Neither is auto-labelled normal/clean/corroded/contaminated.
 
-## Missing documentation (required before ingestion)
+## Remaining prerequisites before ingestion
 
-1. The private intake kit: `TRC-001-private-intake-kit.zip` (provisional manifest + the
-   two operator JPEG files + their SHA-256 hashes).
-2. Institutional data-authorization record (`GovernanceApproval`,
-   `request_type = research_data_authorization`, `target_resource_id = <TRC-001 dataset>`,
-   `status = approved`, authenticated reviewer).
-3. Dataset-scoped research-use consent record (`GovernanceApproval`,
-   `request_type = research_use_consent`, same dataset id).
-4. Tenant research-use `ConsentRecord` (granted, not withdrawn).
-5. Image-use rights + instrument-source permission for the operator-captured trocar.
-6. Research retention authorization for the isolated research environment
-   (`RETAIN_INSPECTION_IMAGES` enabled there).
+The kit is present and verified. Ingestion is blocked only on environment + genuine
+authorization (none fabricated):
+
+1. An isolated research database bound via `DATABASE_URL`, provisioned on the operator's
+   authorized local machine (not a disposable cloud env, not production), with migrations
+   applied and `RETAIN_INSPECTION_IMAGES` enabled for that env only.
+2. A verifiably authenticated operator/tenant in the identity system (a verified session,
+   not a constructed `AuthContext`).
+3. One of the two authorization bases for dataset `TRC-001`:
+   - **owner-attested** (privately controlled nonclinical asset): an approved,
+     non-withdrawn `GovernanceApproval(request_type = research_owner_attestation)` signed by
+     the authenticated owner, covering exactly the two image SHA-256s and asserting
+     ownership + permissible research use + retention + withdrawal; **or**
+   - **institutional**: data-authorization + research-use consent (`GovernanceApproval`s) +
+     tenant `ConsentRecord` + a `research_retention_authorization` approval.
+
+Owner-attested authorization is never institutional approval, independent ownership
+verification, or scientific ground truth; if policy requires independent review for a use,
+that stays a separate unmet gate (`BLOCKED_REVIEW`).
 
 ## What WAS verified (ingestion pathway, real services)
 
-The ingestion machinery was proven end-to-end with a **real, non-mocked** integration
-test (`tests/test_trc001_ingestion.py`) using **locally-generated JPEG bytes** (not the
-operator photos): a genuine `retain_image` call persists a `RetainedImage` row on the real
-(SQLite) DB, the stored bytes are retrieved and decode cleanly, the stored SHA-256 matches
-the stored bytes (accounting for EXIF stripping), and the row is isolated to its owning
-tenant. The test also confirms the runner returns `BLOCKED_MISSING_INTAKE_KIT` /
-`BLOCKED_AUTHORIZATION` and retains nothing when prerequisites are absent, and that an
-`unknown`-ground-truth image is rejected by the verified-normal-only fitting gate.
-
-The §2 hardening above is covered by negative regression tests (10 total in
-`tests/test_trc001_ingestion.py`): `auth=None` refused, cross-tenant actor refused,
-retention authorization required (data-authorization + consent alone is insufficient),
-a path-traversal manifest filename rejected, and a declared/decoded dimension mismatch
-rejected — in every case nothing is retained and no IDs are invented. The authorized
-end-to-end test additionally asserts the explicit `tenant_access_authorized` predicate.
+- **Kit bytes:** both operator JPEGs verify against the manifest — SHA-256, byte size, and
+  1152×1536 dimensions all match; both decode as valid JPEG.
+- **Ingestion machinery:** proven end-to-end with **real, non-mocked** integration tests
+  (`tests/test_trc001_ingestion.py`, **22 tests**) using **locally-generated JPEG bytes**
+  (not the operator photos): a genuine `retain_image` call persists a `RetainedImage` row
+  on the real (SQLite) DB; stored bytes are retrieved, decode cleanly, and hash-match
+  (accounting for EXIF stripping); the row is tenant-isolated.
+- **Negative/safeguard coverage:** `auth=None`; non-`AuthContext`; cross-tenant actor;
+  path-traversal manifest filename; dimension mismatch; retention-authorization required
+  (institutional); and, for the owner-attested basis — unverified/dev context naming an
+  existing owner, forged existing-owner with a wrong session subject, unsigned attestation,
+  third-party (non-declarant) record, withdrawn attestation, retention not authorized,
+  image-hash mismatch, and an unsupported `authorization_basis`. In every blocked case
+  nothing is retained and no IDs are invented. An `unknown`-ground-truth image is rejected
+  by the verified-normal-only fitting gate.
 
 ## Research safeguards (both images)
 
@@ -144,16 +155,20 @@ end-to-end test additionally asserts the explicit `tenant_access_authorized` pre
 - The borescope image is recorded as a **display photograph**, never claimed to be a raw
   borescope export.
 
-## To complete TRC-001 (operator steps)
+## To complete TRC-001 (operator steps, on the authorized local machine)
 
-Supply the private intake kit to the isolated research environment, create records 2–6
-above, then run (never committing the kit or bytes):
+On the operator's local machine (never committing the kit or bytes), provision the
+isolated research PostgreSQL, bind `DATABASE_URL`, `alembic upgrade head`, enable
+`RETAIN_INSPECTION_IMAGES`, record a genuine authenticated owner attestation for the two
+verified hashes, then run:
 
 ```
-run_trc001_intake(db, kit_dir="<private kit path>", tenant_id="<tenant>",
-                  dataset_id="<TRC-001 dataset>", auth=<authenticated approver context>)
+run_trc001_intake(db, kit_dir="<private kit path>", tenant_id="<authenticated tenant>",
+                  dataset_id="<TRC-001 dataset>", auth=<verified operator AuthContext>,
+                  authorization_basis="owner_attested")
 ```
 
 Success criterion is met only when both photographs are **authorized, hash-verified,
 genuinely retained and retrievable** — reported with their real `RetainedImage` IDs.
-Until then this report stands as the explicit blocker.
+Until then this report stands as the explicit blocker (`BLOCKED_LOCAL_EXECUTION` /
+`BLOCKED_RESEARCH_DATABASE` in a cloud environment).
