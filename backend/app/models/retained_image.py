@@ -69,6 +69,17 @@ class RetainedImage(Base):
     consent_recorded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     uploaded_by: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
+    # TRC-001 owner/dataset provenance; blank on existing and unrelated images.
+    research_dataset_id: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False, index=True
+    )
+    research_owner_subject: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
+    research_attestation_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+
     # The EXIF-stripped bytes. Nullable so metadata can outlive purged bytes.
     image_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 

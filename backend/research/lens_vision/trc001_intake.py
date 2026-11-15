@@ -299,10 +299,42 @@ def run_trc001_intake(
         # resolved in step 4 — not by the caller passing consent=True alone.
         r.authorization = authorization_label
         r.ingestion_attempted = True
-        retained = retain_image(
-            db, data=data, tenant_id=tenant_id, instrument_type=TRC001_INSTRUMENT_ID,
-            content_type=str(entry.get("content_type") or "image/jpeg"),
-            source="trc001_research_intake", uploaded_by=authorized_actor, consent=True)
+        try:
+            retained = retain_image(
+                db, data=data, tenant_id=tenant_id, instrument_type=TRC001_INSTRUMENT_ID,
+                content_type=str(entry.get("content_type") or "image/jpeg"),
+                source="trc001_research_intake", uploaded_by=authorized_actor, consent=True,
+                commit=(basis != "owner_attested"))
+            if retained is not None and basis == "owner_attested":
+                # Dedup runs by tenant+SHA, so identical bytes can belong to
+                # another owner/dataset. NEVER reassign their record.
+                reused = bool(getattr(retained, "_lumenai_dedup_hit", False))
+                conflicting = (
+                    retained.source != "trc001_research_intake"
+                    or retained.instrument_type != TRC001_INSTRUMENT_ID
+                    or retained.uploaded_by != authorized_actor
+                    or (reused and (
+                        retained.research_dataset_id != dataset_id
+                        or retained.research_owner_subject != auth.subject
+                    ))
+                )
+                if conflicting:
+                    db.rollback()
+                    r.reason = "retained_image_provenance_conflict"
+                    results.append(r)
+                    continue
+                if not reused:
+                    retained.research_dataset_id = dataset_id
+                    retained.research_owner_subject = auth.subject
+                    retained.research_attestation_id = attestation.approval_id
+                db.commit()
+                db.refresh(retained)
+        except Exception:
+            # Never claim intake success when ownership attribution failed.
+            db.rollback()
+            r.reason = "retention_or_provenance_persistence_failed"
+            results.append(r)
+            continue
         if retained is None:
             r.reason = "retention_disabled_or_no_consent"
             results.append(r)

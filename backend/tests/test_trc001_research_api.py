@@ -165,6 +165,11 @@ def test_owner_attestation_and_intake_happy_path(env):
         assert img["retained_image_id"] is not None and img["ingestion_successful"] is True
         assert img["ground_truth_status"] == "unknown" and img["baseline_review"] == "pending_review"
         assert img["research_training_eligible"] is False
+        retained = env["s"].get(RetainedImage, img["retained_image_id"])
+        assert retained.research_dataset_id == DATASET
+        assert retained.research_owner_subject == OWNER_SUBJECT
+        assert retained.uploaded_by == OWNER
+        assert retained.research_attestation_id == body["attestation_id"]
 
 
 def test_attestation_requires_explicit_signing_action(env):
@@ -316,3 +321,97 @@ def test_attestation_is_atomic_with_audit(env, monkeypatch):
         GovernanceApproval.target_resource_id == DATASET).count()
     assert after == before  # no approved record persisted without its audit evidence
     _track_new_rows(env)
+
+
+def test_withdrawal_keeps_other_owners_datasets_subjects_and_legacy(env):
+    """Synthetic foreign images in the same tenant must survive withdrawal."""
+    s = env["s"]
+    _seed_user(env)
+    assert _attest(env).status_code == 200
+    _override(_ctx())
+    result = client.post("/api/research/trc001/intake").json()
+    assert result["status"] == "INGESTED" and result["imported_count"] == 2
+    owned_ids = {x["retained_image_id"] for x in result["images"]}
+    _track_new_rows(env)
+
+    others = [
+        ("other-owner@x", "other-sub", DATASET, TENANT),
+        (OWNER, OWNER_SUBJECT, "other-dataset", TENANT),
+        (OWNER, "other-sub", DATASET, TENANT),
+        (OWNER, OWNER_SUBJECT, DATASET, OTHER_TENANT),
+        (OWNER, "", "", TENANT),
+    ]
+    foreign_ids = []
+    for i, (actor, subject, dataset, tenant) in enumerate(others):
+        payload = _jpeg(color=(100 + i, 120 + i, 140 + i))
+        row = RetainedImage(
+            tenant_id=tenant, deident_name=f"synthetic-other-{i}",
+            instrument_type="TRC-001", content_type="image/jpeg",
+            size_bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest(),
+            exif_stripped=True, source="trc001_research_intake",
+            uploaded_by=actor, research_dataset_id=dataset,
+            research_owner_subject=subject, consent_recorded=True,
+            image_bytes=payload,
+        )
+        s.add(row)
+        s.flush()
+        foreign_ids.append(row.id)
+    s.commit()
+    _track_new_rows(env)
+
+    _override(_ctx())
+    response = client.post("/api/research/trc001/owner-attestation/withdraw")
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["retained_images_deletion_verified"] is True
+    assert set(result["retained_images_deleted"]) == owned_ids
+
+    s.expire_all()
+    assert s.query(RetainedImage).filter(RetainedImage.id.in_(owned_ids)).count() == 0
+    assert s.query(RetainedImage).filter(RetainedImage.id.in_(foreign_ids)).count() == len(foreign_ids)
+    assert client.post("/api/research/trc001/intake").json()["status"] == "BLOCKED_AUTHORIZATION"
+
+
+def test_same_tenant_dedup_does_not_reassign_another_owner(env):
+    """Duplicate pixels owned by another dataset/actor remain untouched."""
+    from app.services.image_retention_service import strip_exif
+
+    s = env["s"]
+    original = (env["tmp_path"] / "TRC-001-EXT-001.jpg").read_bytes()
+    stored, _ = strip_exif(original, "image/jpeg")
+    foreign = RetainedImage(
+        tenant_id=TENANT, deident_name="synthetic-foreign-same-bytes",
+        instrument_type="TRC-001", content_type="image/jpeg",
+        size_bytes=len(stored), sha256=hashlib.sha256(stored).hexdigest(),
+        exif_stripped=True, source="trc001_research_intake",
+        uploaded_by="foreign@x", research_dataset_id="foreign-dataset",
+        research_owner_subject="foreign-subject", consent_recorded=True,
+        image_bytes=stored,
+    )
+    s.add(foreign)
+    s.commit()
+    foreign_id = foreign.id
+    _track_new_rows(env)
+
+    _seed_user(env)
+    assert _attest(env).status_code == 200
+    _override(_ctx())
+    response = client.post("/api/research/trc001/intake")
+    assert response.status_code == 200
+    outcome = response.json()
+    assert outcome["status"] == "PARTIAL" and outcome["imported_count"] == 1
+    assert outcome["images"][0]["reason"] == "retained_image_provenance_conflict"
+    _track_new_rows(env)
+
+    s.expire_all()
+    foreign = s.get(RetainedImage, foreign_id)
+    assert foreign is not None
+    assert foreign.uploaded_by == "foreign@x"
+    assert foreign.research_dataset_id == "foreign-dataset"
+
+    _override(_ctx())
+    withdrawal = client.post("/api/research/trc001/owner-attestation/withdraw")
+    assert withdrawal.status_code == 200
+    assert foreign_id not in withdrawal.json()["retained_images_deleted"]
+    s.expire_all()
+    assert s.get(RetainedImage, foreign_id) is not None

@@ -73,10 +73,13 @@ dataset — bound to the authenticated **actor AND session subject** (not just t
 recent) — so no previously approved attestation remains usable afterwards. `404` if none
 active for this actor+subject.
 
-Governed deletion: in the same transaction, the TRC-001 research-intake retained images for
-this tenant are deleted, then deletion is **verified** by re-querying. Deletion is reported
-as verified only when zero rows remain; otherwise the response says it was not verified and
-manual remediation is required. The response never claims deletion that was not verified.
+Governed deletion: delete only explicitly attributed TRC-001 images with matching
+**tenant, dataset, actor and verified IdP subject**. New image bytes and attribution
+are committed together at intake; cross-owner/dataset SHA deduplication cannot
+transfer image ownership. Unrelated owners/datasets/subjects and unscoped historical
+rows are preserved. Deletion verification counts only this exact scope after commit,
+so it must not be interpreted as verification that every historical TRC-001 image
+was deleted. Legacy/unattributed records require separate governance review.
 
 Response `200`:
 ```json
@@ -114,3 +117,10 @@ Both images always remain `ground_truth_status="unknown"`, `baseline_review="pen
   identity matching is only as strong as the IdP's subject guarantees.
 - Private photographs and credentials are never read, logged, committed, or returned by
   these endpoints; the kit lives only at the server-configured path.
+
+## Schema migration for scoped retention
+
+Alembic revision `e8b2c6d49f10` adds `retained_images.research_dataset_id`,
+`research_owner_subject`, and `research_attestation_id`. Apply it to the local
+research database before running the updated API. Existing rows receive blank/null
+provenance; there is deliberately no automatic ownership backfill.

@@ -209,10 +209,10 @@ def withdraw_owner_attestation(
     * **Revocation (requirement 1):** ALL currently-approved attestations bound to the
       authenticated actor AND session subject are set to ``withdrawn`` — not just the most
       recent — so no previously approved attestation remains usable afterwards.
-    * **Governed deletion (requirement 3):** the TRC-001 research-intake retained images
-      for this tenant are deleted in the same transaction, then deletion is **verified** by
-      re-querying. Deletion is only reported as verified when zero rows remain; otherwise
-      the response says deletion was not verified (never a false "deleted" claim).
+    * **Governed deletion (requirement 3):** deletes only images explicitly attributed
+      to the matching tenant, dataset, owner actor, and verified session subject.
+      Other owners, datasets and legacy unscoped images are preserved.
+      Deletion is re-queried after commit before it is reported verified.
     """
     from research.lens_vision.trc001_intake import TRC001_INSTRUMENT_ID  # noqa: PLC0415
 
@@ -247,13 +247,16 @@ def withdraw_owner_attestation(
             detail="No active owner attestation to withdraw for this authenticated actor + subject.",
         )
 
-    # Governed deletion of retained images ingested for this tenant's TRC-001 research
-    # intake (hash-independent linkage: the stored hash is of EXIF-stripped bytes).
+    # Delete only explicitly attributed images in the requesting owner's scope.
+    # Historical rows missing provenance require review, NOT guessed ownership.
     def _retained_query():
         return db.query(RetainedImage).filter(
             RetainedImage.tenant_id == auth.tenant_id,
             RetainedImage.source == "trc001_research_intake",
             RetainedImage.instrument_type == TRC001_INSTRUMENT_ID,
+            RetainedImage.uploaded_by == auth.actor,
+            RetainedImage.research_dataset_id == dataset_id,
+            RetainedImage.research_owner_subject == auth.subject,
         )
 
     deleted_ids = [r.id for r in _retained_query().all()]
@@ -287,9 +290,10 @@ def withdraw_owner_attestation(
         "retained_images_remaining": remaining,
         "retained_images_deletion_verified": deletion_verified,
         "note": (
-            "Attestation(s) revoked (actor+subject-bound); TRC-001 retained research images "
-            "deleted and deletion verified." if deletion_verified else
-            "Attestation(s) revoked; retained-image deletion could NOT be fully verified — "
+            "Attestation(s) revoked; images attributed to the exact tenant, dataset, "
+            "actor and subject deleted and verified. Other or legacy unscoped rows "
+            "are not included." if deletion_verified else
+            "Attestation(s) revoked; scoped deletion could NOT be verified — "
             "manual governed remediation required before any further intake."
         ),
     }
