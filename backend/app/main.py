@@ -852,6 +852,9 @@ app.include_router(baseline_image_library_router, prefix=settings.API_PREFIX)
 from app.routes.dataset_ingestion import router as dataset_ingestion_router
 app.include_router(dataset_ingestion_router, prefix=settings.API_PREFIX)
 
+from app.routes.trc001_research import router as trc001_research_router
+app.include_router(trc001_research_router, prefix=settings.API_PREFIX)
+
 from app.routes.reviewer_queues import router as reviewer_queues_router
 app.include_router(reviewer_queues_router, prefix=settings.API_PREFIX)
 
