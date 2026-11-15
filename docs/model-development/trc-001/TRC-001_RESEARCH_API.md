@@ -52,7 +52,9 @@ otherwise). Stored as a `GovernanceApproval(request_type="research_owner_attesta
 status="approved", requested_by=reviewed_by=<actor>)` whose payload records
 `attestation_signed`, `declarant_actor`, `declarant_subject`,
 `independent_ownership_verified=false`, `institutional_approved=false`. An immutable audit
-event is written.
+event is written **atomically** with the attestation: both are committed in a single
+transaction, and if the audit write fails the whole transaction is rolled back (`500`), so
+no approved attestation can persist without its required audit evidence.
 
 Response `200`:
 ```json
@@ -66,11 +68,24 @@ Response `200`:
 
 ### POST `/api/research/trc001/owner-attestation/withdraw`
 
-Withdraw the authenticated owner's own active attestation for the dataset (sets status to
-`withdrawn`; audit written). `404` if none active. A withdrawn attestation no longer
-authorizes intake.
+Withdraw **all** of the authenticated owner's currently-approved attestations for the
+dataset — bound to the authenticated **actor AND session subject** (not just the most
+recent) — so no previously approved attestation remains usable afterwards. `404` if none
+active for this actor+subject.
 
-Response `200`: `{"attestation_id": 123, "status": "withdrawn", "dataset_id": "TRC-001"}`
+Governed deletion: in the same transaction, the TRC-001 research-intake retained images for
+this tenant are deleted, then deletion is **verified** by re-querying. Deletion is reported
+as verified only when zero rows remain; otherwise the response says it was not verified and
+manual remediation is required. The response never claims deletion that was not verified.
+
+Response `200`:
+```json
+{
+  "status": "withdrawn", "attestation_ids": [12, 13, 14], "dataset_id": "TRC-001",
+  "retained_images_deleted": [101, 102], "retained_images_remaining": 0,
+  "retained_images_deletion_verified": true, "note": "…"
+}
+```
 
 ### POST `/api/research/trc001/intake`
 

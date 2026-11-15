@@ -51,6 +51,7 @@ from app.enterprise_auth import (
     is_demo_mode,
 )
 from app.models.governance_approval import GovernanceApproval
+from app.models.retained_image import RetainedImage
 from app.services.enterprise_audit_service import record_enterprise_audit_event
 
 router = APIRouter(tags=["trc001-research"])
@@ -167,17 +168,28 @@ def record_owner_attestation(
         target_resource_id=dataset_id, requested_by=auth.actor, status=_APPROVED,
         reviewed_by=auth.actor, requested_payload=json.dumps(payload),
     )
+    # Atomic: the approved attestation and its audit event persist together or not at all.
+    # The audit event is written with commit=False in the SAME transaction, then a single
+    # commit flushes both. If audit construction/write fails, the whole transaction is
+    # rolled back so no approved record can persist without its required audit evidence.
     db.add(row)
-    db.commit()
-    db.refresh(row)
-    record_enterprise_audit_event(
-        db, action_type="trc001_owner_attestation_recorded", resource_type="research_dataset",
-        resource_id=dataset_id, actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
-        status="success",
-        details={"attestation_id": row.id, "basis": "owner_attested",
-                 "independent_ownership_verified": False, "institutional_approved": False},
-        auth_context=auth, commit=True,
-    )
+    try:
+        db.flush()  # assign row.id without committing
+        record_enterprise_audit_event(
+            db, action_type="trc001_owner_attestation_recorded", resource_type="research_dataset",
+            resource_id=dataset_id, actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
+            status="success",
+            details={"attestation_id": row.id, "basis": "owner_attested",
+                     "independent_ownership_verified": False, "institutional_approved": False},
+            auth_context=auth, commit=False,
+        )
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Owner attestation not recorded: audit evidence could not be written (atomic rollback).",
+        ) from exc
     return {
         "attestation_id": row.id, "status": "recorded", "basis": "owner_attested",
         "institutional_approved": False, "independent_ownership_verified": False,
@@ -191,10 +203,21 @@ def withdraw_owner_attestation(
     auth: AuthContext = Depends(require_verified_oidc_context),
     db: Session = Depends(get_db),
 ):
-    """Withdraw the authenticated owner's own active attestation for the dataset. A
-    withdrawn attestation no longer authorizes intake (the runner is fail-closed)."""
+    """Withdraw the authenticated owner's attestation(s) for the dataset and run the
+    governed deletion of any retained images that were ingested under them.
+
+    * **Revocation (requirement 1):** ALL currently-approved attestations bound to the
+      authenticated actor AND session subject are set to ``withdrawn`` — not just the most
+      recent — so no previously approved attestation remains usable afterwards.
+    * **Governed deletion (requirement 3):** the TRC-001 research-intake retained images
+      for this tenant are deleted in the same transaction, then deletion is **verified** by
+      re-querying. Deletion is only reported as verified when zero rows remain; otherwise
+      the response says deletion was not verified (never a false "deleted" claim).
+    """
+    from research.lens_vision.trc001_intake import TRC001_INSTRUMENT_ID  # noqa: PLC0415
+
     dataset_id = trc001_dataset_id()
-    rec = (
+    candidates = (
         db.query(GovernanceApproval)
         .filter(
             GovernanceApproval.tenant_id == auth.tenant_id,
@@ -203,19 +226,73 @@ def withdraw_owner_attestation(
             GovernanceApproval.status == _APPROVED,
             GovernanceApproval.reviewed_by == auth.actor,
         )
-        .order_by(GovernanceApproval.id.desc())
-        .first()
+        .all()
     )
-    if rec is None:
-        raise HTTPException(status_code=404, detail="No active owner attestation to withdraw for this actor.")
-    rec.status = _WITHDRAWN
-    db.commit()
-    record_enterprise_audit_event(
-        db, action_type="trc001_owner_attestation_withdrawn", resource_type="research_dataset",
-        resource_id=dataset_id, actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
-        status="success", details={"attestation_id": rec.id}, auth_context=auth, commit=True,
-    )
-    return {"attestation_id": rec.id, "status": "withdrawn", "dataset_id": dataset_id}
+    # Revocation is bound to the authenticated actor AND session subject.
+    withdrawn_ids: list[int] = []
+    for rec in candidates:
+        try:
+            payload = json.loads(rec.requested_payload or "{}")
+        except (ValueError, TypeError):
+            payload = {}
+        if str(payload.get("declarant_actor") or "") != auth.actor:
+            continue
+        if str(payload.get("declarant_subject") or "") != str(auth.subject or ""):
+            continue
+        rec.status = _WITHDRAWN
+        withdrawn_ids.append(rec.id)
+    if not withdrawn_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="No active owner attestation to withdraw for this authenticated actor + subject.",
+        )
+
+    # Governed deletion of retained images ingested for this tenant's TRC-001 research
+    # intake (hash-independent linkage: the stored hash is of EXIF-stripped bytes).
+    def _retained_query():
+        return db.query(RetainedImage).filter(
+            RetainedImage.tenant_id == auth.tenant_id,
+            RetainedImage.source == "trc001_research_intake",
+            RetainedImage.instrument_type == TRC001_INSTRUMENT_ID,
+        )
+
+    deleted_ids = [r.id for r in _retained_query().all()]
+    try:
+        for r in _retained_query().all():
+            db.delete(r)
+        db.flush()
+        record_enterprise_audit_event(
+            db, action_type="trc001_owner_attestation_withdrawn", resource_type="research_dataset",
+            resource_id=dataset_id, actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
+            status="success",
+            details={"attestation_ids": withdrawn_ids, "retained_images_deleted": deleted_ids},
+            auth_context=auth, commit=False,
+        )
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Withdrawal not completed: revocation + deletion could not be committed (atomic rollback).",
+        ) from exc
+
+    # Verify deletion AFTER commit before claiming it.
+    remaining = _retained_query().count()
+    deletion_verified = remaining == 0
+    return {
+        "status": "withdrawn",
+        "attestation_ids": withdrawn_ids,
+        "dataset_id": dataset_id,
+        "retained_images_deleted": deleted_ids,
+        "retained_images_remaining": remaining,
+        "retained_images_deletion_verified": deletion_verified,
+        "note": (
+            "Attestation(s) revoked (actor+subject-bound); TRC-001 retained research images "
+            "deleted and deletion verified." if deletion_verified else
+            "Attestation(s) revoked; retained-image deletion could NOT be fully verified — "
+            "manual governed remediation required before any further intake."
+        ),
+    }
 
 
 @router.post("/research/trc001/intake")

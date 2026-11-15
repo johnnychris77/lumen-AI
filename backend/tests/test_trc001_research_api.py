@@ -94,6 +94,11 @@ def _override(ctx):
     app.dependency_overrides[api.require_verified_oidc_context] = lambda: ctx
 
 
+def _no_trc_rows(s):
+    return s.query(RetainedImage).filter(RetainedImage.tenant_id == TENANT,
+                                         RetainedImage.source == "trc001_research_intake").count() == 0
+
+
 def _track_new_rows(env):
     """Record approval + retained rows created by the API for cleanup."""
     s, created = env["s"], env["created"]
@@ -223,6 +228,50 @@ def test_intake_after_withdrawal_blocked(env):
     assert r.json()["status"] == "BLOCKED_AUTHORIZATION" and r.json()["imported_count"] == 0
 
 
+def test_multiple_attestations_then_withdrawal_blocks_and_deletes(env):
+    # Requirement 1-3: several approved attestations, one withdrawal revokes them all
+    # (actor+subject-bound), intake returns BLOCKED_AUTHORIZATION and retains zero new
+    # images, and the previously-retained images are deleted + deletion verified.
+    s = env["s"]
+    _seed_user(env)
+    # Three approved attestations for the same actor+subject (all over the same hashes).
+    for _ in range(3):
+        assert _attest(env).status_code == 200
+    approved_before = s.query(GovernanceApproval).filter(
+        GovernanceApproval.request_type == api.REQ_OWNER_ATTESTATION,
+        GovernanceApproval.target_resource_id == DATASET,
+        GovernanceApproval.status == "approved").count()
+    assert approved_before == 3
+
+    # Ingest once (retains 2 images) while attestations are active.
+    _override(_ctx())
+    assert client.post("/api/research/trc001/intake").json()["status"] == "INGESTED"
+    _track_new_rows(env)
+    retained_before = s.query(RetainedImage).filter(
+        RetainedImage.tenant_id == TENANT, RetainedImage.source == "trc001_research_intake").count()
+    assert retained_before >= 2
+
+    # Single withdrawal must revoke ALL approved attestations and delete retained images.
+    _override(_ctx())
+    w = client.post("/api/research/trc001/owner-attestation/withdraw").json()
+    assert w["status"] == "withdrawn" and len(w["attestation_ids"]) == 3
+    assert w["retained_images_deletion_verified"] is True and w["retained_images_remaining"] == 0
+
+    s.expire_all()
+    assert s.query(GovernanceApproval).filter(
+        GovernanceApproval.request_type == api.REQ_OWNER_ATTESTATION,
+        GovernanceApproval.target_resource_id == DATASET,
+        GovernanceApproval.status == "approved").count() == 0
+    assert _no_trc_rows(s)  # zero retained images remain
+
+    # Intake now fails closed and retains zero new images.
+    _override(_ctx())
+    r = client.post("/api/research/trc001/intake")
+    _track_new_rows(env)
+    assert r.json()["status"] == "BLOCKED_AUTHORIZATION" and r.json()["imported_count"] == 0
+    assert _no_trc_rows(s)
+
+
 def test_intake_missing_kit_configuration_blocked(env, monkeypatch):
     _seed_user(env)
     _attest(env)
@@ -242,3 +291,28 @@ def test_client_cannot_supply_dataset_or_path(env):
                     json={"kit_dir": "/etc", "dataset_id": "attacker-ds", "tenant_id": OTHER_TENANT})
     _track_new_rows(env)
     assert r.status_code == 200 and r.json()["status"] == "INGESTED"  # server config used, not client input
+
+
+def test_attestation_is_atomic_with_audit(env, monkeypatch):
+    # Requirement 6: if the audit write fails, the approved attestation must NOT persist.
+    s = env["s"]
+
+    def _boom(*a, **k):
+        raise RuntimeError("audit backend unavailable")
+
+    monkeypatch.setattr(api, "record_enterprise_audit_event", _boom)
+    before = s.query(GovernanceApproval).filter(
+        GovernanceApproval.request_type == api.REQ_OWNER_ATTESTATION,
+        GovernanceApproval.target_resource_id == DATASET).count()
+    _override(_ctx())
+    r = client.post("/api/research/trc001/owner-attestation", json={
+        "ownership_asserted": True, "permissible_research_use": "x",
+        "retention_authorized": True, "withdrawal_procedure": "y",
+        "image_sha256": env["kit_hashes"], "owner_signing_acknowledged": True})
+    assert r.status_code == 500
+    s.expire_all()
+    after = s.query(GovernanceApproval).filter(
+        GovernanceApproval.request_type == api.REQ_OWNER_ATTESTATION,
+        GovernanceApproval.target_resource_id == DATASET).count()
+    assert after == before  # no approved record persisted without its audit evidence
+    _track_new_rows(env)
