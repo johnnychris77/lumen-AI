@@ -94,11 +94,15 @@ def retain_image(
     uploaded_by: str = "",
     consent: bool = False,
     seq: int | None = None,
+    commit: bool = True,
 ) -> RetainedImage | None:
     """Persist an EXIF-stripped image IF retention is enabled and consent given.
 
     Returns the created ``RetainedImage`` row, or ``None`` when retention is
     disabled or consent is absent (the no-op default path).
+
+    With ``commit=False``, new bytes are flushed so a research caller can
+    commit image ownership provenance atomically; other callers are unchanged.
     """
     if not retention_enabled() or not consent:
         return None
@@ -141,8 +145,11 @@ def retain_image(
         label_status="unlabeled",
     )
     db.add(row)
-    db.commit()
-    db.refresh(row)
+    if commit:
+        db.commit()
+        db.refresh(row)
+    else:
+        db.flush()
     return row
 
 
