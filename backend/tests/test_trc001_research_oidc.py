@@ -114,6 +114,12 @@ def oidc(monkeypatch, tmp_path):
     try:
         yield {"s": s, "hashes": hashes, "created": created}
     finally:
+        from app.models.research_image_authorization import ResearchImageAuthorization
+        s.rollback()
+        # Clear association rows first: they FK-reference governance_approvals (no cascade)
+        # and retained_images; PostgreSQL enforces this ordering, SQLite does not.
+        s.query(ResearchImageAuthorization).filter(
+            ResearchImageAuthorization.tenant_id == TENANT).delete(synchronize_session=False)
         s.query(models.TenantMembership).filter(models.TenantMembership.user_email == EMAIL).delete()
         s.query(UserRoleAssignment).filter(UserRoleAssignment.username == EMAIL).delete()
         s.query(GovernanceApproval).filter(

@@ -47,6 +47,13 @@ def db():
     try:
         yield s, created
     finally:
+        from app.models.research_image_authorization import ResearchImageAuthorization
+        s.rollback()
+        # Clear association rows first: they FK-reference governance_approvals (no cascade);
+        # PostgreSQL enforces this ordering (SQLite does not).
+        s.query(ResearchImageAuthorization).filter(
+            ResearchImageAuthorization.tenant_id.in_([TENANT, OTHER_TENANT])).delete(
+            synchronize_session=False)
         for i in created["retained"]:
             s.query(RetainedImage).filter(RetainedImage.id == i).delete()
         for u in created["users"]:
