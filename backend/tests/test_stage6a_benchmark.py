@@ -49,7 +49,9 @@ def test_missing_fields_block():
     r = validate_image_readiness(_img(image_sha256="", institutional_authorization_ref=""))
     assert r["ready"] is False
     assert "missing:image_sha256" in r["blockers"]
-    assert "missing:institutional_authorization_ref" in r["blockers"]
+    # RGI-07: institutional_authorization_ref is an AUTHORIZATION field, not metadata — a
+    # missing value fails only the authorization dimension (not metadata_completeness).
+    assert "missing_authorization:institutional_authorization_ref" in r["blockers"]
 
 
 def test_unlabeled_cannot_be_verified_normal_training():

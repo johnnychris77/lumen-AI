@@ -191,6 +191,12 @@ def register_operator_approved_checkpoint(
     if research_execution_only:
         rights_cleared = True              # may be CONSTRUCTED / run for pipeline verification
         scientific_use_approved = False    # never for scientific performance claims
+        # RGI-03/168-f: an execution-only backbone is NEVER scientific. Force the stored
+        # compatibility policy non-scientific so a downstream consumer (e.g.
+        # ``_AnomalibLocalizer._build_model``, which defaults backbone_scientifically_valid
+        # from this policy) cannot treat it as scientifically valid despite
+        # ``scientific_use_approved=False``.
+        compatibility_policy = {**(compatibility_policy or {}), "scientifically_valid": False}
     else:
         rights_cleared = has_evidence
         scientific_use_approved = has_evidence and bool(policy_sci_valid)

@@ -136,7 +136,11 @@ def test_synthetic_experiment_is_deterministic_and_flagged():
     assert scores1 == scores2
     # Metrics are computed (labels + masks exist) but flagged as a technical test.
     assert r1["image_level_metrics"]["measured"] is True
-    assert "SYNTHETIC" in r1["image_level_metrics"]["note"]
+    # RGI-03: a stub / non-scientific checkpoint is authoritatively a technical test —
+    # metrics are labelled non-scientific regardless of the caller's synthetic flag.
+    assert r1["image_level_metrics"]["scientific"] is False
+    assert r1["scientifically_eligible"] is False and r1["technical_test"] is True
+    assert "TECHNICAL" in r1["image_level_metrics"]["note"]
     # Masks exist on synthetic fixtures -> pixel metrics are computed (technical test).
     assert r1["pixel_level_metrics"].get("mean_dice") is not None
     assert r1["pixel_level_metrics"]["mean_dice"] == r2["pixel_level_metrics"]["mean_dice"]

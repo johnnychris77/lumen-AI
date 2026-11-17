@@ -9,6 +9,7 @@ never reported as clinical accuracy. All outputs are research-only and finite.
 """
 from __future__ import annotations
 
+import hashlib
 import time
 from typing import Any, Callable
 
@@ -28,7 +29,12 @@ from research.lens_vision.calibration import (
     dice_iou,
     fit_frozen_threshold,
 )
-from research.lens_vision.checkpoint import get_record
+from research.lens_vision.checkpoint import (
+    CheckpointError,
+    CheckpointScientificUseError,
+    assert_scientific_checkpoint,
+    get_record,
+)
 from research.lens_vision.governance import GT_VERIFIED_NORMAL, enforce_supplied_dataset_governance
 from research.lens_vision.provenance import assert_research_authorized
 
@@ -42,14 +48,52 @@ class LeakageError(ValueError):
     session / image / laboratory-batch identity — independent evaluation would be invalid."""
 
 
+class InvalidLabelError(ValueError):
+    """RGI-09: an anomaly label was not binary (0/1) where a binary label is required."""
+
+
+class LocalizerConfigMismatchError(ValueError):
+    """RGI-08: the supplied localizer's backbone checkpoint does not match the run config's
+    ``checkpoint_id`` — results would misattribute metrics to the wrong weights."""
+
+
+def _effective_sha(s: dict) -> str:
+    """RGI-05: the trusted image identity is the SHA-256 of the actual bytes when present;
+    the caller-supplied ``image_sha256`` is used only as a fallback when no bytes are
+    available. Two records with identical bytes therefore always share an ``img:`` token —
+    even if their declared hashes are empty, stale, or disagree — so byte-level duplicates
+    cannot straddle splits undetected."""
+    b = s.get("image_bytes")
+    if isinstance(b, (bytes, bytearray)) and len(b) > 0:
+        return hashlib.sha256(bytes(b)).hexdigest()
+    return str(s.get("image_sha256") or "")
+
+
+def _binary_label(v) -> int:
+    """RGI-09: coerce a label to a strict binary 0/1 or raise. Rejects out-of-domain values
+    (e.g. 2), and undefined string/number mixes — never silently treats them as positive."""
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, int) and v in (0, 1):
+        return v
+    if isinstance(v, float) and v in (0.0, 1.0):
+        return int(v)
+    if isinstance(v, str) and v.strip() in ("0", "1"):
+        return int(v.strip())
+    raise InvalidLabelError(f"anomaly_label must be a binary 0/1 value; got {v!r}.")
+
+
 def _identity_tokens(s: dict) -> set[str]:
     toks = set()
     for key, prefix in (("instrument_serial", "serial"), ("inspection_id", "insp"),
-                        ("specimen_id", "spec"), ("session_id", "sess"), ("image_sha256", "img"),
+                        ("specimen_id", "spec"), ("session_id", "sess"),
                         ("laboratory_batch_id", "lab")):
         v = s.get(key)
         if v not in (None, ""):
             toks.add(f"{prefix}:{v}")
+    sha = _effective_sha(s)  # RGI-05: byte-derived when bytes are present
+    if sha:
+        toks.add(f"img:{sha}")
     return toks
 
 
@@ -140,6 +184,7 @@ def run_anomaly_experiment(
     synthetic_technical_test: bool = False, allow_approved_clinical: bool = False,
     artifact_store=None, abstain_margin: float = 0.0,
     subgroup_keys: tuple[str, ...] = ("instrument_family", "lighting_condition", "anatomy_zone"),
+    require_scientific: bool = False,
 ) -> dict[str, Any]:
     everything = normal_samples + (calibration_samples or []) + test_samples
 
@@ -179,8 +224,39 @@ def run_anomaly_experiment(
     record = None
     try:
         record = get_record(config.checkpoint_id) if config.checkpoint_id else None
-    except Exception:
+    except CheckpointError:
         record = None
+
+    # RGI-08: the localizer actually fitted MUST be the one the config names. Otherwise the
+    # result would record the config's checkpoint/digest while a different backbone produced
+    # the scores — silently misattributing metrics and corrupting reproducibility evidence.
+    loc_ckpt = str(getattr(localizer, "checkpoint_id", "") or "")
+    cfg_ckpt = str(getattr(config, "checkpoint_id", "") or "")
+    if loc_ckpt and cfg_ckpt and loc_ckpt != cfg_ckpt:
+        raise LocalizerConfigMismatchError(
+            f"Localizer backbone checkpoint '{loc_ckpt}' does not match config checkpoint "
+            f"'{cfg_ckpt}'. Results would be attributed to the wrong weights."
+        )
+
+    # RGI-03: scientific eligibility is DERIVED from the checkpoint governance gate inside
+    # this metric-producing path — never trusted from the caller's synthetic flag. A run
+    # whose checkpoint is not approved for scientific use (e.g. a random-weight / execution-
+    # only / stub backbone) is authoritatively a technical test: its metrics are labelled
+    # non-scientific and are never publishable as performance. With require_scientific=True a
+    # publisher additionally REFUSES (raises) an ineligible checkpoint.
+    scientifically_eligible = False
+    if record is not None:
+        try:
+            assert_scientific_checkpoint(record)
+            scientifically_eligible = True
+        except CheckpointScientificUseError:
+            scientifically_eligible = False
+    if require_scientific and not scientifically_eligible:
+        raise CheckpointScientificUseError(
+            f"Scientific metric publication requires a scientifically-approved checkpoint; "
+            f"'{cfg_ckpt or '(none)'}' is not eligible."
+        )
+    technical_test = synthetic_technical_test or not scientifically_eligible
 
     # 5) Fit on verified-normal FIT images only.
     localizer.fit([s["image_bytes"] for s in fit_normals])
@@ -233,13 +309,14 @@ def run_anomaly_experiment(
 
         image_scores.append(image_score)
         if "anomaly_label" in s:
-            image_labels.append(int(s["anomaly_label"]))
+            label = _binary_label(s["anomaly_label"])  # RGI-09: reject non-binary labels
+            image_labels.append(label)
             for k in subgroup_keys:
                 gv = s.get(k)
                 if gv:
                     g = subgroup_scores[k].setdefault(gv, {"scores": [], "labels": []})
                     g["scores"].append(image_score)
-                    g["labels"].append(int(s["anomaly_label"]))
+                    g["labels"].append(label)
 
         gt_mask = s.get("anomaly_mask")
         if gt_mask is not None:
@@ -276,6 +353,10 @@ def run_anomaly_experiment(
         "backbone": getattr(localizer, "backbone", ""),
         "checkpoint_id": config.checkpoint_id,
         "synthetic_technical_test": synthetic_technical_test,
+        # RGI-03: authoritative, checkpoint-derived scientific status.
+        "scientifically_eligible": scientifically_eligible,
+        "scientific_metrics_published": scientifically_eligible,
+        "technical_test": technical_test,
         "n_fit_normal": len(fit_normals),
         "n_calibration_normal": len(calib_normals),
         "n_test": len(test_samples),
@@ -287,7 +368,11 @@ def run_anomaly_experiment(
         "image_level_metrics": {
             "auroc": img_auroc, "auroc_ci95": auroc_ci, "average_precision": img_ap,
             "at_frozen_threshold": cls, "measured": have_labels,
-            "note": ("SYNTHETIC technical test — not model performance." if synthetic_technical_test
+            # RGI-03: metrics from a technical/non-scientific checkpoint are labelled as
+            # such regardless of the caller's synthetic flag — never as model performance.
+            "scientific": scientifically_eligible,
+            "note": ("TECHNICAL test (non-scientific checkpoint or synthetic fixture) — "
+                     "NOT model performance." if technical_test
                      else ("measured on provided labels" if have_labels else "not measured (no valid labels)")),
         },
         "pixel_level_metrics": pixel_metrics,
@@ -300,13 +385,26 @@ def run_anomaly_experiment(
     }
 
 
+def _outcome(exc: Exception, *, status: str, category: str) -> dict[str, Any]:
+    return {
+        "status": status, "category": category, "reason": f"{type(exc).__name__}: {exc}",
+        "note": "No performance reported.",
+    }
+
+
 def compare_localizers(
     normal_samples: list[dict], test_samples: list[dict], *, config_factory: Callable[[str], Any],
     localizer_factories: dict[str, Callable[[], AnomalyLocalizer]], **kw,
 ) -> dict[str, Any]:
-    """Run several localizers on identical authorized data. A localizer that cannot
-    be constructed/fit (blocked backbone, missing torch/Anomalib) is recorded as
-    BLOCKED with the reason — never fabricated performance."""
+    """Run several localizers on identical authorized data.
+
+    RGI-12: a failure is CLASSIFIED by its cause rather than all being mislabelled as a
+    dependency ``blocked`` result — a missing dependency / unapproved checkpoint, a scientific-
+    eligibility denial, data leakage, denied authorization, and invalid input / metric errors
+    are distinct. Truly UNEXPECTED exceptions (bugs) are NOT suppressed — they propagate.
+    """
+    from research.lens_vision.provenance import ResearchProvenanceError  # noqa: PLC0415
+
     out: dict[str, Any] = {"research_only": True, "comparisons": {}}
     for name, factory in localizer_factories.items():
         try:
@@ -314,11 +412,19 @@ def compare_localizers(
             out["comparisons"][name] = run_anomaly_experiment(
                 normal_samples, test_samples, config=config_factory(name), localizer=localizer, **kw,
             )
-        except Exception as exc:  # blocked path — capture, never fabricate
-            out["comparisons"][name] = {
-                "status": "blocked", "reason": f"{type(exc).__name__}: {exc}",
-                "note": "No performance reported for a blocked localizer.",
-            }
+        except CheckpointScientificUseError as exc:
+            out["comparisons"][name] = _outcome(exc, status="failed", category="scientific_eligibility_denied")
+        except (CheckpointError, ImportError, ModuleNotFoundError) as exc:
+            out["comparisons"][name] = _outcome(exc, status="blocked", category="dependency_or_checkpoint_unavailable")
+        except LeakageError as exc:
+            out["comparisons"][name] = _outcome(exc, status="failed", category="data_leakage")
+        except ResearchProvenanceError as exc:
+            out["comparisons"][name] = _outcome(exc, status="failed", category="authorization_denied")
+        except (NormalOnlyViolation, InvalidLabelError, LocalizerConfigMismatchError) as exc:
+            out["comparisons"][name] = _outcome(exc, status="failed", category="invalid_input")
+        except ValueError as exc:  # remaining input/metric value errors (a known category)
+            out["comparisons"][name] = _outcome(exc, status="failed", category="invalid_input_or_metric")
+        # Any other exception type is a genuine, unexpected failure and is left to propagate.
     return out
 
 
