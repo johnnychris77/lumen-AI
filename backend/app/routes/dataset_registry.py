@@ -368,6 +368,7 @@ def assess_quality(
     from app.services.research_image_authorization_service import (  # noqa: PLC0415
         ResearchImageAccessError,
         assert_image_bytes_readable,
+        audit_research_access_decision,
         principal_identity,
     )
 
@@ -377,6 +378,12 @@ def assess_quality(
             db, retained, tenant_id=tenant_id,
             caller_subject=_subject, caller_auth_provider=_provider)
     except ResearchImageAccessError as exc:
+        # SEC-174-01: durably audit the denied research-image access before responding.
+        audit_research_access_decision(
+            db, decision="denied", reason=getattr(exc, "reason", "denied"), tenant_id=tenant_id,
+            actor=_actor(current_user), actor_role=getattr(current_user, "role", ""),
+            subject=_subject, retained_image_id=retained.id,
+            endpoint="dataset_registry.assess_quality", request=request)
         raise HTTPException(
             status_code=403,
             detail="Research image bytes require an active research-owner authorization.") from exc

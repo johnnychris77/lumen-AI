@@ -205,6 +205,7 @@ def get_image_bytes(
     from app.services.research_image_authorization_service import (  # noqa: PLC0415
         ResearchImageAccessError,
         assert_image_bytes_readable,
+        audit_research_access_decision,
         principal_identity,
     )
 
@@ -214,6 +215,13 @@ def get_image_bytes(
             db, row, tenant_id=tenant_id,
             caller_subject=_subject, caller_auth_provider=_provider)
     except ResearchImageAccessError as exc:
+        # SEC-174-01: durably audit the denied research-image access attempt (committed, so it
+        # survives this request's rollback), then respond 404 without disclosing existence.
+        audit_research_access_decision(
+            db, decision="denied", reason=getattr(exc, "reason", "denied"), tenant_id=tenant_id,
+            actor=getattr(current_user, "email", None) or getattr(current_user, "username", "unknown"),
+            actor_role=getattr(current_user, "role", ""), subject=_subject,
+            retained_image_id=image_id, endpoint="ml_images.get_image_bytes", request=request)
         raise HTTPException(status_code=404, detail="Retained image not found.") from exc
     return StreamingResponse(
         io.BytesIO(row.image_bytes),
