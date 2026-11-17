@@ -505,7 +505,21 @@ async def inspection_clinical_report(
             report_retained_id = _retained.id
             if _retained.image_bytes is not None:
                 if hashlib.sha256(_retained.image_bytes).hexdigest() == _retained.sha256 == row.image_sha256:
-                    report_image_bytes = _retained.image_bytes
+                    # SEC-173-01: never embed research-intake bytes into a clinical report
+                    # for a caller without an active research-owner authorization. A
+                    # non-research image keeps its existing behavior; a research image for an
+                    # unauthorized caller is omitted (the report degrades to no-image), rather
+                    # than leaking the pixels through the PDF.
+                    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+                        may_read_image_bytes,
+                        principal_identity,
+                    )
+
+                    _subj, _prov = principal_identity(current_user)
+                    if may_read_image_bytes(
+                        db, _retained, tenant_id=row.tenant_id,
+                        caller_subject=_subj, caller_auth_provider=_prov):
+                        report_image_bytes = _retained.image_bytes
 
     # Re-thread the technician's durably-stored declared observations so the
     # report preserves the human record (distinct from AI findings) rather than
@@ -637,7 +651,19 @@ async def create_inspection(
                 # ones.
                 recomputed = hashlib.sha256(retained_row.image_bytes).hexdigest()
                 if recomputed == retained_row.sha256 == body.image_sha256:
-                    retained_image_bytes = retained_row.image_bytes
+                    # SEC-173-01: a research-intake image's bytes are not fed into this
+                    # generic inspection analysis for a caller lacking an active research-
+                    # owner authorization (fail-closed: analysis proceeds with no pixels).
+                    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+                        may_read_image_bytes,
+                        principal_identity,
+                    )
+
+                    _subj, _prov = principal_identity(current_user)
+                    if may_read_image_bytes(
+                        db, retained_row, tenant_id=tenant_id,
+                        caller_subject=_subj, caller_auth_provider=_prov):
+                        retained_image_bytes = retained_row.image_bytes
                 else:
                     logger.error(
                         "Image identity mismatch at analysis time: retained_image_id=%s "

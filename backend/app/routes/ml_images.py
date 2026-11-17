@@ -35,6 +35,7 @@ from app.services.image_retention_service import (
     retain_image,
     retention_enabled,
 )
+from app.services.research_image_authorization_service import RESEARCH_SOURCE
 
 router = APIRouter(prefix="/ml", tags=["ml-images"])
 
@@ -153,7 +154,10 @@ def list_images(
 ):
     """List retained-image metadata (never bytes) for the caller's tenant."""
     tenant_id = get_request_tenant_id(request)
-    q = db.query(RetainedImage).filter(RetainedImage.tenant_id == tenant_id)
+    # SEC-173-01/02: research-intake images are never enumerable through the generic ML
+    # surface — they are reachable only via the OIDC owner-authorized research API.
+    q = db.query(RetainedImage).filter(
+        RetainedImage.tenant_id == tenant_id, RetainedImage.source != RESEARCH_SOURCE)
     if label_status:
         q = q.filter(RetainedImage.label_status == label_status)
     if instrument_type:
@@ -194,6 +198,31 @@ def get_image_bytes(
     )
     if row is None or row.image_bytes is None:
         raise HTTPException(status_code=404, detail="Retained image not found.")
+    # SEC-173-01: research-intake bytes are never served through this generic ML route.
+    # A caller without an active, attested research-owner authorization (every caller of
+    # this tenant/role-scoped endpoint, which is not OIDC owner-verified) is denied, and
+    # the response is 404 so the existence of a research image is not disclosed here.
+    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+        ResearchImageAccessError,
+        assert_image_bytes_readable,
+        audit_research_access_decision,
+        principal_identity,
+    )
+
+    _subject, _provider = principal_identity(current_user)
+    try:
+        assert_image_bytes_readable(
+            db, row, tenant_id=tenant_id,
+            caller_subject=_subject, caller_auth_provider=_provider)
+    except ResearchImageAccessError as exc:
+        # SEC-174-01: durably audit the denied research-image access attempt (committed, so it
+        # survives this request's rollback), then respond 404 without disclosing existence.
+        audit_research_access_decision(
+            db, decision="denied", reason=getattr(exc, "reason", "denied"), tenant_id=tenant_id,
+            actor=getattr(current_user, "email", None) or getattr(current_user, "username", "unknown"),
+            actor_role=getattr(current_user, "role", ""), subject=_subject,
+            retained_image_id=image_id, endpoint="ml_images.get_image_bytes", request=request)
+        raise HTTPException(status_code=404, detail="Retained image not found.") from exc
     return StreamingResponse(
         io.BytesIO(row.image_bytes),
         media_type=row.content_type or "application/octet-stream",
@@ -390,9 +419,11 @@ def export_dataset(
     separately via ``/ml/images/{id}/bytes`` so the manifest stays lightweight.
     """
     tenant_id = get_request_tenant_id(request)
+    # SEC-173-01/02: never enumerate research-intake images (or their bytes_url) through
+    # the generic training-export manifest.
     images = (
         db.query(RetainedImage)
-        .filter(RetainedImage.tenant_id == tenant_id)
+        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.source != RESEARCH_SOURCE)
         .order_by(RetainedImage.id)
         .all()
     )
