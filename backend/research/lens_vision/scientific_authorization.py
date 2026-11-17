@@ -102,7 +102,7 @@ class LabConfirmation:
 
 
 def _audit(db, auth: AuthContext | None, *, action: str, resource_type: str, resource_id,
-           status: str, details: dict | None = None) -> None:
+           status: str, details: dict | None = None, commit: bool = True) -> None:
     """Write an immutable, hash-chained audit event (best-effort; never raises)."""
     try:
         record_enterprise_audit_event(
@@ -110,7 +110,7 @@ def _audit(db, auth: AuthContext | None, *, action: str, resource_type: str, res
             actor=(auth.actor if auth else "research-system"),
             actor_role=(auth.role if auth else "system"),
             tenant_id=(auth.tenant_id if auth else None),
-            status=status, details=details or {}, auth_context=auth, commit=True,
+            status=status, details=details or {}, auth_context=auth, commit=commit,
         )
     except Exception:  # pragma: no cover - audit must never break the control flow
         pass
@@ -366,7 +366,7 @@ def resolve_owner_attestation(
     _audit(db, auth, action="owner_attestation_resolved", resource_type="research_dataset",
            resource_id=rid, status="success",
            details={"dataset_id": rid, "basis": "owner_attested", "declarant_subject": subject,
-                    "independent_ownership_verified": False, "images": sorted(requested)})
+                    "independent_ownership_verified": False, "images": sorted(requested)}, commit=False)
     return OwnerAttestation(
         dataset_id=rid, owner=actor, image_hashes=tuple(sorted(requested)),
         permissible_use=permissible, retention_authorized=True,
