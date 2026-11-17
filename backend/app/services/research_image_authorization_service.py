@@ -160,6 +160,21 @@ def _other_owner_legacy_claim(db: Session, image: RetainedImage, *, owner_subjec
     return not stamped_has_assoc
 
 
+def _has_unknown_ownership_provenance(image: RetainedImage) -> bool:
+    """SEC-176-A: True for a research-source image whose owner provenance is UNKNOWN —
+    ``source == RESEARCH_SOURCE`` with a blank ``research_owner_subject``.
+
+    Such a row cannot be attributed solely to the withdrawing owner (its lawful owner is
+    unestablished), so deleting it on that owner's withdrawal would destroy data of
+    indeterminate provenance. Fail-safe is to PRESERVE it. This is a pure retention
+    decision: it grants NO access — retrieval still requires an active, attested
+    ``ResearchImageAuthorization`` for the caller, and an unknown-ownership row has none,
+    so it stays unreadable. It only prevents silent data loss, never widening access."""
+    if str(getattr(image, "source", "") or "") != RESEARCH_SOURCE:
+        return False
+    return not str(getattr(image, "research_owner_subject", "") or "").strip()
+
+
 def delete_images_without_basis(
     db: Session, image_ids: list[int], *, tenant_id: str, owner_subject: str,
 ) -> dict[str, list[int]]:
@@ -168,9 +183,12 @@ def delete_images_without_basis(
     An image is deleted iff ALL hold (does not commit; verify by re-query):
       * no ACTIVE authorization by ANY owner remains, AND
       * no independent lawful retention basis (``source != trc001_research_intake``), AND
-      * no other owner's legacy (pre-association) claim stamped on the row.
+      * no other owner's legacy (pre-association) claim stamped on the row, AND
+      * the row's owner provenance is not UNKNOWN (SEC-176-A: a research row with a blank
+        ``research_owner_subject`` is preserved, never attributed solely to the withdrawer).
     Otherwise the bytes are retained (and flagged for governed review) — never deleting
-    another owner's data merely because this owner withdrew."""
+    another owner's data, or data of indeterminate ownership, merely because this owner
+    withdrew."""
     deleted: list[int] = []
     retained: list[int] = []
     for image_id in image_ids:
@@ -186,6 +204,7 @@ def delete_images_without_basis(
             image_has_active_authorization(db, image_id, tenant_id=tenant_id)
             or _has_independent_basis(image)
             or _other_owner_legacy_claim(db, image, owner_subject=owner_subject)
+            or _has_unknown_ownership_provenance(image)
         ):
             retained.append(image_id)
             continue
@@ -336,6 +355,35 @@ def authorize_image_access(
             "The authenticated owner holds no active authorization for this research image.",
             reason=DENY_NO_ACTIVE_AUTHORIZATION)
     return image
+
+
+def authorized_dataset_ids_for_owner(
+    db: Session, *, tenant_id: str, retained_image_id: int, owner_subject: str,
+) -> list[str]:
+    """SEC-176-C: the research dataset id(s) THIS caller is actually authorized for on this
+    image, derived from the caller's own ACTIVE associations whose attestation is still valid.
+
+    Retrieval must disclose the caller's authorized dataset scope, not the image's stored
+    ``research_dataset_id`` provenance stamp (which is a denormalized hint that can differ
+    from what the caller's association grants). Returns a sorted, de-duplicated list; empty
+    when the caller holds no valid authorization (callers are gated upstream by
+    ``authorize_image_access``, so a non-empty result is the normal path)."""
+    rows = (
+        db.query(ResearchImageAuthorization)
+        .filter(
+            ResearchImageAuthorization.tenant_id == tenant_id,
+            ResearchImageAuthorization.retained_image_id == retained_image_id,
+            ResearchImageAuthorization.owner_subject == owner_subject,
+            ResearchImageAuthorization.status == STATUS_ACTIVE,
+        )
+        .all()
+    )
+    datasets = {
+        str(r.research_dataset_id or "")
+        for r in rows
+        if str(r.research_dataset_id or "") and _attestation_still_valid(db, r.attestation_id)
+    }
+    return sorted(datasets)
 
 
 def audit_research_access_decision(
