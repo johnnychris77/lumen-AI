@@ -71,9 +71,14 @@ def env(tmp_path, monkeypatch):
     try:
         yield {"s": s, "created": created, "kit_hashes": kit_hashes, "tmp_path": tmp_path}
     finally:
+        from app.models.research_image_authorization import ResearchImageAuthorization
         app.dependency_overrides.pop(api.require_verified_oidc_context, None)
-        for i in created["retained"]:
-            s.query(RetainedImage).filter(RetainedImage.id == i).delete()
+        s.rollback()
+        s.query(ResearchImageAuthorization).filter(
+            ResearchImageAuthorization.tenant_id.in_([TENANT, OTHER_TENANT])).delete(
+            synchronize_session=False)
+        s.query(RetainedImage).filter(
+            RetainedImage.tenant_id.in_([TENANT, OTHER_TENANT])).delete(synchronize_session=False)
         for a in created["approvals"]:
             s.query(GovernanceApproval).filter(GovernanceApproval.id == a).delete()
         for u in created["users"]:
@@ -372,8 +377,15 @@ def test_withdrawal_keeps_other_owners_datasets_subjects_and_legacy(env):
     assert client.post("/api/research/trc001/intake").json()["status"] == "BLOCKED_AUTHORIZATION"
 
 
-def test_same_tenant_dedup_does_not_reassign_another_owner(env):
-    """Duplicate pixels owned by another dataset/actor remain untouched."""
+def test_same_tenant_two_owners_share_bytes_without_reassignment(env):
+    """SEC-171-04: a second owner attesting to identical bytes gets their OWN association
+    to the shared row; the first owner's record is never reassigned, and withdrawing one
+    owner never deletes the other owner's image."""
+    from app.models.research_image_authorization import (
+        STATUS_ACTIVE,
+        STATUS_WITHDRAWN,
+        ResearchImageAuthorization,
+    )
     from app.services.image_retention_service import strip_exif
 
     s = env["s"]
@@ -399,19 +411,31 @@ def test_same_tenant_dedup_does_not_reassign_another_owner(env):
     response = client.post("/api/research/trc001/intake")
     assert response.status_code == 200
     outcome = response.json()
-    assert outcome["status"] == "PARTIAL" and outcome["imported_count"] == 1
-    assert outcome["images"][0]["reason"] == "retained_image_provenance_conflict"
+    # Both images ingest: the EXT image shares bytes with the foreign row via a NEW
+    # association for this owner; the second image is a fresh row.
+    assert outcome["status"] == "INGESTED" and outcome["imported_count"] == 2
     _track_new_rows(env)
 
     s.expire_all()
+    # The foreign owner's record is untouched — no ownership transfer by matching hash.
     foreign = s.get(RetainedImage, foreign_id)
     assert foreign is not None
-    assert foreign.uploaded_by == "foreign@x"
-    assert foreign.research_dataset_id == "foreign-dataset"
+    assert foreign.uploaded_by == "foreign@x" and foreign.research_dataset_id == "foreign-dataset"
+    # This owner now has their OWN active association to the shared row.
+    my_assoc = s.query(ResearchImageAuthorization).filter(
+        ResearchImageAuthorization.tenant_id == TENANT,
+        ResearchImageAuthorization.retained_image_id == foreign_id,
+        ResearchImageAuthorization.owner_subject == OWNER_SUBJECT,
+        ResearchImageAuthorization.status == STATUS_ACTIVE).first()
+    assert my_assoc is not None and my_assoc.owner_actor == OWNER
 
+    # Withdrawing this owner revokes only their association; the foreign image survives.
     _override(_ctx())
     withdrawal = client.post("/api/research/trc001/owner-attestation/withdraw")
     assert withdrawal.status_code == 200
     assert foreign_id not in withdrawal.json()["retained_images_deleted"]
     s.expire_all()
     assert s.get(RetainedImage, foreign_id) is not None
+    assert s.query(ResearchImageAuthorization).filter(
+        ResearchImageAuthorization.retained_image_id == foreign_id,
+        ResearchImageAuthorization.owner_subject == OWNER_SUBJECT).first().status == STATUS_WITHDRAWN

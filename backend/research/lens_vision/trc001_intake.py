@@ -316,27 +316,25 @@ def run_trc001_intake(
                 source="trc001_research_intake", uploaded_by=authorized_actor, consent=True,
                 commit=(basis != "owner_attested"))
             if retained is not None and basis == "owner_attested":
-                # Dedup runs by tenant+SHA, so identical bytes can belong to
-                # another owner/dataset. NEVER reassign their record.
-                reused = bool(getattr(retained, "_lumenai_dedup_hit", False))
-                conflicting = (
-                    retained.source != "trc001_research_intake"
-                    or retained.instrument_type != TRC001_INSTRUMENT_ID
-                    or retained.uploaded_by != authorized_actor
-                    or (reused and (
-                        retained.research_dataset_id != dataset_id
-                        or retained.research_owner_subject != auth.subject
-                    ))
+                # SEC-171-04: ownership is an EXPLICIT per-owner association, never inferred
+                # from matching bytes. Dedup runs by tenant+SHA, so identical bytes may
+                # already belong to another owner/dataset — we NEVER reassign their record;
+                # instead this verified owner gets their own authorization association to the
+                # shared row. A newly created row also records a denormalized first-owner
+                # hint, but all authorization/deletion decisions use the association rows.
+                from app.services.research_image_authorization_service import (  # noqa: PLC0415
+                    upsert_active_authorization,
                 )
-                if conflicting:
-                    db.rollback()
-                    r.reason = "retained_image_provenance_conflict"
-                    results.append(r)
-                    continue
+                reused = bool(getattr(retained, "_lumenai_dedup_hit", False))
                 if not reused:
                     retained.research_dataset_id = dataset_id
                     retained.research_owner_subject = auth.subject
                     retained.research_attestation_id = attestation.approval_id
+                upsert_active_authorization(
+                    db, tenant_id=tenant_id, retained_image_id=retained.id,
+                    research_dataset_id=dataset_id, owner_actor=authorized_actor,
+                    owner_subject=auth.subject, attestation_id=attestation.approval_id,
+                )
                 db.commit()
                 db.refresh(retained)
         except ScientificAuthorizationError as exc:
