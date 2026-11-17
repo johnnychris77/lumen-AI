@@ -580,6 +580,7 @@ def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
     only. SQLite has no SELECT FOR UPDATE, so this test is PostgreSQL-specific.
     """
     import threading
+    import time
     from sqlalchemy import text
     from app.db.session import engine
     from app.routes.trc001_research import withdraw_owner_attestation
@@ -599,6 +600,7 @@ def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
     release_ingestion = threading.Event()
     withdrawal_started = threading.Event()
     withdrawal_done = threading.Event()
+    withdrawal_pid_ready = threading.Event()
     outcomes = {}
     original_retain = image_retention_service.retain_image
 
@@ -615,6 +617,7 @@ def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
         session = SessionLocal()
         try:
             session.execute(text("SET lock_timeout = '12000ms'"))
+            outcomes["ingestion_pid"] = session.execute(text("SELECT pg_backend_pid()")).scalar_one()
             outcomes["intake"] = run_trc001_intake(
                 session, kit_dir=kit, tenant_id=TENANT, dataset_id=dataset_id,
                 auth=auth, authorization_basis="owner_attested",
@@ -629,6 +632,8 @@ def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
         session = SessionLocal()
         try:
             session.execute(text("SET lock_timeout = '12000ms'"))
+            outcomes["withdrawal_pid"] = session.execute(text("SELECT pg_backend_pid()")).scalar_one()
+            withdrawal_pid_ready.set()
             withdrawal_started.set()
             outcomes["withdrawal"] = withdraw_owner_attestation(auth=auth, db=session)
         except BaseException as exc:
@@ -645,10 +650,29 @@ def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
         assert ingestion_has_lock.wait(timeout=15), outcomes
         t2.start()
         assert withdrawal_started.wait(timeout=5), outcomes
-        # A real second transaction must not complete while intake holds its lock.
-        assert not withdrawal_done.wait(timeout=0.4), (
-            "Withdrawal completed before the ingestion transaction released its lock"
+        assert withdrawal_pid_ready.wait(timeout=5), outcomes
+        assert outcomes["ingestion_pid"] != outcomes["withdrawal_pid"]
+        # Observe a real PostgreSQL lock dependency from a THIRD connection.
+        # A sleeping or unscheduled withdrawal thread is not sufficient proof.
+        observed_blocker = False
+        deadline = time.monotonic() + 8
+        with engine.connect() as observer:
+            while time.monotonic() < deadline:
+                blocked_by = observer.execute(
+                    text("SELECT pg_blocking_pids(:pid)"),
+                    {"pid": outcomes["withdrawal_pid"]},
+                ).scalar_one()
+                if outcomes["ingestion_pid"] in blocked_by:
+                    observed_blocker = True
+                    break
+                if withdrawal_done.is_set():
+                    break
+                time.sleep(0.05)
+        assert observed_blocker, (
+            "PostgreSQL never reported withdrawal blocked by ingestion; "
+            f"possible scheduling artifact: {outcomes}"
         )
+        assert not withdrawal_done.is_set(), outcomes
     finally:
         release_ingestion.set()
         t1.join(timeout=20)
