@@ -569,3 +569,102 @@ def test_sec17102_rechecks_approval_after_first_image(db, tmp_path, monkeypatch)
     assert rep.imported_count < 2
     assert any("authorization_revoked_or_changed" in (image.reason or "")
                for image in rep.images)
+
+
+def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
+    db, tmp_path, monkeypatch,
+):
+    """Real PostgreSQL row-lock race: withdrawal cannot finish ahead of ingestion commit.
+
+    Uses two independent SQLAlchemy sessions and threads, locally generated JPEGs
+    only. SQLite has no SELECT FOR UPDATE, so this test is PostgreSQL-specific.
+    """
+    import threading
+    from sqlalchemy import text
+    from app.db.session import engine
+    from app.routes.trc001_research import withdraw_owner_attestation
+    from app.services import image_retention_service
+
+    if engine.dialect.name != "postgresql":
+        pytest.skip("requires real PostgreSQL SELECT FOR UPDATE semantics")
+
+    setup, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    dataset_id = f"TRC-001-SEC17102-{uuid.uuid4().hex[:12]}"
+    monkeypatch.setenv("TRC001_DATASET_ID", dataset_id)
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    _grant_owner_attestation(setup, created, dataset_id, _kit_hashes(tmp_path))
+    auth = _verified_auth()
+    ingestion_has_lock = threading.Event()
+    release_ingestion = threading.Event()
+    withdrawal_started = threading.Event()
+    withdrawal_done = threading.Event()
+    outcomes = {}
+    original_retain = image_retention_service.retain_image
+
+    def paused_retain(*args, **kwargs):
+        # The runner has resolved and locked the approved attestation by now.
+        ingestion_has_lock.set()
+        if not release_ingestion.wait(timeout=15):
+            raise TimeoutError("test failed to release ingestion")
+        return original_retain(*args, **kwargs)
+
+    monkeypatch.setattr(image_retention_service, "retain_image", paused_retain)
+
+    def ingest():
+        session = SessionLocal()
+        try:
+            session.execute(text("SET lock_timeout = '12000ms'"))
+            outcomes["intake"] = run_trc001_intake(
+                session, kit_dir=kit, tenant_id=TENANT, dataset_id=dataset_id,
+                auth=auth, authorization_basis="owner_attested",
+            )
+        except BaseException as exc:
+            outcomes["intake_error"] = repr(exc)
+        finally:
+            session.rollback()
+            session.close()
+
+    def withdraw():
+        session = SessionLocal()
+        try:
+            session.execute(text("SET lock_timeout = '12000ms'"))
+            withdrawal_started.set()
+            outcomes["withdrawal"] = withdraw_owner_attestation(auth=auth, db=session)
+        except BaseException as exc:
+            outcomes["withdrawal_error"] = repr(exc)
+        finally:
+            session.rollback()
+            session.close()
+            withdrawal_done.set()
+
+    t1 = threading.Thread(target=ingest, daemon=True)
+    t2 = threading.Thread(target=withdraw, daemon=True)
+    t1.start()
+    try:
+        assert ingestion_has_lock.wait(timeout=15), outcomes
+        t2.start()
+        assert withdrawal_started.wait(timeout=5), outcomes
+        # A real second transaction must not complete while intake holds its lock.
+        assert not withdrawal_done.wait(timeout=0.4), (
+            "Withdrawal completed before the ingestion transaction released its lock"
+        )
+    finally:
+        release_ingestion.set()
+        t1.join(timeout=20)
+        if t2.ident is not None:
+            t2.join(timeout=20)
+
+    assert not t1.is_alive() and not t2.is_alive(), outcomes
+    assert "intake_error" not in outcomes, outcomes
+    assert "withdrawal_error" not in outcomes, outcomes
+    assert outcomes["withdrawal"]["retained_images_deletion_verified"] is True
+    assert outcomes["withdrawal"]["retained_images_remaining"] == 0
+    # Read committed state in an independent transaction.
+    setup.expire_all()
+    assert setup.query(RetainedImage).filter(
+        RetainedImage.tenant_id == TENANT,
+        RetainedImage.research_dataset_id == dataset_id,
+        RetainedImage.uploaded_by == auth.actor,
+        RetainedImage.research_owner_subject == auth.subject,
+    ).count() == 0
