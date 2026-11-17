@@ -300,6 +300,16 @@ def run_trc001_intake(
         r.authorization = authorization_label
         r.ingestion_attempted = True
         try:
+            if basis == "owner_attested":
+                # Each image is a separate transaction. Re-acquire a row lock and
+                # recheck live authorization immediately before persistence; withdrawal
+                # takes the same lock, preventing post-withdrawal commits on PostgreSQL.
+                current_attestation = resolve_owner_attestation(
+                    db, auth, tenant_id=tenant_id, dataset_id=dataset_id,
+                    image_hashes=declared_hashes,
+                )
+                if current_attestation.approval_id != attestation.approval_id:
+                    raise ScientificAuthorizationError("Owner attestation changed during intake.")
             retained = retain_image(
                 db, data=data, tenant_id=tenant_id, instrument_type=TRC001_INSTRUMENT_ID,
                 content_type=str(entry.get("content_type") or "image/jpeg"),
@@ -329,6 +339,11 @@ def run_trc001_intake(
                     retained.research_attestation_id = attestation.approval_id
                 db.commit()
                 db.refresh(retained)
+        except ScientificAuthorizationError as exc:
+            db.rollback()
+            r.reason = f"authorization_revoked_or_changed: {exc}"
+            results.append(r)
+            continue
         except Exception:
             # Never claim intake success when ownership attribution failed.
             db.rollback()
