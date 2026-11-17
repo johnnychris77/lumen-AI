@@ -293,17 +293,33 @@ def resolve_owner_attestation(
     rid = str(dataset_id or "").strip()
     if not rid:
         raise ScientificAuthorizationError("No dataset id supplied for owner attestation.")
-    rec = (
+    # Scope the candidate to the verified owner BEFORE selecting the newest record.
+    # Row locking serializes ingestion authorization with owner withdrawal on PostgreSQL.
+    # The caller must keep this transaction open through image persistence.
+    candidates = (
         db.query(GovernanceApproval)
         .filter(
             GovernanceApproval.tenant_id == tenant_id,
             GovernanceApproval.request_type == REQ_OWNER_ATTESTATION,
             GovernanceApproval.target_resource_id == rid,
             GovernanceApproval.status == _APPROVED,
+            GovernanceApproval.requested_by == actor,
+            GovernanceApproval.reviewed_by == actor,
         )
         .order_by(GovernanceApproval.id.desc())
-        .first()
+        .with_for_update()
+        .all()
     )
+    rec = None
+    for candidate in candidates:
+        try:
+            candidate_payload = json.loads(candidate.requested_payload or "{}")
+        except (ValueError, TypeError):
+            continue
+        if (candidate_payload.get("declarant_actor") == actor
+                and candidate_payload.get("declarant_subject") == subject):
+            rec = candidate
+            break
     if rec is None:
         raise ScientificAuthorizationError(
             f"No approved (non-withdrawn) owner attestation for dataset '{rid}' in tenant '{tenant_id}'."
