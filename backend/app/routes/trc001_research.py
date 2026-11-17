@@ -355,6 +355,7 @@ def get_retained_research_image(
     actor lacks an active authorization and 404 across tenants (no cross-tenant existence leak)."""
     from app.services.research_image_authorization_service import (  # noqa: PLC0415
         ResearchImageAccessError,
+        audit_research_access_decision,
         authorize_image_access,
     )
 
@@ -369,6 +370,14 @@ def get_retained_research_image(
             .filter(RetainedImage.tenant_id == auth.tenant_id, RetainedImage.id == image_id)
             .first()
         )
+        # SEC-174-01: durably audit the denied access (committed before the request unwinds).
+        # The audit records the real decision internally; the HTTP response below still does
+        # not disclose cross-tenant existence (404 vs 403 is unchanged).
+        audit_research_access_decision(
+            db, decision="denied", reason=getattr(exc, "reason", "denied"), tenant_id=auth.tenant_id,
+            actor=auth.actor, actor_role=auth.role, subject=auth.subject,
+            retained_image_id=image_id, endpoint="trc001_research.get_retained_research_image",
+            auth_context=auth)
         status = 404 if image is None else 403
         raise HTTPException(status_code=status, detail=str(exc)) from exc
 

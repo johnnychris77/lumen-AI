@@ -15,6 +15,7 @@ Retention policy (explicit):
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -33,9 +34,28 @@ APPROVED_STATUS = "approved"
 # Only a cryptographically verified OIDC session may hold research-owner authority.
 OIDC_PROVIDER = "oidc"
 
+logger = logging.getLogger(__name__)
+
+# Stable, non-sensitive denial-reason categories (safe for audit evidence).
+DENY_IMAGE_NOT_FOUND = "image_not_found"
+DENY_CROSS_TENANT = "cross_tenant_or_missing"
+DENY_NO_VERIFIED_OWNER = "no_verified_owner_session"
+DENY_NO_ACTIVE_AUTHORIZATION = "no_active_attested_authorization"
+
+# Audit action types for the research-image access decision.
+AUDIT_ACCESS_GRANTED = "research_image_access_granted"
+AUDIT_ACCESS_DENIED = "research_image_access_denied"
+
 
 class ResearchImageAccessError(PermissionError):
-    """Raised when an actor is not authorized to access a research image."""
+    """Raised when an actor is not authorized to access a research image.
+
+    ``reason`` is a stable, non-sensitive category (one of the ``DENY_*`` constants)
+    suitable for audit evidence; it never contains image bytes, tokens, or payloads."""
+
+    def __init__(self, message: str, *, reason: str = "denied") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 def upsert_active_authorization(
@@ -258,19 +278,22 @@ def assert_image_bytes_readable(
 
     Raises ``ResearchImageAccessError`` on any denial."""
     if image is None:
-        raise ResearchImageAccessError("No such image for this tenant.")
+        raise ResearchImageAccessError("No such image for this tenant.", reason=DENY_IMAGE_NOT_FOUND)
     if str(getattr(image, "tenant_id", "") or "") != str(tenant_id or ""):
-        raise ResearchImageAccessError("Image does not belong to the caller's tenant.")
+        raise ResearchImageAccessError(
+            "Image does not belong to the caller's tenant.", reason=DENY_CROSS_TENANT)
     if not is_research_image(image):
         return  # non-research bytes: existing route authorization applies
     if str(caller_auth_provider or "") != OIDC_PROVIDER or not str(caller_subject or "").strip():
         raise ResearchImageAccessError(
-            "Research image bytes require a verified research-owner (OIDC) session.")
+            "Research image bytes require a verified research-owner (OIDC) session.",
+            reason=DENY_NO_VERIFIED_OWNER)
     if _active_attested_authorization(
         db, tenant_id=tenant_id, retained_image_id=image.id, owner_subject=caller_subject,
     ) is None:
         raise ResearchImageAccessError(
-            "The caller holds no active, attested authorization for this research image.")
+            "The caller holds no active, attested authorization for this research image.",
+            reason=DENY_NO_ACTIVE_AUTHORIZATION)
 
 
 def may_read_image_bytes(
@@ -304,10 +327,65 @@ def authorize_image_access(
         .first()
     )
     if image is None:
-        raise ResearchImageAccessError("No such research image for this tenant.")
+        raise ResearchImageAccessError(
+            "No such research image for this tenant.", reason=DENY_CROSS_TENANT)
     if _active_attested_authorization(
         db, tenant_id=tenant_id, retained_image_id=retained_image_id, owner_subject=owner_subject,
     ) is None:
         raise ResearchImageAccessError(
-            "The authenticated owner holds no active authorization for this research image.")
+            "The authenticated owner holds no active authorization for this research image.",
+            reason=DENY_NO_ACTIVE_AUTHORIZATION)
     return image
+
+
+def audit_research_access_decision(
+    db: Session, *, decision: str, reason: str, tenant_id: str, actor: str, actor_role: str,
+    subject: str, retained_image_id: int | None, endpoint: str, request=None, auth_context=None,
+) -> bool:
+    """Durably record a research-image byte-access decision (``"granted"``/``"denied"``).
+
+    Writes through the single append-only, hash-chained enterprise audit writer and COMMITS,
+    so the event survives an authorization exception and the request's transaction teardown
+    (SEC-174-01 property 7). The event records only non-sensitive fields — tenant, actor,
+    verified subject, resource id, decision, reason category, endpoint, and (when a request is
+    supplied) method/path — and NEVER image bytes, tokens, or JWTs (property 10).
+
+    Never raises into the caller: on an audit-write failure it logs and returns ``False`` so the
+    caller stays fail-closed (the access is already being denied / not served) — property 8."""
+    from app.services.enterprise_audit_service import (  # noqa: PLC0415
+        record_enterprise_audit_event,
+    )
+
+    action = AUDIT_ACCESS_GRANTED if decision == "granted" else AUDIT_ACCESS_DENIED
+    try:
+        record_enterprise_audit_event(
+            db,
+            action_type=action,
+            resource_type="retained_image",
+            resource_id=str(retained_image_id if retained_image_id is not None else ""),
+            actor=actor or "unknown",
+            actor_role=actor_role or "",
+            tenant_id=tenant_id,
+            status=("success" if decision == "granted" else "denied"),
+            details={
+                "decision": decision,
+                "reason": reason,
+                "endpoint": endpoint,
+                "subject": subject or "",
+                "retained_image_id": retained_image_id,
+            },
+            auth_context=auth_context,
+            request=request,
+            commit=True,
+        )
+        return True
+    except Exception:  # pragma: no cover - audit infra failure path
+        logger.exception(
+            "research-image access audit write failed (decision=%s reason=%s endpoint=%s)",
+            decision, reason, endpoint,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            logger.exception("rollback after audit failure also failed")
+        return False
