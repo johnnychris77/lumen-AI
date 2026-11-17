@@ -511,3 +511,61 @@ def test_unsupported_authorization_basis_refused(db, tmp_path, monkeypatch):
 def _no_trc_rows(s):
     return s.query(RetainedImage).filter(RetainedImage.tenant_id == TENANT,
                                          RetainedImage.source == "trc001_research_intake").count() == 0
+
+
+def test_sec17101_newer_other_owner_does_not_shadow_attestation(db, tmp_path, monkeypatch):
+    """Latest tenant-wide approval belongs to another owner; original owner still resolves."""
+    session, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    hashes = _kit_hashes(tmp_path)
+    _grant_owner_attestation(session, created, "TRC-001-DS", hashes,
+                             owner="owner@x", subject="sub-owner-123")
+    _grant_owner_attestation(session, created, "TRC-001-DS", hashes,
+                             owner="second-owner@x", subject="sub-second-owner")
+    rep = run_trc001_intake(
+        session, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+        auth=_verified_auth(actor="owner@x", subject="sub-owner-123"),
+        authorization_basis="owner_attested",
+    )
+    for image in rep.images:
+        if image.retained_image_id is not None:
+            created["retained"].append(image.retained_image_id)
+    assert rep.status == "INGESTED"
+    assert rep.imported_count == 2
+
+
+def test_sec17102_rechecks_approval_after_first_image(db, tmp_path, monkeypatch):
+    """A withdrawal between image transactions blocks the next image (synthetic JPEGs)."""
+    session, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    attestation_id = _grant_owner_attestation(
+        session, created, "TRC-001-DS", _kit_hashes(tmp_path),
+    )
+    from app.services import image_retention_service
+    original = image_retention_service.retain_image
+    calls = [0]
+
+    def revoke_after_first_commit(*args, **kwargs):
+        retained = original(*args, **kwargs)
+        calls[0] += 1
+        if calls[0] == 1:
+            # Emulate revocation committed after the first image transaction.
+            session.query(GovernanceApproval).filter(
+                GovernanceApproval.id == attestation_id,
+            ).update({"status": "withdrawn"})
+            session.commit()
+        return retained
+
+    monkeypatch.setattr(image_retention_service, "retain_image", revoke_after_first_commit)
+    rep = run_trc001_intake(
+        session, kit_dir=kit, tenant_id=TENANT, dataset_id="TRC-001-DS",
+        auth=_verified_auth(), authorization_basis="owner_attested",
+    )
+    for image in rep.images:
+        if image.retained_image_id is not None:
+            created["retained"].append(image.retained_image_id)
+    assert rep.imported_count < 2
+    assert any("authorization_revoked_or_changed" in (image.reason or "")
+               for image in rep.images)
