@@ -69,37 +69,73 @@ class ResearchArtifactStore:
         self.base_dir = os.path.abspath(base_dir)
         os.makedirs(self.base_dir, exist_ok=True)
 
-    def _safe_component(self, s) -> str:
-        return "".join(c for c in str(s) if c.isalnum() or c in "-_.") or "x"
+    @staticmethod
+    def _encode(s) -> str:
+        """Injective, filesystem- and traversal-safe encoding of an identity component.
 
-    def _path(self, tenant_id: str, run_id: str, image_id) -> str:
-        return os.path.join(
-            self.base_dir, self._safe_component(tenant_id), self._safe_component(run_id),
-            f"{self._safe_component(image_id)}.json",
-        )
+        SEC-176/RGI-04: the previous ``_safe_component`` *stripped* unsupported
+        characters, which is NOT injective — distinct tenants such as ``"a/b"`` and
+        ``"ab"`` collapsed to the same component, so one tenant's run/image path (and its
+        tenant-equality check) collided with another's, defeating isolation; it also kept
+        ``.`` so a component of ``".."`` enabled path traversal out of ``base_dir``.
+
+        This encodes the raw UTF-8 bytes as lowercase hex: the mapping is a bijection on
+        the input (no two distinct identities collide) and the output is ``[0-9a-f]+``
+        only, so a component can never be ``/``, ``.`` or ``..``. An empty identity is
+        rejected (fail-closed) — an artifact cannot be tenant-scoped without a tenant.
+        """
+        raw = str(s)
+        if raw == "":
+            raise TenantAccessError("An empty artifact identity component is not allowed (fail-closed).")
+        return raw.encode("utf-8").hex()
+
+    @staticmethod
+    def _is_hex_component(p: str) -> bool:
+        return bool(p) and all(c in "0123456789abcdef" for c in p)
+
+    def _path_enc(self, enc_tenant: str, enc_run: str, enc_image: str) -> str:
+        """Build the on-disk path from ALREADY-ENCODED (hex) components. Hex can hold no
+        path separator or ``..`` token, so the join can never escape ``base_dir``."""
+        return os.path.join(self.base_dir, enc_tenant, enc_run, f"{enc_image}.json")
 
     def store_heatmap(self, *, tenant_id: str, run_id: str, image_id, heatmap) -> str | None:
         """Validate + persist a heatmap; return a resolvable ref, or None if it
         could not be stored (never a dangling reference). The ref is owned by
-        ``tenant_id`` and can only be resolved by that tenant."""
+        ``tenant_id`` and can only be resolved by that tenant. Distinct tenants can
+        never share a path or overwrite each other's artifact (injective encoding)."""
         try:
             validate_heatmap(heatmap)
         except MalformedHeatmapError:
             return None
-        path = self._path(tenant_id, run_id, image_id)
+        try:
+            enc_t, enc_r, enc_i = self._encode(tenant_id), self._encode(run_id), self._encode(image_id)
+        except TenantAccessError:
+            return None  # a tenant-less / id-less artifact cannot be tenant-scoped
+        path = self._path_enc(enc_t, enc_r, enc_i)
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
+            # Atomic persistence: write to a temp file in the same directory, then
+            # os.replace (atomic on POSIX) so a reader never sees a torn/partial file
+            # and a crash mid-write cannot corrupt an existing artifact.
+            tmp = f"{path}.{os.getpid()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump({"tenant_id": tenant_id, "run_id": run_id, "image_id": image_id, "heatmap": heatmap}, f)
+            os.replace(tmp, path)
         except OSError:
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except (OSError, NameError):
+                pass
             return None
-        ref = f"artifact://{self._safe_component(tenant_id)}/{self._safe_component(run_id)}/{self._safe_component(image_id)}"
+        ref = f"artifact://{enc_t}/{enc_r}/{enc_i}"
         # Confirm readback as the owning tenant (never a dangling reference).
         return ref if self.resolve(ref, requesting_tenant_id=tenant_id) else None
 
     def _owner_tenant(self, ref: str) -> str | None:
+        """The encoded owning-tenant component of a ref (hex), or None if malformed."""
         parts = ref[len("artifact://"):].split("/")
-        return parts[0] if len(parts) == 3 else None
+        return parts[0] if len(parts) == 3 and self._is_hex_component(parts[0]) else None
 
     def resolve(self, ref: str | None, *, requesting_tenant_id: str) -> str | None:
         """Return the on-disk path for a ref if it exists, is readable, AND is
@@ -115,20 +151,28 @@ class ResearchArtifactStore:
         parts = ref[len("artifact://"):].split("/")
         if len(parts) != 3:
             return None
-        tenant_id, run_id, image_id = parts
-        # Tenant authorization: the ref's tenant must match the requester.
-        if tenant_id != self._safe_component(requesting_tenant_id):
+        enc_tenant, enc_run, enc_image = parts
+        # Defense in depth: ref components must be valid hex (as produced by _encode);
+        # anything else (e.g. a crafted ".." or injected separator) is rejected before
+        # it can touch the filesystem.
+        if not all(self._is_hex_component(p) for p in parts):
             return None
-        path = self._path(tenant_id, run_id, image_id)
+        # Tenant authorization: the ref's (encoded) tenant must match the requester's.
+        try:
+            if enc_tenant != self._encode(requesting_tenant_id):
+                return None
+        except TenantAccessError:
+            return None
+        path = self._path_enc(enc_tenant, enc_run, enc_image)
         if not (os.path.exists(path) and os.access(path, os.R_OK)):
             return None
-        # Defense in depth: the stored payload's tenant must also match.
+        # Defense in depth: the stored payload's tenant must also match the ref's tenant.
         try:
             with open(path, encoding="utf-8") as f:
-                stored_tenant = self._safe_component(json.load(f).get("tenant_id", ""))
-        except (OSError, ValueError):
+                stored_tenant = self._encode(json.load(f).get("tenant_id", ""))
+        except (OSError, ValueError, TenantAccessError):
             return None
-        return path if stored_tenant == tenant_id else None
+        return path if stored_tenant == enc_tenant else None
 
     def exists(self, ref: str | None, *, requesting_tenant_id: str) -> bool:
         return self.resolve(ref, requesting_tenant_id=requesting_tenant_id) is not None

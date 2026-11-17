@@ -47,21 +47,59 @@ _LAB_REQUIRED_CATEGORIES = frozenset({
 })
 
 # Always-required identity/metadata fields (DATASET_ACQUISITION_SPEC §3).
+# RGI-07: the three authorization fields (institutional_authorization_ref, data_rights,
+# retention_status) are DELIBERATELY NOT listed here — they belong to the
+# ``verified_authorization`` dimension only. Listing them in both sets made a single
+# missing authorization field fail BOTH ``metadata_completeness`` and
+# ``verified_authorization``, obscuring which independent gate actually failed.
 _REQUIRED_FIELDS = (
     "image_id", "image_sha256", "instrument_id", "specimen_id",
     "modality", "anatomy_zone", "imaging_session_id", "imaging_device",
-    "data_provenance_class", "institutional_authorization_ref",
-    "data_rights", "retention_status", "study_batch_id", "split",
+    "data_provenance_class", "study_batch_id", "split",
     "ground_truth_status",
 )
 
 # Authorization-specific fields (dimension: verified_authorization).
 _AUTHORIZATION_FIELDS = ("institutional_authorization_ref", "data_rights", "retention_status")
 
+# RGI-01: fail-closed VALUE validation for authorization fields — a non-empty value is
+# not enough; only an explicitly granted/active value authorizes research use. These
+# vocabularies are conservative defaults; the canonical institutional vocabulary and the
+# resolution of ``institutional_authorization_ref`` against a verified authorization
+# registry are GOVERNANCE decisions (see P4_3 doc) — this validator only rejects values
+# that can never authorize use (e.g. "denied", "purged", "expired", unknown strings).
+_DATA_RIGHTS_GRANTED = frozenset({
+    "research", "research_use", "research_use_granted", "granted", "cleared",
+    "approved_research_use",
+})
+_RETENTION_ACTIVE = frozenset({"active", "retained", "retention_authorized"})
+
 # Default minimum per-split cohort sizes PER MODALITY. These are placeholders that a
 # statistical reviewer must confirm/replace; meeting them is necessary but NOT
 # sufficient (sign-off is also required).
 _DEFAULT_MIN_SIZES = {"fit": 20, "calibration": 20, "validation": 20, "sealed_test": 30}
+
+
+def valid_statistical_signoff(signoff: dict | None) -> bool:
+    """RGI-02: a statistical-reviewer sign-off is valid ONLY when it is an explicit,
+    affirmative approval by an identified reviewer — never mere dict truthiness.
+
+    Fail-closed: requires ``approved is True`` AND a non-empty ``reviewer_id``, and rejects
+    any negative/revocation signal (``rejected`` / ``revoked`` / ``withdrawn`` truthy). A
+    bare approver id, ``{"approved": false}``, or ``{"rejected": true}`` do NOT approve.
+
+    NOTE (governance): binding the sign-off to the correct tenant / dataset / checkpoint /
+    intended use, and authenticating the reviewer against an authorized-reviewer registry,
+    is enforced by the scientific-authorization layer where those identities are known; this
+    structural check is the fail-closed floor, not the whole control.
+    """
+    if not isinstance(signoff, dict):
+        return False
+    if signoff.get("approved") is not True:
+        return False
+    if signoff.get("rejected") or signoff.get("revoked") or signoff.get("withdrawn"):
+        return False
+    return bool(str(signoff.get("reviewer_id") or "").strip())
 
 
 def image_identity_tokens(img: dict) -> set[str]:
@@ -82,6 +120,14 @@ def image_identity_tokens(img: dict) -> set[str]:
         rep = img.get(rep_key)
         if rep not in (None, ""):
             toks.add(f"repeat:{rep}")
+    # RGI-05: link an ORIGINAL capture to the repeats that reference it. A repeat carries
+    # ``repeat:<original_image_id>``; giving every image ``repeat:<own_image_id>`` makes the
+    # referenced original share that exact token, so an original in one split and its repeat
+    # in another are detected as the same physical group (previously only the repeat got the
+    # token, so the original/repeat pair could straddle splits undetected).
+    own = img.get("image_id")
+    if own not in (None, ""):
+        toks.add(f"repeat:{own}")
     return toks
 
 
@@ -110,11 +156,26 @@ def validate_image_readiness(img: dict) -> dict:
     for f in _AUTHORIZATION_FIELDS:
         if str(img.get(f) or "").strip() == "":
             authz.append(f"missing_authorization:{f}")
+    # RGI-01: present-but-INVALID authorization values do not authorize research use.
+    dr = str(img.get("data_rights") or "").strip().lower()
+    if dr and dr not in _DATA_RIGHTS_GRANTED:
+        authz.append(f"data_rights_not_granted:{dr}")
+    rs = str(img.get("retention_status") or "").strip().lower()
+    if rs and rs not in _RETENTION_ACTIVE:
+        authz.append(f"retention_not_active:{rs}")
 
     # Ground-truth readiness.
     gt = str(img.get("ground_truth_status") or "").strip()
     if gt in {GT_VERIFIED_NORMAL, GT_ABNORMAL} and not str(img.get("label_reviewer_id") or "").strip():
         gtr.append("label_missing_independent_reviewer")
+    # RGI-06: ground-truth eligibility is determined by the evaluation SPLIT, not by an
+    # optional ``intended_use`` field (which a manifest could omit to slip unlabeled images
+    # through). Fit and calibration require an independently-reviewed verified_normal label;
+    # validation and sealed_test require a reviewed label (verified_normal OR abnormal).
+    if split in ("fit", "calibration") and gt != GT_VERIFIED_NORMAL:
+        gtr.append(f"{split}_requires_verified_normal:{gt or 'unlabeled'}")
+    if split in ("validation", "sealed_test") and gt not in {GT_VERIFIED_NORMAL, GT_ABNORMAL}:
+        gtr.append(f"{split}_requires_reviewed_label:{gt or 'unlabeled'}")
     if str(img.get("intended_use") or "").strip() == "normal_training" and gt != GT_VERIFIED_NORMAL:
         gtr.append("unlabeled_or_nonnormal_used_as_verified_normal")
     category = str(img.get("evidence_category") or "").strip()
@@ -216,11 +277,12 @@ def generate_cohort_readiness_report(
             stat_blockers.append("under_min_cohort_size:" + ",".join(short))
     if not any_modality_sized:
         stat_blockers.append("no_modality_meets_minimum_cohort_sizes")
-    if not statistical_reviewer_signoff:
-        stat_blockers.append("statistical_reviewer_signoff_absent")
-    # Adequacy requires a fully-sized modality + sign-off; a present-but-undersized
-    # modality alongside a complete one does not negate adequacy.
-    stat_ready = any_modality_sized and bool(statistical_reviewer_signoff)
+    signoff_ok = valid_statistical_signoff(statistical_reviewer_signoff)
+    if not signoff_ok:
+        stat_blockers.append("statistical_reviewer_signoff_absent_or_invalid")
+    # Adequacy requires a fully-sized modality + a VALID affirmative sign-off; a present-
+    # but-undersized modality alongside a complete one does not negate adequacy.
+    stat_ready = any_modality_sized and signoff_ok
 
     dimensions = {
         "metadata_completeness": {"ready": not meta_blockers, "blockers": meta_blockers},

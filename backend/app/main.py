@@ -112,6 +112,7 @@ async def lifespan(_app: FastAPI):
     importlib.import_module("app.models.p24_standards")        # register P24 standards tables
     importlib.import_module("app.models.p25_infrastructure")    # register P25 infrastructure tables
     importlib.import_module("app.models.retained_image")        # register opt-in training-image store + labels
+    importlib.import_module("app.models.research_image_authorization")  # SEC-176-B: register per-owner research-image authorization table at startup
     importlib.import_module("app.models.capture_device")        # register borescope capture-device registry
     importlib.import_module("app.models.supervisor_review")     # register supervisor AI-agreement feedback store
     importlib.import_module("app.models.instrument_knowledge")  # register instrument knowledge library
