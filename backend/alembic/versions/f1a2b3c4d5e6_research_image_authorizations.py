@@ -14,11 +14,10 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-from app.db.migration_guards import (
-    MigrationSchemaError,
-    assert_association_downgrade_allowed,
-    require_table,
-)
+# NOTE: ``app.db.migration_guards`` is imported lazily inside upgrade()/downgrade()
+# rather than at module top, so ``alembic history``/``alembic heads`` (offline revision
+# introspection that only parses metadata and never runs a migration) work in any
+# environment where ``app`` is not importable. The guards are only needed at run time.
 
 revision: str = "f1a2b3c4d5e6"
 down_revision: Union[str, None] = "e8b2c6d49f10"
@@ -43,6 +42,8 @@ _INDEXES = (
 
 
 def upgrade() -> None:
+    from app.db.migration_guards import MigrationSchemaError, require_table
+
     bind = op.get_bind()
     # Validate prerequisite (FK target) tables BEFORE creating anything.
     for table in _PREREQ:
@@ -93,6 +94,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    from app.db.migration_guards import assert_association_downgrade_allowed
+
     bind = op.get_bind()
     if not sa.inspect(bind).has_table(_TABLE):
         return
