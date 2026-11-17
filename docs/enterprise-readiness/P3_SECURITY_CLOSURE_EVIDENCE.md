@@ -108,12 +108,23 @@ Local full-suite caveat: the dev suite shares a persistent SQLite file (`backend
 
 ---
 
-## 7. CI status (PR #175, head `71aa579`)
+## 7. CI status (PR #175, head `4bc024b`)
 
-- Main workflow run: **`44020997927`** — Ruff, Secret scan, Backend tests (SQLite), **Backend tests (PostgreSQL 16)** (job `133830202868`), Dependency audit, Frontend build.
-- enterprise-quality-gate run: **`44020998356`**.
+All seven checks **green** (run on fresh per-run databases):
 
-At time of writing these runs are **in progress** (Secret scan already ✅). The **Backend tests (PostgreSQL 16)** job is the authoritative execution record for §5. This document should be read alongside the final CI conclusions on PR #175; green CI is necessary but, per the acceptance criteria, **not sufficient** for closure.
+| Check | Run / job | Conclusion |
+|---|---|---|
+| Ruff (backend) | `44021220045` / `133830902099` | ✅ success |
+| Secret scan | `44021220045` / `133830902149` | ✅ success |
+| Backend tests (SQLite) | `44021220045` / `133830902028` | ✅ success |
+| **Backend tests (PostgreSQL 16)** | `44021220045` / `133830902180` | ✅ **success** — authoritative execution of §5 |
+| Dependency audit (report-only) | `44021220045` / `133830902286` | ✅ success |
+| Frontend build | `44021220045` / `133830901772` | ✅ success |
+| enterprise-quality-gate | `44021220063` / `133830901722` | ✅ success |
+
+The **Backend tests (PostgreSQL 16)** job is the authoritative execution record for the §5 concurrency tests (no local PostgreSQL). Green CI is necessary but, per the acceptance criteria, **not sufficient** for closure — the independent reviewer decides.
+
+(An earlier identical-code run on head `71aa579` — workflow `44020997927` — was superseded by the docs-only commit `4bc024b`; the table above is the current head.)
 
 ---
 
