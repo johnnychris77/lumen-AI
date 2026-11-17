@@ -49,10 +49,31 @@ def eligible_entries(db: Session, *, tenant_id: str, dataset_version_id: int) ->
         .all()
     )
 
+    # SEC-173-01 (defense in depth): a research-intake image is never training-eligible,
+    # independent of any dataset-entry flags. Its lawful basis is private research, not
+    # model training; owner attestation authorizes retention, not training use.
+    from app.models.retained_image import RetainedImage  # noqa: PLC0415
+    from app.services.research_image_authorization_service import RESEARCH_SOURCE  # noqa: PLC0415
+
+    retained_ids = [e.retained_image_id for e in all_entries if e.retained_image_id]
+    research_source_ids: set[int] = set()
+    if retained_ids:
+        research_source_ids = {
+            rid
+            for (rid,) in db.query(RetainedImage.id).filter(
+                RetainedImage.tenant_id == tenant_id,
+                RetainedImage.id.in_(retained_ids),
+                RetainedImage.source == RESEARCH_SOURCE,
+            )
+        }
+
     excluded = Counter()
     seen_sha256: set[str] = set()
     eligible: list[DatasetRegistryEntry] = []
     for entry in all_entries:
+        if entry.retained_image_id in research_source_ids:
+            excluded["research_source_not_training_eligible"] += 1
+            continue
         if entry.review_status == ARCHIVED:
             excluded["archived"] += 1
             continue

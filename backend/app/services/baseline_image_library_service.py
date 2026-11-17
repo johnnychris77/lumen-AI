@@ -354,6 +354,14 @@ def load_and_verify_baseline_bytes(db: Session, *, link: BaselineImageLink, acce
     try:
         if row is None or row.image_bytes is None:
             raise ImageIdentityMismatchError(f"No retained image bytes found for baseline image link {link.id}.")
+        # SEC-173-01: a research-intake image's bytes are never a valid baseline reference.
+        # Refuse fail-closed so research pixels cannot be reloaded through the baseline
+        # comparison path, regardless of any shared-hash dedup.
+        from app.services.research_image_authorization_service import RESEARCH_SOURCE  # noqa: PLC0415
+        if str(getattr(row, "source", "") or "") == RESEARCH_SOURCE:
+            outcome = "research_source_refused"
+            raise ImageIdentityMismatchError(
+                f"Baseline image {link.id}: a research-intake image may not be used as a baseline reference.")
         recomputed = hashlib.sha256(row.image_bytes).hexdigest()
         if recomputed != row.sha256 or recomputed != link.image_sha256:
             outcome = "hash_mismatch"

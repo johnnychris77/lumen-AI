@@ -362,6 +362,25 @@ def assess_quality(
     if retained is None or not retained.image_bytes:
         raise HTTPException(status_code=422, detail="No retained image bytes available for this entry.")
 
+    # SEC-173-01: a research-intake image's bytes may only be processed by a verified
+    # research owner with an active, attested authorization. A generic dataset-write actor
+    # (not OIDC owner-verified) is denied, fail-closed, before the pixels are read.
+    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+        ResearchImageAccessError,
+        assert_image_bytes_readable,
+        principal_identity,
+    )
+
+    _subject, _provider = principal_identity(current_user)
+    try:
+        assert_image_bytes_readable(
+            db, retained, tenant_id=tenant_id,
+            caller_subject=_subject, caller_auth_provider=_provider)
+    except ResearchImageAccessError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="Research image bytes require an active research-owner authorization.") from exc
+
     result = image_quality.assess_image_bytes(retained.image_bytes)
     row = ImageQualityAssessment(
         tenant_id=tenant_id, dataset_entry_id=entry_id, retained_image_id=retained.id,
@@ -464,6 +483,12 @@ def run_candidate_training_endpoint(
     tenant_id = _tenant(current_user, request)
     eligible, _excluded = dataset_builder.eligible_entries(db, tenant_id=tenant_id, dataset_version_id=version_id)
 
+    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+        may_read_image_bytes,
+        principal_identity,
+    )
+
+    _subject, _provider = principal_identity(current_user)
     samples = []
     for entry in eligible:
         # Tenant-scoped: never pull another tenant's retained image bytes into
@@ -478,8 +503,15 @@ def run_candidate_training_endpoint(
             )
             .first()
         )
-        if retained is not None and retained.image_bytes:
-            samples.append(_sample_from_entry(db, entry, retained))
+        if retained is None or not retained.image_bytes:
+            continue
+        # SEC-173-01: research-intake bytes never enter a generic training run unless the
+        # actor holds an active, attested research-owner authorization (fail-closed skip).
+        if not may_read_image_bytes(
+            db, retained, tenant_id=tenant_id,
+            caller_subject=_subject, caller_auth_provider=_provider):
+            continue
+        samples.append(_sample_from_entry(db, entry, retained))
 
     config = TrainingConfig(seed=body.seed, epochs=body.epochs, learning_rate=body.learning_rate)
     try:

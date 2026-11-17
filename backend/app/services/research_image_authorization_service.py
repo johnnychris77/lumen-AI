@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.models.governance_approval import GovernanceApproval
 from app.models.research_image_authorization import (
     STATUS_ACTIVE,
     STATUS_WITHDRAWN,
@@ -27,6 +28,10 @@ from app.models.research_image_authorization import (
 from app.models.retained_image import RetainedImage
 
 RESEARCH_SOURCE = "trc001_research_intake"
+# Governance attestation state that still authorizes access.
+APPROVED_STATUS = "approved"
+# Only a cryptographically verified OIDC session may hold research-owner authority.
+OIDC_PROVIDER = "oidc"
 
 
 class ResearchImageAccessError(PermissionError):
@@ -170,21 +175,40 @@ def delete_images_without_basis(
     return {"deleted": deleted, "retained": retained}
 
 
-def authorize_image_access(
-    db: Session, *, tenant_id: str, owner_subject: str, retained_image_id: int,
-) -> RetainedImage:
-    """Return the image IFF the verified owner (tenant + session subject) holds an ACTIVE
-    authorization for it. Tenant-scoped and per-owner — matching bytes grant nothing.
+def is_research_image(image: RetainedImage) -> bool:
+    """True iff the image's lawful basis is research intake (``source == RESEARCH_SOURCE``).
 
-    Raises ``ResearchImageAccessError`` otherwise (never leaks existence across tenants)."""
-    image = (
-        db.query(RetainedImage)
-        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.id == retained_image_id)
+    A non-research source (baseline reference, inspection image, etc.) has its own
+    independent retention basis and is NOT gated as research — even when a research
+    association also references the shared bytes. This mirrors ``_has_independent_basis``
+    so access control and the retention policy agree on what "research bytes" means."""
+    return str(getattr(image, "source", "") or "") == RESEARCH_SOURCE
+
+
+def _attestation_still_valid(db: Session, attestation_id: int | None) -> bool:
+    """Fail-closed: the association's governance attestation must still exist and be approved.
+
+    A missing attestation reference, a deleted approval, or any non-approved status
+    (withdrawn / revoked / pending) revokes access — governance data missing or invalid
+    denies, never grants (SEC-173-01 requirements 4 and 8)."""
+    if attestation_id is None:
+        return False
+    approval = (
+        db.query(GovernanceApproval)
+        .filter(GovernanceApproval.id == attestation_id)
         .first()
     )
-    if image is None:
-        raise ResearchImageAccessError("No such research image for this tenant.")
-    authorized = (
+    return approval is not None and str(approval.status or "") == APPROVED_STATUS
+
+
+def _active_attested_authorization(
+    db: Session, *, tenant_id: str, retained_image_id: int, owner_subject: str,
+) -> ResearchImageAuthorization | None:
+    """The caller's ACTIVE authorization for the image IFF its attestation is still valid.
+
+    Returns ``None`` (deny) when no active row exists for this tenant+image+subject, or
+    when the associated attestation is no longer valid."""
+    assoc = (
         db.query(ResearchImageAuthorization)
         .filter(
             ResearchImageAuthorization.tenant_id == tenant_id,
@@ -194,7 +218,96 @@ def authorize_image_access(
         )
         .first()
     )
-    if authorized is None:
+    if assoc is None:
+        return None
+    if not _attestation_still_valid(db, assoc.attestation_id):
+        return None
+    return assoc
+
+
+def principal_identity(principal: object) -> tuple[str, str]:
+    """Normalize any caller object (``AuthContext`` or ``AuthenticatedPrincipal``) to
+    ``(subject, auth_provider)``.
+
+    Fail-closed: a principal without an explicit ``auth_provider == "oidc"`` yields a
+    non-OIDC marker, so research-image bytes are denied to dev/app-local callers whose
+    "subject" is an application email rather than a verified IdP ``sub``."""
+    subject = str(getattr(principal, "subject", "") or "")
+    provider = str(getattr(principal, "auth_provider", "") or "")
+    return subject, provider
+
+
+def assert_image_bytes_readable(
+    db: Session, image: RetainedImage | None, *, tenant_id: str,
+    caller_subject: str, caller_auth_provider: str,
+) -> None:
+    """Centralized, fail-closed authorization gate for returning ``RetainedImage`` bytes.
+
+    This is the SINGLE policy every byte-returning path must call before releasing bytes
+    (binary responses, JSON-embedded bytes, downloadable artifacts, access URLs, and
+    internal byte loads). Routes must not re-implement the policy.
+
+    Decision:
+      * ``image is None``            -> deny (no cross-tenant existence leak).
+      * tenant mismatch             -> deny.
+      * non-research image          -> permit (the route's own tenant/role authz governs it;
+                                        behavior for baseline/inspection images is unchanged).
+      * research image              -> require ALL of: an OIDC-verified caller with a non-empty
+                                        subject, an ACTIVE ``ResearchImageAuthorization`` for
+                                        (tenant, image, subject), and a still-valid attestation.
+
+    Raises ``ResearchImageAccessError`` on any denial."""
+    if image is None:
+        raise ResearchImageAccessError("No such image for this tenant.")
+    if str(getattr(image, "tenant_id", "") or "") != str(tenant_id or ""):
+        raise ResearchImageAccessError("Image does not belong to the caller's tenant.")
+    if not is_research_image(image):
+        return  # non-research bytes: existing route authorization applies
+    if str(caller_auth_provider or "") != OIDC_PROVIDER or not str(caller_subject or "").strip():
+        raise ResearchImageAccessError(
+            "Research image bytes require a verified research-owner (OIDC) session.")
+    if _active_attested_authorization(
+        db, tenant_id=tenant_id, retained_image_id=image.id, owner_subject=caller_subject,
+    ) is None:
+        raise ResearchImageAccessError(
+            "The caller holds no active, attested authorization for this research image.")
+
+
+def may_read_image_bytes(
+    db: Session, image: RetainedImage | None, *, tenant_id: str,
+    caller_subject: str, caller_auth_provider: str,
+) -> bool:
+    """Non-raising form of :func:`assert_image_bytes_readable` for call sites that degrade
+    gracefully (omit an image from a PDF or a re-analysis) rather than returning an error."""
+    try:
+        assert_image_bytes_readable(
+            db, image, tenant_id=tenant_id,
+            caller_subject=caller_subject, caller_auth_provider=caller_auth_provider)
+        return True
+    except ResearchImageAccessError:
+        return False
+
+
+def authorize_image_access(
+    db: Session, *, tenant_id: str, owner_subject: str, retained_image_id: int,
+) -> RetainedImage:
+    """Return the image IFF the verified owner (tenant + session subject) holds an ACTIVE
+    authorization for it WITH a still-valid attestation. Tenant-scoped and per-owner —
+    matching bytes grant nothing. Used by the research retrieval API (callers are always
+    OIDC-verified via ``require_verified_oidc_context``); it enforces per-owner access for
+    every row it serves, independent of ``source``.
+
+    Raises ``ResearchImageAccessError`` otherwise (never leaks existence across tenants)."""
+    image = (
+        db.query(RetainedImage)
+        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.id == retained_image_id)
+        .first()
+    )
+    if image is None:
+        raise ResearchImageAccessError("No such research image for this tenant.")
+    if _active_attested_authorization(
+        db, tenant_id=tenant_id, retained_image_id=retained_image_id, owner_subject=owner_subject,
+    ) is None:
         raise ResearchImageAccessError(
             "The authenticated owner holds no active authorization for this research image.")
     return image
