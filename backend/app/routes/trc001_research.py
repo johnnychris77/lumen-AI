@@ -249,28 +249,39 @@ def withdraw_owner_attestation(
             detail="No active owner attestation to withdraw for this authenticated actor + subject.",
         )
 
-    # Delete only explicitly attributed images in the requesting owner's scope.
-    # Historical rows missing provenance require review, NOT guessed ownership.
-    def _retained_query():
-        return db.query(RetainedImage).filter(
-            RetainedImage.tenant_id == auth.tenant_id,
-            RetainedImage.source == "trc001_research_intake",
-            RetainedImage.instrument_type == TRC001_INSTRUMENT_ID,
-            RetainedImage.uploaded_by == auth.actor,
-            RetainedImage.research_dataset_id == dataset_id,
-            RetainedImage.research_owner_subject == auth.subject,
-        )
-
-    deleted_ids = [r.id for r in _retained_query().all()]
+    # SEC-171-04: revoke ONLY this owner's authorization associations, then delete bytes
+    # only for images that retain no valid basis. Shared bytes survive while another owner
+    # remains authorized or an independent lawful basis exists.
+    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+        delete_images_without_basis,
+        withdraw_owner_authorizations,
+    )
     try:
-        for r in _retained_query().all():
-            db.delete(r)
-        db.flush()
+        affected = withdraw_owner_authorizations(
+            db, tenant_id=auth.tenant_id, research_dataset_id=dataset_id,
+            owner_actor=auth.actor, owner_subject=auth.subject)
+        # Also consider legacy (pre-association) rows solely attributable to this owner.
+        legacy_self = [
+            row.id for row in db.query(RetainedImage).filter(
+                RetainedImage.tenant_id == auth.tenant_id,
+                RetainedImage.source == "trc001_research_intake",
+                RetainedImage.instrument_type == TRC001_INSTRUMENT_ID,
+                RetainedImage.uploaded_by == auth.actor,
+                RetainedImage.research_dataset_id == dataset_id,
+                RetainedImage.research_owner_subject == auth.subject,
+            ).all()
+        ]
+        candidate_ids = list(dict.fromkeys(affected + legacy_self))
+        outcome = delete_images_without_basis(
+            db, candidate_ids, tenant_id=auth.tenant_id, owner_subject=auth.subject)
         record_enterprise_audit_event(
             db, action_type="trc001_owner_attestation_withdrawn", resource_type="research_dataset",
             resource_id=dataset_id, actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
             status="success",
-            details={"attestation_ids": withdrawn_ids, "retained_images_deleted": deleted_ids},
+            details={"attestation_ids": withdrawn_ids,
+                     "authorizations_withdrawn_image_ids": affected,
+                     "retained_images_deleted": outcome["deleted"],
+                     "retained_images_kept_with_basis": outcome["retained"]},
             auth_context=auth, commit=False,
         )
         db.commit()
@@ -282,21 +293,27 @@ def withdraw_owner_attestation(
         ) from exc
 
     # Verify deletion AFTER commit before claiming it.
-    remaining = _retained_query().count()
+    deleted_ids = outcome["deleted"]
+    remaining = (
+        db.query(RetainedImage).filter(RetainedImage.id.in_(deleted_ids)).count()
+        if deleted_ids else 0
+    )
     deletion_verified = remaining == 0
     return {
         "status": "withdrawn",
         "attestation_ids": withdrawn_ids,
         "dataset_id": dataset_id,
+        "authorizations_withdrawn_image_ids": affected,
         "retained_images_deleted": deleted_ids,
+        "retained_images_kept_with_basis": outcome["retained"],
         "retained_images_remaining": remaining,
         "retained_images_deletion_verified": deletion_verified,
         "note": (
-            "Attestation(s) revoked; images attributed to the exact tenant, dataset, "
-            "actor and subject deleted and verified. Other or legacy unscoped rows "
-            "are not included." if deletion_verified else
-            "Attestation(s) revoked; scoped deletion could NOT be verified — "
-            "manual governed remediation required before any further intake."
+            "Only this owner's authorizations were revoked. Images with no remaining valid "
+            "basis were deleted and deletion verified; images still authorized by another "
+            "owner or an independent basis are retained." if deletion_verified else
+            "Authorizations revoked; byte deletion could NOT be verified — manual governed "
+            "remediation required before any further intake."
         ),
     }
 
@@ -323,3 +340,47 @@ def run_trc001_intake_action(
         auth=auth, authorization_basis="owner_attested",
     )
     return report.to_dict()
+
+
+@router.get("/research/trc001/retained-image/{image_id}")
+def get_retained_research_image(
+    image_id: int,
+    auth: AuthContext = Depends(require_verified_oidc_context),
+    db: Session = Depends(get_db),
+):
+    """Return a research image's metadata ONLY when the verified owner (tenant + session
+    subject) holds an ACTIVE authorization for it (SEC-171-04 requirements 4, 8). Access is
+    per-owner and tenant-scoped — matching bytes grant nothing. Changing the model alone is
+    not enough: every access goes through ``authorize_image_access``. Returns 403 when the
+    actor lacks an active authorization and 404 across tenants (no cross-tenant existence leak)."""
+    from app.services.research_image_authorization_service import (  # noqa: PLC0415
+        ResearchImageAccessError,
+        authorize_image_access,
+    )
+
+    try:
+        image = authorize_image_access(
+            db, tenant_id=auth.tenant_id, owner_subject=auth.subject, retained_image_id=image_id)
+    except ResearchImageAccessError as exc:
+        # Do not distinguish "wrong tenant / no such image" from "not your image" in a way
+        # that leaks existence: a 404 for missing, 403 for present-but-unauthorized.
+        image = (
+            db.query(RetainedImage)
+            .filter(RetainedImage.tenant_id == auth.tenant_id, RetainedImage.id == image_id)
+            .first()
+        )
+        status = 404 if image is None else 403
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+    record_enterprise_audit_event(
+        db, action_type="trc001_research_image_access", resource_type="retained_image",
+        resource_id=str(image_id), actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
+        status="success", details={"retained_image_id": image_id}, auth_context=auth, commit=True,
+    )
+    return {
+        "retained_image_id": image.id, "tenant_id": image.tenant_id,
+        "research_dataset_id": image.research_dataset_id, "sha256": image.sha256,
+        "content_type": image.content_type, "size_bytes": image.size_bytes,
+        "has_bytes": image.image_bytes is not None, "label_status": image.label_status,
+        "authorized_owner": auth.actor,
+    }
