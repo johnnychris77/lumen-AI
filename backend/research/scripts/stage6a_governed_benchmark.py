@@ -171,9 +171,9 @@ def run() -> dict:
         from research.lens_vision.scientific_authorization import assess_scientific_readiness  # noqa: PLC0415
         scientific_readiness = assess_scientific_readiness(
             SessionLocal(), tenant_id=os.environ.get("STAGE6C_TENANT", "research-tenant"),
-            dataset_id=os.environ.get("STAGE6C_DATASET", ""), dataset_owner_email="",
+            dataset_id=os.environ.get("STAGE6C_DATASET", ""),
             checkpoint_id=os.environ.get("STAGE6C_CHECKPOINT", "smoke_stub"),
-            statistical_reviewer_username="", statistical_protocol_id="",
+            statistical_auth=None, statistical_protocol_id="",
         )
         for name, state in scientific_readiness["checks"].items():
             if state != "resolved":
