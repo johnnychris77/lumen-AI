@@ -13,13 +13,11 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-from app.db.migration_guards import (
-    RETAINED_INDEX,
-    RETAINED_TABLE,
-    assert_retained_downgrade_allowed,
-    require_table,
-    verify_retained_provenance_columns,
-)
+# NOTE: ``app.db.migration_guards`` is imported lazily inside upgrade()/downgrade()
+# rather than at module top. Importing it here pulls in the ``app`` package, which
+# breaks ``alembic history``/``alembic heads`` (offline revision introspection that
+# only parses revision metadata and never runs a migration) in any environment where
+# ``app`` is not importable. The guards are only needed when a migration actually runs.
 
 revision: str = "e8b2c6d49f10"
 down_revision: Union[str, None] = "c3e7a9b14d20"
@@ -28,6 +26,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    from app.db.migration_guards import (
+        RETAINED_INDEX,
+        RETAINED_TABLE,
+        require_table,
+        verify_retained_provenance_columns,
+    )
+
     bind = op.get_bind()
     # 1-2) Validate the prerequisite table exists BEFORE modifying anything.
     require_table(bind, RETAINED_TABLE, revision=revision)
@@ -52,6 +57,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    from app.db.migration_guards import (
+        RETAINED_INDEX,
+        RETAINED_TABLE,
+        assert_retained_downgrade_allowed,
+        require_table,
+    )
+
     bind = op.get_bind()
     require_table(bind, RETAINED_TABLE, revision=revision)
     # 6) Prevent accidental loss of research provenance.

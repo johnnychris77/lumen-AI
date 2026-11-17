@@ -156,6 +156,7 @@ import app.models.portfolio_briefing  # noqa: E402, F401
 import app.models.renewal_risk_case  # noqa: E402, F401
 import app.models.report_run  # noqa: E402, F401
 import app.models.retained_image  # noqa: E402, F401
+import app.models.research_image_authorization  # noqa: E402, F401  # SEC-176-#3: keep association table in autogenerate metadata
 import app.models.retention_event  # noqa: E402, F401
 import app.models.root_cause  # noqa: E402, F401
 import app.models.saved_report  # noqa: E402, F401

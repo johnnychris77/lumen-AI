@@ -97,9 +97,12 @@ def require_verified_oidc_context(
     try:
         claims = validate_jwt_signature_with_jwks(token)
         validated = validate_jwt_claims(claims, expected_issuer=issuer, expected_audience=audience)
+        # SEC-176-#7: map_claims can raise JWTValidationError on a verified-but-malformed token
+        # (e.g. missing required tenant claim). Keep it inside this try/except so that is a
+        # fail-closed 401 (unverified/unusable credential) rather than leaking an unhandled 500.
+        payload = map_claims_to_auth_context_payload(validated)
     except (JWKSSignatureValidationError, JWTValidationError) as exc:
         raise HTTPException(status_code=401, detail=f"Invalid or unverified OIDC token: {exc}") from exc
-    payload = map_claims_to_auth_context_payload(validated)
     if not str(payload.get("subject") or "").strip():
         raise HTTPException(status_code=401, detail="Verified token is missing a subject ('sub') claim.")
     # Authorized tenant membership (raises 403 when the actor is not an enabled member).
@@ -357,6 +360,7 @@ def get_retained_research_image(
         ResearchImageAccessError,
         audit_research_access_decision,
         authorize_image_access,
+        authorized_dataset_ids_for_owner,
     )
 
     try:
@@ -386,9 +390,16 @@ def get_retained_research_image(
         resource_id=str(image_id), actor=auth.actor, actor_role=auth.role, tenant_id=auth.tenant_id,
         status="success", details={"retained_image_id": image_id}, auth_context=auth, commit=True,
     )
+    # SEC-176-C: disclose the dataset scope the CALLER is authorized for (from their own active
+    # associations), not the image's stored provenance stamp (``image.research_dataset_id``),
+    # which can differ from the caller's grant. ``authorize_image_access`` already proved the
+    # caller holds ≥1 active, attested association, so this is non-empty on the success path.
+    authorized_datasets = authorized_dataset_ids_for_owner(
+        db, tenant_id=auth.tenant_id, retained_image_id=image.id, owner_subject=auth.subject)
     return {
         "retained_image_id": image.id, "tenant_id": image.tenant_id,
-        "research_dataset_id": image.research_dataset_id, "sha256": image.sha256,
+        "research_dataset_id": (authorized_datasets[0] if len(authorized_datasets) == 1 else None),
+        "authorized_dataset_ids": authorized_datasets, "sha256": image.sha256,
         "content_type": image.content_type, "size_bytes": image.size_bytes,
         "has_bytes": image.image_bytes is not None, "label_status": image.label_status,
         "authorized_owner": auth.actor,
