@@ -7,7 +7,7 @@ confirmed clinical diagnosis (rust / blood / pitting / etc.).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Methods are implemented in the open-source Anomalib library (Apache-2.0); both
 # train on NORMAL images and localize anomalies without per-pixel defect labels —
@@ -74,8 +74,12 @@ class AnomalyRegion:
     # Uncertainty is retained but NEVER fabricated: None means "not measured"
     # (reported as 'unknown' downstream). Non-finite values (NaN/inf) are forbidden.
     uncertainty: float | None = None
-    research_only: bool = True
-    confirmed_diagnosis: None = None  # always None — never a clinical class
+    # RGI-13: research-only guarantees are init=False so they cannot be overridden through
+    # the constructor (frozen=True only blocks post-construction mutation, not constructor
+    # args, so AnomalyRegion(..., research_only=False, confirmed_diagnosis="rust") was
+    # previously accepted). They are fixed by policy and always serialized with these values.
+    research_only: bool = field(init=False, default=True)
+    confirmed_diagnosis: None = field(init=False, default=None)  # always None — never a clinical class
 
     def to_clinical_label(self) -> str:  # pragma: no cover - must never succeed
         raise ClinicalDiagnosisForbiddenError(

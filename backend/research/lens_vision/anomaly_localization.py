@@ -45,6 +45,10 @@ def _original_size(image_bytes: bytes | None) -> tuple[int, int]:
 class AnomalyLocalizer:
     name = "base"
     backbone = ""
+    # RGI-08: the backbone checkpoint this localizer actually uses. The experiment validates
+    # this against the run config's checkpoint_id so metrics can never be attributed to a
+    # different set of weights than were actually fitted.
+    checkpoint_id = ""
 
     def fit(self, normal_images: list[bytes]) -> "AnomalyLocalizer":  # pragma: no cover - interface
         raise NotImplementedError
@@ -59,6 +63,7 @@ class StubLocalizer(AnomalyLocalizer):
 
     name = "stub_padim_like"
     backbone = "stub"
+    checkpoint_id = "stub_backbone"
 
     def __init__(self, *, proc_size: tuple[int, int] = (64, 64)):
         self.proc_size = proc_size
@@ -144,6 +149,7 @@ class _AnomalibLocalizer(AnomalyLocalizer):
     def __init__(self, *, backbone_checkpoint_id: str = "resnet18_imagenet", file_path: str | None = None):
         self.record = _governed_backbone(backbone_checkpoint_id, file_path)
         self.backbone = self.record.architecture
+        self.checkpoint_id = self.record.checkpoint_id  # RGI-08: actual backbone identity
         self.preprocessing = self.record.preprocessing or {}
         self.digest = self.record.expected_sha256
         self.backbone_file_path = file_path

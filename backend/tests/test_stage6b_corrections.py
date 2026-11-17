@@ -137,7 +137,7 @@ def test_complete_manifest_not_ready_without_stats_and_checkpoint():
     # With both supplied, and sizes met, it becomes ready.
     rep2 = generate_cohort_readiness_report(
         manifest, scientific_checkpoint_approved=True,
-        statistical_reviewer_signoff={"reviewer": "stat@x", "approved_sizes": True})
+        statistical_reviewer_signoff={"approved": True, "reviewer_id": "stat@x"})
     assert rep2["dimensions"]["statistical_adequacy"]["ready"] is True
     assert rep2["ready_for_scientific_benchmark"] is True
 

@@ -56,11 +56,15 @@ class AnomalyResult:
     grouping_reliable: bool = False
     validation_limitations: list[str] = field(default_factory=list)
 
-    # Hard, constant research-only guarantees
-    research_only: bool = True
-    clinical_promotion_eligible: bool = False
-    confirmed_diagnosis: None = None
-    human_review_required: bool = True
+    # Hard, constant research-only guarantees.
+    # RGI-13: these are ``init=False`` so a caller CANNOT override them through the
+    # constructor (e.g. ``AnomalyResult(..., research_only=False, confirmed_diagnosis="rust",
+    # human_review_required=False)`` now raises TypeError). They are fixed by policy, always
+    # serialized (``asdict``/``to_dict``) with these values, and never caller-supplied.
+    research_only: bool = field(init=False, default=True)
+    clinical_promotion_eligible: bool = field(init=False, default=False)
+    confirmed_diagnosis: None = field(init=False, default=None)
+    human_review_required: bool = field(init=False, default=True)
 
     def to_dict(self) -> dict:
         d = asdict(self)

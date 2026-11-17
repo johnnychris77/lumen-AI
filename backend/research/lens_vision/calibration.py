@@ -33,22 +33,39 @@ def auroc(scores: list[float], labels: list[int]) -> float | None:
 
 
 def average_precision(scores: list[float], labels: list[int]) -> float | None:
+    """Step-function average precision, deterministic under tied scores.
+
+    RGI-11: observations with EQUAL scores are processed as one group (one threshold),
+    so AP does not depend on the arbitrary input order of equal-score items — e.g. scores
+    ``[0.5, 0.5]`` yield the same AP for labels ``[1, 0]`` and ``[0, 1]``. This matches the
+    standard precision/recall step definition (as in scikit-learn's average_precision_score,
+    which also evaluates one point per distinct threshold).
+    """
     if not scores or sum(labels) == 0:
         return None
     order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-    tp = fp = 0
     total_pos = sum(labels)
+    tp = fp = 0
     ap = 0.0
     prev_recall = 0.0
-    for i in order:
-        if labels[i] == 1:
-            tp += 1
-        else:
-            fp += 1
+    n = len(order)
+    i = 0
+    while i < n:
+        # Consume the whole block of equal scores before measuring precision/recall,
+        # so tie order cannot change the curve.
+        j = i
+        cur = scores[order[i]]
+        while j < n and scores[order[j]] == cur:
+            if labels[order[j]] == 1:
+                tp += 1
+            else:
+                fp += 1
+            j += 1
         precision = tp / (tp + fp)
         recall = tp / total_pos
         ap += precision * (recall - prev_recall)
         prev_recall = recall
+        i = j
     return round(ap, 4)
 
 
@@ -82,6 +99,21 @@ def bootstrap_auroc_ci(scores: list[float], labels: list[int], *, n_boot: int = 
 
 
 def dice_iou(pred_mask: list[list[int]], gt_mask: list[list[int]]) -> tuple[float, float]:
+    """Pixel Dice/IoU over binary masks.
+
+    RGI-10 (GOVERNANCE — behaviour intentionally UNCHANGED): the four cases are
+      * empty prediction / empty ground truth,
+      * non-empty prediction / empty ground truth,
+      * empty prediction / non-empty ground truth,
+      * both non-empty.
+    The current convention scores the empty∩empty case as ``0.0`` (``pred+gt == 0``). A
+    reasonable alternative is to treat a correct no-anomaly prediction as perfect agreement
+    (``1.0``) or to EXCLUDE empty∩empty images from the aggregate. Changing it would alter
+    the interpretation of the mean Dice/IoU a benchmark reports, so — per the P4.3 brief —
+    it requires an **authorized scientific-methodology decision** and is NOT changed here.
+    No real benchmark has published pixel metrics (all are BLOCKED pending governed data), so
+    nothing is retroactively altered; the decision is recorded as an open governance item.
+    """
     inter = pred = gt = 0
     for pr, gr in zip(pred_mask, gt_mask):
         for a, b in zip(pr, gr):
