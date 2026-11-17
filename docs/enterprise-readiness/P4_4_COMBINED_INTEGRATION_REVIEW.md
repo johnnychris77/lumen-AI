@@ -96,12 +96,13 @@ Environment: Python 3.11, local SQLite (`conftest` default) except where noted; 
 | Secret scan | (CI job) | ✅ green on each PR; combined runs in CI |
 | Dependency audit | (CI job, report-only) | ✅ green on each PR |
 
-**PostgreSQL 16 / deterministic concurrency (Finding D, SEC-174-01):** the 19 skipped locally
-are PG16-gated (no PG16 instance in this environment) — **not executed here, not claimed
-passed.** They executed **green on #176 and #177 independently in CI**. The combined branch's
-PG16 must be run in CI before merge (the branch is the conflict-free union of two disjoint diffs,
-so the combined PG16 result is expected to equal the union, but this is **not yet executed** on
-`7c0f679`).
+**PostgreSQL 16 / deterministic concurrency (Finding D, SEC-174-01):** the 19 skipped *locally*
+are PG16-gated (no PG16 instance in this environment) — not executed here. They executed
+**green on #176 and #177 independently in CI**, and the **combined branch's PG16 ran GREEN in
+CI** on validation PR **#178** (head `553c82c`, which carries combined code `7c0f679`): *Backend
+tests (PostgreSQL 16)* **completed success** (2026-11-17 19:52:26Z, run 44160328620). All 7
+combined-CI jobs are green (Ruff, Secret scan, Backend SQLite, Backend PG16, Frontend build,
+Dependency audit, enterprise-quality-gate).
 
 **Fresh-DB migration (`alembic upgrade head`):** Postgres-targeted. On SQLite it fails on a
 **pre-existing** Postgres-only DDL (`d4e8a1c93f57`, GPAE `ALTER COLUMN … TYPE`) — untouched by
@@ -164,7 +165,7 @@ PRs #171–#177 at their exact heads and record the decision per
 
 GO requires ALL of:
 - [x] Required technical checks pass on the combined commit (SQLite full suite, Ruff, build,
-      migration head) — **met locally**; **PG16 on the combined commit not yet executed** (per-PR green).
+      migration head) — **met locally**; **combined PG16 ran GREEN in CI on PR #178** (all 7 jobs green).
 - [x] Confirmed P1 **security** defects resolved in code (P4.1 #176, P4.3 #177) — **met**.
 - [~] Artifact compatibility demonstrated — **security met; legacy-reference handling is a
       documented conditional** (re-key only if artifacts exist).
