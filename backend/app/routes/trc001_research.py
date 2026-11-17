@@ -226,6 +226,8 @@ def withdraw_owner_attestation(
             GovernanceApproval.status == _APPROVED,
             GovernanceApproval.reviewed_by == auth.actor,
         )
+        # Serialize withdrawal against intake's FOR UPDATE authorization check.
+        .with_for_update()
         .all()
     )
     # Revocation is bound to the authenticated actor AND session subject.
