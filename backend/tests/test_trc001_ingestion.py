@@ -692,3 +692,115 @@ def test_sec17102_postgres_two_sessions_withdrawal_waits_for_intake(
         RetainedImage.uploaded_by == auth.actor,
         RetainedImage.research_owner_subject == auth.subject,
     ).count() == 0
+
+
+def test_sec17102_postgres_withdrawal_first_blocks_intake(db, tmp_path, monkeypatch):
+    """Withdrawal-first race: intake waits on an independently locked approval.
+
+    Real PostgreSQL connections and pg_blocking_pids, synthetic JPEGs only.
+    A committed withdrawal must prevent all subsequent owner-attested retention.
+    """
+    import threading
+    import time
+    from sqlalchemy import text
+    from app.db.session import engine
+
+    if engine.dialect.name != "postgresql":
+        pytest.skip("requires PostgreSQL row-lock semantics")
+
+    setup, created = db
+    monkeypatch.setenv("RETAIN_INSPECTION_IMAGES", "1")
+    dataset_id = f"TRC-001-REVERSE-{uuid.uuid4().hex[:12]}"
+    kit = _write_kit(tmp_path, with_dimensions=True)
+    approval_id = _grant_owner_attestation(
+        setup, created, dataset_id, _kit_hashes(tmp_path),
+    )
+    auth = _verified_auth()
+    lock_acquired = threading.Event()
+    allow_withdrawal_commit = threading.Event()
+    intake_pid_ready = threading.Event()
+    outcomes = {}
+
+    def withdraw_first():
+        session = SessionLocal()
+        try:
+            session.execute(text("SET lock_timeout = '12000ms'"))
+            outcomes["withdrawal_pid"] = session.execute(
+                text("SELECT pg_backend_pid()")
+            ).scalar_one()
+            row = session.query(GovernanceApproval).filter(
+                GovernanceApproval.id == approval_id,
+            ).with_for_update().one()
+            row.status = "withdrawn"
+            session.flush()
+            lock_acquired.set()
+            if not allow_withdrawal_commit.wait(timeout=15):
+                raise TimeoutError("withdrawal commit release not received")
+            session.commit()
+            outcomes["withdrawal_committed"] = True
+        except BaseException as exc:
+            outcomes["withdrawal_error"] = repr(exc)
+            session.rollback()
+        finally:
+            session.close()
+
+    def ingest_second():
+        session = SessionLocal()
+        try:
+            session.execute(text("SET lock_timeout = '12000ms'"))
+            outcomes["intake_pid"] = session.execute(
+                text("SELECT pg_backend_pid()")
+            ).scalar_one()
+            intake_pid_ready.set()
+            outcomes["intake"] = run_trc001_intake(
+                session, kit_dir=kit, tenant_id=TENANT, dataset_id=dataset_id,
+                auth=auth, authorization_basis="owner_attested",
+            )
+        except BaseException as exc:
+            outcomes["intake_error"] = repr(exc)
+            session.rollback()
+        finally:
+            session.close()
+
+    withdrawal_thread = threading.Thread(target=withdraw_first, daemon=True)
+    intake_thread = threading.Thread(target=ingest_second, daemon=True)
+    withdrawal_thread.start()
+    try:
+        assert lock_acquired.wait(timeout=10), outcomes
+        intake_thread.start()
+        assert intake_pid_ready.wait(timeout=10), outcomes
+        assert outcomes["intake_pid"] != outcomes["withdrawal_pid"]
+        observed_blocker = False
+        deadline = time.monotonic() + 8
+        with engine.connect() as observer:
+            while time.monotonic() < deadline:
+                blockers = observer.execute(
+                    text("SELECT pg_blocking_pids(:pid)"),
+                    {"pid": outcomes["intake_pid"]},
+                ).scalar_one()
+                if outcomes["withdrawal_pid"] in blockers:
+                    observed_blocker = True
+                    break
+                if "intake" in outcomes or "intake_error" in outcomes:
+                    break
+                time.sleep(0.05)
+        assert observed_blocker, (
+            f"Intake did not demonstrate a PostgreSQL lock wait: {outcomes}"
+        )
+    finally:
+        allow_withdrawal_commit.set()
+        withdrawal_thread.join(timeout=20)
+        if intake_thread.ident is not None:
+            intake_thread.join(timeout=20)
+
+    assert not withdrawal_thread.is_alive() and not intake_thread.is_alive(), outcomes
+    assert outcomes.get("withdrawal_committed") is True, outcomes
+    assert "withdrawal_error" not in outcomes, outcomes
+    assert "intake_error" not in outcomes, outcomes
+    assert outcomes["intake"].status == "BLOCKED_AUTHORIZATION", outcomes
+    assert outcomes["intake"].imported_count == 0, outcomes
+    setup.expire_all()
+    assert setup.query(RetainedImage).filter(
+        RetainedImage.tenant_id == TENANT,
+        RetainedImage.research_dataset_id == dataset_id,
+    ).count() == 0
