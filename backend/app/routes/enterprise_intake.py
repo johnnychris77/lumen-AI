@@ -9,7 +9,7 @@ from app.services.audit_export_service import export_audit_events_csv, record_au
 from app.enterprise_auth import require_audit_chain_verify, require_enterprise_auth
 
 from app.services.audit_query_service import query_audit_events
-from app.services.audit_chain_verification_service import verify_audit_chain
+from app.services.audit_chain_verification_service import AuditChainScopeError, verify_audit_chain
 from app.services.enterprise_audit_service import record_enterprise_audit_event
 from app.enterprise_auth import require_hospital_or_enterprise_admin
 from app.models.vendor_baseline_audit import VendorBaselineAuditEvent
@@ -100,10 +100,12 @@ router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
 # below, so no query in this module can reach another tenant's rows and an object
 # id that belongs to another tenant behaves exactly like one that does not exist.
 #
-# Not tenant-owned, by design: ``EnterpriseVendorBaselineSubscription`` and
-# ``VendorBaselineAuditEvent`` are the shared vendor baseline library (the table
-# has no tenant column). Access to them requires authentication but is not
-# partitioned by tenant.
+# Not tenant-owned yet: ``EnterpriseVendorBaselineSubscription`` and
+# ``VendorBaselineAuditEvent`` are one vendor baseline library for all tenants
+# (the tables have no tenant column). Access requires authentication but is not
+# partitioned by tenant. Governance decision GD-3 says they are to become
+# tenant-private; that is decided and NOT implemented (see
+# docs/enterprise-readiness/p472-03-security-governance-decisions.md).
 
 def _tq(db: Session, model, tenant_id: str):
     """``db.query(model)`` restricted to the caller's tenant."""
@@ -1238,6 +1240,10 @@ def get_enterprise_governance_packet_pdf(
         action_type="centralized_governance_packet_exported_pdf",
         resource_type="enterprise_governance_packet",
         resource_id=finding.id,
+        # Owned by the caller's verified tenant. This event used to be written with
+        # no tenant ("default-tenant"), which put a foreign record into the packet's
+        # own hash chain.
+        tenant_id=tenant_id,
         actor=request.headers.get("x-lumenai-actor", "unknown"),
         actor_role=request.headers.get("x-lumenai-role", "viewer"),
         finding_id=finding.id,
@@ -10231,15 +10237,22 @@ def verify_enterprise_audit_chain(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    # Verified caller required. Chain verification is by resource id and returns
-    # verification metadata only; it is not partitioned by tenant (see module note).
-    authorized_tenant(_require_governance_packet_access(request, db=db))
+    # Governance decision GD-2: a caller verifies only chains that belong wholly
+    # to their own tenant. Another tenant's chain reads as "no events"; a chain
+    # that mixes tenants is refused. There is no cross-tenant verification path.
+    tenant_id = authorized_tenant(_require_governance_packet_access(request, db=db))
 
-    result = verify_audit_chain(
-        db,
-        resource_type=resource_type,
-        resource_id=resource_id,
-    )
+    try:
+        result = verify_audit_chain(
+            db,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            owner_tenant_id=tenant_id,
+        )
+    except AuditChainScopeError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     return {
         "status": "success",
@@ -10408,12 +10421,13 @@ def verify_enterprise_audit_export_hash(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    # Verified caller required. Lookup is by export hash; returns verification metadata only.
-    authorized_tenant(require_audit_chain_verify(request))
+    # Governance decision GD-2: only exports recorded by the caller's own tenant.
+    tenant_id = authorized_tenant(require_audit_chain_verify(request))
 
     return verify_audit_export_hash(
         db,
         audit_export_hash=audit_export_hash,
+        owner_tenant_id=tenant_id,
     )
 
 
@@ -10423,12 +10437,13 @@ def verify_enterprise_audit_export_manifest_hash(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    # Verified caller required. Lookup is by manifest hash; returns verification metadata only.
-    authorized_tenant(require_audit_chain_verify(request))
+    # Governance decision GD-2: only exports recorded by the caller's own tenant.
+    tenant_id = authorized_tenant(require_audit_chain_verify(request))
 
     return verify_audit_export_manifest_hash(
         db,
         manifest_hash=manifest_hash,
+        owner_tenant_id=tenant_id,
     )
 
 
@@ -10471,12 +10486,13 @@ def verify_enterprise_compliance_evidence_bundle_hash(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    # Verified caller required. Lookup is by bundle hash; returns verification metadata only.
-    authorized_tenant(require_audit_chain_verify(request))
+    # Governance decision GD-2: only bundles generated by the caller's own tenant.
+    tenant_id = authorized_tenant(require_audit_chain_verify(request))
 
     return verify_compliance_evidence_bundle_hash(
         db,
         bundle_hash=bundle_hash,
+        owner_tenant_id=tenant_id,
     )
 
 
@@ -10532,12 +10548,13 @@ def get_enterprise_compliance_evidence_verification_summary(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    # Verified caller required. Lookup is by bundle hash; returns verification metadata only.
-    authorized_tenant(require_audit_chain_verify(request))
+    # Governance decision GD-2: only bundles generated by the caller's own tenant.
+    tenant_id = authorized_tenant(require_audit_chain_verify(request))
 
     return build_compliance_evidence_verification_summary(
         db,
         bundle_hash=bundle_hash,
+        owner_tenant_id=tenant_id,
     )
 
 

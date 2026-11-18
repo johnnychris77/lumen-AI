@@ -13,10 +13,12 @@ def build_compliance_evidence_verification_summary(
     db: Session,
     *,
     bundle_hash: str,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
     verification = verify_compliance_evidence_bundle_hash(
         db,
         bundle_hash=bundle_hash,
+        owner_tenant_id=owner_tenant_id,
     )
 
     if not verification.get("verified"):

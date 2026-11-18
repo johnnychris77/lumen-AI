@@ -334,6 +334,28 @@ def test_aw08_vendor_scorecard_does_not_aggregate_another_tenants_inspections(te
         f"{response.text[:200]}")
 
 
+@_finding("AW-08", "GuardianX audit replay loads its subject by id with no tenant predicate")
+def test_aw08_guardianx_replay_does_not_serve_another_tenants_inspection(tenants):
+    """Confirmed while implementing governance decision GD-2 (batch 2); not fixed."""
+    db = SessionLocal()
+    try:
+        row = models.Inspection(file_name="b-replay.bin", tenant_id=tenants.b, tenant_name="Tenant B",
+                                vendor_name=_uid("b-vendor"), site_name="b-site", status="completed")
+        db.add(row)
+        db.commit()
+        inspection_id = row.id
+    finally:
+        db.close()
+
+    _, member_of_a = _user("viewer", {tenants.a: "viewer"})     # the route requires this tenant role
+
+    response = client.get(f"/api/guardianx/audit-replay/inspections/{inspection_id}",
+                          headers={**member_of_a, "X-Tenant-Id": tenants.a})
+
+    assert response.status_code in (*REFUSED, 404), (
+        f"a member of tenant A replayed tenant B's inspection {inspection_id} (HTTP {response.status_code})")
+
+
 # ══ AW-09 — unauthenticated access to tenant data ═════════════════════════════
 #
 # REMEDIATED in P472-03 batch 1 for the enterprise intake module: these are now

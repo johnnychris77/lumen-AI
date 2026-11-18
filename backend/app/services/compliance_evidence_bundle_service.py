@@ -119,6 +119,9 @@ def build_compliance_evidence_bundle(
         action_type="compliance_evidence_bundle_generated",
         resource_type="compliance_evidence_bundle",
         resource_id=bundle_hash,
+        # Owned by the tenant that generated it, so that tenant (and no other) can
+        # verify it later. It used to take the column default, "default-tenant".
+        tenant_id=owner_tenant_id,
         actor=actor,
         actor_role=actor_role,
         packet_hash=bundle_hash,

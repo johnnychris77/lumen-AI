@@ -629,18 +629,14 @@ class TestTenantACannotReachTenantB:
 
 LISTING_ROUTES = [route for route in PROTECTED if route[0] == "GET" and "{" not in route[1]]
 
-# NOT partitioned by tenant, deliberately left so in this batch and recorded as an
-# open item in the review document. All five require an authenticated, verified
-# hospital or enterprise administrator. Four look an event up by a SHA-256 hash
-# the caller must already hold (the hash of an export they were given); one looks
-# a hash chain up by resource id. They return verification metadata, never the
-# audited content; ``TestVerificationRoutesReturnMetadataOnly`` pins that down.
+# Chain verification reads the whole hash chain of one resource, because a chain
+# can only be verified in full. Since governance decision GD-2 (batch 2) the result
+# is released only when every event of the chain belongs to the caller's tenant;
+# ``tests/test_p472_03_governance_policies.py`` covers that. The four hash
+# verification routes are tenant-filtered like any other read and are no longer
+# excepted here.
 VERIFICATION_ROUTES = {
     ("GET", "/api/enterprise/audit/verify-chain"),
-    ("GET", "/api/enterprise/audit/events/export/verify"),
-    ("GET", "/api/enterprise/audit/events/export/manifest/verify"),
-    ("GET", "/api/enterprise/audit/evidence-bundle/verify"),
-    ("GET", "/api/enterprise/audit/evidence-bundle/verification-summary"),
 }
 # The append-only audit writer links each new event to the previous event of the
 # same resource (a hash chain). That lookup is by resource, returns nothing to
@@ -718,7 +714,7 @@ class TestListsAggregatesAndExportsAreTenantScoped:
 
 
 class TestVerificationRoutesReturnMetadataOnly:
-    """The five routes in ``VERIFICATION_ROUTES``, pointed at tenant B's records."""
+    """The five verification routes, pointed at tenant B's records."""
 
     def test_chain_verification_of_tenant_b_resource_discloses_no_content(self, world):
         response = client.get("/api/enterprise/audit/verify-chain", headers=world.a.admin_headers, params={

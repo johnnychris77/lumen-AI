@@ -49,12 +49,34 @@ def _event_hash_payload(event: AuditLog, details: dict[str, Any], previous_event
     }
 
 
+class AuditChainScopeError(Exception):
+    """The chain contains events outside the caller's tenant and may not be
+    verified for that caller (governance decision GD-2)."""
+
+
 def verify_audit_chain(
     db: Session,
     *,
     resource_type: str,
     resource_id: str,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
+    """Verify the hash chain of one resource.
+
+    ``owner_tenant_id`` is the caller's verified tenant (governance decision
+    GD-2). A chain is verified in full or not at all, so it is never filtered:
+
+    * no event of the chain belongs to the caller's tenant -> the caller is told
+      exactly what they are told for a resource with no events;
+    * every event belongs to the caller's tenant -> normal verification;
+    * the chain mixes the caller's events with events of another tenant, or of
+      none -> ``AuditChainScopeError``. Verifying it is a cross-tenant operation.
+
+    With no ``owner_tenant_id`` the chain is verified regardless of tenant. The
+    enterprise quality routes always pass it. The GuardianX replay service does
+    not yet (it also loads its subject by id with no tenant check; recorded as an
+    open finding, AW-08).
+    """
     events = (
         db.query(AuditLog)
         .filter(
@@ -64,6 +86,16 @@ def verify_audit_chain(
         .order_by(AuditLog.id.asc())
         .all()
     )
+
+    if owner_tenant_id is not None and events:
+        tenants = {(event.tenant_id or "") for event in events}
+        if owner_tenant_id not in tenants:
+            events = []
+        elif tenants != {owner_tenant_id}:
+            raise AuditChainScopeError(
+                "This audit chain contains records outside your tenant. "
+                "Verifying it requires an authorized platform-security review."
+            )
 
     if not events:
         return {
