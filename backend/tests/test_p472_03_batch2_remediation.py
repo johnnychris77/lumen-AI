@@ -272,6 +272,25 @@ ROUTE_IDS = [f"{method} {path}" for method, path, _ in ROUTES]
 OPEN_OWNER_FINDINGS: dict[str, str] = {}
 OPEN_REFUSAL_FINDINGS: dict[str, str] = {}
 
+# Routes that serve shared, network-wide data by default and resolve a tenant only
+# on an optional branch. The request is made on that branch, so the tenant rule is
+# what is exercised.
+TENANT_BRANCH_PARAMS: dict[str, dict] = {
+    "GET /api/horizon/emerging-trends": {"mine_only": "true"},
+}
+# Routes that update one network-wide record on behalf of the calling tenant. The
+# record itself lists the participating tenants (that is its purpose), so SQL for
+# one tenant's request necessarily carries the others' ids. Covered by
+# ``TestTrendAlertsDoNotNameOtherOrganisations`` below.
+SHARED_RECORD_ROUTES = {
+    "POST /api/horizon/emerging-trends/{trend_id}/acknowledge":
+        "one cross-hospital alert row records every organisation that acknowledged it",
+}
+TENANT_BRANCH_BODIES: dict[str, dict] = {
+    "POST /api/horizon/evidence": {"private": True, "evidence_type": "peer_reviewed", "title": "t",
+                                   "citation_text": "c"},
+}
+
 
 def _params(open_findings: dict[str, str]) -> list:
     return [
@@ -356,6 +375,8 @@ class _Caller:
         plan = _Plan(self.spec, method, path)
         url, params, body = plan.request(path_tenant=TENANT_A, query_tenant=TENANT_A, body_tenant=TENANT_A)
         params.update({name: TENANT_A for name in plan.required_tenant_query})
+        params.update(TENANT_BRANCH_PARAMS.get(f"{method} {path}", {}))
+        body = TENANT_BRANCH_BODIES.get(f"{method} {path}", body)
         if limiter is not None:
             try:
                 limiter.reset()
@@ -406,9 +427,14 @@ def _bound(capture, tenant: str) -> list[str]:
     return sorted(set(hits["read"]) | set(hits["write"]))
 
 
-# Tables a refused request may still write: none. (Membership lookups are reads.)
+# Tables a refused request may still write: none. ``scheduler_leader`` is the
+# heartbeat of the background scheduler thread, which can tick while a request is
+# being captured; it is not written by any request.
+BACKGROUND_TABLES = {"scheduler_leader"}
+
+
 def _written(capture) -> list[str]:
-    return sorted(set(_tables_touched(capture)["write"]) - MEMBERSHIP_TABLES)
+    return sorted(set(_tables_touched(capture)["write"]) - MEMBERSHIP_TABLES - BACKGROUND_TABLES)
 
 
 def _attacks(index: int) -> list[tuple[str, dict, list[str]]]:
@@ -473,11 +499,17 @@ def test_the_owner_and_a_selected_membership_are_served(caller, method, path, ho
         assert status not in REFUSED, f"member with no tenant header got HTTP {status}"
     assert _bound(capture, TENANT_B) == [] and _bound(capture, TENANT_C) == []
 
-    status, capture, _ = caller.call(
+    status, capture, text = caller.call(
         method, path, caller.headers(_USERS["multi"][index], **{"X-Tenant-Id": TENANT_C}))
     assert status not in REFUSED, f"user with two memberships selecting one of them got HTTP {status}"
     assert _bound(capture, TENANT_B) == []
-    assert _bound(capture, TENANT_A) == [], "a request made in tenant C touched tenant A"
+    assert TENANT_B not in text
+    if f"{method} {path}" in SHARED_RECORD_ROUTES:
+        # The row is shared by design and stores other participants; what matters is
+        # that the response does not name them.
+        assert TENANT_A not in text, "the response to a request made in tenant C names tenant A"
+    else:
+        assert _bound(capture, TENANT_A) == [], "a request made in tenant C touched tenant A"
 
 
 def test_most_routes_were_exercised_with_a_working_owner(caller):
@@ -892,3 +924,70 @@ class TestOperationsAreTenantScoped:
             assert len(rows) == 1 and rows[0].tenant_id == TENANT_A and rows[0].actor_role == "manager"
         finally:
             db.close()
+
+
+# ══ AW-13 — participant identities in cross-hospital trend alerts ═════════════
+# Found by the per-route test: a request made in one tenant carried another
+# tenant's id. The shared alert row stores which organisations were notified and
+# which acknowledged, and the routes returned those lists to every caller.
+
+from app.models.federated_horizon import EmergingTrendAlert  # noqa: E402
+import json as _json  # noqa: E402
+
+
+class TestTrendAlertsDoNotNameOtherOrganisations:
+    @pytest.fixture
+    def alert(self):
+        db = SessionLocal()
+        try:
+            row = EmergingTrendAlert(
+                trend_type="new_corrosion_pattern", description=f"b2 alert {uuid.uuid4().hex[:8]}",
+                evidence_json="[]", tenant_count=3, severity="medium",
+                notified_tenant_ids_json=_json.dumps([TENANT_A, TENANT_B, TENANT_C]),
+                acknowledged_tenant_ids_json=_json.dumps([TENANT_B]),
+            )
+            db.add(row)
+            db.commit()
+            return row.id
+        finally:
+            db.close()
+
+    @staticmethod
+    def _mine(body: dict, alert_id: int) -> dict:
+        return next(t for t in body["trends"] if t["id"] == alert_id)
+
+    @pytest.mark.parametrize("params", [{}, {"mine_only": "true"}])
+    def test_listing_does_not_name_other_organisations(self, alert, params):
+        _, headers = _member(TENANT_A)
+        response = http.get("/api/horizon/emerging-trends", headers=headers, params=params)
+        assert response.status_code == 200, response.text[:300]
+        assert TENANT_B not in response.text and TENANT_C not in response.text
+        trend = self._mine(response.json(), alert)
+        assert trend["notified_organization_count"] == 3 and trend["acknowledged_organization_count"] == 1
+        assert "notified_tenant_ids_json" not in trend and "acknowledged_tenant_ids_json" not in trend
+
+    def test_a_caller_learns_only_their_own_status(self, alert):
+        _, headers = _member(TENANT_A)
+        trend = self._mine(http.get("/api/horizon/emerging-trends", headers=headers,
+                                    params={"mine_only": "true"}).json(), alert)
+        assert trend["notified"] is True and trend["acknowledged"] is False
+
+    def test_acknowledging_does_not_return_who_else_acknowledged(self, alert):
+        _, headers = _member(TENANT_A)
+        response = http.post(f"/api/horizon/emerging-trends/{alert}/acknowledge", headers=headers)
+        assert response.status_code == 200, response.text[:300]
+        assert TENANT_B not in response.text and TENANT_C not in response.text
+        body = response.json()
+        assert body["acknowledged"] is True and body["acknowledged_organization_count"] == 2
+        db = SessionLocal()
+        try:
+            stored = _json.loads(db.get(EmergingTrendAlert, alert).acknowledged_tenant_ids_json)
+            assert sorted(stored) == sorted([TENANT_A, TENANT_B])      # the record itself is intact
+        finally:
+            db.close()
+
+    def test_detection_does_not_return_the_participant_list(self, alert):
+        _, headers = _member(TENANT_A)
+        response = http.post("/api/horizon/emerging-trends/detect", headers=headers)
+        assert response.status_code == 200, response.text[:300]
+        assert TENANT_B not in response.text and TENANT_C not in response.text

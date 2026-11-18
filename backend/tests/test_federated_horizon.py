@@ -324,7 +324,12 @@ class TestEmergingTrendDetection:
         trend_id = trends[0]["id"]
         res = client.post(f"/api/horizon/emerging-trends/{trend_id}/acknowledge", headers=_headers(AUTH_VIEWER, tenant_ids[0]))
         assert res.status_code == 200
-        assert tenant_ids[0] in res.json()["acknowledged_tenant_ids_json"]
+        # P472-03 AW-13: the response no longer carries the list of tenant ids that
+        # acknowledged (it named other participating organisations). The caller is
+        # told that THEIR acknowledgement is recorded, and how many there are.
+        body = res.json()
+        assert body["acknowledged"] is True and body["acknowledged_organization_count"] >= 1
+        assert "acknowledged_tenant_ids_json" not in body and "notified_tenant_ids_json" not in body
 
 
 class TestResearchPortal:
