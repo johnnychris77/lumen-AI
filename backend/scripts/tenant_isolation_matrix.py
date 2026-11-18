@@ -351,6 +351,52 @@ IMPACT = {
 }
 
 
+# Findings the SQL oracle cannot observe, or that needed a real foreign object to
+# show. Each was established by code review and is reproduced by a test in
+# tests/test_p472_03_application_wide_findings.py. They are shown in the matrix
+# beside the sweep's own classes; they are NOT part of the sweep register, which
+# holds only what the sweep itself observes.
+MANUAL_FINDINGS = {
+    "AW-07": {"title": "Manufacturer identity asserted by a client header", "risk": "High", "batch": 5,
+              "impact": "unverified manufacturer id: 200 -> 403", "code": "403"},
+    "AW-08": {"title": "Tenant table read with no tenant predicate", "risk": "High", "batch": 3,
+              "impact": "other tenants' rows no longer returned", "code": "filtered"},
+    "AW-10": {"title": "Tenant data in a process-wide in-memory store, read without authentication",
+              "risk": "Critical", "batch": 0, "impact": "unauthenticated: 200 -> 401; listing limited to caller's tenant",
+              "code": "401"},
+    "AW-11": {"title": "CAPA register outside the application database, with no tenant column", "risk": "High",
+              "batch": 6, "impact": "other tenants' CAPAs: listed -> omitted, by id 200 -> 404", "code": "404"},
+}
+_MANUAL_ROUTES = {
+    "GET /api/accreditation/programs": ["AW-08"],
+    "GET /api/analytics/vendors/{vendor_name}/scorecard.json": ["AW-08"],
+    "GET /api/analytics/vendors/{vendor_name}/scorecard.pdf": ["AW-08"],
+    "GET /api/enterprise/vendor-governance/events": ["AW-10"],
+    "GET /api/enterprise/vendor-governance/summary": ["AW-10"],
+    "GET /api/enterprise/vendor-governance/capa-linkage-summary": ["AW-10"],
+    "GET /api/enterprise/vendor-governance/powerbi-csv": ["AW-10"],
+    "GET /api/capa": ["AW-11"],
+    "POST /api/capa": ["AW-11"],
+    "POST /api/capa/from-audit-signal": ["AW-11"],
+    "GET /api/capa/escalation-summary": ["AW-11"],
+    "GET /api/capa/powerbi-csv": ["AW-11"],
+    "GET /api/capa/governance-scorecard": ["AW-11"],
+    "GET /api/capa/{capa_id}": ["AW-11"],
+    "PATCH /api/capa/{capa_id}": ["AW-11"],
+}
+_RISK_RANK = {"Critical": 4, "High": 3, "Medium": 2}
+
+
+def manual_findings(record: dict) -> list[str]:
+    """Code-review findings for this route (see MANUAL_FINDINGS)."""
+    if "shadowed_by" in record:
+        return []
+    found = list(_MANUAL_ROUTES.get(route_key(record), []))
+    if "require_manufacturer_auth" in record["deps"] or "require_manufacturer_auth" in record["guards"]:
+        found.append("AW-07")
+    return found
+
+
 def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
     """One matrix row. ``limit`` caps how many table names a cell lists (None: all)."""
     if "shadowed_by" in record:
@@ -358,6 +404,7 @@ def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
                 "—", "—", f"unreachable: shadowed by `{record['shadowed_by'].removeprefix('app.')}`", "—", "Info",
                 "Review", "Not reviewed"]
     classes = classify(record)
+    manual = [name for name in manual_findings(record) if name not in classes]
     baseline = record["baseline"]
     refused = baseline["status"] in REFUSED
     fixed = _remediated(record["path"])
@@ -378,8 +425,7 @@ def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
             anonymous = record["results"]["anonymous"]
             reached = anonymous.get("public_reads", []) + anonymous.get("public_writes", [])
             result += f" (anonymous reach: {_tables(reached, limit)})"
-        rank = {"Critical": 4, "High": 3, "Medium": 2}
-        risk = max((FINDINGS[c]["risk"] for c in classes), key=lambda r: rank.get(r, 0))
+        risk = max((FINDINGS[c]["risk"] for c in classes), key=lambda r: _RISK_RANK.get(r, 0))
         impact = "; ".join(IMPACT[c] for c in classes)
         status = f"Open — batch {min(BATCH[c] for c in classes)}"
     elif refused:
@@ -397,9 +443,19 @@ def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
             risk, status = "Incomplete", "Review (not fully exercised)"
         else:
             risk, status = "None observed", "None required by this evidence"
-    if fixed and not classes:
+    if manual:
+        # Shown beside whatever the sweep saw; the sweep's own result stays visible.
+        note = ", ".join(manual) + " (code review + test)"
+        result = f"{result}; {note}" if classes else f"{note}; sweep: {result}"
+        risks = [MANUAL_FINDINGS[m]["risk"] for m in manual] + ([risk] if classes else [])
+        risk = max(risks, key=lambda r: _RISK_RANK.get(r, 0))
+        impacts = ([impact] if classes else []) + [MANUAL_FINDINGS[m]["impact"] for m in manual]
+        impact = "; ".join(impacts)
+        batches = [MANUAL_FINDINGS[m]["batch"] for m in manual] + ([BATCH[c] for c in classes])
+        status = f"Open — batch {min(batches)}"
+    if fixed and not classes and not manual:
         status = f"Remediated ({fixed})"
-    if baseline["status"] >= 400 and not refused and not classes:
+    if baseline["status"] >= 400 and not refused and not classes and not manual:
         result += f" (baseline HTTP {baseline['status']}: partly exercised)"
     return [record["method"], f"`{record['path']}`", record["module"].removeprefix("app."), _auth(record),
             _tenant_source(record), membership, objects, _tables(baseline["reads"], limit),
@@ -459,7 +515,9 @@ def _compact_row(record: dict) -> list[str]:
         # the "Membership verification" column already reports that.
         row[7] = _tables([t for t in record["baseline"]["reads"] if t not in _IDENTITY_TABLES], 2)
     classes = classify(record) if "results" in record else []
-    row[10] = "; ".join(dict.fromkeys(_IMPACT_CODE[c] for c in classes)) or "—"
+    codes = [_IMPACT_CODE[c] for c in classes]
+    codes += [MANUAL_FINDINGS[m]["code"] for m in manual_findings(record) if m not in classes]
+    row[10] = "; ".join(dict.fromkeys(codes)) or "—"
     return row
 
 
@@ -481,7 +539,7 @@ def write_csv(path: Path, sweep: dict) -> None:
             writer.writerow(row + [
                 record.get("handler", ""),
                 record["baseline"]["status"] if live else "",
-                " ".join(classify(record)) if live else "",
+                " ".join(dict.fromkeys(classify(record) + manual_findings(record))) if live else "",
             ])
 
 

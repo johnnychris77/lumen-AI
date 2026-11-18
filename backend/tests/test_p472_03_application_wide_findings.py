@@ -289,6 +289,26 @@ def test_aw08_listing_accreditation_programs_does_not_return_other_tenants(tenan
     assert note not in response.text, "tenant A's unfiltered listing contains tenant B's accreditation program"
 
 
+@_finding("AW-08", "vendor analytics loads every tenant's inspections (db.query(Inspection).all()) behind a global role")
+def test_aw08_vendor_scorecard_does_not_aggregate_another_tenants_inspections(tenants):
+    vendor = _uid("b-confidential-vendor")
+    db = SessionLocal()
+    try:
+        db.add(models.Inspection(
+            file_name="b-confidential.bin", tenant_id=tenants.b, tenant_name="Tenant B",
+            vendor_name=vendor, site_name="b-site", status="completed"))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get(f"/api/analytics/vendors/{vendor}/scorecard.json",
+                          headers={**tenants.headers_a, "X-Tenant-Id": tenants.a})
+
+    assert response.status_code in (*REFUSED, 404), (
+        f"tenant A was served a scorecard built from tenant B's inspections (HTTP {response.status_code}): "
+        f"{response.text[:200]}")
+
+
 # ══ AW-09 — unauthenticated access to tenant data ═════════════════════════════
 
 @pytest.mark.parametrize("path", [
@@ -325,6 +345,101 @@ def test_aw09_an_unauthenticated_caller_cannot_read_the_audit_log(tenants, path)
 def test_aw09_enterprise_quality_data_requires_authentication(path):
     response = client.get(path)
     assert response.status_code in REFUSED, f"HTTP {response.status_code} with no credentials: {response.text[:160]}"
+
+
+# ══ AW-10 — tenant data held outside the database ═════════════════════════════
+#
+# The sweep's oracle is SQL, so it cannot see this store: vendor governance events
+# live in one process-wide list with no tenant field. Writes require enterprise
+# authentication; the four read routes require nothing and return every tenant's
+# events. Found by reviewing the public routes that execute no SQL.
+
+def _tenant_b_vendor_event(tenants: Tenants) -> str:
+    marker = _uid("b-confidential-vendor-event")
+    created = client.post(
+        "/api/enterprise/vendor-governance/events",
+        headers={**tenants.headers_b, "X-Tenant-Id": tenants.b},
+        json={"vendor_name": marker, "event_type": "quality_escape", "event_summary": f"summary {marker}",
+              "risk_level": "high", "site": "b-site"})
+    assert created.status_code == 200, created.text
+    return marker
+
+
+@pytest.mark.parametrize("path", [
+    "/api/enterprise/vendor-governance/events",
+    "/api/enterprise/vendor-governance/summary",
+    "/api/enterprise/vendor-governance/capa-linkage-summary",
+    "/api/enterprise/vendor-governance/powerbi-csv",
+])
+@_finding("AW-10", "vendor governance events are kept in one in-memory list and read without authentication")
+def test_aw10_an_unauthenticated_caller_cannot_read_vendor_governance_events(tenants, path):
+    marker = _tenant_b_vendor_event(tenants)
+
+    response = client.get(path)                      # no credentials of any kind
+
+    assert response.status_code in REFUSED, (
+        f"HTTP {response.status_code} with no credentials; tenant B's vendor event in the response: "
+        f"{marker in response.text}")
+
+
+@_finding("AW-10", "vendor governance events are not partitioned by tenant")
+def test_aw10_a_member_of_a_does_not_see_tenant_b_vendor_governance_events(tenants):
+    marker = _tenant_b_vendor_event(tenants)
+
+    response = client.get("/api/enterprise/vendor-governance/events",
+                          headers={**tenants.headers_a, "X-Tenant-Id": tenants.a})
+
+    assert marker not in response.text, "tenant A's listing contains tenant B's vendor governance event"
+
+
+# ══ AW-11 — CAPA records in a store with no tenant column ═════════════════════
+#
+# ``app/services/capa_service.py`` opens its own ``sqlite3`` connection, outside
+# the SQLAlchemy engine the sweep listens on, and its ``capas`` table has no
+# tenant column. Every ``/api/capa`` route requires only a global role, so every
+# hospital's managers share one CAPA register.
+
+def _tenant_b_capa(tenants: Tenants) -> tuple[str, str]:
+    marker = _uid("b-confidential-capa")
+    created = client.post("/api/capa", headers={**tenants.headers_b, "X-Tenant-Id": tenants.b}, json={
+        "title": marker, "description": f"root cause {marker}", "risk_level": "high", "owner": "b-quality-lead"})
+    assert created.status_code == 200, created.text
+    listed = client.get("/api/capa", headers={**tenants.headers_b, "X-Tenant-Id": tenants.b}, params={"limit": 500})
+    capa_id = next(item["id"] for item in listed.json()["items"] if item["title"] == marker)
+    return marker, capa_id
+
+
+@pytest.mark.parametrize("path", ["/api/capa", "/api/capa/powerbi-csv"])
+@_finding("AW-11", "the CAPA register has no tenant column; any manager lists every tenant's CAPAs")
+def test_aw11_a_member_of_a_does_not_see_tenant_b_capas(tenants, path):
+    marker, _ = _tenant_b_capa(tenants)
+
+    response = client.get(path, headers={**tenants.headers_a, "X-Tenant-Id": tenants.a}, params={"limit": 500})
+
+    assert marker not in response.text, f"tenant A's {path} contains tenant B's CAPA"
+
+
+@_finding("AW-11", "a CAPA is fetched by id with no tenant check")
+def test_aw11_a_member_of_a_cannot_read_tenant_b_capa_by_id(tenants):
+    marker, capa_id = _tenant_b_capa(tenants)
+
+    response = client.get(f"/api/capa/{capa_id}", headers={**tenants.headers_a, "X-Tenant-Id": tenants.a})
+
+    assert response.status_code in (*REFUSED, 404), (
+        f"tenant A read tenant B's CAPA by id (HTTP {response.status_code}); record returned: {marker in response.text}")
+
+
+@_finding("AW-11", "a CAPA is updated by id with no tenant check")
+def test_aw11_a_member_of_a_cannot_modify_tenant_b_capa(tenants):
+    _, capa_id = _tenant_b_capa(tenants)
+
+    response = client.patch(f"/api/capa/{capa_id}", headers={**tenants.headers_a, "X-Tenant-Id": tenants.a},
+                            json={"status": "closed", "owner": "tenant-a-intruder"})
+
+    after = client.get(f"/api/capa/{capa_id}", headers={**tenants.headers_b, "X-Tenant-Id": tenants.b}).text
+    assert response.status_code in (*REFUSED, 404) and "tenant-a-intruder" not in after, (
+        f"tenant A changed tenant B's CAPA (HTTP {response.status_code}); "
+        f"intruder recorded as owner: {'tenant-a-intruder' in after}")
 
 
 # ══ Controls — examined and sufficient ════════════════════════════════════════

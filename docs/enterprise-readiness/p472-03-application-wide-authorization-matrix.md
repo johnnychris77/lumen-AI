@@ -5,14 +5,16 @@
 | Repository / PR | `johnnychris77/lumen-AI`, PR #181 (draft) |
 | Branch | `engineering/render-local-inference-p47` |
 | Reviewed baseline | `6c3072c` (application code is unchanged by this review) |
+| Revisions | `5ab34f2` first issue; second issue adds AW-10, AW-11, a second AW-08 case, and sections 2.1 to 2.3 |
 | Release status | **HOLD / NO-GO** |
 | P472-03 status | **Open.** Not closed by this document. |
 | Nature of this change | Review, tests and documentation only. **No remediation is implemented here.** |
 
 **This document does not claim application-wide tenant isolation.** It records
-that isolation is *not* in place: 682 of the 1,912 mounted routes showed at
-least one cross-tenant or unauthenticated data pathway, a further 1,012 routes
-have incomplete evidence, and only 216 were fully exercised with nothing
+that isolation is *not* in place: 716 of the 1,912 mounted routes have at
+least one cross-tenant or unauthenticated data pathway (682 observed by the
+automated sweep, 34 more established by code review and a test), a further 988
+routes have incomplete evidence, and only 206 were fully exercised with nothing
 observed. Every row of the matrix is marked "Not reviewed" under independent
 review, because no independent review has taken place.
 
@@ -75,19 +77,19 @@ recorded as unstable.
 2. **722 routes (SQLite; 716 on PostgreSQL) answered the legitimate request
    with 4xx or 5xx** (404 for a synthetic object id: 385; 422: 138; 400: 12;
    409: 1; 5xx: 186). For these the handler's data access was not, or not
-   fully, executed. 318 of them still showed a finding or a lead; the other 404
+   fully, executed. 320 of them still showed a finding or a lead; the other 402
    are marked *Incomplete*.
 3. **164 routes refuse every tenant role profile** (they require global role
    `admin`, a manufacturer identity or another credential). They were not
-   attacked. Three of them showed a finding under another variant; the other
-   161 are marked *Not assessed*.
+   attacked. Three of them showed a finding under another variant and 20 carry
+   AW-07 from code review; the other 141 are marked *Not assessed*.
 4. **Platform admin.** `app/security/tenant_context.py` documents that global
    role `admin` may operate across all tenants. That policy was treated as
    intended and was not attacked; it has no separate reviewed authorization
    policy on file and is listed for the reviewer in section 9.
 5. **Object-level access (IDOR)** was tested only indirectly: the sweep flags
-   SQL on a tenant table that carries no `tenant_id` predicate (447 routes
-   marked *Lead*). A lead is not a confirmed defect; one was confirmed by hand
+   SQL on a tenant table that carries no `tenant_id` predicate (445 routes
+   marked *Lead*). A lead is not a confirmed defect; two were confirmed by hand
    (AW-08). Per-object tests with real foreign object ids were written only
    for the cases in section 3.
 6. **Background jobs** are covered only where a request starts work inside the
@@ -95,6 +97,17 @@ recorded as unstable.
    exercised.
 7. Synthetic requests satisfy the schema, not business rules, so a route can
    pass here and still be reachable through a payload this sweep did not send.
+8. **The oracle sees only SQL issued through the application's SQLAlchemy
+   engine.** Data held anywhere else is invisible to it, and a route that
+   serves such data is reported as "none observed". The first issue of this
+   document missed two stores for that reason. They were then looked for
+   statically: module-level containers mutated at run time (3 found: a login
+   rate limiter; the CV async-result cache, which checks the tenant; and the
+   vendor-governance event list, AW-10), database connections opened outside
+   the engine (1 found: the CAPA register, AW-11), and file downloads (all
+   resolve the path from a database row, so the sweep does see their lookup).
+   The static scan is pattern-based and is not proof that no other store
+   exists.
 
 ---
 
@@ -109,7 +122,8 @@ recorded as unstable.
 | Answer an anonymous request with 2xx (public) | 93 |
 | Refuse every tenant role profile | 164 |
 | Legitimate request answered 4xx/5xx (partly exercised) | 722 |
-| Routes with at least one finding | 682 (in 94 modules) |
+| Routes with at least one finding from the sweep | 682 (in 94 modules) |
+| Further routes with a finding from code review only | 34 (716 in total) |
 | Routes that wrote under a foreign tenant | 87 (62 tables, audit tables excluded) |
 | Earlier remediation re-checked, no finding | 52 (13 CV routes at `c13c5eb`, 39 at `6c3072c`) |
 
@@ -136,6 +150,63 @@ routes that combine a membership-checking dependency with `resolve_tenant`
 fall in this group and carry the AW-02 pattern in their source without a
 dynamic result.
 
+### 2.1 Tenant-resolution mechanisms in use
+
+| Mechanism | Defined in | Routes | What it does | Verdict |
+|---|---|---|---|---|
+| `require_tenant_roles(...)` | `app/tenant_authz.py` | 562 | Identity from the bearer token; tenant from `X-LumenAI-Tenant-Id`, else `X-Tenant-Id`, else `default-tenant`; checks an enabled membership and its role. | Sound for the header it reads. Unsound when the handler takes the tenant from somewhere else (AW-02, AW-04). |
+| `resolve_tenant` | `app/tenant.py` | 181 | Returns `X-Tenant-Id` (default `default-tenant`). No verification. | Unsound (AW-01, AW-02). |
+| `require_roles(...)` | `app/authz.py` | 883 | Global role only. Resolves no tenant. | Not a tenant control; the handler must scope data itself (AW-01, AW-05, AW-08, AW-11). |
+| `require_enterprise_auth(request)` | `app/enterprise_auth.py` | 251 (called in the handler) | Verifies the token and the membership for the named tenant, or resolves a sole membership; returns a context. Always runs the membership check. | Sound, but 103 handlers discard the returned tenant and re-read the header (AW-03) and others use a parameter (AW-04). |
+| `get_request_tenant_id(request)` | `app/enterprise_auth.py` | 146 call sites in 59 files | Reads the raw header; default `default-tenant`. | Not a control. Source of AW-03, AW-05, AW-06. |
+| `getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)` | 75 occurrences in 50 files | modules holding 695 routes | Principal's tenant when the user has exactly one membership, otherwise the header. | Unsound for users with none or several memberships (AW-05, AW-06N). |
+| `authorized_tenant(ctx, *claimed)` | `app/auth/tenant_scope.py` | 37 | Verified context tenant; any differing claim is refused. | Sound (introduced in `6c3072c`). |
+| `require_manufacturer_auth` | `app/enterprise_auth.py` | 20 (17 as a dependency, 3 in the handler) | Any authenticated user plus a client-supplied `X-Manufacturer-ID`. | Unsound (AW-07). |
+| `require_gateway_auth` | gateway routes | 20 | API key or bearer. | 13 of the 20 show AW-05/AW-06N. |
+| Other guards (`require_portfolio_access`, `require_inspection_runner`, `require_audit_chain_verify`, `require_hospital_or_enterprise_admin`, module-local `_check` / `_require_*`) | various | 60 | Role or capability checks. | Not tenant controls. |
+
+### 2.2 Public and intentionally shared endpoints
+
+**Documented policy.** `docs/security/lumenai-protected-endpoint-authentication-test-baseline-v1.md`
+allows six unauthenticated endpoints, "because they return safe metadata
+only": `/api/health` and the five `/api/public/module-status/*` routes.
+
+**Observed.** 93 routes answer an anonymous request with 2xx: 87 more than
+the documented six.
+
+| Group | Routes | Finding |
+|---|---|---|
+| Documented exceptions | 6 | None. They execute no SQL and return fixed metadata. |
+| `enterprise_intake` | 41 | AW-09: tenant tables read anonymously. |
+| Aggregate counts (`/api/network/participants/count`, `/api/global-intelligence/network-stats`, `/api/infrastructure/platform-stats`) | 3 | AW-09 pending an owner's decision; plausibly intended, but undocumented. |
+| Vendor governance reads | 4 | AW-10: every tenant's events read anonymously from process memory. |
+| Other health and status routes | 13 | None observed; fixed responses. |
+| Fixed-content analytics (`capa_predictive_risk`, `capa_trend_intelligence`, `vendor_trend_intelligence`, `vendor_performance_scorecard`, `governance_intelligence`, `power_bi_executive_analytics`, and the `/api/enterprise/audit-command-center/*` routes defined in `main.py`) | 17 | No tenant data: these modules import nothing from the application and return hard-coded content. They present that content as analytics without authentication, which is a product-integrity question outside this review. |
+| Catalogues and portals (`/api/integrations/catalog`, `/api/standards/ecosystem-overview`, three `/api/infinity/developer-portal/*` routes, `/api/enterprise/audit-to-capa/summary`) | 6 | None observed; no tenant tables. |
+| `POST /api/manufacturers/register` | 1 | Unauthenticated write to a non-tenant table (manufacturer self-registration). Not a tenant-isolation finding; needs an owner's decision and abuse controls. |
+| `POST /api/baseline-ranking/audit-evidence`, `GET /api/reviews/queue` | 2 | Stateless (no SQL) and a stub returning an empty list. |
+
+None of the 87 undocumented public routes has a recorded policy decision.
+
+**Intentional cross-tenant sharing.** Network benchmark, global intelligence,
+GSIN, Olympus network and the baseline library are designed to share derived
+data between hospitals under consent and anonymisation rules. This review
+tested only whether a caller can act *as another tenant* inside those modules
+(it can: AW-03, AW-04 and AW-06M include the network opt-in and the
+data-sharing consent writes). Whether the shared output is correctly
+anonymised, consent-gated and audited is a separate control and was not
+evaluated here.
+
+### 2.3 Background and scheduled work
+
+| Work | Tenant source | Assessed |
+|---|---|---|
+| CV async analysis (`BackgroundTasks`, the only use in the application) | Verified context tenant passed into the task; results cached per tenant and checked on read. | Yes, earlier (`c13c5eb`, `be88e4a`); clean. |
+| Work a request performs before responding (snapshots, audit rows, derived records) | Whatever tenant the handler resolved. | Yes: the oracle counts these writes. 87 routes wrote under a foreign tenant. |
+| APScheduler jobs registered at start-up (prediction, RWE, integration, quality intelligence, global aggregation) | Iterate tenant ids read from the database; no caller. | No. They take no request input, so no request can redirect them, but their per-tenant scoping was not tested. |
+| On-demand schedulers started through routes (portfolio briefing recurring, executive KPI) | No tenant parameter. | No. Start routes are role-gated or unmounted. |
+| Other scheduler modules (approval escalation, dunning, retention, digest, governance SLA scanner) | — | No. No start call was found in the application; they appear inactive. |
+
 ---
 
 ## 3. Findings register (prioritised)
@@ -143,25 +214,28 @@ dynamic result.
 Each finding is a shared root cause. "Routes" is the number observed by the
 sweep; "Proof" names the hand-written test in
 `backend/tests/test_p472_03_application_wide_findings.py` that reproduces it
-with real stored data. Those tests state the required behaviour and are
+with real stored data. AW-07, AW-08, AW-10 and AW-11 come from code review and
+are not in the sweep register. Those tests state the required behaviour and are
 `xfail(strict=True)`; they are open findings, not accepted behaviour.
 
 | Priority | ID | Risk | Routes | Modules | Root cause | Proof |
 |---|---|---|---|---|---|---|
 | 1 | AW-09 | Critical | 44 | 4 | No authentication on routes that read or write tenant tables. 41 are in `enterprise_intake`. `GET /api/enterprise/audit-command-center` (and its `.csv` / `.powerbi.csv` forms) returns audit-log entries of every tenant to an anonymous caller. | 8 tests (`test_aw09_*`) |
-| 2 | AW-01 | High | 19 | 3 | Tenant taken from a request header with no membership check; only a global role is required (`ml_images` 6, `tenant_analytics` 5, `p22_operations` 8). | `test_aw01_*` |
-| 3 | AW-02 | High | 60 observed, 176 by pattern | 21 | Membership is verified against `X-LumenAI-Tenant-Id`, but the handler scopes data with `resolve_tenant`, which returns `X-Tenant-Id` unverified. Sending both headers with different values passes the check and reads the other tenant. | `test_aw02_*` |
-| 4 | AW-03 | High | 132 | 15 | After `require_enterprise_auth` succeeds, the handler re-reads the tenant with `get_request_tenant_id(request)`, which prefers a header the auth layer did not verify (146 call sites in 59 files). | `test_aw03_*` |
-| 5 | AW-04 | High | 38 | 11 | Tenant taken from a query, path or body parameter and never compared with the caller's verified tenant (`p20_network_intelligence` 10, `accreditation` 6, `ranking` 5, `intelligence` 4 + consent 1, `commercial` 4, `olympus_network` 3, `genesis_ai` 2, `billing`, `growth`, `infinity`). | 4 tests (`test_aw04_*`) |
-| 6 | AW-06M | High | 149 | 18 | A verified member who sends no tenant header is placed in the shared literal tenant `default-tenant` instead of their own tenant. The web client's `apiFetch` sends no tenant header, so this is the normal path for those routes. | `test_aw06m_*` |
-| 7 | AW-05 | High | 373 | 39 | `getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)`: the principal carries a tenant only when the user has exactly one membership, so users with none or several are scoped by whatever header they send (75 occurrences in 50 files). | 2 tests (`test_aw05_*`) |
-| 8 | AW-07 | High | 17 by pattern | 2 | `require_manufacturer_auth` accepts any authenticated hospital user as whichever manufacturer `X-Manufacturer-ID` names. Found by code review; these routes refuse the sweep's profiles without that header. | `test_aw07_*` |
-| 9 | AW-08 | High | 1 confirmed, 447 leads | — | SQL on a tenant table with no `tenant_id` predicate. Confirmed for `GET /api/accreditation/programs` (no `tenant_id` returns every tenant's programs). The remaining leads are unconfirmed and need manual review. | `test_aw08_*` |
-| 10 | AW-06N | Medium | 428 | 49 | Authenticated users with no membership are served, and pooled together, in `default-tenant`. | `test_aw06n_*` |
+| 2 | AW-10 | Critical | 4 | 1 | Vendor governance events are kept in one process-wide in-memory list with no tenant field. Creating an event requires authentication; the four read routes (`events`, `summary`, `capa-linkage-summary`, `powerbi-csv`) require none and return every tenant's events. The data is lost on restart and differs per replica, which limits but does not remove the exposure. | 5 tests (`test_aw10_*`) |
+| 3 | AW-01 | High | 19 | 3 | Tenant taken from a request header with no membership check; only a global role is required (`ml_images` 6, `tenant_analytics` 5, `p22_operations` 8). | `test_aw01_*` |
+| 4 | AW-02 | High | 60 observed, 176 by pattern | 21 | Membership is verified against `X-LumenAI-Tenant-Id`, but the handler scopes data with `resolve_tenant`, which returns `X-Tenant-Id` unverified. Sending both headers with different values passes the check and reads the other tenant. | `test_aw02_*` |
+| 5 | AW-03 | High | 132 | 15 | After `require_enterprise_auth` succeeds, the handler re-reads the tenant with `get_request_tenant_id(request)`, which prefers a header the auth layer did not verify (146 call sites in 59 files). | `test_aw03_*` |
+| 6 | AW-04 | High | 38 | 11 | Tenant taken from a query, path or body parameter and never compared with the caller's verified tenant (`p20_network_intelligence` 10, `accreditation` 6, `ranking` 5, `intelligence` 4 + consent 1, `commercial` 4, `olympus_network` 3, `genesis_ai` 2, `billing`, `growth`, `infinity`). | 4 tests (`test_aw04_*`) |
+| 7 | AW-11 | High | 8 | 1 | CAPA records live in a `capas` table that `app/services/capa_service.py` opens with its own `sqlite3` connection, outside the application database, and the table has no tenant column. Every `/api/capa` route requires only a global role, so a manager of any tenant lists, reads by id and modifies every tenant's CAPAs. With a PostgreSQL deployment the register is a local SQLite file on the application container. | 4 tests (`test_aw11_*`) |
+| 8 | AW-06M | High | 149 | 18 | A verified member who sends no tenant header is placed in the shared literal tenant `default-tenant` instead of their own tenant. The web client's `apiFetch` sends no tenant header, so this is the normal path for those routes. | `test_aw06m_*` |
+| 9 | AW-05 | High | 373 | 39 | `getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)`: the principal carries a tenant only when the user has exactly one membership, so users with none or several are scoped by whatever header they send (75 occurrences in 50 files). | 2 tests (`test_aw05_*`) |
+| 10 | AW-07 | High | 20 by pattern | 3 | `require_manufacturer_auth` accepts any authenticated hospital user as whichever manufacturer `X-Manufacturer-ID` names. Found by code review; these routes refuse the sweep's profiles without that header. | `test_aw07_*` |
+| 11 | AW-08 | High | 3 confirmed, 445 leads | — | SQL on a tenant table with no `tenant_id` predicate. Confirmed for `GET /api/accreditation/programs` (no `tenant_id` returns every tenant's programs) and for the vendor scorecard routes, which load every tenant's inspections (`db.query(Inspection).all()`) and serve a scorecard built from another tenant's records. The remaining leads are unconfirmed and need manual review. | 2 tests (`test_aw08_*`) |
+| 12 | AW-06N | Medium | 428 | 49 | Authenticated users with no membership are served, and pooled together, in `default-tenant`. | `test_aw06n_*` |
 | — | AW-UNAUTH | — | 0 | 0 | Tenant-*bound* SQL for an unauthenticated, malformed-token or expired-token caller. None observed; kept as a passing regression test. | driver test |
 
 A route can carry several findings; the per-class counts overlap and do not
-sum to 682.
+sum to 716.
 
 Notes on severity:
 
@@ -187,7 +261,10 @@ Notes on severity:
 | Intelligence (`intelligence`, `intelligence_consent`, `quality_intelligence`; 22 routes) | **Vulnerable.** 4 read routes and `POST /api/intelligence/consent` take the tenant from the request (AW-04) — the consent route lets tenant A record or change tenant B's data-sharing consent. 10 quality-intelligence routes re-read the raw header (AW-03, AW-06M). | `test_aw04_*` (consent) |
 | Network benchmark / sharing (`network_benchmark`, 6 routes) | **Vulnerable.** 5 routes re-read the raw header (AW-03), including the opt-in write; the participant count is public. | `test_aw03_*`, `test_aw06m_*` |
 | Manufacturer intelligence (`/api/manufacturer-intelligence`, 4 routes) | **Latent.** Takes `tenant_id` from the query after `require_enterprise_auth(request)` with no membership comparison, and echoes it. The scorecards are generated from a seeded function, not stored rows, so no tenant's stored data is reached today. Same pattern as AW-04; must be fixed in the same batch before the service is backed by stored data. | code review; sweep: no tenant-bound SQL |
-| Manufacturer / repair-partner portals (17 routes) | **Vulnerable (AW-07).** Identity comes from a client header. | `test_aw07_*` |
+| Manufacturer / repair-partner portals (20 routes) | **Vulnerable (AW-07).** Identity comes from a client header. | `test_aw07_*` |
+| Vendor governance (found by reviewing public routes that run no SQL; 4 read routes) | **Vulnerable, Critical (AW-10).** Unauthenticated read of every tenant's events from an in-memory store. | `test_aw10_*` |
+| CAPA register (found by looking for stores outside the engine; 8 routes) | **Vulnerable (AW-11).** No tenant ownership at all: cross-tenant list, read by id and update. | `test_aw11_*` |
+| Vendor analytics scorecards (found from an unscoped-SQL lead) | **Vulnerable (AW-08).** Scorecard built from every tenant's inspections. Other routes in the module follow the same pattern and remain leads. | `test_aw08_vendor_*` |
 | Enterprise intake (found during discovery; 41 routes) | **Vulnerable, Critical (AW-09).** The module has no authentication dependency at all. | `test_aw09_*` |
 
 Controls shown to work (passing tests): routes guarded only by
@@ -211,6 +288,8 @@ remediation batch is expected to change so that it can be reviewed first.
 | AW-06M | No status change. A member who sends no header is served their own tenant instead of `default-tenant`. **Data impact:** rows already written under `default-tenant` by header-less clients stop being visible to them. Whether production holds such rows, and whose they are, must be established before this batch; it needs a data-migration decision, not only a code change. | The web client (header-less `apiFetch`) on 149 routes. |
 | AW-05, AW-06N | User with no membership: `200` → `403`. User with several memberships and no header: `200` → `400` (tenant must be named). Several memberships naming a non-member tenant: `200` → `403`. | Accounts without a membership row lose access to 428 routes. Whether such accounts exist in production must be checked first. Test suites that authenticate without creating a membership will need the same treatment as the 183 tests adjusted in `6c3072c`. |
 | AW-07 | Hospital user asserting a manufacturer id: `200` → `403` until a verified manufacturer relationship exists. | Needs a design decision: there is no stored user-to-manufacturer relationship to verify against today. |
+| AW-10 | Anonymous `200` → `401` on the four vendor-governance read routes; authenticated listings limited to the caller's tenant. | The store has no tenant field, so events must record their tenant on creation; existing in-memory events have no owner and cannot be attributed. `EnterpriseGovernanceCommandCenter.tsx` and any Power BI consumer of `powerbi-csv` are affected. |
+| AW-11 | Listings omit other tenants' CAPAs; another tenant's CAPA by id `200` → `404`; update of another tenant's CAPA `200` → `404`. | Needs a schema change (tenant ownership on CAPA records) and a decision on existing rows, which have no owner. `EnterpriseCapaPanel.tsx`, `EnterpriseCapaSummaryPanel.tsx` and the CAPA Power BI export are affected. Moving the register into the application database is advisable but is a separate change. |
 
 Compatibility risks common to all batches: the shared development token
 (non-production) trusts the tenant header by design and is used widely in the
@@ -229,14 +308,15 @@ clean until its later batches are done.
 
 | Batch | Scope | Routes (earliest batch) | Change | Contract change |
 |---|---|---|---|---|
-| B0 | AW-09 | 44 | Require authentication and a verified tenant on `enterprise_intake`; scope the audit command center to the caller's tenant; decide and document the three aggregate routes. | Yes (401); frontend download links |
+| B0 | AW-09, AW-10 | 48 | Require authentication and a verified tenant on `enterprise_intake` and on the vendor-governance read routes; scope the audit command center to the caller's tenant; record the tenant on vendor-governance events; decide and document the three aggregate routes. | Yes (401); frontend download links |
 | B1 | AW-01, AW-02 | 79 | Make `resolve_tenant` return the membership-verified tenant (or replace its 181 uses with the verified context), and refuse disagreeing headers. One dependency change covers both classes, including the 109 routes that could not be assessed. | Yes (403); hard-coded `bonsecours` header |
 | B2 | AW-03, AW-06M | 122 | Replace `get_request_tenant_id(request)` after enterprise auth with the tenant returned by the auth context; resolve a sole membership instead of `default-tenant`. | Behavioural; `default-tenant` data decision |
-| B3 | AW-04, AW-08 (accreditation), manufacturer-intelligence | 36 | Apply `authorized_tenant(ctx, claimed)` (the helper introduced in `6c3072c`) to every query, path and body tenant; add the tenant predicate to unfiltered listings. | Yes (403) |
+| B3 | AW-04, AW-08 (accreditation, vendor scorecards), manufacturer-intelligence | 38 | Apply `authorized_tenant(ctx, claimed)` (the helper introduced in `6c3072c`) to every query, path and body tenant; add the tenant predicate to unfiltered listings. | Yes (403) |
 | B4 | AW-05, AW-06N | 401 | Replace the `getattr(...) or get_request_tenant_id(...)` fallback (75 occurrences) with one verified resolver that fails closed for no membership and requires a named, verified tenant for several. | Yes (403/400) |
-| B5 | AW-07 | 17 | Design and implement a verified manufacturer identity. | Yes; needs design |
-| B6 | AW-08 leads | 447 leads | Manual object-level review of SQL without a tenant predicate; write per-object adversarial tests. | To be determined |
-| B7 | Evidence gaps | 404 incomplete, 161 role-gated, 79 unmounted | Give the sweep valid objects for 404/422 routes; decide and test the platform-admin policy; repair or remove the routes that return 500; review unmounted handlers. | None expected |
+| B5 | AW-07 | 20 | Design and implement a verified manufacturer identity. | Yes; needs design |
+| B6 | AW-11 | 8 | Give CAPA records a tenant owner and enforce it on every `/api/capa` route. | Yes (404); schema and data decision |
+| B7 | AW-08 leads | 445 leads | Manual object-level review of SQL without a tenant predicate; write per-object adversarial tests. | To be determined |
+| B8 | Evidence gaps | 402 incomplete, 141 role-gated, 79 unmounted, public-route policy, non-SQL stores | Give the sweep valid objects for 404/422 routes; decide and test the platform-admin policy; repair or remove the routes that return 500; review unmounted handlers; record a decision for each of the 87 undocumented public routes; extend the oracle or add a lint for data kept outside the engine. | None expected |
 
 After each batch: remove the fixed routes from
 `backend/tests/p472_03_findings_register.json`, remove the `xfail` marker of any
@@ -253,7 +333,7 @@ fixed route is left in the register or a new route appears.
 | `backend/scripts/tenant_isolation_matrix.py` | Runs and merges the shards, classifies results, writes the register, the table below and the CSV. |
 | `backend/tests/p472_03_findings_register.json` | The 682 routes and their finding classes. |
 | `backend/tests/test_p472_03_application_wide_isolation.py` | Runs the sweep in the suite and compares it with the register: every mounted route swept; no unauthenticated tenant-bound SQL; earlier remediation still clean; no finding outside the register; every registered finding still reproduces; one strict `xfail` per open root cause. |
-| `backend/tests/test_p472_03_application_wide_findings.py` | 21 data-backed exploit tests (strict `xfail`) and 4 passing control tests. |
+| `backend/tests/test_p472_03_application_wide_findings.py` | 31 data-backed exploit tests (strict `xfail`) and 4 passing control tests. |
 
 No existing assertion was weakened and nothing is skipped. An `xfail(strict)`
 test here states the secure behaviour and fails the suite the moment the
@@ -276,9 +356,14 @@ The sweep adds roughly two to three minutes to each backend test job.
 
 ## 8. What has not been reviewed
 
-- 404 routes with incomplete dynamic evidence and 161 role-gated routes
+- 402 routes with incomplete dynamic evidence and 141 role-gated routes
   (section 1.4).
-- 447 unscoped-SQL leads, other than the one confirmed case.
+- 445 unscoped-SQL leads, other than the confirmed cases.
+- Data kept outside the SQLAlchemy engine, beyond the pattern-based scan in
+  section 1.4 item 8.
+- Anonymisation, consent and audit controls of the intentional
+  cross-tenant sharing features (section 2.2).
+- Scheduled jobs (section 2.3).
 - 109 `resolve_tenant` routes that return 500 and could only be classified by
   source pattern.
 - Platform-admin cross-tenant access.
@@ -299,15 +384,16 @@ document, its tests or CI.
 Suggested order for the reviewer:
 
 1. Reproduce AW-09 on a deployed non-production instance. If the audit command
-   center is reachable anonymously in production, treat it as an incident
-   question (was it accessed?) as well as a defect; this review did not examine
-   production.
+   center or the vendor-governance read routes (AW-10) are reachable
+   anonymously in production, treat it as an incident question (was it
+   accessed?) as well as a defect; this review did not examine production.
 2. Confirm or correct the root-cause grouping in section 3, sampling routes
    from each class against the CSV.
-3. Rule on the open policy questions: the three public aggregate routes, the
-   platform-admin cross-tenant role, the `default-tenant` data, manufacturer
-   identity.
-4. Review the 447 leads and the incomplete rows.
+3. Rule on the open policy questions: the 87 public routes that have no
+   documented exception (section 2.2), the platform-admin cross-tenant role,
+   the `default-tenant` data, manufacturer identity, CAPA ownership.
+4. Review the 445 leads and the incomplete rows, and look independently for
+   data stores the SQL oracle cannot see.
 5. Sign off, or amend, the contract changes in section 5 before batch B0 and
    B1 are implemented.
 
@@ -331,8 +417,8 @@ filtering.
 | Membership verification | `queried`: the legitimate request read `tenant_memberships`. `no`: it did not. `n/a`: the request was refused. Whether the *verified* tenant is the one used for data is what the result column shows. |
 | Object-level authorization | `tenant-bound`: all SQL on tenant tables carried the caller's tenant. `unscoped: …`: SQL on these tenant tables had no tenant predicate (a lead, see AW-08). `—`: no SQL on tenant tables. |
 | DB reads / DB writes | Tables touched by the legitimate request (first two, then a count; identity tables omitted from reads). |
-| Cross-tenant adversarial result | Finding classes, with tables written under the foreign tenant or reached anonymously. `none observed`: no variant bound a foreign tenant. `refused`: every foreign-tenant variant was refused. `role-gated`: not reachable with tenant roles. `(baseline NNN)`: the legitimate request itself returned that status. |
-| Contract impact | Status the adversarial request is expected to receive after remediation: `403`, `401*` (unless confirmed public by design), `own tenant` (served the caller's tenant instead of `default-tenant`). See section 5. |
+| Cross-tenant adversarial result | Finding classes, with tables written under the foreign tenant or reached anonymously. `(code review + test)`: established by reading the code and reproduced by a hand-written test, not by the sweep; the sweep's own result follows after `sweep:`. `none observed`: no variant bound a foreign tenant. `refused`: every foreign-tenant variant was refused. `role-gated`: not reachable with tenant roles. `(baseline NNN)`: the legitimate request itself returned that status. |
+| Contract impact | Status the adversarial request is expected to receive after remediation: `403`, `401*` (unless confirmed public by design), `own tenant` (served the caller's tenant instead of `default-tenant`), `404` (another tenant's object no longer found), `filtered` (other tenants' rows no longer returned). See section 5. |
 | Risk | `Critical` / `High` / `Medium`: highest open finding. `Lead`: unscoped SQL to review. `Incomplete`: legitimate request failed, nothing concluded. `Not assessed`: role-gated. `None observed`: fully exercised, nothing found. `Info`: unreachable duplicate. |
 | Remediation | `Open Bn`: earliest batch in section 6. `Remediated (sha)`: fixed earlier and clean in this sweep. `Review: …`: needs manual review for the stated reason. `—`: nothing required by this evidence. |
 | Independent review | `Not reviewed` on every row. |
@@ -513,8 +599,8 @@ filtering.
 | GET | /api/analytics/vendors/export.csv | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
 | GET | /api/analytics/vendors/export.xlsx | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
 | GET | /api/analytics/vendors/export.bundle.zip | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
-| GET | /api/analytics/vendors/{vendor_name}/scorecard.json | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
-| GET | /api/analytics/vendors/{vendor_name}/scorecard.pdf | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/analytics/vendors/{vendor_name}/scorecard.json | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | AW-08 (code review + test); sweep: none observed | filtered | High | Open B3 | Not reviewed |
+| GET | /api/analytics/vendors/{vendor_name}/scorecard.pdf | vendor_analytics | global role | — | queried | unscoped: inspections | inspections | — | AW-08 (code review + test); sweep: none observed | filtered | High | Open B3 | Not reviewed |
 | GET | /api/mentor/education | spd_mentor | global role | principal/header | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/mentor/education/{finding_type} | spd_mentor | global role | principal/header | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
 | POST | /api/mentor/education/{finding_type}/complete | spd_mentor | global role | principal/header | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
@@ -613,22 +699,22 @@ filtering.
 | GET | /api/capa/risk-scorecard/ | capa_predictive_risk | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/capa/risk-scorecard | capa_predictive_risk | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/capa/health | capa | — | — | — | — | — | — | unreachable: shadowed by `main.direct_capa_health` | — | Info | Review | Not reviewed |
-| GET | /api/capa | capa | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| POST | /api/capa | capa | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| POST | /api/capa/from-audit-signal | capa | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/capa/escalation-summary | capa | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/capa/powerbi-csv | capa | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/capa/governance-scorecard | capa | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/capa/{capa_id} | capa | global role | — | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
-| PATCH | /api/capa/{capa_id} | capa | global role | — | queried | — | — | — | none observed (baseline 400) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/capa | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| POST | /api/capa | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| POST | /api/capa/from-audit-signal | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| GET | /api/capa/escalation-summary | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| GET | /api/capa/powerbi-csv | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| GET | /api/capa/governance-scorecard | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| GET | /api/capa/{capa_id} | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
+| PATCH | /api/capa/{capa_id} | capa | global role | — | queried | — | — | — | AW-11 (code review + test); sweep: none observed | 404 | High | Open B6 | Not reviewed |
 | GET | /api/enterprise/vendor-governance/health | vendor_governance | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
 | POST | /api/enterprise/vendor-governance/events | vendor_governance | handler: require_enterprise_auth | enterprise context | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/enterprise/vendor-governance/events | vendor_governance | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/enterprise/vendor-governance/summary | vendor_governance | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
-| GET | /api/enterprise/vendor-governance/capa-linkage-summary | vendor_governance | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/vendor-governance/events | vendor_governance | public | — | no | — | — | — | AW-10 (code review + test); sweep: none observed | 401 | Critical | Open B0 | Not reviewed |
+| GET | /api/enterprise/vendor-governance/summary | vendor_governance | public | — | no | — | — | — | AW-10 (code review + test); sweep: none observed | 401 | Critical | Open B0 | Not reviewed |
+| GET | /api/enterprise/vendor-governance/capa-linkage-summary | vendor_governance | public | — | no | — | — | — | AW-10 (code review + test); sweep: none observed | 401 | Critical | Open B0 | Not reviewed |
 | POST | /api/enterprise/vendor-governance/events/{event_id}/link-capa | vendor_governance | handler: require_enterprise_auth | enterprise context | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
 | POST | /api/enterprise/vendor-governance/events/{event_id}/create-capa | vendor_governance | handler: require_enterprise_auth | enterprise context | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
-| GET | /api/enterprise/vendor-governance/powerbi-csv | vendor_governance | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/vendor-governance/powerbi-csv | vendor_governance | public | — | no | — | — | — | AW-10 (code review + test); sweep: none observed | 401 | Critical | Open B0 | Not reviewed |
 | GET | /api/qa-review/pending | qa_review | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
 | POST | /api/qa-review/{inspection_id} | qa_review | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
 | GET | /api/review-analytics/summary | review_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
@@ -1001,9 +1087,9 @@ filtering.
 | POST | /api/intelligence/consent | intelligence_consent | handler: require_enterprise_auth | body: tenant_id | queried | unscoped: intelligence_sharing_consents | intelligence_sharing_consents | intelligence_sharing_consents | AW-04 (foreign write: intelligence_sharing_consents) | 403 | High | Open B3 | Not reviewed |
 | DELETE | /api/intelligence/consent/{facility_id} | intelligence_consent | handler: require_enterprise_auth | enterprise context | queried | unscoped: intelligence_sharing_consents | intelligence_sharing_consents | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
 | GET | /api/intelligence/consent/{facility_id} | intelligence_consent | handler: require_enterprise_auth | enterprise context | queried | unscoped: intelligence_sharing_consents | intelligence_sharing_consents | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
-| GET | /api/manufacturer-portal/my-scorecard | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/manufacturer-portal/my-defect-trends | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/manufacturer-portal/network-benchmark | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/manufacturer-portal/my-scorecard | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/manufacturer-portal/my-defect-trends | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/manufacturer-portal/network-benchmark | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
 | POST | /api/enterprise/benchmarks/hospitals | benchmarking | handler: authorized_tenant | verified context; body: tenant_id | queried | unscoped: cv_inference_provenance, cv_inference_records | cv_inference_provenance, cv_inference_records | — | none observed | — | Lead | Remediated (6c3072c) | Not reviewed |
 | GET | /api/enterprise/benchmarks/hospitals/{hospital_id} | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | unscoped: cv_inference_provenance, cv_inference_records | cv_inference_provenance, cv_inference_records | — | none observed | — | Lead | Remediated (6c3072c) | Not reviewed |
 | GET | /api/enterprise/benchmarks/hospitals | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | unscoped: cv_inference_provenance, cv_inference_records | cv_inference_provenance, cv_inference_records | — | none observed | — | Lead | Remediated (6c3072c) | Not reviewed |
@@ -1279,7 +1365,7 @@ filtering.
 | GET | /api/growth/market-intelligence/summary | growth | global role | — | queried | unscoped: audit_logs, network_participants +1 | audit_logs, network_participants +2 | audit_logs | none observed | — | Lead | Review: SQL lead | Not reviewed |
 | GET | /api/growth/kpis | growth | global role | — | queried | unscoped: network_participants, reference_customers | network_participants, reference_customers +1 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
 | POST | /api/accreditation/programs | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
-| GET | /api/accreditation/programs | accreditation | global role | query: tenant_id | queried | unscoped: accreditation_programs | accreditation_programs | — | AW-04 | 403 | High | Open B3 | Not reviewed |
+| GET | /api/accreditation/programs | accreditation | global role | query: tenant_id | queried | unscoped: accreditation_programs | accreditation_programs | — | AW-04; AW-08 (code review + test) | 403; filtered | High | Open B3 | Not reviewed |
 | PATCH | /api/accreditation/programs/{program_id} | accreditation | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
 | POST | /api/accreditation/evidence-items | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
 | GET | /api/accreditation/evidence-items | accreditation | global role | query: tenant_id | queried | unscoped: accreditation_evidence_items | accreditation_evidence_items | — | AW-04 | 403 | High | Open B3 | Not reviewed |
@@ -1434,9 +1520,9 @@ filtering.
 | GET | /api/or-connect/cases/{case_id}/risks | or_connect | global role | principal/header | queried | unscoped: surgical_cases | surgical_cases | — | AW-05, AW-06N | 403 | High | Open B4 | Not reviewed |
 | POST | /api/or-connect/cases/{case_id}/notifications/generate | or_connect | global role | principal/header | queried | unscoped: audit_logs, inspections +4 | audit_logs, inspections +4 | audit_logs | AW-05, AW-06N | 403 | High | Open B4 | Not reviewed |
 | GET | /api/or-connect/cases/{case_id} | or_connect | global role | principal/header | queried | unscoped: surgical_cases | surgical_cases | — | AW-05, AW-06N | 403 | High | Open B4 | Not reviewed |
-| GET | /api/or-connect/vendor-portal | or_connect_vendor_portal | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| POST | /api/or-connect/vendor-portal/trays/{tray_id}/confirm-delivery | or_connect_vendor_portal | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| POST | /api/or-connect/vendor-portal/trays/{tray_id}/request-replacement | or_connect_vendor_portal | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/or-connect/vendor-portal | or_connect_vendor_portal | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| POST | /api/or-connect/vendor-portal/trays/{tray_id}/confirm-delivery | or_connect_vendor_portal | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| POST | /api/or-connect/vendor-portal/trays/{tray_id}/request-replacement | or_connect_vendor_portal | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
 | POST | /api/quality-guardian/events | quality_guardian | global role | principal/header | queried | unscoped: audit_logs, quality_events | audit_logs, quality_events | audit_logs, quality_events | AW-05, AW-06N (foreign write: quality_events) | 403 | High | Open B4 | Not reviewed |
 | POST | /api/quality-guardian/events/import-csv | quality_guardian | global role | principal/header | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/quality-guardian/events | quality_guardian | global role | principal/header | queried | unscoped: quality_events | quality_events | — | AW-05, AW-06N | 403 | High | Open B4 | Not reviewed |
@@ -1626,20 +1712,20 @@ filtering.
 | GET | /api/beacon/collaboration/hub | industry_collaboration | global role | principal/header | queried | unscoped: p24_consortium_members | p24_consortium_members | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
 | GET | /api/beacon/collaboration/my-status | industry_collaboration | global role | principal/header | queried | unscoped: p24_consortium_members | p24_consortium_members | — | AW-05, AW-06N | 403 | High | Open B4 | Not reviewed |
 | GET | /api/beacon/collaboration/participants/{organization_type} | industry_collaboration | global role | principal/header | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
-| GET | /api/beacon/manufacturer-portal | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/approved-baselines | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/quality-trends | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/instrument-family-performance | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/anatomy-findings | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/corrosion-trend | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/damage-patterns | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/manufacturer-portal/repair-recommendations | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/repair-partner-portal | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/repair-partner-portal/referrals | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/repair-partner-portal/turnaround | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/repair-partner-portal/repeat-analysis | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| GET | /api/beacon/repair-partner-portal/digital-twin-history/{instrument_identity} | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
-| POST | /api/beacon/repair-partner-portal/repairs/{repair_id}/record-outcome | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/approved-baselines | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/quality-trends | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/instrument-family-performance | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/anatomy-findings | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/corrosion-trend | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/damage-patterns | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/repair-recommendations | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/repair-partner-portal | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/referrals | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/turnaround | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/repeat-analysis | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/digital-twin-history/{instrument_identity} | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
+| POST | /api/beacon/repair-partner-portal/repairs/{repair_id}/record-outcome | industry_collaboration | manufacturer header | — | n/a | n/a | — | — | AW-07 (code review + test); sweep: role-gated | 403 | High | Open B5 | Not reviewed |
 | GET | /api/beacon/standards-center | industry_collaboration | global role | principal/header | queried | — | p24_standards_publications | — | none observed | — | None observed | — | Not reviewed |
 | POST | /api/beacon/standards-center/publish | industry_collaboration | global role | principal/header | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
 | GET | /api/beacon/standards-center/publications/{publication_id}/versions | industry_collaboration | global role | principal/header | queried | — | p24_standards_publications | — | none observed | — | None observed | — | Not reviewed |
