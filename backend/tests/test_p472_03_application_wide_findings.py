@@ -90,7 +90,8 @@ def _rows(model, tenant: str) -> int:
 
 # ══ AW-01 — tenant header trusted with no membership check ════════════════════
 
-@_finding("AW-01", "GET /api/tenant-analytics/* scopes data by X-Tenant-Id and checks only a global role")
+# Remediated in P472-03 batch 2 (``resolve_tenant`` returns the verified tenant). The
+# assertion is unchanged; only the xfail marker went.
 def test_aw01_a_member_of_a_cannot_read_tenant_b_analytics_by_header(tenants):
     db = SessionLocal()
     try:
@@ -109,7 +110,8 @@ def test_aw01_a_member_of_a_cannot_read_tenant_b_analytics_by_header(tenants):
 
 # ══ AW-02 — membership checked on one header, data scoped by another ═════════
 
-@_finding("AW-02", "require_tenant_roles verifies X-LumenAI-Tenant-Id while resolve_tenant scopes by X-Tenant-Id")
+# Remediated in P472-03 batch 2 (``resolve_tenant`` returns the verified tenant and
+# refuses tenant headers that disagree). The assertion is unchanged.
 def test_aw02_split_tenant_headers_cannot_read_tenant_b_audit_logs(tenants):
     marker = _uid("b-confidential-audit")
     db = SessionLocal()

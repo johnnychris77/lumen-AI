@@ -1,10 +1,8 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 1 (parent 90fb1a6)",
+ "baseline_commit": "remediation batch 2, resolve_tenant (parent 48ef45f)",
  "sweeps": [
-  "sqlite",
-  "sqlite",
-  "postgresql"
+  "sqlite"
  ],
  "classes": {
   "AW-01": "Tenant header trusted with no membership check",
@@ -201,21 +199,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "GET /api/audit-logs": [
-   "AW-02"
-  ],
-  "GET /api/audit-logs/export.bundle.zip": [
-   "AW-02"
-  ],
-  "GET /api/audit-logs/export.csv": [
-   "AW-02"
-  ],
-  "GET /api/audit-logs/export.json": [
-   "AW-02"
-  ],
-  "GET /api/audit-logs/export.xlsx": [
-   "AW-02"
-  ],
   "GET /api/baseline-library/images": [
    "AW-05",
    "AW-06N"
@@ -313,18 +296,9 @@
   "GET /api/commercial/customer-success/trend": [
    "AW-04"
   ],
-  "GET /api/compliance-exports/evidence-pack.csv": [
-   "AW-02"
-  ],
-  "GET /api/compliance-exports/evidence-pack.xlsx": [
-   "AW-02"
-  ],
   "GET /api/coverage-dashboard/summary": [
    "AW-05",
    "AW-06N"
-  ],
-  "GET /api/customer-operations-hub/work-queue": [
-   "AW-02"
   ],
   "GET /api/dataset-eligibility": [
    "AW-05",
@@ -414,36 +388,6 @@
   "GET /api/global-intelligence/signals": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/governance-approvals/history": [
-   "AW-02"
-  ],
-  "GET /api/governance-approvals/pending": [
-   "AW-02"
-  ],
-  "GET /api/governance-approvals/{approval_id}/reconcile": [
-   "AW-02"
-  ],
-  "GET /api/governance-command-center/summary": [
-   "AW-02"
-  ],
-  "GET /api/governance-command-center/work-items": [
-   "AW-02"
-  ],
-  "GET /api/governance-console/summary": [
-   "AW-02"
-  ],
-  "GET /api/governance-sla-scanner/recommendations": [
-   "AW-02"
-  ],
-  "GET /api/governance-sla/dashboard": [
-   "AW-02"
-  ],
-  "GET /api/governance-sla/events": [
-   "AW-02"
-  ],
-  "GET /api/governance-sla/policies": [
-   "AW-02"
   ],
   "GET /api/infinity/billing/partner-licenses": [
    "AW-04"
@@ -695,21 +639,6 @@
   "GET /api/knowledge/standards": [
    "AW-05",
    "AW-06N"
-  ],
-  "GET /api/leadership-packets": [
-   "AW-02"
-  ],
-  "GET /api/leadership-packets/{packet_id}": [
-   "AW-02"
-  ],
-  "GET /api/leadership-packets/{packet_id}/docx": [
-   "AW-02"
-  ],
-  "GET /api/leadership-packets/{packet_id}/pdf": [
-   "AW-02"
-  ],
-  "GET /api/leadership-packets/{packet_id}/pptx": [
-   "AW-02"
   ],
   "GET /api/mentor/coaching-effectiveness": [
    "AW-05",
@@ -1068,18 +997,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "GET /api/packet-release-holds": [
-   "AW-02"
-  ],
-  "GET /api/packet-release-overrides": [
-   "AW-02"
-  ],
-  "GET /api/packet-releases": [
-   "AW-02"
-  ],
-  "GET /api/packet-releases/{release_id}": [
-   "AW-02"
-  ],
   "GET /api/patient-safety/capa-effectiveness": [
    "AW-03",
    "AW-06M"
@@ -1345,24 +1262,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "GET /api/release-governance/dashboard": [
-   "AW-02"
-  ],
-  "GET /api/release-governance/exceptions": [
-   "AW-02"
-  ],
-  "GET /api/release-governance/packets/{packet_id}/status": [
-   "AW-02"
-  ],
-  "GET /api/release-governance/readiness": [
-   "AW-02"
-  ],
-  "GET /api/retention-policies": [
-   "AW-02"
-  ],
-  "GET /api/retention-policies/evaluate/{artifact_type}": [
-   "AW-02"
-  ],
   "GET /api/reviewer-queues": [
    "AW-05",
    "AW-06N"
@@ -1382,9 +1281,6 @@
   "GET /api/scenario-analysis/{inspection_id}/workflow-impact": [
    "AW-05",
    "AW-06N"
-  ],
-  "GET /api/scheduled-leadership-packets/deliveries": [
-   "AW-02"
   ],
   "GET /api/sentinel/ai-health": [
    "AW-05",
@@ -1485,37 +1381,6 @@
   "GET /api/standards/regional-deployments": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/tenant-analytics/export.bundle.zip": [
-   "AW-01",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/tenant-analytics/export.csv": [
-   "AW-01",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/tenant-analytics/export.json": [
-   "AW-01",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/tenant-analytics/export.xlsx": [
-   "AW-01",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/tenant-analytics/summary": [
-   "AW-01",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/tenant-setup/readiness": [
-   "AW-02"
-  ],
-  "GET /api/trust-center/summary": [
-   "AW-02"
   ],
   "GET /api/unknown-findings": [
    "AW-06N"
@@ -1755,9 +1620,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "POST /api/approval-notifications/test-latest": [
-   "AW-02"
-  ],
   "POST /api/baseline-library/images/{link_id}/activate": [
    "AW-05",
    "AW-06N"
@@ -1804,9 +1666,6 @@
   ],
   "POST /api/commercial/customer-success/snapshot": [
    "AW-04"
-  ],
-  "POST /api/customer-operations-hub/actions/run-sla-scan": [
-   "AW-02"
   ],
   "POST /api/dataset-registry/images": [
    "AW-05",
@@ -1858,9 +1717,6 @@
    "AW-04",
    "AW-06M"
   ],
-  "POST /api/executive-scorecards/generate": [
-   "AW-02"
-  ],
   "POST /api/forge/workflows/{workflow_id}/clone": [
    "AW-05",
    "AW-06N"
@@ -1872,39 +1728,6 @@
   "POST /api/global-intelligence/enroll": [
    "AW-03",
    "AW-06M"
-  ],
-  "POST /api/governance-approvals/request": [
-   "AW-02"
-  ],
-  "POST /api/governance-approvals/{approval_id}/approve": [
-   "AW-02"
-  ],
-  "POST /api/governance-approvals/{approval_id}/reject": [
-   "AW-02"
-  ],
-  "POST /api/governance-command-center/actions/create-hold": [
-   "AW-02"
-  ],
-  "POST /api/governance-command-center/actions/emergency-override": [
-   "AW-02"
-  ],
-  "POST /api/governance-command-center/actions/request-release": [
-   "AW-02"
-  ],
-  "POST /api/governance-command-center/actions/resolve-sla-event": [
-   "AW-02"
-  ],
-  "POST /api/governance-command-center/actions/run-sla-scan": [
-   "AW-02"
-  ],
-  "POST /api/governance-sla-scanner/run": [
-   "AW-02"
-  ],
-  "POST /api/governance-sla/policies": [
-   "AW-02"
-  ],
-  "POST /api/governance-sla/run": [
-   "AW-02"
   ],
   "POST /api/growth/reference-customers": [
    "AW-04"
@@ -2031,9 +1854,6 @@
   "POST /api/knowledge/standards/{standard_id}/deactivate": [
    "AW-05",
    "AW-06N"
-  ],
-  "POST /api/legal-hold": [
-   "AW-02"
   ],
   "POST /api/ml/images/{image_id}/labels": [
    "AW-01",
@@ -2268,24 +2088,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "POST /api/packet-release-holds": [
-   "AW-02"
-  ],
-  "POST /api/packet-release-holds/{hold_id}/clear": [
-   "AW-02"
-  ],
-  "POST /api/packet-release-overrides/emergency": [
-   "AW-02"
-  ],
-  "POST /api/packet-releases/request": [
-   "AW-02"
-  ],
-  "POST /api/packet-releases/{release_id}/approve": [
-   "AW-02"
-  ],
-  "POST /api/packet-releases/{release_id}/reject": [
-   "AW-02"
-  ],
   "POST /api/patient-safety/correlate": [
    "AW-03",
    "AW-06M"
@@ -2389,15 +2191,6 @@
   "POST /api/quality/improvement-initiatives": [
    "AW-05",
    "AW-06N"
-  ],
-  "POST /api/retention-enforcement/run": [
-   "AW-02"
-  ],
-  "POST /api/retention-policies": [
-   "AW-02"
-  ],
-  "POST /api/retention-policies/{policy_id}/toggle": [
-   "AW-02"
   ],
   "POST /api/scenario-analysis/{inspection_id}/generate": [
    "AW-05",
