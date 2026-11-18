@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 2, principal tenant (parent 48183fa)",
+ "baseline_commit": "remediation batch 2, governance decisions (parent 6b20bb9)",
  "sweeps": [
   "sqlite"
  ],
@@ -106,9 +106,6 @@
    "AW-03",
    "AW-06M"
   ],
-  "GET /api/global-intelligence/network-stats": [
-   "AW-09"
-  ],
   "GET /api/global-intelligence/participant-status": [
    "AW-03",
    "AW-06M"
@@ -155,9 +152,6 @@
   "GET /api/infrastructure/instruments/{instrument_id}/passport": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/infrastructure/platform-stats": [
-   "AW-09"
   ],
   "GET /api/infrastructure/quality-registry": [
    "AW-03",
@@ -337,9 +331,6 @@
   "GET /api/network/opt-in/status": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/network/participants/count": [
-   "AW-09"
   ],
   "GET /api/network/recall-signals": [
    "AW-03",

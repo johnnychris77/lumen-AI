@@ -589,13 +589,17 @@ def infrastructure_dashboard(
 
 
 # ---------------------------------------------------------------------------
-# Public: platform stats (no auth)
+# Platform stats (authenticated; governance decision GD-1)
 # ---------------------------------------------------------------------------
 
 
 @router.get("/platform-stats")
-def platform_stats(db: Session = Depends(get_db)) -> Any:
-    """Public platform statistics."""
+def platform_stats(request: Request, db: Session = Depends(get_db)) -> Any:
+    """Platform statistics. Authenticated."""
+    # Governance decision GD-1 (P472-03): operational counters require a verified
+    # caller unless specifically approved for public release. This route used to be
+    # public. The figures are network-wide totals, so they are not tenant-scoped.
+    require_enterprise_auth(request, db=db)
     total_identities = db.query(InstrumentDigitalIdentity).count()
     total_events = db.query(InstrumentPassportEvent).count()
     return {

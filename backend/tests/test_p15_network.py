@@ -44,8 +44,10 @@ class TestNetworkOptIn:
         r2 = client.get("/api/network/opt-in/status", headers=HEADERS)
         assert r2.json()["is_active"] is False
 
-    def test_participant_count_is_public(self):
-        r = client.get("/api/network/participants/count")
+    def test_participant_count_requires_authentication(self):
+        # P472-03 governance decision GD-1: the counter is no longer public.
+        assert client.get("/api/network/participants/count").status_code == 401
+        r = client.get("/api/network/participants/count", headers=HEADERS)
         assert r.status_code == 200
         data = r.json()
         assert "active_participants" in data
@@ -386,7 +388,7 @@ class TestAnonymization:
 
     def test_participant_count_not_below_minimum(self):
         # opt-in to ensure at least 1 participant exists, but count should be >= 0
-        r = client.get("/api/network/participants/count")
+        r = client.get("/api/network/participants/count", headers=HEADERS)
         assert r.status_code == 200
         data = r.json()
         assert data["active_participants"] >= 0

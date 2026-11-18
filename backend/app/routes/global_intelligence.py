@@ -645,9 +645,14 @@ def notify_recall_warning(
 
 @router.get("/api/global-intelligence/network-stats")
 def network_stats(
+    request: Request,
     db: Session = Depends(get_db),
 ) -> Any:
-    """Public network statistics (no authentication required)."""
+    """Network statistics. Authenticated."""
+    # Governance decision GD-1 (P472-03): operational counters require a verified
+    # caller unless specifically approved for public release. This route used to be
+    # public. The figures are network-wide totals, so they are not tenant-scoped.
+    require_enterprise_auth(request, db=db)
     from app.models.global_intelligence import GSINParticipant as NP
 
     active_participants = db.query(NP).filter(NP.enrollment_status == "active").count()

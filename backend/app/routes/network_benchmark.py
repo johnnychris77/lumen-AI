@@ -219,8 +219,12 @@ def my_percentile(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/participants/count")
-def participant_count(db: Session = Depends(get_db)):
-    """Public endpoint — shows network size without revealing participant identities."""
+def participant_count(request: Request, db: Session = Depends(get_db)):
+    """Network size, without revealing participant identities. Authenticated."""
+    # Governance decision GD-1 (P472-03): operational counters require a verified
+    # caller unless specifically approved for public release. This route used to be
+    # public. The figures are network-wide totals, so they are not tenant-scoped.
+    require_enterprise_auth(request, db=db)
     count = db.query(NetworkParticipant).filter(NetworkParticipant.is_active == True).count()  # noqa: E712
     return {
         "active_participants": count,

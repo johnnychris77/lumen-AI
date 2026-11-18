@@ -333,19 +333,21 @@ class TestContribute:
 
 
 class TestNetworkStats:
-    def test_network_stats_returns_200_no_auth(self):
-        r = client.get("/api/global-intelligence/network-stats", headers=NO_AUTH)
+    def test_network_stats_requires_authentication(self):
+        # P472-03 governance decision GD-1: the counter is no longer public.
+        assert client.get("/api/global-intelligence/network-stats", headers=NO_AUTH).status_code == 401
+        r = client.get("/api/global-intelligence/network-stats", headers=HEADERS)
         assert r.status_code == 200
 
     def test_network_stats_has_participant_count(self):
-        r = client.get("/api/global-intelligence/network-stats", headers=NO_AUTH)
+        r = client.get("/api/global-intelligence/network-stats", headers=HEADERS)
         assert r.status_code == 200
         body = r.json()
         assert "participant_count" in body
         assert isinstance(body["participant_count"], int)
 
     def test_network_stats_has_regions(self):
-        r = client.get("/api/global-intelligence/network-stats")
+        r = client.get("/api/global-intelligence/network-stats", headers=HEADERS)
         assert r.status_code == 200
         body = r.json()
         assert "regions_covered" in body
