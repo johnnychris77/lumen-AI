@@ -100,12 +100,17 @@ router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
 # below, so no query in this module can reach another tenant's rows and an object
 # id that belongs to another tenant behaves exactly like one that does not exist.
 #
-# Not tenant-owned yet: ``EnterpriseVendorBaselineSubscription`` and
-# ``VendorBaselineAuditEvent`` are one vendor baseline library for all tenants
-# (the tables have no tenant column). Access requires authentication but is not
-# partitioned by tenant. Governance decision GD-3 says they are to become
-# tenant-private; that is decided and NOT implemented (see
-# docs/enterprise-readiness/p472-03-security-governance-decisions.md).
+# Vendor baseline library (GD-3): ``EnterpriseVendorBaselineSubscription`` and
+# ``VendorBaselineAuditEvent`` carry a ``tenant_id`` stamped from the verified
+# tenant of the submitting request. Every read, approval, match, scoring lookup,
+# audit-trail read, packet trail and count in this module is scoped to the
+# caller's tenant through the helpers below, so a baseline id owned by another
+# tenant behaves exactly like one that does not exist. Rows written before GD-3
+# have ``tenant_id IS NULL`` and are visible to no tenant (fail-closed) until the
+# baseline workflow owner attributes them — a documented deployment precondition
+# (see docs/enterprise-readiness/p472-03-security-governance-decisions.md). The
+# authorized cross-tenant sharing path GD-3 anticipates is NOT built here; that
+# policy is undecided.
 
 def _tq(db: Session, model, tenant_id: str):
     """``db.query(model)`` restricted to the caller's tenant."""
@@ -590,9 +595,9 @@ def list_enterprise_intake_history(
 
 
 
-def _vendor_baseline_audit_events_for_packet(db: Session, baseline_id: int) -> list[dict]:
+def _vendor_baseline_audit_events_for_packet(db: Session, tenant_id: str, baseline_id: int) -> list[dict]:
     events = (
-        db.query(VendorBaselineAuditEvent)
+        _tq(db, VendorBaselineAuditEvent, tenant_id)
         .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
         .order_by(VendorBaselineAuditEvent.created_at.asc())
         .all()
@@ -619,9 +624,12 @@ def _vendor_baseline_audit_events_for_packet(db: Session, baseline_id: int) -> l
     ]
 
 
-def _vendor_baseline_audit_trail_for_packet(db: Session, limit: int = 10) -> list[dict]:
+def _vendor_baseline_audit_trail_for_packet(db: Session, tenant_id: str, limit: int = 10) -> list[dict]:
+    # GD-3: a governance packet only carries the requesting tenant's own vendor
+    # baseline audit trail. Baselines owned by other tenants (and unattributed
+    # rows) are excluded.
     rows = (
-        db.query(EnterpriseVendorBaselineSubscription)
+        _tq(db, EnterpriseVendorBaselineSubscription, tenant_id)
         .order_by(EnterpriseVendorBaselineSubscription.id.desc())
         .limit(limit)
         .all()
@@ -633,7 +641,7 @@ def _vendor_baseline_audit_trail_for_packet(db: Session, limit: int = 10) -> lis
         if not baseline_id:
             continue
 
-        audit_events = _vendor_baseline_audit_events_for_packet(db, int(baseline_id))
+        audit_events = _vendor_baseline_audit_events_for_packet(db, tenant_id, int(baseline_id))
 
         if not audit_events:
             continue
@@ -773,7 +781,7 @@ def get_enterprise_governance_packet(
             .all()
         )
 
-    vendor_baseline_audit_trail = _vendor_baseline_audit_trail_for_packet(db)
+    vendor_baseline_audit_trail = _vendor_baseline_audit_trail_for_packet(db, tenant_id)
     vendor_baseline_audit_event_count = sum(
         item.get("audit_event_count", 0)
         for item in vendor_baseline_audit_trail
@@ -1154,7 +1162,7 @@ def get_enterprise_governance_packet_pdf(
     story.append(Spacer(1, 18))
     story.append(Paragraph("Vendor Baseline Audit Trail", styles["Heading2"]))
 
-    vendor_baseline_audit_trail = _vendor_baseline_audit_trail_for_packet(db)
+    vendor_baseline_audit_trail = _vendor_baseline_audit_trail_for_packet(db, tenant_id)
 
     if vendor_baseline_audit_trail:
         for baseline in vendor_baseline_audit_trail[:5]:
@@ -2548,7 +2556,7 @@ def get_enterprise_governance_export_package(
 
     vendor_baseline_audit_event_count = 0
     try:
-        vendor_baseline_audit_event_count = db.query(VendorBaselineAuditEvent).count()
+        vendor_baseline_audit_event_count = _tq(db, VendorBaselineAuditEvent, tenant_id).count()
         audit_event_count += vendor_baseline_audit_event_count
     except Exception:
         vendor_baseline_audit_event_count = 0
@@ -9548,6 +9556,7 @@ def create_enterprise_vendor_baseline_record(
     subscription_tier = payload.get("subscription_tier") or "vendor_standard"
 
     db_record = EnterpriseVendorBaselineSubscription(
+        tenant_id=tenant_id,
         vendor_name=vendor_name,
         instrument_name=instrument_name,
         instrument_category=instrument_category,
@@ -9603,6 +9612,7 @@ def create_enterprise_vendor_baseline_record(
         log_vendor_baseline_audit_event(
             db=db,
             baseline_id=record.get("baseline_id"),
+            tenant_id=tenant_id,
             event_type="baseline_submitted",
             actor=request.headers.get("x-lumenai-actor", record.get("vendor_name", "vendor")) if request else record.get("vendor_name", "vendor"),
             actor_role=request.headers.get("x-lumenai-role", "vendor") if request else "vendor",
@@ -9696,7 +9706,11 @@ def list_enterprise_vendor_baseline_records(
 
     safe_limit = max(1, min(limit, 200))
 
-    db_records = db.query(EnterpriseVendorBaselineSubscription).order_by(EnterpriseVendorBaselineSubscription.id.desc()).all()
+    db_records = (
+        _tq(db, EnterpriseVendorBaselineSubscription, tenant_id)
+        .order_by(EnterpriseVendorBaselineSubscription.id.desc())
+        .all()
+    )
     records = [_vendor_baseline_record_to_dict(record) for record in db_records]
 
     if vendor_name:
@@ -9736,7 +9750,7 @@ def list_enterprise_vendor_baseline_records(
         "library_type": "vendor_baseline_subscription_library",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "record_count": len(records),
-        "total_library_count": db.query(EnterpriseVendorBaselineSubscription).count(),
+        "total_library_count": _tq(db, EnterpriseVendorBaselineSubscription, tenant_id).count(),
         "filters": {
             "vendor_name": vendor_name,
             "instrument_name": instrument_name,
@@ -9783,11 +9797,11 @@ def approve_enterprise_vendor_baseline_record(
 
     payload = payload or {}
 
-    db_record = (
-        db.query(EnterpriseVendorBaselineSubscription)
-        .filter(EnterpriseVendorBaselineSubscription.id == baseline_id)
-        .first()
-    )
+    # GD-3: scope the lookup to the caller's tenant. A baseline id that belongs
+    # to another tenant (or an unattributed row) resolves to None here, so it is
+    # indistinguishable from a non-existent record — a caller cannot approve, or
+    # probe the existence of, another tenant's baseline.
+    db_record = _tget(db, tenant_id, EnterpriseVendorBaselineSubscription, baseline_id)
 
     if not db_record:
         return {
@@ -9851,6 +9865,7 @@ def approve_enterprise_vendor_baseline_record(
             log_vendor_baseline_audit_event(
                 db=db,
                 baseline_id=baseline_id,
+                tenant_id=tenant_id,
                 event_type="baseline_approved",
                 actor=record.get("approved_by") or (
                     request.headers.get("x-lumenai-actor", "hospital-reviewer-demo")
@@ -9877,6 +9892,7 @@ def approve_enterprise_vendor_baseline_record(
             log_vendor_baseline_audit_event(
                 db=db,
                 baseline_id=baseline_id,
+                tenant_id=tenant_id,
                 event_type="baseline_used_in_scoring",
                 actor="scoring-engine",
                 actor_role="system",
@@ -9913,7 +9929,8 @@ def match_enterprise_vendor_baseline_record(
 
     matches = []
 
-    db_records = db.query(EnterpriseVendorBaselineSubscription).all()
+    # GD-3: only the caller's own tenant's baselines are eligible for matching.
+    db_records = _tq(db, EnterpriseVendorBaselineSubscription, tenant_id).all()
     records = [_vendor_baseline_record_to_dict(record) for record in db_records]
 
     for record in records:
@@ -9993,8 +10010,11 @@ def get_enterprise_vendor_baseline_audit_trail(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
-    # Verified caller required. The vendor baseline library is shared, not tenant-owned.
-    authorized_tenant(_require_vendor_baseline_audit_access(request, db=db))
+    # GD-3: the vendor baseline library is tenant-private. The audit trail for a
+    # baseline is only visible to the tenant that owns that baseline; a baseline
+    # id belonging to another tenant (or an unattributed row) resolves to nothing
+    # and returns 404, exactly as a non-existent id does.
+    tenant_id = authorized_tenant(_require_vendor_baseline_audit_access(request, db=db))
 
     """
     Return a derived audit trail for a vendor baseline record.
@@ -10023,8 +10043,9 @@ def get_enterprise_vendor_baseline_audit_trail(
             db_record = None
 
             # Some versions expose baseline_id in the API response from row.id,
-            # not from a physical baseline_id column.
-            query = db.query(EnterpriseVendorBaselineSubscription)
+            # not from a physical baseline_id column. GD-3: restrict to the
+            # caller's tenant so a foreign baseline id cannot be read.
+            query = _tq(db, EnterpriseVendorBaselineSubscription, tenant_id)
 
             if hasattr(EnterpriseVendorBaselineSubscription, "baseline_id"):
                 db_record = (
@@ -10096,7 +10117,7 @@ def get_enterprise_vendor_baseline_audit_trail(
             break
 
     persistent_events = (
-        db.query(VendorBaselineAuditEvent)
+        _tq(db, VendorBaselineAuditEvent, tenant_id)
         .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
         .order_by(VendorBaselineAuditEvent.created_at.asc())
         .all()
@@ -10634,10 +10655,10 @@ def get_findings_kpi_summary(
         if (f.severity or "").lower() in ("high", "critical"):
             high_risk += 1
 
-    # Vendor baseline counts
-    total_baselines = db.query(EnterpriseVendorBaselineSubscription).count()
+    # Vendor baseline counts (GD-3: only the caller's own tenant's baselines)
+    total_baselines = _tq(db, EnterpriseVendorBaselineSubscription, tenant_id).count()
     approved_baselines = (
-        db.query(EnterpriseVendorBaselineSubscription)
+        _tq(db, EnterpriseVendorBaselineSubscription, tenant_id)
         .filter(
             EnterpriseVendorBaselineSubscription.approval_status.in_(
                 ["approved", "hospital_approved", "vendor_approved"]
@@ -10646,14 +10667,14 @@ def get_findings_kpi_summary(
         .count()
     )
     pending_baselines = (
-        db.query(EnterpriseVendorBaselineSubscription)
+        _tq(db, EnterpriseVendorBaselineSubscription, tenant_id)
         .filter(
             EnterpriseVendorBaselineSubscription.approval_status.ilike("%pending%")
         )
         .count()
     )
     vendor_submissions = (
-        db.query(EnterpriseVendorBaselineSubscription)
+        _tq(db, EnterpriseVendorBaselineSubscription, tenant_id)
         .filter(EnterpriseVendorBaselineSubscription.baseline_source == "vendor")
         .count()
     )

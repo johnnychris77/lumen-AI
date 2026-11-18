@@ -144,6 +144,7 @@ def run_seed() -> None:
         ).first()
         if not pending_baseline:
             pending_baseline = EnterpriseVendorBaselineSubscription(
+                tenant_id="demo-tenant",
                 vendor_name="Stryker Medical Devices",
                 instrument_name="Frazier Suction Tube 8Fr",
                 instrument_category="lumened instrument",
@@ -185,6 +186,7 @@ def run_seed() -> None:
         ).first()
         if not approved_baseline:
             approved_baseline = EnterpriseVendorBaselineSubscription(
+                tenant_id="demo-tenant",
                 vendor_name="Stryker Medical Devices",
                 instrument_name="Kerrison Rongeur 3mm",
                 instrument_category="non-lumened instrument",

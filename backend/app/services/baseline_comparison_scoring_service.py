@@ -817,7 +817,7 @@ def _resolve_from_library(
     return None
 
 
-def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] | None:
+def _resolve_from_uploaded(db: Session, instrument_type: str, tenant_id: str) -> dict[str, Any] | None:
     """Check the baselines users actually upload/approve through the UI.
 
     The baseline upload + review workflow writes to
@@ -830,6 +830,12 @@ def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] 
     Matches case-insensitively on instrument_category OR instrument_name and
     only accepts records whose approval/baseline status is cleared for scoring.
     Honours the manufacturer → vendor → hospital priority by source.
+
+    GD-3: vendor baselines are tenant-private. Only the caller's own tenant's
+    baselines may drive this tenant's clinical scoring; a baseline owned by
+    another tenant (or an unattributed row with tenant_id IS NULL) is never
+    selected. ``tenant_id`` is the verified tenant threaded down from
+    ``resolve_baseline`` — never a client-supplied value.
     """
     from sqlalchemy import func, or_
     from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription as Sub
@@ -838,6 +844,7 @@ def _resolve_from_uploaded(db: Session, instrument_type: str) -> dict[str, Any] 
 
     rows = (
         db.query(Sub)
+        .filter(Sub.tenant_id == tenant_id)
         .filter(
             or_(
                 func.lower(Sub.instrument_category) == instrument_type.lower(),
@@ -901,7 +908,7 @@ def resolve_baseline(
     if resolution is not None:
         return resolution
 
-    resolution = _resolve_from_uploaded(db, instrument_type)
+    resolution = _resolve_from_uploaded(db, instrument_type, tenant_id)
     if resolution is not None:
         return resolution
 

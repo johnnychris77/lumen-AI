@@ -8,6 +8,7 @@ def log_vendor_baseline_audit_event(
     db: Session,
     baseline_id: int,
     event_type: str,
+    tenant_id: Optional[str] = None,
     actor: Optional[str] = None,
     actor_role: Optional[str] = None,
     decision: Optional[str] = None,
@@ -22,6 +23,7 @@ def log_vendor_baseline_audit_event(
 ):
     event = VendorBaselineAuditEvent(
         baseline_id=baseline_id,
+        tenant_id=tenant_id,
         event_type=event_type,
         actor=actor,
         actor_role=actor_role,

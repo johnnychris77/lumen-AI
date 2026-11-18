@@ -269,7 +269,7 @@ def test_typed_identifiers_do_not_conflate_tables():
         assert lib["vendor_subscription_id"] is None
         # The uploaded (vendor-subscription) resolver, when it matches, must NOT
         # put a subscription id where a library-entry id is expected.
-        up = _resolve_from_uploaded(db, ITYPE)
+        up = _resolve_from_uploaded(db, ITYPE, "t")
         if up is not None:
             assert up["baseline_library_entry_id"] is None
             assert up["vendor_subscription_id"] is not None

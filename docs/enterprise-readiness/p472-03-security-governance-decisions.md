@@ -26,7 +26,7 @@ this document does not guess.
 |---|---|---|---|---|
 | GD-1 | Public operational counters require authentication unless specifically approved for public release | Product owner, with the security lead | Yes, batch 2 | Pending |
 | GD-2 | Cross-tenant audit verification requires an explicitly authorized platform-security role, a justified purpose and tamper-evident access logging | Security lead, with the compliance / privacy officer | Fail-closed half only: verification is limited to the caller's own tenant. The authorized cross-tenant path is **not built** | Pending |
-| GD-3 | Vendor baselines are tenant-private unless an approved sharing policy explicitly permits access | Product owner, with the clinical quality lead and the data-governance owner | **No.** Decided, not implemented. Needs a schema change and a decision on existing rows | Pending |
+| GD-3 | Vendor baselines are tenant-private unless an approved sharing policy explicitly permits access | Product owner, with the clinical quality lead and the data-governance owner | **Private default enforced** in the draft PR (schema + all reads/approvals/scoring scoped; pre-GD-3 rows quarantined). The sharing-grant mechanism is **not** built (undecided). Deployment precondition: existing baselines are attributed first | Pending |
 | GD-4 | Ownerless CAPAs remain quarantined until ownership can be established through verifiable records | Quality / regulatory lead, with the data-governance owner | Yes, since batch 1; pinned by tests | Pending |
 
 ---
@@ -191,28 +191,39 @@ approval makes a baseline "approved" for all, and baseline comparison scores
 one tenant's findings against a baseline another tenant approved (batch 1,
 item R2).
 
-**Status: decided, not implemented.** This is the one policy of the four that
-batch 2 does not enforce. A strict expected-failure test
-(`test_gd3_a_vendor_baseline_submitted_in_one_tenant_is_not_listed_in_another`)
-states the required behaviour and keeps the gap visible in every test run. The reasons are stated so that the omission is a
-recorded decision and not an oversight:
+**Status: private default enforced in the draft PR; the sharing-grant
+mechanism is not built; sign-off and the data-attribution precondition are
+pending.** The private-by-default half of the policy is now in code (see the
+commit below). The `TestGd3VendorBaselinesAreTenantPrivate` suite in
+`test_p472_03_governance_policies.py` replaces the former strict expected
+failure and pins the enforced behaviour: a baseline owned by one tenant is not
+listed, read, approved, audited or scored by another, and an unattributed
+(pre-GD-3) row is visible to none. What is implemented and what is deliberately
+deferred:
 
-- It needs a schema change on two tables (an Alembic migration) and changes in
-  nine modules: about twenty query sites in `enterprise_intake.py`, four
-  services (`veritas_baseline_matching_service`,
-  `veritas_baseline_governance_service`,
-  `veritas_baseline_resolution_service`,
-  `baseline_comparison_scoring_service`), two model modules and the demo seed.
-- Existing rows have no owner. The fail-closed choice is to quarantine them,
-  as with CAPAs (GD-4). Doing that removes every existing baseline from every
-  tenant at once, and baseline comparison then reports "no manufacturer
-  baseline" for every finding until rows are attributed. That is a change to
-  clinical-quality workflow output and should not happen as a side effect of a
-  tenant-isolation batch, before the owner of that workflow has agreed how
-  existing rows are attributed.
-- The current behaviour is authenticated and limited to hospital and vendor
-  roles. It is a confidentiality and governance gap between tenants, not
-  anonymous exposure.
+- **Implemented.** A `tenant_id` column on both tables (one Alembic migration,
+  verified up and down on PostgreSQL 16), stamped from the verified tenant of
+  the submitting request and never from the body. Every list, approval, match,
+  audit-trail read, governance-packet trail, count and the two baseline
+  resolution services (`baseline_comparison_scoring_service`,
+  `veritas_baseline_resolution_service`) are scoped to the caller's tenant;
+  another tenant's baseline id answers exactly as a missing one does. The demo
+  seed attributes its rows to `demo-tenant`.
+- **Deferred (undecided policy).** The sharing-grant mechanism (requirement 4)
+  is **not** built. Until it is, there is no cross-tenant access at all — a
+  manufacturer-published baseline meant for every customer cannot yet be shared
+  and must be submitted per tenant. Building the grant needs the sharing policy
+  decided first.
+- **Deployment precondition (fail-closed consequence).** Rows written before
+  GD-3 have `tenant_id IS NULL` and are quarantined — visible to no tenant and
+  usable by no tenant's scoring, exactly as ownerless CAPAs are under GD-4.
+  Shipping this removes every existing baseline from every tenant at once, and
+  baseline comparison then reports "no manufacturer baseline" for every finding
+  until rows are attributed. That is a change to clinical-quality workflow
+  output and **must not ship** before the owner of that workflow has agreed how
+  existing rows are attributed (from the submission audit event, the approving
+  administrator's membership at the time, or a signed statement from the data
+  owner). The PR stays in draft under HOLD / NO-GO for this reason among others.
 
 **Enforcement requirements (for the batch that implements it)**
 

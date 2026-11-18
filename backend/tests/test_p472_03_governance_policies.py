@@ -218,31 +218,180 @@ class TestGd2HashVerification:
             assert not ({"filters", "manifest", "bundle", "filename", "export_count"} & set(body)), path
 
 
-# ══ GD-3 — vendor baselines are tenant-private (NOT IMPLEMENTED) ══════════════
+# ══ GD-3 — vendor baselines are tenant-private (ENFORCED) ════════════════════
+#
+# GD-3 is now implemented: ``EnterpriseVendorBaselineSubscription`` and
+# ``VendorBaselineAuditEvent`` carry a ``tenant_id`` stamped from the verified
+# tenant of the submitting request, and every list/approve/match/audit/scoring
+# read is scoped to the caller's tenant. A baseline owned by another tenant (or
+# an unattributed pre-GD-3 row with tenant_id IS NULL) is invisible and behaves
+# exactly like a non-existent record. The authorized cross-tenant sharing path
+# GD-3 anticipates is deliberately NOT built; these tests pin the private
+# default so it cannot regress without a visible decision.
 
-@pytest.mark.xfail(strict=True, reason=(
-    "OPEN GOVERNANCE DECISION GD-3: the vendor baseline library has no tenant ownership; "
-    "one tenant lists and approves baselines submitted in another. Decided, not implemented."))
-def test_gd3_a_vendor_baseline_submitted_in_one_tenant_is_not_listed_in_another(tenants):
+
+def _seed_vendor_baseline(
+    tenant_id: str | None,
+    *,
+    marker: str,
+    instrument_category: str = "",
+    approval_status: str = "pending_hospital_review",
+    baseline_status: str = "vendor_submitted",
+    baseline_source: str = "vendor",
+    with_audit_event: bool = False,
+) -> int:
     from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription
+    from app.services.vendor_baseline_audit_service import log_vendor_baseline_audit_event
 
-    a, b = tenants
-    marker = _uid("gd3-baseline")
     db = SessionLocal()
     try:
-        # The table has no tenant column, which is the finding: this row stands for
-        # a baseline that a vendor submitted to tenant B.
-        db.add(EnterpriseVendorBaselineSubscription(vendor_name="vendor-of-b", instrument_name=marker))
+        row = EnterpriseVendorBaselineSubscription(
+            tenant_id=tenant_id,
+            vendor_name=f"vendor-{marker}",
+            instrument_name=marker,
+            instrument_category=instrument_category or marker,
+            approval_status=approval_status,
+            baseline_status=baseline_status,
+            baseline_source=baseline_source,
+        )
+        db.add(row)
         db.commit()
+        db.refresh(row)
+        baseline_id = row.id
+        if with_audit_event:
+            log_vendor_baseline_audit_event(
+                db=db,
+                baseline_id=baseline_id,
+                tenant_id=tenant_id,
+                event_type="baseline_submitted",
+                notes=marker,
+                new_status="pending_hospital_review",
+            )
+            db.commit()
+        return baseline_id
     finally:
         db.close()
-    _, admin_a = _user("hospital_admin", a)
 
-    listed = client.get("/api/enterprise/vendor-baseline-subscription/baselines", headers=admin_a)
 
-    assert listed.status_code == 200, listed.text[:200]
-    assert marker not in listed.text, (
-        "tenant A's administrator sees a vendor baseline that belongs to tenant B")
+def _baseline_row(baseline_id: int):
+    from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription
+
+    db = SessionLocal()
+    try:
+        return db.get(EnterpriseVendorBaselineSubscription, baseline_id)
+    finally:
+        db.close()
+
+
+class TestGd3VendorBaselinesAreTenantPrivate:
+    def test_a_baseline_submitted_in_one_tenant_is_not_listed_in_another(self, tenants):
+        a, b = tenants
+        marker = _uid("gd3-baseline")
+        _seed_vendor_baseline(b, marker=marker)
+
+        _, admin_a = _user("hospital_admin", a)
+        _, admin_b = _user("hospital_admin", b)
+
+        path = "/api/enterprise/vendor-baseline-subscription/baselines"
+        seen_by_a = client.get(path, headers=admin_a)
+        seen_by_b = client.get(path, headers=admin_b)
+
+        assert seen_by_a.status_code == 200 and seen_by_b.status_code == 200
+        assert marker not in seen_by_a.text, "tenant A sees tenant B's vendor baseline"
+        # It is owned, not globally hidden: its own tenant still sees it.
+        assert marker in seen_by_b.text, "tenant B cannot see its own vendor baseline"
+
+    def test_a_tenant_cannot_approve_another_tenants_baseline(self, tenants):
+        a, b = tenants
+        marker = _uid("gd3-approve")
+        baseline_id = _seed_vendor_baseline(b, marker=marker)
+
+        _, admin_a = _user("hospital_admin", a)
+        approve = client.post(
+            f"/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/approve",
+            headers=admin_a,
+            json={},
+        )
+        # A foreign baseline id is indistinguishable from a missing one.
+        assert approve.status_code == 200 and approve.json()["status"] == "not_found"
+        # The record was not mutated by the foreign tenant.
+        row = _baseline_row(baseline_id)
+        assert row is not None and row.approval_status == "pending_hospital_review"
+        assert row.approved_by in (None, "")
+
+        # The owning tenant can approve it.
+        _, admin_b = _user("hospital_admin", b)
+        ok = client.post(
+            f"/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/approve",
+            headers=admin_b,
+            json={},
+        )
+        assert ok.status_code == 200 and ok.json()["status"] == "success"
+        assert _baseline_row(baseline_id).approval_status == "hospital_approved"
+
+    def test_a_tenant_cannot_read_another_tenants_baseline_audit_trail(self, tenants):
+        a, b = tenants
+        marker = _uid("gd3-audit")
+        baseline_id = _seed_vendor_baseline(b, marker=marker, with_audit_event=True)
+
+        _, admin_a = _user("hospital_admin", a)
+        _, admin_b = _user("hospital_admin", b)
+
+        path = f"/api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/audit"
+        foreign = client.get(path, headers=admin_a)
+        owner = client.get(path, headers=admin_b)
+
+        assert foreign.status_code == 404, foreign.text[:200]
+        assert owner.status_code == 200 and marker in owner.text
+
+    def test_scoring_only_resolves_the_callers_own_tenant_baseline(self, tenants):
+        """The clinical-quality leak: an approved baseline owned by tenant B must
+        never drive tenant A's scoring, and an unattributed row drives nobody's."""
+        from app.services.baseline_comparison_scoring_service import resolve_baseline
+
+        a, b = tenants
+        itype = _uid("gd3-scoretype")
+        _seed_vendor_baseline(
+            b, marker=_uid("gd3-score"), instrument_category=itype,
+            approval_status="approved", baseline_status="approved", baseline_source="manufacturer",
+        )
+
+        db = SessionLocal()
+        try:
+            for_a = resolve_baseline(db, itype, a)
+            for_b = resolve_baseline(db, itype, b)
+        finally:
+            db.close()
+
+        assert for_a["baseline_found"] is False, "tenant B's baseline drove tenant A's scoring"
+        assert for_b["baseline_found"] is True, "tenant B could not use its own baseline for scoring"
+
+    def test_an_unattributed_baseline_is_visible_to_no_tenant(self, tenants):
+        """Fail-closed: rows written before GD-3 (tenant_id IS NULL) are quarantined
+        until the baseline workflow owner attributes them — visible to no tenant
+        and usable by no tenant's scoring."""
+        from app.services.baseline_comparison_scoring_service import resolve_baseline
+
+        a, b = tenants
+        marker = _uid("gd3-orphan")
+        itype = _uid("gd3-orphantype")
+        _seed_vendor_baseline(
+            None, marker=marker, instrument_category=itype,
+            approval_status="approved", baseline_status="approved", baseline_source="manufacturer",
+        )
+
+        _, admin_a = _user("hospital_admin", a)
+        _, admin_b = _user("hospital_admin", b)
+        path = "/api/enterprise/vendor-baseline-subscription/baselines"
+        assert marker not in client.get(path, headers=admin_a).text
+        assert marker not in client.get(path, headers=admin_b).text
+
+        db = SessionLocal()
+        try:
+            assert resolve_baseline(db, itype, a)["baseline_found"] is False
+            assert resolve_baseline(db, itype, b)["baseline_found"] is False
+        finally:
+            db.close()
 
 
 # ══ GD-4 — ownerless CAPAs stay quarantined ═══════════════════════════════════

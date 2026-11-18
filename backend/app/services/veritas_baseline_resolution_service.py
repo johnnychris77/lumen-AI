@@ -48,9 +48,12 @@ def _enrich_from_library(db: Session, entry_id: int) -> dict:
     }
 
 
-def _enrich_from_uploaded(db: Session, entry_id: int) -> dict:
+def _enrich_from_uploaded(db: Session, tenant_id: str, entry_id: int) -> dict:
+    # GD-3: vendor baselines are tenant-private. The entry_id is already the
+    # product of a tenant-scoped resolve, but the enrichment read is scoped to
+    # the same tenant as defence-in-depth so a foreign row can never be enriched.
     from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription as Sub
-    row = db.query(Sub).filter(Sub.id == entry_id).first()
+    row = db.query(Sub).filter(Sub.tenant_id == tenant_id, Sub.id == entry_id).first()
     if row is None:
         return {}
     return {
@@ -75,9 +78,9 @@ def resolve_governed_baseline(
         source_type = "baseline_library"
         hit = library_hit
     else:
-        uploaded_hit = _resolve_from_uploaded(db, instrument_type) if instrument_type else None
+        uploaded_hit = _resolve_from_uploaded(db, instrument_type, tenant_id) if instrument_type else None
         if uploaded_hit is not None:
-            enrichment = _enrich_from_uploaded(db, uploaded_hit["baseline_entry_id"])
+            enrichment = _enrich_from_uploaded(db, tenant_id, uploaded_hit["baseline_entry_id"])
             source_type = "enterprise_vendor_subscription"
             hit = uploaded_hit
         else:
