@@ -60,6 +60,19 @@ def verify_retained_provenance_columns(bind, *, revision: str = "") -> None:
             f"Migration {revision}: expected index '{RETAINED_INDEX}' is missing after upgrade.")
 
 
+def columns_needing_not_null(bind) -> list[str]:
+    """SEC-171-03: provenance columns that exist but are still NULLABLE.
+
+    That shape is produced by the application's startup column back-fill
+    (``app.db.column_migrator``), which adds columns nullable. The migration converges it
+    rather than failing its own post-condition check on a production-shaped database."""
+    present = {c["name"]: c for c in sa.inspect(bind).get_columns(RETAINED_TABLE)}
+    return [
+        name for name in RETAINED_NOT_NULL
+        if name in present and present[name].get("nullable", True)
+    ]
+
+
 def retained_has_research_provenance(bind) -> bool:
     """True if any retained_images row carries research provenance (would be lost on drop)."""
     cols = {c["name"] for c in sa.inspect(bind).get_columns(RETAINED_TABLE)}
@@ -93,9 +106,23 @@ def association_has_active_rows(bind, table: str) -> bool:
         sa.text(f"SELECT 1 FROM {table} WHERE status = 'active' LIMIT 1")).first() is not None
 
 
+def association_has_rows(bind, table: str) -> bool:
+    """True if the association table holds ANY row — active or withdrawn."""
+    if not sa.inspect(bind).has_table(table):
+        return False
+    return bind.execute(sa.text(f"SELECT 1 FROM {table} LIMIT 1")).first() is not None
+
+
 def assert_association_downgrade_allowed(bind, table: str, *, revision: str = "") -> None:
-    if association_has_active_rows(bind, table) and not downgrade_override_enabled():
+    """Refuse a downgrade that would drop per-owner authorization records.
+
+    SEC-171-03: this covers WITHDRAWN rows as well as active ones. An active row gates
+    retention; a withdrawn row is the record of who was authorized for which image and
+    when that ended. Neither may be dropped silently."""
+    if association_has_rows(bind, table) and not downgrade_override_enabled():
+        state = "ACTIVE authorizations that gate research-image retention" if (
+            association_has_active_rows(bind, table)) else "withdrawn-authorization history"
         raise MigrationSchemaError(
-            f"Migration {revision} downgrade refused: '{table}' holds ACTIVE authorizations that "
-            "gate research-image retention. Set TRC001_ALLOW_PROVENANCE_DOWNGRADE=1 to override "
-            "after confirming the data is archived.")
+            f"Migration {revision} downgrade refused: '{table}' holds {state}. "
+            "Set TRC001_ALLOW_PROVENANCE_DOWNGRADE=1 to override after confirming the data "
+            "is archived.")

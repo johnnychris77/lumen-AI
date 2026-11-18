@@ -378,12 +378,17 @@ def test_withdrawal_keeps_other_owners_datasets_subjects_and_legacy(env):
 
 
 def test_same_tenant_two_owners_share_bytes_without_reassignment(env):
-    """SEC-171-04: a second owner attesting to identical bytes gets their OWN association
-    to the shared row; the first owner's record is never reassigned, and withdrawing one
-    owner never deletes the other owner's image."""
+    """SEC-171-04: a second owner attesting to identical bytes never reassigns the first
+    owner's record, and withdrawing one owner never deletes the other owner's image.
+
+    SEC-171-01 (PR #171 assessment): the foreign row here belongs to a DIFFERENT research
+    dataset. A dataset is an authorization scope, so this owner's intake no longer attaches
+    an authorization to that row (as this test previously asserted) — it stores its own row
+    in its own dataset and leaves the foreign row completely untouched. Sharing one row
+    between two verified owners of the SAME dataset is covered by
+    tests/test_sec17104_image_authorization.py."""
     from app.models.research_image_authorization import (
         STATUS_ACTIVE,
-        STATUS_WITHDRAWN,
         ResearchImageAuthorization,
     )
     from app.services.image_retention_service import strip_exif
@@ -411,9 +416,10 @@ def test_same_tenant_two_owners_share_bytes_without_reassignment(env):
     response = client.post("/api/research/trc001/intake")
     assert response.status_code == 200
     outcome = response.json()
-    # Both images ingest: the EXT image shares bytes with the foreign row via a NEW
-    # association for this owner; the second image is a fresh row.
+    # Both images ingest as this owner's OWN rows; the foreign dataset's row is not reused.
     assert outcome["status"] == "INGESTED" and outcome["imported_count"] == 2
+    my_ids = [i["retained_image_id"] for i in outcome["images"]]
+    assert foreign_id not in my_ids
     _track_new_rows(env)
 
     s.expire_all()
@@ -421,21 +427,26 @@ def test_same_tenant_two_owners_share_bytes_without_reassignment(env):
     foreign = s.get(RetainedImage, foreign_id)
     assert foreign is not None
     assert foreign.uploaded_by == "foreign@x" and foreign.research_dataset_id == "foreign-dataset"
-    # This owner now has their OWN active association to the shared row.
-    my_assoc = s.query(ResearchImageAuthorization).filter(
-        ResearchImageAuthorization.tenant_id == TENANT,
-        ResearchImageAuthorization.retained_image_id == foreign_id,
-        ResearchImageAuthorization.owner_subject == OWNER_SUBJECT,
-        ResearchImageAuthorization.status == STATUS_ACTIVE).first()
-    assert my_assoc is not None and my_assoc.owner_actor == OWNER
+    assert foreign.research_owner_subject == "foreign-subject"
+    # This owner holds NO authorization on the foreign dataset's row ...
+    assert s.query(ResearchImageAuthorization).filter(
+        ResearchImageAuthorization.retained_image_id == foreign_id).count() == 0
+    # ... and an ACTIVE one on each of their own rows.
+    for image_id in my_ids:
+        my_assoc = s.query(ResearchImageAuthorization).filter(
+            ResearchImageAuthorization.tenant_id == TENANT,
+            ResearchImageAuthorization.retained_image_id == image_id,
+            ResearchImageAuthorization.owner_subject == OWNER_SUBJECT,
+            ResearchImageAuthorization.status == STATUS_ACTIVE).first()
+        assert my_assoc is not None and my_assoc.owner_actor == OWNER
 
-    # Withdrawing this owner revokes only their association; the foreign image survives.
+    # Withdrawing this owner deletes only their own rows; the foreign image survives.
     _override(_ctx())
     withdrawal = client.post("/api/research/trc001/owner-attestation/withdraw")
     assert withdrawal.status_code == 200
-    assert foreign_id not in withdrawal.json()["retained_images_deleted"]
+    assert sorted(withdrawal.json()["retained_images_deleted"]) == sorted(my_ids)
+    assert withdrawal.json()["retained_images_deletion_verified"] is True
     s.expire_all()
     assert s.get(RetainedImage, foreign_id) is not None
-    assert s.query(ResearchImageAuthorization).filter(
-        ResearchImageAuthorization.retained_image_id == foreign_id,
-        ResearchImageAuthorization.owner_subject == OWNER_SUBJECT).first().status == STATUS_WITHDRAWN
+    for image_id in my_ids:
+        assert s.get(RetainedImage, image_id) is None

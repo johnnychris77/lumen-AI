@@ -18,6 +18,11 @@ os.environ.setdefault("DEV_OPERATOR_TOKEN", "operator-token")
 os.environ.setdefault("DEV_VENDOR_TOKEN", "vendor-token")
 os.environ.setdefault("DEV_VIEWER_TOKEN", "viewer-token")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+# SEC-171-03: the TRC-001 research API is inert unless a deployment is explicitly
+# designated a research environment. The test suite is such an environment; the
+# production default (unset => every research endpoint answers 404) is asserted in
+# tests/test_sec171_03_migration_and_isolation.py.
+os.environ.setdefault("TRC001_RESEARCH_API_ENABLED", "1")
 
 # Ensure data/ directory exists before any module-level code in capa_service.py runs
 Path(os.path.join(os.path.dirname(__file__), "..", "data")).mkdir(exist_ok=True)

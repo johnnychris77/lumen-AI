@@ -161,11 +161,19 @@ def test_same_owner_different_datasets_distinct_authorizations(envkit):
     _attest(envkit, a, dataset=DATASET_2)
     rep2 = _intake(envkit, a, dataset=DATASET_2).json()
     assert rep2["status"] == "INGESTED"
-    for image_id in ids:
-        datasets = {r.research_dataset_id for r in s.query(ResearchImageAuthorization).filter(
-            ResearchImageAuthorization.retained_image_id == image_id,
-            ResearchImageAuthorization.status == STATUS_ACTIVE).all()}
-        assert datasets == {DATASET, DATASET_2}
+    ids2 = sorted(i["retained_image_id"] for i in rep2["images"])
+    # SEC-171-01 (PR #171 assessment): a research dataset is an authorization scope, so the
+    # same owner ingesting identical bytes into a SECOND dataset gets that dataset's own
+    # rows — a row retained under one dataset's attestation is never reused for another.
+    # (This test previously asserted both datasets' authorizations on the SAME rows.)
+    assert set(ids).isdisjoint(ids2)
+    for image_ids, dataset in ((ids, DATASET), (ids2, DATASET_2)):
+        for image_id in image_ids:
+            assert s.get(RetainedImage, image_id).research_dataset_id == dataset
+            datasets = {r.research_dataset_id for r in s.query(ResearchImageAuthorization).filter(
+                ResearchImageAuthorization.retained_image_id == image_id,
+                ResearchImageAuthorization.status == STATUS_ACTIVE).all()}
+            assert datasets == {dataset}
 
 
 # ── same image, different tenants ────────────────────────────────────────────

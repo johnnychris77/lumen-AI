@@ -20,6 +20,17 @@ Every endpoint depends on `require_verified_oidc_context`, which requires a
 - `actor`, `role`, `tenant_id`, `tenant_name` and `subject` come **only** from the verified
   token + tenant membership — never from request fields.
 
+## Deployment isolation (SEC-171-03)
+
+These endpoints are **inert by default**. They respond only when the deployment is
+explicitly designated a research environment by setting
+`TRC001_RESEARCH_API_ENABLED` to `1`, `true`, `yes`, `on` or `enabled`. With the
+variable unset, empty or set to anything else, every endpoint below answers `404` for
+every caller, before authentication is evaluated, and writes nothing.
+
+Do not set this variable on a production deployment. It is deliberately absent from
+`render.yaml`.
+
 ## Server configuration (never client-supplied)
 
 - `TRC001_DATASET_ID` — research dataset id (default `TRC-001`).
