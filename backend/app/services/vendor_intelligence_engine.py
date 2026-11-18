@@ -453,6 +453,7 @@ def get_shared_defect_signals(limit: int = 20, db=None) -> list[SharedDefectSign
         # First try to aggregate from real CVInferenceRecord data (Enhancement 2)
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import operational_sql_criteria
             from sqlalchemy import func
 
             # Finding types mapped to columns
@@ -480,7 +481,13 @@ def get_shared_defect_signals(limit: int = 20, db=None) -> list[SharedDefectSign
                 col = getattr(CVInferenceRecord, col_name, None)
                 if col is None:
                     continue
-                total = db.query(func.sum(col)).scalar() or 0
+                # P4.7.1 (SCI-17): cross-hospital signals are aggregated ONLY from
+                # verified model inference — never simulated or unverified rows.
+                total = (
+                    db.query(func.sum(col))
+                    .filter(*operational_sql_criteria(CVInferenceRecord))
+                    .scalar()
+                ) or 0
                 if total > 0:
                     aggregated.append((finding_type, signal_type, severity, int(total)))
 

@@ -130,6 +130,7 @@ def _compute_hospital_benchmarks_from_db(
     db: Any,
 ) -> list[HospitalBenchmarkResult]:
     from app.models.cv_inference import CVInferenceRecord
+    from app.cv.evidence import operational_sql_criteria
 
     period_start, period_end = _period_bounds(period_label, period_type)
 
@@ -138,6 +139,9 @@ def _compute_hospital_benchmarks_from_db(
         db.query(CVInferenceRecord)
         .filter(
             CVInferenceRecord.tenant_id == tenant_id,
+            # P4.7.1 (SCI-17): verified model inference only — never simulated,
+            # not-evaluated or legacy-unverified rows.
+            *operational_sql_criteria(CVInferenceRecord),
             CVInferenceRecord.created_at >= period_start,
             CVInferenceRecord.created_at < period_end,
         )

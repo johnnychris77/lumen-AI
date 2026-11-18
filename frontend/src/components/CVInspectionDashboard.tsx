@@ -52,6 +52,13 @@ type CVKPISummary = {
   avg_processing_ms: number;
   total_provider_cost_usd: number;
   review_queue_size: number;
+  // P4.7.1: the KPIs above count ONLY integrity-verified model inference.
+  // Everything else is reported in these counters and never added in.
+  genuine_analyses?: number;
+  simulated_excluded_count?: number;
+  unavailable_or_failed_count?: number;
+  legacy_unverified_excluded_count?: number;
+  evidence_basis?: string;
 };
 
 type ProviderMetrics = {
@@ -67,7 +74,11 @@ type InferenceRecord = {
   inference_id: string;
   instrument_name: string;
   instrument_recognized: boolean;
-  overall_cleanliness_score: number;
+  // null = not evaluated (AI unavailable / failed / legacy without evidence).
+  overall_cleanliness_score: number | null;
+  // P4.7.1: what this row is. Only "model_inference" is a real AI result.
+  evidence_class?: string;
+  simulated?: boolean;
   finding_count: number;
   baseline_compared: boolean;
   baseline_match_pct: number;
@@ -153,14 +164,16 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
 
   if (!kpi) return null;
 
-  // provider_breakdown's keys are the literal CV_PROVIDER values that
-  // actually produced these records (backend/app/routes/cv.py's
-  // provider_metrics()). "mock" means CVRegistry fell back to
-  // MockCVProvider -- random.Random(hash(image_url))-seeded findings, not
-  // real pixel analysis -- which is the default whenever no onnx/openai/
-  // roboflow provider is configured. Surface that plainly instead of
-  // presenting these counts as if they came from real image inference.
-  const usesMockProvider = Boolean(metrics?.provider_breakdown && "mock" in metrics.provider_breakdown);
+  // P4.7.1: the backend KPIs count ONLY integrity-verified model inference
+  // (backend/app/routes/cv.py cv_kpi_summary). Records from the dev/test mock
+  // provider, analyses that could not run, and legacy records without
+  // integrity evidence are excluded server-side and reported separately, so
+  // none of them can appear here as a detection. Say so plainly.
+  const simulatedExcluded = kpi.simulated_excluded_count ?? 0;
+  const notEvaluated = kpi.unavailable_or_failed_count ?? 0;
+  const legacyExcluded = kpi.legacy_unverified_excluded_count ?? 0;
+  const hasExcludedRecords = simulatedExcluded + notEvaluated + legacyExcluded > 0;
+  const noGenuineInference = (kpi.genuine_analyses ?? kpi.total_analyses) === 0;
 
   const findingBreakdown = [
     { label: "Blood", count: kpi.blood_detections, color: "bg-red-500" },
@@ -189,10 +202,18 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
         </button>
       </div>
 
-      {usesMockProvider && (
+      {(noGenuineInference || hasExcludedRecords) && (
         <Alert variant="warning">
           <AlertDescription>
-            <strong>Demonstration Data — Simulated:</strong> these counts come from the mock CV provider (deterministic pseudo-random findings, not real image analysis) — no onnx/vision provider is configured for this deployment. See <code>CV_PROVIDER</code> in provider settings to connect a real model.
+            <strong>{noGenuineInference ? "No verified AI analysis yet." : "Verified model inference only."}</strong>{" "}
+            These KPIs count only results from an integrity-verified computer-vision model
+            {noGenuineInference ? ", and none has run for this tenant" : ""}.
+            {hasExcludedRecords && (
+              <>
+                {" "}Excluded and never counted as detections: {simulatedExcluded} simulated (development/test),{" "}
+                {notEvaluated} not evaluated (AI unavailable or failed), {legacyExcluded} legacy without integrity evidence.
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -335,9 +356,16 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
                     </p>
                   </div>
                   <div className="ml-3 flex items-center gap-2">
-                    <span className={`font-semibold ${scoreColor(rec.overall_cleanliness_score)}`}>
-                      {rec.overall_cleanliness_score}
-                    </span>
+                    {rec.overall_cleanliness_score == null ? (
+                      <span className="text-xs font-medium text-gray-500">Not evaluated</span>
+                    ) : (
+                      <span className={`font-semibold ${scoreColor(rec.overall_cleanliness_score)}`}>
+                        {rec.overall_cleanliness_score}
+                      </span>
+                    )}
+                    {rec.simulated && (
+                      <Badge variant="secondary" className="text-xs">Simulated</Badge>
+                    )}
                     {rec.finding_count > 0 && (
                       <Badge variant="secondary" className="text-xs">
                         {rec.finding_count} finding{rec.finding_count > 1 ? "s" : ""}

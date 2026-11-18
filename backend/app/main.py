@@ -43,7 +43,6 @@ from app.routes.agent import router as agent_router
 from app.routes.qa_review import router as qa_review_router
 from app.routes.review_analytics import router as review_analytics_router
 from app.routes.model_performance import router as model_performance_router
-from app.routes.stream import router as stream_router
 from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
 from app.routes.capa import router as capa_router
@@ -877,7 +876,10 @@ app.include_router(advisory_pilot_router, prefix=settings.API_PREFIX)
 
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
-app.include_router(stream_router, prefix=settings.API_PREFIX)
+# P4.7.1: app.routes.stream registered a SECOND handler for POST /stream/frame
+# that was shadowed by app.routes.inspect (registered above) and resolved its
+# tenant without verification. It is no longer mounted — exactly one handler
+# serves that path.
 
 app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 

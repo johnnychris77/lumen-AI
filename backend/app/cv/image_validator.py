@@ -1,7 +1,11 @@
-"""R1: Image URL validation and SSRF protection.
+"""R1: advisory image-input linting (format, size, extension).
 
-Called at the API boundary before any URL is fetched or stored.
-Returns a list of warning strings — empty list means valid.
+``validate_image_url`` returns WARNINGS only. It is NOT a fetch-permission
+check and must never be used as one: it permits plain http and does not
+resolve DNS. Since P4.7.1 the only authority on whether an image URL may be
+accepted or retrieved is ``app.cv.safe_fetch`` (``assert_image_url_allowed`` /
+``fetch_image_bytes``), which the pipeline enforces before any other work.
+``validate_b64_payload`` remains the upload-payload check.
 """
 from __future__ import annotations
 

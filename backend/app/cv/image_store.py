@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,15 +46,23 @@ def archive_image(
     Returns an ArchiveResult with the internal object_key for storage in
     CVInferenceRecord.archived_image_key.
     """
-    key = f"inspections/{tenant_id}/{inference_id}.bin"
+    # Key components are sanitised so a tenant/inference identifier can never
+    # introduce a path separator or traversal segment into the object key.
+    key = f"inspections/{_safe_component(tenant_id)}/{_safe_component(inference_id)}.bin"
+
+    # P4.7.1: with no archive backend configured there is nothing to store, so
+    # there is no reason to retrieve the image at all. (Previously the URL was
+    # fetched on every analysis and the bytes then discarded.)
+    if _BACKEND not in ("s3", "gcs", "local"):
+        return ArchiveResult(stored=False, object_key=key, backend="noop")
 
     if image_bytes is None:
-        # Try fetching from URL (best-effort; don't fail the pipeline if unreachable)
+        # Only through the SSRF-safe, allow-listed fetcher (best-effort).
         image_bytes = _try_fetch(image_url)
 
     if image_bytes is None:
         return ArchiveResult(stored=False, object_key=key, backend=_BACKEND,
-                             error="Image bytes unavailable and URL fetch failed")
+                             error="Image bytes unavailable (no permitted retrieval route)")
 
     checksum = hashlib.sha256(image_bytes).hexdigest()
 
@@ -62,29 +71,30 @@ def archive_image(
             return _store_s3(key, image_bytes, checksum, tenant_id)
         if _BACKEND == "gcs":
             return _store_gcs(key, image_bytes, checksum, tenant_id)
-        if _BACKEND == "local":
-            return _store_local(key, image_bytes, checksum)
-        # noop
-        return ArchiveResult(stored=False, object_key=key, backend="noop",
-                             size_bytes=len(image_bytes), checksum_sha256=checksum)
+        return _store_local(key, image_bytes, checksum)
     except Exception as exc:
+        # Report the failure class only — never bucket names, keys or credentials.
         return ArchiveResult(stored=False, object_key=key, backend=_BACKEND,
-                             error=str(exc))
+                             error=f"Archive failed ({type(exc).__name__})")
 
 
 def _try_fetch(url: str) -> bytes | None:
-    if not url or not url.startswith("http"):
-        return None
-    try:
-        import httpx
-        r = httpx.get(url, timeout=5.0, follow_redirects=True)
-        return r.content if r.status_code == 200 else None
-    except Exception:
-        return None
+    """P4.7.1 (SEC-R2-02): prohibited / non-allow-listed URLs are never
+    requested; redirects are not followed; size and time are bounded."""
+    from app.cv.safe_fetch import try_fetch_image_bytes
+
+    return try_fetch_image_bytes(url)
+
+
+def _safe_component(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "_", str(value or ""))[:120]
+    return cleaned or "unknown"
 
 
 def _store_local(key: str, data: bytes, checksum: str) -> ArchiveResult:
-    path = _LOCAL_DIR / key
+    path = (_LOCAL_DIR / key).resolve()
+    if not path.is_relative_to(_LOCAL_DIR.resolve()):
+        raise ValueError("archive key escapes the archive directory")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return ArchiveResult(stored=True, object_key=str(path), backend="local",

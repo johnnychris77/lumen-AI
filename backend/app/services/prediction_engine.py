@@ -71,8 +71,12 @@ def predict_instrument_failure(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1 (SCI-17): verified model inference only — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name == instrument_name,
             )
             if facility_id:
@@ -207,8 +211,12 @@ def predict_contamination_recurrence(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1 (SCI-17): verified model inference only — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name == instrument_name,
             )
             if facility_id:
@@ -492,8 +500,12 @@ def assess_tray_risk(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1 (SCI-17): verified model inference only — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
             )
             if facility_id:
                 q = q.filter(CVInferenceRecord.facility_id == facility_id)
@@ -642,8 +654,12 @@ def _get_instrument_by_id(tenant_id: str, instrument_id: str, db) -> list:
     if db is not None and instrument_id:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import operational_sql_criteria
             return db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1 (SCI-17): verified model inference only — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.barcode_value == instrument_id,
             ).order_by(CVInferenceRecord.id.desc()).limit(20).all()
         except Exception:
@@ -655,8 +671,12 @@ def _get_instrument_names(tenant_id: str, facility_id: str, limit: int, db) -> l
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import operational_sql_criteria
             q = db.query(CVInferenceRecord.instrument_name).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1 (SCI-17): verified model inference only — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name != "",
             )
             if facility_id:

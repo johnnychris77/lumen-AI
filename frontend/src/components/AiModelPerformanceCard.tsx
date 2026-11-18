@@ -23,8 +23,11 @@ type Summary = {
 };
 
 type InferenceStatus = {
-  mode: "trained_model" | "deterministic_placeholder";
+  // "unavailable": no verified model and no simulation — nothing is evaluated.
+  // "deterministic_placeholder": dev/test simulation only (never production).
+  mode: "trained_model" | "deterministic_placeholder" | "unavailable";
   model_weights_present: boolean;
+  weights_verified?: boolean;
   ready_for_production: boolean;
 };
 
@@ -94,8 +97,10 @@ export default function AiModelPerformanceCard() {
           inferenceStatus.mode === "trained_model" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"
         }`}>
           {inferenceStatus.mode === "trained_model"
-            ? "✓ Production — running a trained computer-vision model."
-            : "⚠ Experimental — Not Validated: running the deterministic placeholder scorer, no trained computer-vision model is loaded on this deployment yet."}
+            ? "Integrity-verified model artifact loaded. Loader state only — not a validation or release approval; every result requires human review."
+            : inferenceStatus.mode === "unavailable"
+              ? "⚠ AI unavailable: no approved, integrity-verified computer-vision model is loaded on this deployment. No AI findings are generated — inspect manually."
+              : "⚠ Simulation (development/test only): the deterministic placeholder is active. Its output is not image analysis and is not a detection."}
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

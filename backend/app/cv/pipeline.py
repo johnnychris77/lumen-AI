@@ -1,38 +1,79 @@
-"""Multi-stage CV pipeline with persistence and P3 ranking integration."""
+"""Multi-stage CV pipeline with persistence and P3 ranking integration.
+
+P4.7.1 ordering contract: the calling route authenticates and resolves the
+tenant FIRST; this module then rejects prohibited image inputs BEFORE any
+provider, fetch or archive step runs. A rejected input is never fetched.
+"""
 from __future__ import annotations
 
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.cv.image_validator import validate_image_url, validate_b64_payload
+from app.cv.evidence import classify_result, is_operational_evidence
 from app.cv.image_store import archive_image
+from app.cv.image_validator import validate_b64_payload
 from app.cv.registry import CVRegistry
+from app.cv.safe_fetch import UnsafeImageURLError, assert_image_url_allowed
 from app.schemas.cv import BaselineCompareRequest, CVAnalysisRequest, CVInferenceResult
 
 
+class ImageInputRejected(ValueError):
+    """An image input is prohibited (unsafe URL or invalid payload). The
+    request must be refused; nothing was fetched, analysed or stored."""
+
+
+def assert_image_inputs_allowed(req: CVAnalysisRequest) -> None:
+    """Fail-closed validation of every image reference in a request.
+
+    Raises :class:`ImageInputRejected`. This performs NO network access.
+    """
+    for label, url in (("image_url", req.image_url), ("baseline_image_url", req.baseline_image_url)):
+        if not url:
+            continue
+        try:
+            assert_image_url_allowed(url)
+        except UnsafeImageURLError as exc:
+            raise ImageInputRejected(f"{label} rejected: {exc}") from exc
+    if req.image_data_b64:
+        problems = validate_b64_payload(req.image_data_b64)
+        if problems:
+            raise ImageInputRejected(f"image_data_b64 rejected: {problems[0]}")
+
+
 def run_analysis(req: CVAnalysisRequest, db: Session | None = None) -> CVInferenceResult:
-    """Run full CV pipeline and persist result."""
-    # R1: Validate image inputs at the API boundary
-    warnings = list(validate_image_url(req.image_url))
-    warnings += validate_b64_payload(req.image_data_b64)
+    """Run full CV pipeline and persist result.
+
+    ``req.tenant_id`` MUST already be the authenticated caller's tenant (set by
+    the route from the verified auth context) — it is never taken from the
+    client here.
+    """
+    # R1 / SEC-R2-02: reject prohibited inputs before anything else happens.
+    assert_image_inputs_allowed(req)
 
     provider = CVRegistry.get_provider()
     result = provider.analyze(req)
 
-    # Merge pipeline validation warnings into result
-    if warnings:
-        result = result.model_copy(update={"warnings": list(result.warnings) + warnings})
+    # Stamp the authoritative evidence class (never trusted from the provider's
+    # own label alone — e.g. a "mock" provider is always simulated).
+    evidence_class = classify_result(result)
+    result = result.model_copy(update={
+        "evidence_class": evidence_class,
+        "simulated": evidence_class == "simulated",
+        "human_review_required": True,
+    })
 
-    # R7: Archive image for audit trail (noop unless IMAGE_STORE_BACKEND is set)
-    archive = archive_image(
-        image_bytes=None,
-        image_url=req.image_url,
-        inference_id=result.inference_id,
-        tenant_id=req.tenant_id,
-    )
-    if archive.object_key:
-        result = result.model_copy(update={"archived_image_key": archive.object_key})
+    # R7: Archive image for audit trail (noop unless IMAGE_STORE_BACKEND is set).
+    # Only genuine model inference is archived as inspection evidence.
+    if is_operational_evidence(evidence_class):
+        archive = archive_image(
+            image_bytes=None,
+            image_url=req.image_url,
+            inference_id=result.inference_id,
+            tenant_id=req.tenant_id,
+        )
+        if archive.object_key:
+            result = result.model_copy(update={"archived_image_key": archive.object_key})
 
     if db is not None:
         _persist(result, db)
@@ -65,7 +106,7 @@ def build_composite_ranking_request(result: CVInferenceResult) -> dict[str, Any]
     Returns None when there are fewer than 2 regions (single-finding path
     is more appropriate in that case).
     """
-    if not result.regions:
+    if not result.regions or not result.ranking_inputs:
         return None
 
     base = result.ranking_inputs
@@ -131,9 +172,15 @@ def _persist(result: CVInferenceResult, db: Session) -> None:
         barcode_value=result.identifier_reads.barcode_value,
         qr_value=result.identifier_reads.qr_value,
         key_dot_value=result.identifier_reads.key_dot_value,
-        contamination_score=result.contamination_score,
-        damage_score=result.damage_score,
-        overall_cleanliness_score=result.overall_cleanliness_score,
+        # The score columns are NOT NULL. A not-evaluated result stores 0.0 as a
+        # placeholder that no read path presents: readers derive the evidence
+        # class (app.cv.evidence.classify_record) and return None for anything
+        # that is not verified model inference or an explicitly simulated row.
+        contamination_score=result.contamination_score if result.contamination_score is not None else 0.0,
+        damage_score=result.damage_score if result.damage_score is not None else 0.0,
+        overall_cleanliness_score=(
+            result.overall_cleanliness_score if result.overall_cleanliness_score is not None else 0.0
+        ),
         baseline_compared=result.baseline_comparison.compared if result.baseline_comparison else False,
         baseline_match_pct=result.baseline_comparison.match_pct if result.baseline_comparison else 0.0,
         baseline_verdict=result.baseline_comparison.verdict if result.baseline_comparison else "",
@@ -149,6 +196,10 @@ def _persist(result: CVInferenceResult, db: Session) -> None:
         processing_ms=result.processing_ms,
         # R12: provider cost (populated by provider if known)
         provider_cost_usd=getattr(result, "provider_cost_usd", 0.0),
+        # Only verified model inference may enter the human annotation queue;
+        # a simulated or not-evaluated row is not something to "confirm".
+        review_required=bool(getattr(result, "review_required", False))
+        and is_operational_evidence(result.evidence_class),
     )
     db.add(record)
     db.commit()
