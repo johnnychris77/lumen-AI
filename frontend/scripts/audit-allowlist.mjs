@@ -15,7 +15,15 @@
  */
 import { execSync } from "node:child_process";
 
-/** GHSA id -> justification. Only advisories that provably do not apply. */
+import { allowlistDecision } from "./audit-policy.mjs";
+
+/**
+ * GHSA id -> justification. Only advisories that provably do not apply.
+ *
+ * A string is an unconditional exception. An object is a conditional one that
+ * lapses by itself (see audit-policy.mjs): after `reviewBy`, or — with
+ * `onlyWhileUnpatched` — as soon as npm reports a non-breaking fix.
+ */
 const ALLOWLIST = new Map([
   [
     "GHSA-qwww-vcr4-c8h2",
@@ -26,6 +34,26 @@ const ALLOWLIST = new Map([
       "react-router-dom 8.x (v8 drops the package), so clearing it requires a " +
       "v7->v8 migration. Re-evaluate when a 7.x backport or react-router-dom " +
       "8.x ships. See docs/security/FRONTEND_DEPENDENCY_AUDIT.md.",
+  ],
+  [
+    "GHSA-fc5q-39xc-vjpf",
+    {
+      reason:
+        "picomatch ReDoS (CVE-2026-112366). NO PATCHED VERSION EXISTS: the " +
+        "advisory covers every release (<=4.0.7, the latest), so no upgrade " +
+        "clears it. The attacker must control the glob PATTERN (a repeated " +
+        "single-branch extglob such as '+(*a)'). picomatch is in this tree only " +
+        "as part of the Vite build toolchain (vite, tinyglobby, fdir): it is " +
+        "not in the browser bundle, production serves static files from nginx, " +
+        "and every pattern Vite compiles comes from this repository's own " +
+        "config and source, none of which uses extglob syntax. npm's only " +
+        "offered fix is a downgrade to vite 6.2.7, which bundles picomatch " +
+        "inside its own dist and so only hides it from the audit. Conditional: " +
+        "lapses when a fix ships or on the review date. See " +
+        "docs/security/FRONTEND_DEPENDENCY_AUDIT.md.",
+      onlyWhileUnpatched: true,
+      reviewBy: "2026-12-18",
+    },
   ],
 ]);
 
@@ -56,6 +84,8 @@ const idFromUrl = (url) => {
 
 const unlisted = new Map();
 const ignored = new Map();
+const lapsed = new Map();
+const now = Date.now();
 
 for (const vuln of Object.values(report.vulnerabilities || {})) {
   for (const via of vuln.via || []) {
@@ -66,7 +96,18 @@ for (const vuln of Object.values(report.vulnerabilities || {})) {
     if (!BLOCKING.has(via.severity)) continue;
     const id = idFromUrl(via.url) || via.url;
     const entry = { id, title: via.title, severity: via.severity, url: via.url };
-    (id && ALLOWLIST.has(id) ? ignored : unlisted).set(id, entry);
+    if (!id || !ALLOWLIST.has(id)) {
+      unlisted.set(id, entry);
+      continue;
+    }
+    const decision = allowlistDecision(ALLOWLIST.get(id), { now, fixAvailable: vuln.fixAvailable });
+    if (decision.applies) {
+      ignored.set(id, { ...entry, reason: decision.reason });
+    } else {
+      // A lapsed exception is a failing advisory again.
+      lapsed.set(id, decision.why);
+      unlisted.set(id, entry);
+    }
   }
 }
 
@@ -74,7 +115,7 @@ if (ignored.size) {
   console.log("Documented, allow-listed advisories (NOT failing the build):");
   for (const e of ignored.values()) {
     console.log(`  - ${e.severity} ${e.id}: ${e.title}`);
-    console.log(`      reason: ${ALLOWLIST.get(e.id)}`);
+    console.log(`      reason: ${e.reason}`);
   }
 }
 
@@ -82,6 +123,7 @@ if (unlisted.size) {
   console.error("\nHigh/critical advisories NOT on the allow-list — FAILING:");
   for (const e of unlisted.values()) {
     console.error(`  - ${e.severity} ${e.id}: ${e.title} (${e.url})`);
+    if (lapsed.has(e.id)) console.error(`      allow-list entry no longer applies: ${lapsed.get(e.id)}`);
   }
   console.error(
     "\nFix them (`npm audit`), or — only if provably inapplicable — triage " +
