@@ -67,7 +67,7 @@ def run_sla_scan(
     db: Session = Depends(get_db),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
 ):
-    result = run_command_center_scan()
+    result = run_command_center_scan(tenant["tenant_id"], tenant["tenant_name"])
 
     log_audit_event(
         db,

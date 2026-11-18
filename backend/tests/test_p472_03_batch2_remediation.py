@@ -265,14 +265,7 @@ ROUTE_IDS = [f"{method} {path}" for method, path, _ in ROUTES]
 # Routes on which this file's own checks found a defect that is NOT fixed yet.
 # Each is a strict expected failure naming its finding: it must be fixed, and the
 # entry removed, before the test can pass. {"METHOD path": "finding: what is wrong"}
-OPEN_OWNER_FINDINGS: dict[str, str] = {
-    "POST /api/governance-sla-scanner/run":
-        "AW-12: a tenant administrator's SLA scan evaluates, writes to and returns every tenant",
-    "POST /api/governance-command-center/actions/run-sla-scan":
-        "AW-12: a tenant administrator's SLA scan evaluates, writes to and returns every tenant",
-    "POST /api/customer-operations-hub/actions/run-sla-scan":
-        "AW-12: a tenant administrator's SLA scan evaluates, writes to and returns every tenant",
-}
+OPEN_OWNER_FINDINGS: dict[str, str] = {}
 OPEN_REFUSAL_FINDINGS: dict[str, str] = {}
 
 
@@ -669,3 +662,75 @@ class TestAuditAttributionComesFromTheVerifiedIdentity:
         finally:
             db.close()
 
+
+# ══ AW-12 — a tenant-triggered job that covered every tenant ══════════════════
+# Found by ``test_the_owner_and_a_selected_membership_are_served`` above: a tenant
+# administrator's "run SLA scan" evaluated every tenant with an enabled policy,
+# wrote SLA events in each of them and returned all of their results.
+
+from app.models.governance_sla_event import GovernanceSlaEvent  # noqa: E402
+from app.models.governance_sla_policy import GovernanceSlaPolicy  # noqa: E402
+
+SLA_SCAN_ROUTES = [
+    "/api/governance-sla-scanner/run",
+    "/api/governance-command-center/actions/run-sla-scan",
+    "/api/customer-operations-hub/actions/run-sla-scan",
+]
+
+
+class TestSlaScanIsLimitedToTheCallersTenant:
+    @pytest.fixture
+    def policies(self):
+        """Both tenants have an enabled policy, so the old all-tenant scan includes both."""
+        db = SessionLocal()
+        try:
+            for tenant in (TENANT_A, TENANT_B):
+                if not db.query(GovernanceSlaPolicy).filter(GovernanceSlaPolicy.tenant_id == tenant).count():
+                    db.add(GovernanceSlaPolicy(tenant_id=tenant, tenant_name=tenant,
+                                               policy_key="pending_packet_release", is_enabled=True))
+            db.commit()
+        finally:
+            db.close()
+
+    @staticmethod
+    def _events(tenant: str) -> int:
+        db = SessionLocal()
+        try:
+            return db.query(GovernanceSlaEvent).filter(GovernanceSlaEvent.tenant_id == tenant).count()
+        finally:
+            db.close()
+
+    @pytest.mark.parametrize("path", SLA_SCAN_ROUTES)
+    def test_a_tenant_administrators_scan_evaluates_and_returns_only_their_tenant(self, policies, caller, path):
+        _, headers = _member(TENANT_A)
+        before = self._events(TENANT_B)
+        caller.captured, caller.capturing = [], True
+        try:
+            response = http.post(path, headers={**headers, "X-Tenant-Id": TENANT_A})
+        finally:
+            caller.capturing = False
+        assert response.status_code == 200, response.text[:300]
+        body = response.json()
+        assert TENANT_B not in response.text
+        assert [r["tenant_id"] for r in body["results"]] == [TENANT_A] and body["tenant_count"] == 1
+        assert _bound(caller.captured, TENANT_B) == []
+        assert self._events(TENANT_B) == before
+
+    def test_the_status_route_shows_only_the_callers_part_of_a_platform_run(self, policies):
+        from app.governance_sla_scanner import run_scanner_once
+
+        scheduled = run_scanner_once()                 # the scheduled platform job: no tenant
+        assert {TENANT_A, TENANT_B} <= {r["tenant_id"] for r in scheduled["results"]}
+
+        _, headers = _member(TENANT_A)
+        response = http.get("/api/governance-sla-scanner/status", headers={**headers, "X-Tenant-Id": TENANT_A})
+        assert response.status_code == 200
+        assert TENANT_B not in response.text
+        assert all(r["tenant_id"] == TENANT_A for r in response.json()["last_run"].get("results", []))
+
+    def test_one_tenants_manual_run_is_not_shown_to_another(self, policies):
+        _, a = _member(TENANT_A)
+        assert http.post(SLA_SCAN_ROUTES[0], headers={**a, "X-Tenant-Id": TENANT_A}).status_code == 200
+        _, b = _member(TENANT_B)
+        status = http.get("/api/governance-sla-scanner/status", headers={**b, "X-Tenant-Id": TENANT_B})
+        assert status.status_code == 200 and TENANT_A not in status.text
