@@ -6,6 +6,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.auth.tenant_scope import authorized_tenant
 from app.enterprise_auth import require_enterprise_auth
 from app.schemas.regulatory import AuditPackageRequest, FDASubmissionCreate
 from app.services.accreditation_engine import (
@@ -23,12 +24,12 @@ router = APIRouter(prefix="/api/regulatory", tags=["regulatory"])
 @router.get("/readiness")
 def accreditation_readiness(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """Real-time accreditation readiness score across all regulatory bodies."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     require_tier(tenant_id, "regulatory_readiness", db)
     result = compute_accreditation_readiness(tenant_id, facility_id, db)
     return {"status": "success", "readiness": result.model_dump()}
@@ -37,13 +38,13 @@ def accreditation_readiness(
 @router.get("/readiness/findings")
 def readiness_findings(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     severity: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """List all accreditation deficiency findings, optionally filtered by severity."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     require_tier(tenant_id, "regulatory_findings", db)
     result = compute_accreditation_readiness(tenant_id, facility_id, db)
     findings = result.findings
@@ -103,10 +104,10 @@ def create_audit_package(
     db: Session = Depends(get_db),
 ):
     """Generate an audit-ready evidence package for a regulatory body."""
-    require_enterprise_auth(request)
-    require_tier(body.tenant_id, "audit_package", db)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), body.tenant_id)
+    require_tier(tenant_id, "audit_package", db)
     package = generate_audit_package(
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         facility_id=body.facility_id,
         package_type=body.package_type,
         period_label=body.period_label,
@@ -123,11 +124,11 @@ def download_audit_package_pdf(
     db: Session = Depends(get_db),
 ):
     """Generate and download a regulatory audit package as PDF."""
-    require_enterprise_auth(request)
-    require_tier(body.tenant_id, "audit_package", db)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), body.tenant_id)
+    require_tier(tenant_id, "audit_package", db)
     from app.services.report_pdf import build_regulatory_audit_pdf
     package = generate_audit_package(
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         facility_id=body.facility_id,
         package_type=body.package_type,
         period_label=body.period_label,
@@ -152,11 +153,11 @@ def download_audit_package_pdf(
 @router.get("/audit-packages")
 def list_audit_packages(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """List previously generated audit packages for a tenant."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     require_tier(tenant_id, "audit_package", db)
     try:
         from app.models.regulatory import RegulatoryAuditPackage
@@ -178,7 +179,7 @@ def list_audit_packages(
 @router.get("/fda-submissions")
 def get_fda_submissions(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """List FDA submission tracking records.
@@ -187,7 +188,7 @@ def get_fda_submissions(
     never fabricated. is_synthetic is always False for that reason;
     data_available reports whether any real record was found.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     require_tier(tenant_id, "fda_tracking", db)
     submissions = list_fda_submissions(tenant_id, db)
     return {
@@ -205,13 +206,13 @@ def create_fda_submission(
     db: Session = Depends(get_db),
 ):
     """Create an FDA submission tracking record."""
-    require_enterprise_auth(request)
-    require_tier(body.tenant_id, "fda_tracking", db)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), body.tenant_id)
+    require_tier(tenant_id, "fda_tracking", db)
     try:
         from app.models.regulatory import FDASubmissionTracker
         from datetime import datetime
         record = FDASubmissionTracker(
-            tenant_id=body.tenant_id,
+            tenant_id=tenant_id,
             submission_type=body.submission_type,
             submission_number=body.submission_number,
             device_name=body.device_name,
@@ -231,12 +232,12 @@ def create_fda_submission(
 @router.get("/dashboard")
 def regulatory_dashboard(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """Executive regulatory compliance dashboard."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     require_tier(tenant_id, "regulatory_dashboard", db)
     dashboard = compute_regulatory_dashboard(tenant_id, facility_id, db)
     return {"status": "success", "dashboard": dashboard.model_dump()}

@@ -123,7 +123,7 @@ class PredictiveDashboard(BaseModel):
 
 
 class PredictionOutcomeCreate(BaseModel):
-    tenant_id: str
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     instrument_name: str
     instrument_id: str = ""
     facility_id: str = ""

@@ -7,8 +7,9 @@ const HEADERS = {
   "Content-Type": "application/json",
 };
 
-const TENANT_ID =
-  localStorage.getItem("tenant_id") || "demo-tenant";
+// P472-03: the server takes the tenant from the signed-in user's verified
+// membership. This dashboard no longer sends a tenant_id — a hardcoded or
+// locally stored tenant that is not the caller's own is refused (HTTP 403).
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -188,7 +189,7 @@ export function RegulatoryComplianceDashboard() {
     setLoading(true);
     setError("");
     try {
-      const r = await apiFetch(`/api/regulatory/readiness?tenant_id=${TENANT_ID}`,
+      const r = await apiFetch(`/api/regulatory/readiness`,
         { raw: true, headers: HEADERS }
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -204,8 +205,8 @@ export function RegulatoryComplianceDashboard() {
   const fetchFindings = useCallback(async () => {
     setLoading(true);
     try {
-      const sev = findingsSeverity !== "all" ? `&severity=${findingsSeverity}` : "";
-      const r = await apiFetch(`/api/regulatory/readiness/findings?tenant_id=${TENANT_ID}${sev}`,
+      const sev = findingsSeverity !== "all" ? `?severity=${findingsSeverity}` : "";
+      const r = await apiFetch(`/api/regulatory/readiness/findings${sev}`,
         { raw: true, headers: HEADERS }
       );
       const j = await r.json();
@@ -220,7 +221,7 @@ export function RegulatoryComplianceDashboard() {
   const fetchPackages = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await apiFetch(`/api/regulatory/audit-packages?tenant_id=${TENANT_ID}`,
+      const r = await apiFetch(`/api/regulatory/audit-packages`,
         { raw: true, headers: HEADERS }
       );
       const j = await r.json();
@@ -235,7 +236,7 @@ export function RegulatoryComplianceDashboard() {
   const fetchFDA = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await apiFetch(`/api/regulatory/fda-submissions?tenant_id=${TENANT_ID}`,
+      const r = await apiFetch(`/api/regulatory/fda-submissions`,
         { raw: true, headers: HEADERS }
       );
       const j = await r.json();
@@ -265,7 +266,6 @@ export function RegulatoryComplianceDashboard() {
         method: "POST",
         headers: HEADERS,
         body: JSON.stringify({
-          tenant_id: TENANT_ID,
           package_type: pkgType,
           period_label: pkgPeriod || new Date().toISOString().slice(0, 7),
           generated_by: "dashboard-user",
@@ -287,7 +287,6 @@ export function RegulatoryComplianceDashboard() {
         method: "POST",
         headers: HEADERS,
         body: JSON.stringify({
-          tenant_id: TENANT_ID,
           package_type: type,
           period_label: period || new Date().toISOString().slice(0, 7),
           generated_by: "dashboard-user",

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.auth.tenant_scope import authorized_tenant
 from app.enterprise_auth import require_enterprise_auth
 from app.schemas.benchmarking import (
     BoardReportRequest,
@@ -46,10 +47,10 @@ def hospital_benchmarks(
     Aggregates CVInferenceRecord data for the specified period.
     Pass hospital_ids=[] to include all hospitals.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), req.tenant_id)
     period_label = req.period.period_label or _current_period_label(req.period.period_type)
     return compute_hospital_benchmarks(
-        tenant_id=req.tenant_id,
+        tenant_id=tenant_id,
         period_label=period_label,
         period_type=req.period.period_type,
         hospital_ids=req.hospital_ids or None,
@@ -61,13 +62,13 @@ def hospital_benchmarks(
 def get_hospital_benchmark(
     hospital_id: str,
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     period_label: str = "",
     period_type: str = "monthly",
     db: Session = Depends(get_db),
 ):
     """Retrieve benchmark for a single hospital."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     period_label = period_label or _current_period_label(period_type)
     results = compute_hospital_benchmarks(
         tenant_id=tenant_id,
@@ -90,13 +91,13 @@ def get_hospital_benchmark(
 @router.get("/hospitals", response_model=list[HospitalBenchmarkResult])
 def list_hospital_benchmarks(
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     period_label: str = "",
     period_type: str = "monthly",
     db: Session = Depends(get_db),
 ):
     """List all hospital benchmarks for the current period (GET shorthand)."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     period_label = period_label or _current_period_label(period_type)
     return compute_hospital_benchmarks(
         tenant_id=tenant_id,
@@ -115,10 +116,10 @@ def vendor_benchmarks(
     db: Session = Depends(get_db),
 ):
     """Compute vendor benchmark metrics: baseline adoption, defect rate, CAPA closure."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), req.tenant_id)
     period_label = req.period.period_label or _current_period_label(req.period.period_type)
     return compute_vendor_benchmarks(
-        tenant_id=req.tenant_id,
+        tenant_id=tenant_id,
         period_label=period_label,
         period_type=req.period.period_type,
         vendor_ids=req.vendor_ids or None,
@@ -129,13 +130,13 @@ def vendor_benchmarks(
 @router.get("/vendors", response_model=list[VendorBenchmarkResult])
 def list_vendor_benchmarks(
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     period_label: str = "",
     period_type: str = "monthly",
     db: Session = Depends(get_db),
 ):
     """List all vendor benchmarks for the current period."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     period_label = period_label or _current_period_label(period_type)
     return compute_vendor_benchmarks(
         tenant_id=tenant_id,
@@ -158,10 +159,10 @@ def enterprise_rollup(
     Aggregates all hospital and vendor benchmarks into a single summary
     suitable for executive reporting.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), req.tenant_id)
     period_label = req.period.period_label or _current_period_label(req.period.period_type)
     return compute_enterprise_rollup(
-        tenant_id=req.tenant_id,
+        tenant_id=tenant_id,
         period_label=period_label,
         period_type=req.period.period_type,
         db=db,
@@ -171,13 +172,13 @@ def enterprise_rollup(
 @router.get("/rollup", response_model=EnterpriseRollupResult)
 def get_enterprise_rollup(
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     period_label: str = "",
     period_type: str = "monthly",
     db: Session = Depends(get_db),
 ):
     """GET shorthand for the current-period enterprise rollup."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     period_label = period_label or _current_period_label(period_type)
     return compute_enterprise_rollup(
         tenant_id=tenant_id,
@@ -192,7 +193,7 @@ def get_enterprise_rollup(
 @router.get("/executive-dashboard", response_model=ExecutiveDashboard)
 def executive_dashboard(
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     period_label: str = "",
     period_type: str = "monthly",
     db: Session = Depends(get_db),
@@ -203,7 +204,7 @@ def executive_dashboard(
     Includes headline KPIs, trend series for the last 6 periods, risk snapshot,
     leaderboards, and role-specific insights.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     period_label = period_label or _current_period_label(period_type)
     return compute_executive_dashboard(
         tenant_id=tenant_id,
@@ -221,7 +222,7 @@ def metric_trend(
     subject_id: str,
     metric_name: str,
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     n_periods: int = 6,
     period_type: str = "monthly",
     db: Session = Depends(get_db),
@@ -231,7 +232,7 @@ def metric_trend(
     subject_type: hospital | vendor | enterprise
     metric_name:  contamination_rate_pct | avg_cleanliness_score | baseline_adoption_rate_pct | etc.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     n_periods = max(2, min(n_periods, 24))
     points = compute_trend_series(
         tenant_id=tenant_id,
@@ -264,18 +265,18 @@ def generate_report(
     derived from the enterprise rollup for the specified period.
     Set publish=True to mark the report as published.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), req.tenant_id)
     period_label = req.period_label or _current_period_label(req.report_type)
     period_type = req.report_type
     report = generate_board_report(
-        tenant_id=req.tenant_id,
+        tenant_id=tenant_id,
         period_label=period_label,
         period_type=period_type,
         report_type=req.report_type,
         db=db,
     )
     if req.publish and db is not None:
-        _publish_report(db, req.tenant_id, period_label, req.report_type)
+        _publish_report(db, tenant_id, period_label, req.report_type)
         report = report.model_copy(update={"status": "published"})
     return report
 
@@ -284,12 +285,12 @@ def generate_report(
 def list_reports(
     report_type: str,
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     db: Session = Depends(get_db),
 ):
     """List previously generated board reports of the specified type."""
     from app.models.benchmarking import BoardReport
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     import json as _json
     rows = (
         db.query(BoardReport)
@@ -319,13 +320,13 @@ def get_report(
     report_type: str,
     period_label: str,
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     db: Session = Depends(get_db),
 ):
     """Retrieve a specific board report by type and period."""
     from app.models.benchmarking import BoardReport
     import json as _json
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     row = (
         db.query(BoardReport)
         .filter(
@@ -365,7 +366,7 @@ def get_report(
 @router.get("/kpi-summary", response_model=dict)
 def benchmark_kpi_summary(
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str = "",
     period_type: str = "monthly",
     db: Session = Depends(get_db),
 ):
@@ -373,7 +374,7 @@ def benchmark_kpi_summary(
 
     Returns the most important headline numbers without the full trend series.
     """
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     period_label = _current_period_label(period_type)
     rollup = compute_enterprise_rollup(
         tenant_id=tenant_id,

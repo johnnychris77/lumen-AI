@@ -14,10 +14,11 @@ and operational aggregation, on every enterprise CV route (the list is checked
 against the mounted routes, so a new CV route without a row here fails) and on
 the API routes of the six analytics services that consume CV records.
 
-Known-open findings are marked ``xfail(strict=True)`` with their finding id:
-the test states the REQUIRED behaviour, fails today, and will fail the suite the
-moment the route is fixed without the marker being removed. They are open
-security findings, not accepted behaviour.
+The 13 downstream cases that were strict ``xfail`` when this file was written
+(finding P472-03: a route authenticated the caller for their own tenant and then
+served the tenant named in the request) are ordinary tests now that the routes
+are fixed. Every endpoint of those modules is covered in
+``test_p472_03_tenant_authorization.py``.
 
 Everything is synthetic: canned provider outputs, constant digests, a test key.
 """
@@ -54,10 +55,6 @@ TEST_KEY = "test-only-provenance-key-not-a-secret-0123456789"
 CLASSIFIER_DIGEST = "a" * 64
 DETECTOR_DIGEST = "b" * 64
 REFUSED = (401, 403)
-P472_03 = (
-    "OPEN FINDING P472-03: the route authenticates the caller for their own tenant "
-    "and then serves the tenant named in the request. Required: refuse."
-)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -591,7 +588,8 @@ CONTEXT_TENANT_ROUTES = [
     ("GET", "/api/copilot/sessions"),
 ]
 
-# Tenant comes from a ``tenant_id`` the CLIENT sends.
+# Routes that accept a ``tenant_id`` from the client. Before P472-03 they served
+# whichever tenant it named; now it is only a claim that must match the caller's.
 CLIENT_TENANT_ROUTES = [
     ("GET", "/api/regulatory/readiness"),
     ("GET", "/api/regulatory/readiness/findings"),
@@ -642,15 +640,10 @@ class TestDownstreamAggregateRoutes:
         for secret in b.inference_ids:
             assert secret not in claimed.text
 
-    @pytest.mark.parametrize(
-        "route",
-        [pytest.param(route, marks=pytest.mark.xfail(strict=True, reason=P472_03))
-         for route in CLIENT_TENANT_ROUTES],
-        ids=[route[1] for route in CLIENT_TENANT_ROUTES],
-    )
+    @pytest.mark.parametrize("route", CLIENT_TENANT_ROUTES, ids=[route[1] for route in CLIENT_TENANT_ROUTES])
     def test_a_member_of_a_cannot_request_tenant_b_by_query(self, world, route):
         """A verified member of tenant A, sending no tenant header, asks for
-        ``tenant_id=<tenant B>``. Required: refused."""
+        ``tenant_id=<tenant B>``. Required: refused. (P472-03, fixed.)"""
         a, b = world.a, world.b
         response = client.request(route[0], route[1], headers=a.headers, params={"tenant_id": b.tenant})
         assert response.status_code in (*REFUSED, 404), (
@@ -719,15 +712,11 @@ class TestDownstreamWritesAcrossTenants:
         assert response.status_code == 200, response.text
         assert _downstream_rows(b.tenant)[path] == before + 1
 
-    @pytest.mark.parametrize(
-        "path",
-        [pytest.param(path, marks=pytest.mark.xfail(strict=True, reason=P472_03))
-         for path in DOWNSTREAM_WRITE_PATHS],
-        ids=DOWNSTREAM_WRITE_PATHS,
-    )
+    @pytest.mark.parametrize("path", DOWNSTREAM_WRITE_PATHS)
     def test_a_member_of_a_cannot_write_into_tenant_b_by_naming_it_in_the_body(self, world, path):
         """A verified member of tenant A, sending no tenant header, posts a record
-        whose body says ``tenant_id: <tenant B>``. Required: refused, nothing stored."""
+        whose body says ``tenant_id: <tenant B>``. Required: refused, nothing stored.
+        (P472-03, fixed.)"""
         a, b = world.a, world.b
         before = _downstream_rows(b.tenant)[path]
 
