@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.annotation_database import ROLES_MAY_VIEW
 from app.services import dataset_eligibility_service
 
@@ -18,7 +18,7 @@ router = APIRouter(tags=["dataset-eligibility"])
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 @router.get("/dataset-eligibility")

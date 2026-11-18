@@ -31,7 +31,8 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id, require_manufacturer_auth
+from app.auth.tenant_scope import principal_tenant
+from app.enterprise_auth import require_manufacturer_auth
 from app.services import (
     beacon_advisory_board_service,
     beacon_collaboration_hub_service,
@@ -52,7 +53,7 @@ _LEADERSHIP_ROLES = ("admin", "spd_manager")
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def _actor(current_user) -> str:

@@ -307,12 +307,18 @@ def test_upload_and_create_resolve_same_tenant_for_jwt_user():
     looks it up under, or the comparison silently loses the pixels."""
     from app.deps import get_current_user
 
-    class _User:
-        tenant_id = "jwt-tenant-xyz"
-        tenant_name = "JWT Tenant"
-        role = "admin"
-        email = "clinician@hospital.example"
-        username = "clinician@hospital.example"
+    # P472-03 batch 2: the tenant is resolved from the verified principal, so the
+    # stand-in for the logged-in user is a real principal with that membership
+    # (it used to be a bare object carrying a ``tenant_id`` attribute).
+    from app.security.principal import METHOD_JWT, AuthenticatedPrincipal, TenantMembershipView
+
+    def _User():
+        return AuthenticatedPrincipal(
+            subject="clinician@hospital.example", email="clinician@hospital.example",
+            username="clinician@hospital.example", role="admin", authentication_method=METHOD_JWT,
+            tenant_memberships=(TenantMembershipView("jwt-tenant-xyz", "JWT Tenant", "tenant_admin"),),
+            active_tenant_id="jwt-tenant-xyz",
+        )
 
     itype = "rigid_scope"
     _make_active(itype, _png(1201), tenant="jwt-tenant-xyz")

@@ -20,7 +20,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.mentor_coaching_review import MentorCoachingReview
 from app.services.baseline_comparison_scoring_service import analyze_inspection
 from app.services.competency_service import competency_summary, record_education_completed
@@ -166,7 +166,7 @@ def get_coaching_queue(
 ):
     """Recent inspections whose AI coaching has not yet been reviewed by a
     supervisor, most recent first."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     query = db.query(models.Inspection).filter(models.Inspection.has_image.is_(True))
     if tenant_id and getattr(current_user, "role", "") != "admin":
         query = query.filter(models.Inspection.tenant_id == tenant_id)
@@ -202,7 +202,7 @@ def submit_coaching_review(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     inspection = db.query(models.Inspection).filter(models.Inspection.id == inspection_id).first()
     if inspection is None:
         raise HTTPException(status_code=404, detail="Inspection not found.")
@@ -244,7 +244,7 @@ def get_coaching_effectiveness(
     """Aggregate stats on how often supervisors approve the AI's coaching
     unchanged vs. edit or add educational comments — derived only from
     recorded reviews, empty when there are none yet."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     query = db.query(MentorCoachingReview)
     if tenant_id and getattr(current_user, "role", "") != "admin":
         query = query.filter(MentorCoachingReview.tenant_id == tenant_id)

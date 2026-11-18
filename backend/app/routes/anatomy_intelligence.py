@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.services.learning_dataset_v2 import learning_dataset_v2
 from app.services.zone_intelligence import dynamic_inspection_guidance, zone_engine, zone_risk_matrix
 
@@ -72,5 +72,5 @@ def get_learning_dataset(
     """Deliverable 8 — Learning Dataset v2, joined live from real supervisor
     reviews / inspections / image tags. Admin/spd_manager only — this is a
     training-data export surface, not a general read endpoint."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     return learning_dataset_v2(db, tenant_id)

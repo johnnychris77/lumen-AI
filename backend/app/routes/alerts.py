@@ -15,7 +15,7 @@ from openpyxl import Workbook
 
 from app.deps import get_db
 from app.db import models
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.notifications.notifier import dispatch_alert
 from app.authz import require_roles
 
@@ -197,7 +197,7 @@ def alerts_feed(
     # identity and be scoped to the caller's tenant. Falls back to the request
     # tenant header when the auth identity carries no tenant_id (dev-auth), so
     # the filter below is never silently skipped for a non-admin caller.
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
 
     query = db.query(models.Inspection)
     if getattr(current_user, "role", "") != "admin":
@@ -225,7 +225,7 @@ def alerts_open(
 ):
     # Scope open alerts to the caller's tenant unless platform admin, so an
     # authenticated viewer from one tenant cannot read another tenant's alerts.
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
 
     query = db.query(models.Inspection).filter(models.Inspection.alert_status != "resolved")
     if getattr(current_user, "role", "") != "admin":

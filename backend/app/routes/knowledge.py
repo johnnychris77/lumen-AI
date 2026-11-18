@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.knowledge import ARTICLE_CATEGORIES, PENDING_REVIEW, STANDARD_TYPES, TEACHING_POINT
 from app.services import knowledge_governance_service as governance
 from app.services import knowledge_repository_service as repository
@@ -46,7 +46,7 @@ def _actor(user) -> str:
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def _get_inspection(db: Session, tenant_id: str, inspection_id: int):

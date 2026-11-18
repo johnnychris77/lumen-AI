@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.instrument_knowledge import InstrumentKnowledge
 from app.models.supervisor_review import SupervisorReview
 from app.services.instrument_anatomy import anatomy_profile, list_anatomy_families
@@ -77,7 +77,7 @@ def coverage_dashboard(
     coverage, status breakdown, most commonly missing zones, per-family
     averages) computed from stored inspections. Nothing fabricated: inspections
     that never had zones tagged are excluded from averages, not counted as 0%."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     return coverage_dashboard_summary(db, tenant_id)
 
 
@@ -101,7 +101,7 @@ def create_knowledge(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     row = InstrumentKnowledge(
         tenant_id=tenant_id,
         manufacturer=body.manufacturer, model=body.model,
@@ -125,7 +125,7 @@ def list_knowledge(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
 ):
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     rows = (
         db.query(InstrumentKnowledge)
         .filter(InstrumentKnowledge.tenant_id == tenant_id)
@@ -162,7 +162,7 @@ def zone_intelligence(
     by zone) are surfaced as empty until that data is captured, rather than
     fabricated. Supervisor override-by-zone is computed from real reviews.
     """
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     inspections = db.query(models.Inspection).filter(models.Inspection.tenant_id == tenant_id)
     total = inspections.filter(models.Inspection.has_image.is_(True)).count()
 

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.root_cause import ROOT_CAUSES
 from app.services.anatomy_risk_service import anatomy_risk_dashboard
 from app.services.capa_suggestion_service import create_capa_from_suggestion, generate_capa_suggestions
@@ -49,7 +49,7 @@ def _actor(user) -> str:
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 @router.get("/dashboard")

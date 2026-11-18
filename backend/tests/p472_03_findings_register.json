@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 2, ML images and operations (parent e59cd26)",
+ "baseline_commit": "remediation batch 2, principal tenant (parent 48183fa)",
  "sweeps": [
   "sqlite"
  ],
@@ -21,10 +21,6 @@
  ],
  "unstable": {},
  "findings": {
-  "DELETE /api/platform/navigation/favorites/{module_key}": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/accreditation/certifications": [
    "AW-04"
   ],
@@ -43,50 +39,10 @@
   "GET /api/accreditation/survey-evidence": [
    "AW-04"
   ],
-  "GET /api/advisory-pilot/clinical-performance": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/feedback/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/final-report": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/recommendations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/safety-events/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/success-metrics": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/advisory-pilot/workflow-impact": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/agents/run/{inspection_id}": [
    "AW-06N"
   ],
   "GET /api/agents/trace/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/alerts/feed": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/alerts/open": [
-   "AW-05",
    "AW-06N"
   ],
   "GET /api/analytics/kpi-summary": [
@@ -95,168 +51,8 @@
   "GET /api/analytics/powerbi": [
    "AW-06N"
   ],
-  "GET /api/analytics/zone-intelligence": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/anatomy/learning-dataset": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/annotations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/annotations/analytics/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/annotations/{annotation_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/annotations/{annotation_id}/review/secondary/blind-view": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/annotations/{annotation_id}/versions": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/audit/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/capa/complaints": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/capa/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/competency/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/executive-dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/improvement-projects": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/improvement-projects/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/policies": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/policies/due-for-review": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/policies/{policy_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/policies/{policy_id}/history": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/quality-twin/{department}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/quality-twin/{department}/history": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/rca/fishbone/{draft_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/rca/five-whys/{draft_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/rca/pareto": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/rca/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/rca/trend": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/apollo/standards/library": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/baseline-library/images": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/baseline-library/images/{link_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/baseline-library/images/{link_id}/audit-history": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/baseline-library/legacy-report": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/baseline-library/sets/{set_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/beacon/collaboration/my-status": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/beacon/evidence-exchange": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/beacon/governance/overview": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/billing/status": [
    "AW-04"
-  ],
-  "GET /api/capture/devices": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/catalyst/actions/pending": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/catalyst/conversations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/catalyst/conversations/{conversation_id}/messages": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/catalyst/persona/executive-briefing": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/catalyst/persona/technician-help": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/cios/certificate/{inspection_id}": [
    "AW-06N"
@@ -279,14 +75,6 @@
   "GET /api/cios/state/{inspection_id}": [
    "AW-06N"
   ],
-  "GET /api/clinical-readiness/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/clinical-readiness/enterprise-analytics": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/commercial/business-case/executive-summary": [
    "AW-04"
   ],
@@ -295,34 +83,6 @@
   ],
   "GET /api/commercial/customer-success/trend": [
    "AW-04"
-  ],
-  "GET /api/coverage-dashboard/summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/dataset-eligibility": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/dataset-registry/digital-twin/{digital_twin_id:path}/history": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/dataset-registry/images": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/dataset-registry/images/{entry_id}/baseline-comparison": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/dataset-registry/validation-report": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/dataset-registry/versions": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/decision-policies": [
    "AW-06N"
@@ -338,26 +98,6 @@
   ],
   "GET /api/enterprise/ranking/score/{finding_id}/report.pdf": [
    "AW-06M"
-  ],
-  "GET /api/forge/approval-chains": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/forge/workflow-execution": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/forge/workflow-history/{workflow_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/forge/workflow-rules": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/forge/workflows": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/genesis-ai/manufacturer-updates": [
    "AW-04"
@@ -422,110 +162,6 @@
   "GET /api/infrastructure/quality-registry": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/insight/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/education-signals": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/instrument-lifecycle": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/intelligence": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/operational-forecasts": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/quality-trends": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/recommendations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/reports": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/reports/{report_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/reports/{report_id}.csv": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/reports/{report_id}.pdf": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/insight/reports/{report_id}.xlsx": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspection-work-queue": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/assignments": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/data-quality": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/disposition-actions": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/evidence-panel": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/readiness-report": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/readiness-report.pdf": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/readiness-timeline": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/risk-stratification": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/similar-cases": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/inspections/{inspection_id}/workflow-state": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/instrument-knowledge": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/instruments/{identifier}/timeline": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/integrations/correlation-candidates": [
    "AW-03",
@@ -608,46 +244,6 @@
   "GET /api/knowledge-graph/learning-confidence": [
    "AW-06N"
   ],
-  "GET /api/knowledge/analytics": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/articles": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/articles/{article_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/cases": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/cases/{case_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/competency-topics": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/governance-summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/knowledge/standards": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/mentor/coaching-effectiveness": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/mentor/coaching-queue": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/mobile/device-sessions": [
    "AW-03",
    "AW-06M"
@@ -675,34 +271,6 @@
   "GET /api/mobile/sessions/{session_id}/sync-status": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/model-performance/ai-summary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/model-pipeline/models": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/model-pipeline/models/{model_db_id}/candidate-checklist": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/model-pipeline/models/{model_db_id}/promotion-readiness": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/model-pipeline/models/{model_db_id}/validated-candidate-checklist": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/model-pipeline/models/{model_db_id}/validation-package": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/model-pipeline/shadow-predictions/performance": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/network-intelligence/executive/dashboards": [
    "AW-04"
@@ -801,135 +369,11 @@
    "AW-03",
    "AW-06M"
   ],
-  "GET /api/nexus/connectors": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}/credentials": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}/errors": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}/identity-mappings": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}/sync-runs": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}/synced-assets": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/connectors/{connector_id}/work-queue-links": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/events": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/nexus/events/subscriptions": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/olympus/participants/{tenant_id}": [
    "AW-04"
   ],
   "GET /api/olympus/trust/{tenant_id}/history": [
    "AW-04"
-  ],
-  "GET /api/operations-board": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/cases": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/cases/{case_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/cases/{case_id}/readiness-score": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/cases/{case_id}/risks": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/cases/{case_id}/timeline": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/clinical-engineering": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/or-connect/executive-dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/case-readiness/{case_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/case-readiness/{case_id}/history": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/cases": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/cases/{case_id}/coordination": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/cases/{case_id}/intelligence": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/cases/{case_id}/simulations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/cases/{case_id}/timeline": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/executive": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/procedure-intelligence": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/readiness-alerts/{case_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/orbit/surgical-readiness/{case_id}": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/patient-safety/capa-effectiveness": [
    "AW-03",
@@ -962,54 +406,6 @@
   "GET /api/patient-safety/signals/{signal_id}": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/pilot-deployment/data-collection": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pilot-deployment/site-config": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pilot-validation/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pilot-validation/go-no-go": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pilot-validation/report": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pilot-validation/safety-queue": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/platform/activity-feed": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/platform/configuration": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/platform/licenses": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/platform/navigation/launcher": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/platform/notifications": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/platform/search": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/pre-sterilization-command-center/baseline-coverage": [
    "AW-06N"
@@ -1044,90 +440,6 @@
   "GET /api/pre-sterilization-command-center/tray-readiness": [
    "AW-06N"
   ],
-  "GET /api/pulse/ai-ops": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/alerts": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/command-center": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/dashboard-layout": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/events": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/executive": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/facility-console": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/kpis": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/notifications": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/replay/incident/{alert_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/pulse/workflow-monitor": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/capa-recommendations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/command-center": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/competency-opportunities": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/competency-opportunities/{opportunity_id}/effectiveness": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/events": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/events/{event_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/events/{event_id}/correlations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/first-pass-yield/all-scopes": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/rca-drafts/{draft_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality-guardian/taxonomy": [
-   "AW-05",
-   "AW-06N"
-  ],
   "GET /api/quality-twin/dashboard": [
    "AW-03",
    "AW-06M"
@@ -1151,138 +463,6 @@
   "GET /api/quality-twin/state": [
    "AW-03",
    "AW-06M"
-  ],
-  "GET /api/quality/anatomy-risk": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/benchmark": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/capa-suggestions": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/executive-score": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/finding-trends": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/improvement-initiatives": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/instrument-performance": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/root-cause-trends": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/supervisor-quality": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/quality/technician-quality": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/reviewer-queues": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/scenario-analysis/analytics": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/scenario-analysis/education/compare": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/scenario-analysis/{inspection_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/scenario-analysis/{inspection_id}/workflow-impact": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/ai-health": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/alerts": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/digital-twin-flags": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/recommendations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/risk-signals": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/supervisor-intelligence": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/sentinel/watchlist": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/clinical-review-board/latest": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/drift": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/error-review-queue": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/failure-analysis": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/ground-truth": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/pilot-sites/{facility_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/safety-monitor": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/shadow-validation/validation-metrics": [
-   "AW-05",
-   "AW-06N"
   ],
   "GET /api/standards/api-partners": [
    "AW-03",
@@ -1319,148 +499,12 @@
   "GET /api/unknown-findings": [
    "AW-06N"
   ],
-  "GET /api/v1/analytics": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/apollo": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/athena": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/digital-twins": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/forge": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/inspections": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/instruments": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/knowledge": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/orbit": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/organizations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/phoenix": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/pulse": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/v1/sentinel": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/board-reports": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/board-reports/{packet_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/board-reports/{packet_id}.pdf": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/board-reports/{packet_id}.pptx": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/board-reports/{packet_id}.xlsx": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/executive-intelligence": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/financial": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/governance": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/operational": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/strategy/initiatives": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/vanguard/strategy/initiatives/{initiative_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/analytics": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/daily-dashboard": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/escalations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/notifications": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/shift-handoff": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/sla-monitoring": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/workflow/technician-workload": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/annotations/{annotation_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/apollo/improvement-projects/{project_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
   "PATCH /api/genesis-ai/participants/{tenant_id}/research-opt-in": [
    "AW-04"
   ],
   "PATCH /api/intelligence/investigations/{investigation_id}": [
    "AW-03",
    "AW-06M"
-  ],
-  "PATCH /api/knowledge/articles/{article_id}": [
-   "AW-05",
-   "AW-06N"
   ],
   "PATCH /api/mobile/notifications/{notification_id}/dismiss": [
    "AW-03",
@@ -1474,168 +518,12 @@
    "AW-03",
    "AW-06M"
   ],
-  "PATCH /api/model-pipeline/models/{model_db_id}/candidate-flags": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/model-pipeline/models/{model_db_id}/governance-flags": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/or-connect/repairs/{repair_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/orbit/loaner-equipment/{equipment_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/quality-guardian/rca-drafts/{draft_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
   "PATCH /api/quality-twin/scenarios/{scenario_id}/approve": [
    "AW-03",
    "AW-06M"
   ],
-  "PATCH /api/quality/improvement-initiatives/{initiative_id}": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/shadow-validation/ground-truth/{gt_id}/adjudication": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "PATCH /api/shadow-validation/ground-truth/{gt_id}/supervisor-finding": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/advisory-pilot/feedback": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/advisory-pilot/governance": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/advisory-pilot/safety-events/{event_id}/review": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/annotations": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/annotations/{annotation_id}/review/primary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/annotations/{annotation_id}/review/secondary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/apollo/capa/complaints": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/apollo/capa/complaints/{complaint_id}/close": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/apollo/improvement-projects": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/apollo/policies": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/apollo/policies/{policy_id}/publish": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baseline-library/images/{link_id}/activate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baseline-library/images/{link_id}/archive": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baseline-library/images/{link_id}/submit-for-review": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baseline-library/images/{link_id}/supersede": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baseline-library/images/{link_id}/suspend": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baseline-library/sets": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/baselines/manufacturer": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/capture/devices": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/capture/devices/{device_id}/revoke": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/catalyst/actions/cancel": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/catalyst/actions/confirm": [
-   "AW-05",
-   "AW-06N"
-  ],
   "POST /api/commercial/customer-success/snapshot": [
    "AW-04"
-  ],
-  "POST /api/dataset-registry/images": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/images/{entry_id}/double-blind/adjudicate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/images/{entry_id}/double-blind/independent": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/images/{entry_id}/double-blind/primary": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/images/{entry_id}/quality-assessment": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/versions": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/versions/{version_id}/build-training-dataset": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/versions/{version_id}/freeze": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/dataset-registry/versions/{version_id}/run-candidate-training": [
-   "AW-05",
-   "AW-06N"
   ],
   "POST /api/decision-policies/simulate": [
    "AW-06N"
@@ -1651,10 +539,6 @@
    "AW-04",
    "AW-06M"
   ],
-  "POST /api/forge/workflows/{workflow_id}/clone": [
-   "AW-05",
-   "AW-06N"
-  ],
   "POST /api/global-intelligence/contribute": [
    "AW-03",
    "AW-06M"
@@ -1669,58 +553,6 @@
   "POST /api/infrastructure/readiness": [
    "AW-03",
    "AW-06M"
-  ],
-  "POST /api/insight/education-signals/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/insight/instrument-lifecycle/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/insight/operational-forecasts/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/insight/quality-trends/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/insight/recommendations/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/insight/recommendations/{recommendation_id}/action": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/insight/recommendations/{recommendation_id}/dismiss": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/inspections/{inspection_id}/assign": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/inspections/{inspection_id}/coverage-override": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/inspections/{inspection_id}/disposition-action": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/inspections/{inspection_id}/teaching-point": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/inspections/{inspection_id}/workflow/cancel": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/instrument-knowledge": [
-   "AW-05",
-   "AW-06N"
   ],
   "POST /api/integrations/correlation-candidates/run": [
    "AW-03",
@@ -1760,34 +592,6 @@
   "POST /api/intelligence/run-analysis": [
    "AW-03",
    "AW-06M"
-  ],
-  "POST /api/knowledge/articles/{article_id}/approve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/knowledge/articles/{article_id}/archive": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/knowledge/articles/{article_id}/reject": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/knowledge/articles/{article_id}/submit-for-review": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/knowledge/assistant": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/knowledge/search": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/knowledge/standards/{standard_id}/deactivate": [
-   "AW-05",
-   "AW-06N"
   ],
   "POST /api/mobile/auth/logout": [
    "AW-03",
@@ -1837,30 +641,6 @@
    "AW-03",
    "AW-06M"
   ],
-  "POST /api/model-pipeline/models/{model_db_id}/candidate-promotion": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/model-pipeline/models/{model_db_id}/generate-model-card": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/model-pipeline/models/{model_db_id}/promote": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/model-pipeline/models/{model_db_id}/record-training-result": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/model-pipeline/shadow-predictions": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/model-pipeline/shadow-predictions/{shadow_id}/reveal": [
-   "AW-05",
-   "AW-06N"
-  ],
   "POST /api/network-intelligence/executive/dashboards": [
    "AW-04"
   ],
@@ -1897,112 +677,8 @@
    "AW-03",
    "AW-06M"
   ],
-  "POST /api/nexus/connectors/{connector_id}/credentials": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/credentials/{credential_id}/revoke": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/disable": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/enable": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/health-check": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/identity-mappings": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/sync/assets": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/connectors/{connector_id}/sync/work-queue": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/nexus/events/subscriptions/{subscription_id}/deactivate": [
-   "AW-05",
-   "AW-06N"
-  ],
   "POST /api/olympus/trust/{tenant_id}/compute": [
    "AW-04"
-  ],
-  "POST /api/or-connect/cases": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/or-connect/cases/{case_id}/approve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/or-connect/cases/{case_id}/link-inspection": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/or-connect/cases/{case_id}/notifications/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/or-connect/cases/{case_id}/trays": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/or-connect/notifications/{notification_id}/read": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/or-connect/repairs": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/cart": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/coordinate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/environmental": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/implants": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/loaner-equipment": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/procedure-complete": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/simulate/instrument-unavailable": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/simulate/time-shift": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/simulate/vendor-tray-delay": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/orbit/cases/{case_id}/staff": [
-   "AW-05",
-   "AW-06N"
   ],
   "POST /api/patient-safety/correlate": [
    "AW-03",
@@ -2011,86 +687,6 @@
   "POST /api/patient-safety/events/import": [
    "AW-03",
    "AW-06M"
-  ],
-  "POST /api/pulse/alerts/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/pulse/alerts/{alert_id}/acknowledge": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/pulse/alerts/{alert_id}/resolve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/pulse/dashboard-layout": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/pulse/notifications/route": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/capa-recommendations/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/capa-recommendations/{recommendation_id}/accept": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/capa-recommendations/{recommendation_id}/dismiss": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/competency-opportunities/detect": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/competency-opportunities/{opportunity_id}/address": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/correlations/{correlation_id}/confirm": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/events": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/events/{event_id}/classify": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/events/{event_id}/confirm": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/events/{event_id}/correlate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/events/{event_id}/learning-loop": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/events/{event_id}/rca-draft": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/rca-drafts/{draft_id}/approve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/rca-drafts/{draft_id}/reject": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/quality-guardian/taxonomy": [
-   "AW-05",
-   "AW-06N"
   ],
   "POST /api/quality-twin/interventions": [
    "AW-03",
@@ -2104,86 +700,6 @@
    "AW-03",
    "AW-06M"
   ],
-  "POST /api/quality/improvement-initiatives": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/scenario-analysis/{inspection_id}/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/scenario-analysis/{simulation_run_id}/actual-outcome": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/alerts/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/alerts/{alert_id}/acknowledge": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/alerts/{alert_id}/resolve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/digital-twin-flags/monitor": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/digital-twin-flags/{flag_id}/resolve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/recommendations/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/recommendations/{recommendation_id}/action": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/recommendations/{recommendation_id}/dismiss": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/risk-signals/detect": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/risk-signals/{signal_id}/resolve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/scan": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/watchlist/refresh": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/sentinel/watchlist/{entry_id}/resolve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/shadow-validation/clinical-review-board": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/shadow-validation/error-review-queue/{item_id}/resolve": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/shadow-validation/ground-truth": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/shadow-validation/pilot-sites": [
-   "AW-05",
-   "AW-06N"
-  ],
   "POST /api/standards/api-partners/{app_id}/approve": [
    "AW-03",
    "AW-06M"
@@ -2191,14 +707,6 @@
   "POST /api/standards/baseline-governance/{record_id}/approve": [
    "AW-03",
    "AW-06M"
-  ],
-  "POST /api/workflow/notifications/generate": [
-   "AW-05",
-   "AW-06N"
-  ],
-  "POST /api/workflow/notifications/{notification_id}/read": [
-   "AW-05",
-   "AW-06N"
   ]
  }
 }

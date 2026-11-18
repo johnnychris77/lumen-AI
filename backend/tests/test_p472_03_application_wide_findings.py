@@ -202,7 +202,8 @@ def test_aw04_a_member_of_a_cannot_read_tenant_b_network_registry_entry():
 
 # ══ AW-05 — header trusted when the user has no single verified tenant ════════
 
-@_finding("AW-05", "current_user.tenant_id or get_request_tenant_id(request): no membership falls back to the header")
+# Remediated in P472-03 batch 2 (the fallback to the request header is gone; the
+# tenant comes from verified membership). The assertions are unchanged.
 def test_aw05_a_user_with_no_membership_cannot_register_a_device_in_tenant_b(tenants):
     _, outsider = _user("spd_manager")              # the role, but no tenant membership at all
     before = _rows(CaptureDevice, tenants.b)
@@ -215,7 +216,6 @@ def test_aw05_a_user_with_no_membership_cannot_register_a_device_in_tenant_b(ten
         f"HTTP {response.status_code}; {written} capture device(s) registered in tenant B by a user with no membership")
 
 
-@_finding("AW-05", "a user who belongs to two tenants can name a third in X-Tenant-Id")
 def test_aw05_a_user_with_two_memberships_cannot_list_a_third_tenants_devices(tenants):
     owner_registers = client.post("/api/capture/devices", headers=tenants.headers_b, json={"name": _uid("b-device")})
     assert owner_registers.status_code == 201, owner_registers.text
@@ -252,7 +252,9 @@ def test_aw06m_members_of_different_tenants_do_not_share_a_default_tenant(tenant
         f"tenant B then sees: {seen_by_b.text[:160]}")
 
 
-@_finding("AW-06N", "users with no tenant membership are pooled in default-tenant instead of being refused")
+# On the capture-device routes this was remediated in P472-03 batch 2 together with
+# AW-05 (same line of code). The assertions are unchanged. AW-06N is still OPEN on
+# other routes: see the next test.
 def test_aw06n_users_with_no_membership_are_refused_not_pooled():
     _, first = _user("spd_manager")
     _, second = _user("spd_manager")
@@ -264,6 +266,25 @@ def test_aw06n_users_with_no_membership_are_refused_not_pooled():
     assert registered.status_code in REFUSED and listed.status_code in REFUSED, (
         f"two unrelated users with no tenant membership share one tenant: register HTTP {registered.status_code}, "
         f"other user's list HTTP {listed.status_code}, device visible: {name in listed.text}")
+
+
+@_finding("AW-06N", "getattr(current_user, 'tenant_id', None) or 'default-tenant': no membership is pooled, not refused")
+def test_aw06n_users_with_no_membership_are_still_pooled_where_the_default_is_a_literal():
+    """Still open after batch 2: handlers whose fallback is the literal
+    ``default-tenant`` rather than the request header (16 places in 7 modules)."""
+    db = SessionLocal()
+    try:
+        db.add(models.Inspection(file_name="pooled.bin", tenant_id="default-tenant", tenant_name="Default",
+                                 vendor_name=_uid("pooled-vendor"), site_name="pooled-site", status="completed"))
+        db.commit()
+    finally:
+        db.close()
+    _, outsider = _user("spd_manager")
+
+    response = client.get("/api/pre-sterilization-command-center/tray-readiness", headers=outsider)
+
+    assert response.status_code in REFUSED, (
+        f"a user with no tenant membership was served the shared default tenant (HTTP {response.status_code})")
 
 
 # ══ AW-07 — manufacturer identity asserted by the client ══════════════════════

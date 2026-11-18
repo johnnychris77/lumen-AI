@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.db import models
 from app.deps import get_current_user, get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.knowledge import APPROVED, KnowledgeArticle
 from app.services import atlas_dashboard_service, nexus_credential_service
 from app.services.digital_twin_engine import compute_twin_dashboard
@@ -41,7 +41,7 @@ _ALL_ROLES = ("admin", "spd_manager", "operator", "viewer")
 
 
 def _tenant_from_request(request: Request, current_user) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def require_gateway_auth(request: Request, db: Session = Depends(get_db)) -> dict:
@@ -64,7 +64,7 @@ def require_gateway_auth(request: Request, db: Session = Depends(get_db)) -> dic
     if role not in _ALL_ROLES:
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted for this resource.")
 
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     return {"tenant_id": tenant_id, "auth_mode": "bearer"}
 
 

@@ -20,7 +20,7 @@ from app.authz import require_roles
 from app.config import get_settings
 from app.db import models
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.inspection_image_tag import InspectionImageTag
 from app.services.guided_capture import coverage_readiness, guided_capture_panel
 
@@ -109,7 +109,7 @@ def apply_coverage_override(
     """Section 7 — Supervisor Override. Lets a supervisor/admin proceed to a
     final AI decision despite missing zone coverage, with a required reason.
     Audit-logged; does not alter the coverage score itself, only the gate."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     is_admin = getattr(current_user, "role", "") == "admin"
     row = _get_inspection(db, inspection_id, tenant_id, is_admin)
 
