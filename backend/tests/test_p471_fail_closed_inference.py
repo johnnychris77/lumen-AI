@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
 import socket
 import sys
 import types
@@ -62,6 +63,11 @@ client = TestClient(app)
 
 DEV_ADMIN = {"Authorization": "Bearer dev-token"}
 PUBLIC_URL = "https://fixtures.lumenai.dev/inspection/p471.jpg"
+
+# P4.7.2: a synthetic provenance key and a synthetic "approved" artifact digest, used
+# only to exercise the sealing path in tests. Neither is a real secret or a real model.
+TEST_PROVENANCE_KEY = "test-only-provenance-key-not-a-secret-0123456789"
+SEALED_ARTIFACT = "c" * 64
 
 # Environments in which a simulated finding must be impossible. A stray
 # AI_ALLOW_DEMO_SCORING=true is set in each to prove the flag alone is inert.
@@ -137,6 +143,9 @@ def _reset_shared_state(monkeypatch):
                 "CV_IMAGE_FETCH_ALLOWED_HOSTS", "CV_ONNX_MODEL_DIR",
                 "CV_ONNX_CLASSIFIER_SHA256", "CV_ONNX_DETECTOR_SHA256"):
         monkeypatch.delenv(var, raising=False)
+    # P4.7.2: the server-side provenance key (verification needs it on every read).
+    monkeypatch.setenv("LUMENAI_PROVENANCE_HMAC_KEY", TEST_PROVENANCE_KEY)
+    monkeypatch.delenv("LUMENAI_PROVENANCE_HMAC_KEY_ID", raising=False)
     LumenAIModel._shared_model = None
     LumenAIModel._shared_model_key = None
     CVRegistry.reset()
@@ -1197,6 +1206,42 @@ def _seed_record(tenant: str, *, provider: str, status: str = "success", blood: 
     return inference_id
 
 
+def _seed_trusted_record(tenant: str, *, blood: int = 0) -> str:
+    """A record sealed exactly the way the pipeline seals a completed model run:
+    stored, then given server-issued provenance for an APPROVED artifact digest.
+
+    The digest and key are synthetic test values — no model ran. What this fixture
+    represents is "the server sealed this run", which is the only thing that makes a
+    record verified model inference."""
+    from app.cv.provenance import issue_provenance
+
+    inference_id = _uid("inf")
+    saved = os.environ.get("CV_ONNX_DETECTOR_SHA256")
+    os.environ["CV_ONNX_DETECTOR_SHA256"] = SEALED_ARTIFACT   # approved only while sealing
+    db = SessionLocal()
+    try:
+        record = CVInferenceRecord(
+            inference_id=inference_id, tenant_id=tenant, provider="onnx", status="success",
+            instrument_recognized=True, instrument_confidence=0.9, blood_count=blood,
+            finding_count=blood, overall_cleanliness_score=85.0,
+            result_json=_result_json(provider="onnx", status="success"),
+        )
+        db.add(record)
+        db.flush()
+        issue_provenance(
+            db, record, authenticated_tenant_id=tenant,
+            artifacts={"finding_detector": SEALED_ARTIFACT}, model_versions={"finding_detector": "test"},
+        )
+        db.commit()
+    finally:
+        db.close()
+        if saved is None:
+            os.environ.pop("CV_ONNX_DETECTOR_SHA256", None)
+        else:
+            os.environ["CV_ONNX_DETECTOR_SHA256"] = saved
+    return inference_id
+
+
 def _seed_mixed_tenant() -> tuple[dict, dict[str, str]]:
     tenant, _user, headers = _member("p471-kpi")
     ids = {
@@ -1204,45 +1249,57 @@ def _seed_mixed_tenant() -> tuple[dict, dict[str, str]]:
         "simulated": _seed_record(tenant, provider="mock", blood=3, review_required=True),
         "unavailable": _seed_record(tenant, provider="unavailable", status="ai_unavailable"),
         "failed": _seed_record(tenant, provider="onnx", status="failed"),
-        # A pre-P4.7.1 "onnx success" row with no integrity evidence.
+        # A pre-provenance "onnx success" row.
         "legacy": _seed_record(tenant, provider="onnx", blood=2),
-        "genuine": _seed_record(
-            tenant, provider="onnx", blood=1,
+        # P4.7.2: a row that CLAIMS to be verified model inference in its own payload
+        # and has no server-issued provenance. Until P4.7.2 this was how these tests
+        # built their "genuine" row — which is exactly the forgery being closed.
+        "forged": _seed_record(
+            tenant, provider="onnx", blood=7,
             result_json=_result_json(evidence_class=EVIDENCE_MODEL_INFERENCE,
                                      model_integrity={"verified": True, "artifacts": {}}),
         ),
+        "genuine": _seed_trusted_record(tenant, blood=1),
     }
     return headers, ids
 
 
 class TestEvidenceClassification:
     @pytest.mark.parametrize("kwargs,expected", [
-        (dict(provider="mock", status="success", simulated=None, evidence_class="", model_integrity=None),
-         EVIDENCE_SIMULATED),
-        # A mock row can never be promoted, whatever its payload claims.
-        (dict(provider="mock", status="success", simulated=False, evidence_class=EVIDENCE_MODEL_INFERENCE,
-              model_integrity={"verified": True}), EVIDENCE_SIMULATED),
-        (dict(provider="onnx", status="success", simulated=True, evidence_class="", model_integrity=None),
-         EVIDENCE_SIMULATED),
-        (dict(provider="unavailable", status="success", simulated=None, evidence_class="", model_integrity=None),
+        (dict(provider="mock", status="success", simulated=None, provenance_trusted=False), EVIDENCE_SIMULATED),
+        # A mock row can never be promoted, even if provenance were somehow presented.
+        (dict(provider="mock", status="success", simulated=False, provenance_trusted=True), EVIDENCE_SIMULATED),
+        # A stored "simulated" claim still DEMOTES a record.
+        (dict(provider="onnx", status="success", simulated=True, provenance_trusted=True), EVIDENCE_SIMULATED),
+        (dict(provider="unavailable", status="success", simulated=None, provenance_trusted=True),
          EVIDENCE_AI_UNAVAILABLE),
-        (dict(provider="onnx", status="ai_unavailable", simulated=None, evidence_class="", model_integrity=None),
+        (dict(provider="onnx", status="ai_unavailable", simulated=None, provenance_trusted=True),
          EVIDENCE_AI_UNAVAILABLE),
-        (dict(provider="onnx", status="failed", simulated=None, evidence_class="", model_integrity=None),
-         EVIDENCE_FAILED),
-        (dict(provider="onnx", status="success", simulated=None, evidence_class="", model_integrity=None),
+        (dict(provider="onnx", status="failed", simulated=None, provenance_trusted=True), EVIDENCE_FAILED),
+        # A completed run with no trusted provenance is never model inference.
+        (dict(provider="onnx", status="success", simulated=None, provenance_trusted=False),
          EVIDENCE_LEGACY_UNVERIFIED),
-        (dict(provider="onnx", status="success", simulated=False, evidence_class=EVIDENCE_MODEL_INFERENCE,
-              model_integrity={"verified": False}), EVIDENCE_LEGACY_UNVERIFIED),
-        (dict(provider="onnx", status="success", simulated=False, evidence_class="",
-              model_integrity={"verified": True}), EVIDENCE_LEGACY_UNVERIFIED),
-        (dict(provider="onnx", status="success", simulated=False, evidence_class=EVIDENCE_MODEL_INFERENCE,
-              model_integrity={"verified": True}), EVIDENCE_MODEL_INFERENCE),
-        (dict(provider="", status="", simulated=None, evidence_class="", model_integrity=None),
+        (dict(provider="onnx", status="partial", simulated=False, provenance_trusted=False),
          EVIDENCE_LEGACY_UNVERIFIED),
+        (dict(provider="onnx", status="success", simulated=False, provenance_trusted=True),
+         EVIDENCE_MODEL_INFERENCE),
+        (dict(provider="onnx", status="partial", simulated=False, provenance_trusted=True),
+         EVIDENCE_MODEL_INFERENCE),
+        # An unknown status is not a completed run, whatever else is presented.
+        (dict(provider="onnx", status="queued", simulated=False, provenance_trusted=True),
+         EVIDENCE_LEGACY_UNVERIFIED),
+        (dict(provider="", status="", simulated=None, provenance_trusted=False), EVIDENCE_LEGACY_UNVERIFIED),
     ])
     def test_classify(self, kwargs, expected):
         assert classify(**kwargs) == expected
+
+    def test_classify_has_no_parameter_a_stored_payload_can_supply(self):
+        """The rule takes provenance as a verified boolean; the claim fields that
+        P4.7.1 read from ``result_json`` are gone from its signature."""
+        import inspect
+
+        parameters = set(inspect.signature(classify).parameters)
+        assert parameters == {"provider", "status", "simulated", "provenance_trusted"}
 
 
 class TestSimulatedNeverCountsAsEvidence:
@@ -1251,10 +1308,10 @@ class TestSimulatedNeverCountsAsEvidence:
         body = client.get("/api/enterprise/cv/kpi-summary", headers=headers).json()
         assert body["evidence_basis"] == "model_inference_only"
         assert body["total_analyses"] == 1 and body["genuine_analyses"] == 1
-        assert body["blood_detections"] == 1          # NOT 1 + 3 (simulated) + 2 (legacy)
+        assert body["blood_detections"] == 1          # NOT 1 + 3 (simulated) + 2 (legacy) + 7 (forged)
         assert body["simulated_excluded_count"] == 1
         assert body["unavailable_or_failed_count"] == 2
-        assert body["legacy_unverified_excluded_count"] == 1
+        assert body["legacy_unverified_excluded_count"] == 2   # the legacy row AND the forged row
         assert body["review_queue_size"] == 0         # the simulated row was flagged; it is not counted
 
     @pytest.mark.parametrize("app_env", NON_SIMULATION_ENVS)
@@ -1269,25 +1326,30 @@ class TestSimulatedNeverCountsAsEvidence:
         headers, _ids = _seed_mixed_tenant()
         body = client.get("/api/enterprise/cv/kpi-summary?include_simulated=true", headers=headers).json()
         assert body["evidence_basis"] == "includes_simulated_dev_test_only"
-        assert body["blood_detections"] == 4          # genuine 1 + simulated 3; legacy still excluded
-        assert body["legacy_unverified_excluded_count"] == 1
+        assert body["blood_detections"] == 4          # genuine 1 + simulated 3; legacy + forged excluded
+        assert body["legacy_unverified_excluded_count"] == 2
 
     def test_history_distinguishes_every_row(self):
         headers, ids = _seed_mixed_tenant()
         rows = {r["inference_id"]: r for r in client.get("/api/enterprise/cv/history", headers=headers).json()}
         expected = {
             "simulated": EVIDENCE_SIMULATED, "unavailable": EVIDENCE_AI_UNAVAILABLE, "failed": EVIDENCE_FAILED,
-            "legacy": EVIDENCE_LEGACY_UNVERIFIED, "genuine": EVIDENCE_MODEL_INFERENCE,
+            "legacy": EVIDENCE_LEGACY_UNVERIFIED, "forged": EVIDENCE_LEGACY_UNVERIFIED,
+            "genuine": EVIDENCE_MODEL_INFERENCE,
         }
         for key, cls in expected.items():
             row = rows[ids[key]]
             assert row["evidence_class"] == cls
             assert row["simulated"] is (cls == EVIDENCE_SIMULATED)
             assert row["operational_evidence"] is (cls == EVIDENCE_MODEL_INFERENCE)
-        # A stored score is never presented for a not-evaluated or legacy row.
-        for key in ("unavailable", "failed", "legacy"):
+        # A stored score or defect metric is never presented for a row whose inference
+        # was not established — including the row that forges its own evidence claim.
+        for key in ("unavailable", "failed", "legacy", "forged"):
             assert rows[ids[key]]["overall_cleanliness_score"] is None
+            assert rows[ids[key]]["finding_count"] is None
+            assert rows[ids[key]]["baseline_match_pct"] is None
         assert rows[ids["genuine"]]["overall_cleanliness_score"] == 85.0
+        assert rows[ids["genuine"]]["finding_count"] == 1
 
     def test_legacy_record_is_not_promoted_on_retrieval(self):
         headers, ids = _seed_mixed_tenant()
@@ -1302,13 +1364,22 @@ class TestSimulatedNeverCountsAsEvidence:
         genuine_row = client.get(f"/api/enterprise/cv/inference/{ids['genuine']}", headers=headers).json()
         assert genuine_row["evidence_class"] == EVIDENCE_MODEL_INFERENCE
         assert genuine_row["overall_cleanliness_score"] == 85.0
+        assert genuine_row["model_integrity"]["verified"] is True
+        assert genuine_row["model_integrity"]["artifacts"] == {"finding_detector": SEALED_ARTIFACT}
+
+        # P4.7.2: the forged row's own claims are not echoed back as if verified.
+        forged_row = client.get(f"/api/enterprise/cv/inference/{ids['forged']}", headers=headers).json()
+        assert forged_row["evidence_class"] == EVIDENCE_LEGACY_UNVERIFIED
+        assert forged_row["overall_cleanliness_score"] is None
+        assert forged_row["model_integrity"] == {"verified": False, "reason": "no_provenance"}
+        assert forged_row["regions"] == []
 
     def test_metrics_report_an_evidence_breakdown(self):
         headers, _ids = _seed_mixed_tenant()
         body = client.get("/api/enterprise/cv/provider/metrics", headers=headers).json()
         assert body["evidence_breakdown"] == {
             EVIDENCE_SIMULATED: 1, EVIDENCE_AI_UNAVAILABLE: 1, EVIDENCE_FAILED: 1,
-            EVIDENCE_LEGACY_UNVERIFIED: 1, EVIDENCE_MODEL_INFERENCE: 1,
+            EVIDENCE_LEGACY_UNVERIFIED: 2, EVIDENCE_MODEL_INFERENCE: 1,
         }
 
     def test_review_queue_labels_simulated_rows(self):
@@ -1343,7 +1414,8 @@ class TestSimulatedNeverCountsAsEvidence:
         rows = client.get("/api/enterprise/cv/history", headers=headers).json()
         assert rows[0]["inference_id"] == inference_id
         assert rows[0]["evidence_class"] == EVIDENCE_AI_UNAVAILABLE
-        assert rows[0]["overall_cleanliness_score"] is None and rows[0]["finding_count"] == 0
+        # P4.7.2: a not-evaluated row presents no defect metric at all — not even a zero.
+        assert rows[0]["overall_cleanliness_score"] is None and rows[0]["finding_count"] is None
 
     def test_simulated_ranking_is_stamped(self, enable_demo_scoring, no_network):
         res = client.post(
@@ -1392,8 +1464,10 @@ class TestDownstreamConsumersUseOperationalEvidenceOnly:
         app_dir = pathlib.Path(safe_fetch.__file__).parents[1]
         exempt = {
             "models/cv_inference.py",   # the model itself
-            "cv/pipeline.py",           # the writer (classifies before persisting)
-            "routes/cv.py",             # classifies every row with classify_record
+            "cv/pipeline.py",           # the writer (seals before committing)
+            "cv/provenance.py",         # issues and verifies provenance
+            "cv/evidence.py",           # defines the criteria and the integrity check
+            "routes/cv.py",             # classifies every row with classify_record(s)
         }
         importers, offenders = [], []
         for path in sorted(app_dir.rglob("*.py")):
@@ -1403,8 +1477,14 @@ class TestDownstreamConsumersUseOperationalEvidenceOnly:
                              text, re.MULTILINE):
                 continue
             importers.append(rel)
-            if rel not in exempt and "operational_sql_criteria(CVInferenceRecord)" not in text:
-                offenders.append(rel)
+            if rel in exempt:
+                continue
+            filtered = text.count("*operational_sql_criteria(CVInferenceRecord)")
+            verified = text.count("integrity_verified(")
+            # P4.7.2: the relational filter alone cannot check a provenance seal, so
+            # every filtered query must also pass its rows through integrity_verified.
+            if filtered == 0 or verified < filtered:
+                offenders.append((rel, filtered, verified))
         assert offenders == []
         # The guard must actually be looking at the known readers.
         for expected in ("services/accreditation_engine.py", "services/benchmark_engine.py",
@@ -1430,8 +1510,20 @@ class TestDownstreamConsumersUseOperationalEvidenceOnly:
         from app.services.accreditation_engine import compute_accreditation_readiness
 
         tenant = _uid("p471-accr-tenant")
+        _seed_trusted_record(tenant, blood=1)
+        db = SessionLocal()
+        try:
+            result = compute_accreditation_readiness(tenant, db=db)
+        finally:
+            db.close()
+        assert result.data_source == "real"
+
+    def test_accreditation_ignores_a_row_that_forges_its_own_evidence_claim(self):
+        from app.services.accreditation_engine import compute_accreditation_readiness
+
+        tenant = _uid("p471-accr-tenant")
         _seed_record(
-            tenant, provider="onnx", blood=1,
+            tenant, provider="onnx", blood=9,
             result_json=_result_json(evidence_class=EVIDENCE_MODEL_INFERENCE,
                                      model_integrity={"verified": True, "artifacts": {}}),
         )
@@ -1440,7 +1532,7 @@ class TestDownstreamConsumersUseOperationalEvidenceOnly:
             result = compute_accreditation_readiness(tenant, db=db)
         finally:
             db.close()
-        assert result.data_source == "real"
+        assert result.data_source != "real"
 
     def test_cross_hospital_signals_ignore_simulated_rows(self):
         """vendor_intelligence_engine sums finding counts across ALL tenants."""
@@ -1466,10 +1558,14 @@ class TestDownstreamConsumersUseOperationalEvidenceOnly:
     ):
         """The SQL filter keys on what the real pipeline writes — prove it with
         rows persisted by ``run_analysis`` itself, not hand-built fixtures."""
-        from app.cv.evidence import operational_sql_criteria
+        from app.cv.evidence import integrity_verified, operational_sql_criteria
         from app.cv.mock_provider import MockCVProvider
         from app.cv.pipeline import run_analysis
 
+        # P4.7.2: the fixture provider's two verified digests are approved pins here,
+        # so the pipeline can seal its run.
+        monkeypatch.setenv("CV_ONNX_CLASSIFIER_SHA256", "a" * 64)
+        monkeypatch.setenv("CV_ONNX_DETECTOR_SHA256", "b" * 64)
         tenant = _uid("p471-e2e-tenant")
         db = SessionLocal()
         try:
@@ -1488,5 +1584,6 @@ class TestDownstreamConsumersUseOperationalEvidenceOnly:
                 .all()
             )
             assert [r.inference_id for r in operational] == [genuine.inference_id]
+            assert [r.inference_id for r in integrity_verified(db, operational)] == [genuine.inference_id]
         finally:
             db.close()

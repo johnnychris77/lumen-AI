@@ -10,12 +10,30 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.cv.evidence import classify_result, is_operational_evidence
+import logging
+
+from app.ai.inference_gate import STATUS_FAILED
+from app.cv.evidence import (
+    EVIDENCE_MODEL_INFERENCE,
+    EVIDENCE_SIMULATED,
+    classify_result,
+    is_inference_candidate,
+    is_operational_evidence,
+)
 from app.cv.image_store import archive_image
 from app.cv.image_validator import validate_b64_payload
+from app.cv.provenance import ProvenanceError, assert_issuable, issue_provenance
 from app.cv.registry import CVRegistry
 from app.cv.safe_fetch import UnsafeImageURLError, assert_image_url_allowed
+from app.cv.unavailable_provider import unavailable_result
 from app.schemas.cv import BaselineCompareRequest, CVAnalysisRequest, CVInferenceResult
+
+logger = logging.getLogger(__name__)
+
+_WITHHELD_REASON = (
+    "The result was withheld: trusted inference provenance could not be established "
+    "for this run, so it cannot be presented as a model finding."
+)
 
 
 class ImageInputRejected(ValueError):
@@ -41,12 +59,48 @@ def assert_image_inputs_allowed(req: CVAnalysisRequest) -> None:
             raise ImageInputRejected(f"image_data_b64 rejected: {problems[0]}")
 
 
+def _provider_artifacts(provider: Any) -> dict[str, str]:
+    """Integrity-verified artifact digests, taken from the PROVIDER's own server-side
+    state — never from the result object, whose fields a provider merely reports."""
+    getter = getattr(provider, "verified_artifacts", None)
+    try:
+        return dict(getter()) if callable(getter) else {}
+    except Exception:  # noqa: BLE001 - a provider that cannot report is simply unsealable
+        return {}
+
+
+def _withheld(req: CVAnalysisRequest, provider: Any, exc: Exception) -> CVInferenceResult:
+    """A completed run that cannot be sealed is NOT returned as a finding."""
+    logger.warning("CV result withheld: provenance not established (%s)", exc)
+    return unavailable_result(
+        req, reason=_WITHHELD_REASON, status=STATUS_FAILED,
+        provider=getattr(provider, "provider_name", "unknown"),
+        model_versions=dict(getattr(provider, "model_versions", {}) or {}),
+        model_integrity={"verified": False, "reason": "provenance_not_established"},
+    )
+
+
+def _stamp(result: CVInferenceResult, evidence_class: str) -> CVInferenceResult:
+    return result.model_copy(update={
+        "evidence_class": evidence_class,
+        "simulated": evidence_class == EVIDENCE_SIMULATED,
+        "human_review_required": True,
+    })
+
+
 def run_analysis(req: CVAnalysisRequest, db: Session | None = None) -> CVInferenceResult:
     """Run full CV pipeline and persist result.
 
     ``req.tenant_id`` MUST already be the authenticated caller's tenant (set by
     the route from the verified auth context) — it is never taken from the
     client here.
+
+    P4.7.2: a completed run is returned as ``model_inference`` only when this
+    function has sealed it with server-issued provenance (``app.cv.provenance``)
+    in the same transaction that stores the record. If it cannot be sealed — no
+    database session, no provenance key, no approved integrity-verified artifact
+    — the result is withheld and an explicit ``failed`` result is returned
+    instead. Nothing here trusts what a result says about itself.
     """
     # R1 / SEC-R2-02: reject prohibited inputs before anything else happens.
     assert_image_inputs_allowed(req)
@@ -54,18 +108,21 @@ def run_analysis(req: CVAnalysisRequest, db: Session | None = None) -> CVInferen
     provider = CVRegistry.get_provider()
     result = provider.analyze(req)
 
-    # Stamp the authoritative evidence class (never trusted from the provider's
-    # own label alone — e.g. a "mock" provider is always simulated).
-    evidence_class = classify_result(result)
-    result = result.model_copy(update={
-        "evidence_class": evidence_class,
-        "simulated": evidence_class == "simulated",
-        "human_review_required": True,
-    })
+    # Decide, BEFORE archiving or storing anything, whether this run can be sealed.
+    artifacts: dict[str, str] | None = None
+    if is_inference_candidate(result):
+        artifacts = _provider_artifacts(provider)
+        try:
+            assert_issuable(db, artifacts)
+        except ProvenanceError as exc:
+            result, artifacts = _withheld(req, provider, exc), None
+
+    sealable = artifacts is not None
+    result = _stamp(result, EVIDENCE_MODEL_INFERENCE if sealable else classify_result(result))
 
     # R7: Archive image for audit trail (noop unless IMAGE_STORE_BACKEND is set).
-    # Only genuine model inference is archived as inspection evidence.
-    if is_operational_evidence(evidence_class):
+    # Only a run that is about to be sealed is archived as inspection evidence.
+    if sealable:
         archive = archive_image(
             image_bytes=None,
             image_url=req.image_url,
@@ -76,7 +133,14 @@ def run_analysis(req: CVAnalysisRequest, db: Session | None = None) -> CVInferen
             result = result.model_copy(update={"archived_image_key": archive.object_key})
 
     if db is not None:
-        _persist(result, db)
+        try:
+            _persist(result, db, authenticated_tenant_id=req.tenant_id, artifacts=artifacts)
+        except ProvenanceError as exc:
+            # Sealing failed after the pre-flight: store and return the withheld form.
+            db.rollback()
+            withheld = _withheld(req, provider, exc)
+            result = _stamp(withheld, classify_result(withheld))
+            _persist(result, db, authenticated_tenant_id=req.tenant_id, artifacts=None)
 
     return result
 
@@ -131,8 +195,14 @@ def build_composite_ranking_request(result: CVInferenceResult) -> dict[str, Any]
     }
 
 
-def _persist(result: CVInferenceResult, db: Session) -> None:
-    """Write inference result to DB for KPI queries and audit trail."""
+def _persist(
+    result: CVInferenceResult, db: Session, *,
+    authenticated_tenant_id: str, artifacts: dict[str, str] | None,
+) -> None:
+    """Write inference result to DB for KPI queries and audit trail.
+
+    With ``artifacts`` (a sealable run) the record and its provenance row are
+    written in ONE transaction: either both exist or neither does."""
     from app.models.cv_inference import CVInferenceRecord  # lazy to avoid circular import
     counts: dict[str, int] = {
         "blood": 0, "bone": 0, "tissue": 0, "corrosion": 0,
@@ -202,4 +272,14 @@ def _persist(result: CVInferenceResult, db: Session) -> None:
         and is_operational_evidence(result.evidence_class),
     )
     db.add(record)
+    if artifacts is not None:
+        try:
+            db.flush()  # the seal covers the record id
+            issue_provenance(
+                db, record, authenticated_tenant_id=authenticated_tenant_id,
+                artifacts=artifacts, model_versions=dict(result.model_versions or {}),
+            )
+        except ProvenanceError:
+            db.rollback()
+            raise
     db.commit()

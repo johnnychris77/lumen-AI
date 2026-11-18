@@ -99,6 +99,13 @@ class OnnxCVProvider(BaseCVProvider):
     def provider_name(self) -> str:
         return "onnx"
 
+    def verified_artifacts(self) -> dict[str, str]:
+        """The digests verified against their pins when this provider was built."""
+        integrity = getattr(self, "_integrity", None) or {}
+        if integrity.get("verified") is not True:
+            return {}
+        return {str(k): str(v) for k, v in (integrity.get("artifacts") or {}).items()}
+
     @property
     def model_versions(self) -> dict[str, str]:
         ver_file = self.model_dir / "VERSION"

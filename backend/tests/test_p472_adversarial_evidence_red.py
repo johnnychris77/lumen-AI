@@ -7,14 +7,13 @@ No external traffic, model, hospital images, or production credentials.
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.models.cv_inference import CVInferenceRecord
+from app.models.cv_inference import CVInferenceProvenance, CVInferenceRecord
 from app.cv.evidence import (
     EVIDENCE_LEGACY_UNVERIFIED,
     classify_record,
@@ -35,7 +34,11 @@ def _forged_payload(**overrides):
 @pytest.fixture
 def evidence_db():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine, tables=[CVInferenceRecord.__table__])
+    # P4.7.2 remediation: the schema now includes the server-owned provenance table that
+    # operational qualification joins against. It is created EMPTY here — no test in this
+    # file issues provenance — so every assertion below is unchanged.
+    Base.metadata.create_all(
+        engine, tables=[CVInferenceRecord.__table__, CVInferenceProvenance.__table__])
     with Session(engine) as session:
         yield session
     engine.dispose()

@@ -34,6 +34,7 @@ from app.cv.evidence import (
     EVIDENCE_MODEL_INFERENCE,
     EVIDENCE_SIMULATED,
     classify_record,
+    classify_records,
     is_operational_evidence,
 )
 from app.cv.pipeline import (
@@ -118,10 +119,26 @@ def _presentable_score(value: float | None, evidence_class: str) -> float | None
     return None
 
 
+def _presentable_metric(value: Any, evidence_class: str) -> Any:
+    """P4.7.2: a stored defect metric (finding count, baseline match) is presented
+    only for verified model inference or an explicitly simulated row. For anything
+    else the stored number is a claim nobody verified, so it is not shown."""
+    if evidence_class in (EVIDENCE_MODEL_INFERENCE, EVIDENCE_SIMULATED):
+        return value
+    return None
+
+
 def _run_async_task(inference_id: str, req: CVAnalysisRequest, tenant_id: str) -> None:
-    """Background thread target for async analysis."""
+    """Background thread target for async analysis.
+
+    P4.7.2: the run gets its own database session so a completed model run can be
+    stored and sealed with provenance exactly like the synchronous path. Without a
+    session the pipeline has to withhold a model result."""
+    from app.db.session import SessionLocal
+
+    session = SessionLocal()
     try:
-        result = run_analysis(req)
+        result = run_analysis(req, db=session)
         payload = {
             "status": "complete",
             "result": result.model_dump(),
@@ -134,6 +151,8 @@ def _run_async_task(inference_id: str, req: CVAnalysisRequest, tenant_id: str) -
             "error": type(exc).__name__,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }
+    finally:
+        session.close()
     payload["tenant_id"] = tenant_id
     with _async_lock:
         _async_results[inference_id] = payload
@@ -410,14 +429,15 @@ def get_review_queue(
         .limit(limit)
         .all()
     )
+    classes = classify_records(db, records)
     out = []
     for r in records:
-        evidence_class = classify_record(r)
+        evidence_class = classes[r.id]
         out.append({
             "inference_id": r.inference_id,
             "instrument_name": r.instrument_name,
             "instrument_confidence": r.instrument_confidence,
-            "finding_count": r.finding_count,
+            "finding_count": _presentable_metric(r.finding_count, evidence_class),
             "overall_cleanliness_score": _presentable_score(r.overall_cleanliness_score, evidence_class),
             "image_url": r.image_url,
             "created_at": r.created_at.isoformat() if r.created_at else None,
@@ -449,7 +469,7 @@ def annotate_inference(
         "corrected_severity": annotation.corrected_severity,
         "notes": annotation.notes,
         # An annotation on a simulated / unverified record is not ground truth.
-        "evidence_class": classify_record(record),
+        "evidence_class": classify_record(record, db),
     })
     record.review_annotator_id = annotation.annotator_id
     record.review_completed_at = datetime.now(timezone.utc)
@@ -489,10 +509,11 @@ def provider_metrics(
     provider_counts: dict[str, int] = {}
     provider_costs: dict[str, float] = {}
     evidence_counts: dict[str, int] = {}
+    classes = classify_records(db, records)
     for r in records:
         provider_counts[r.provider] = provider_counts.get(r.provider, 0) + 1
         provider_costs[r.provider] = provider_costs.get(r.provider, 0.0) + r.provider_cost_usd
-        cls = classify_record(r)
+        cls = classes[r.id]
         evidence_counts[cls] = evidence_counts.get(cls, 0) + 1
 
     return {
@@ -522,16 +543,29 @@ def get_inference(
     record = _tenant_record(db, ctx.tenant_id, inference_id)
     if not record:
         raise HTTPException(status_code=404, detail="Inference record not found")
-    result = CVInferenceResult.model_validate(json.loads(record.result_json))
-    evidence_class = classify_record(record)
+    from app.cv.provenance import provenance_summary
+
+    try:
+        result = CVInferenceResult.model_validate(json.loads(record.result_json))
+    except (TypeError, ValueError):
+        # A stored payload that does not parse is not a result this API can vouch for.
+        raise HTTPException(status_code=404, detail="Inference record not found") from None
+    evidence_class = classify_record(record, db)
     updates: dict[str, Any] = {
         "evidence_class": evidence_class,
         "simulated": evidence_class == EVIDENCE_SIMULATED,
         "human_review_required": True,
+        # P4.7.2: the integrity statement comes from the server's provenance row,
+        # never from the ``model_integrity`` a stored payload claims for itself.
+        "model_integrity": provenance_summary(db, record),
     }
     if evidence_class not in (EVIDENCE_MODEL_INFERENCE, EVIDENCE_SIMULATED):
-        # A legacy / not-evaluated record never re-surfaces a stored score.
-        updates.update(contamination_score=None, damage_score=None, overall_cleanliness_score=None)
+        # A record without established inference never re-surfaces stored scores,
+        # findings or ranking inputs: nothing verified that they came from a model.
+        updates.update(
+            contamination_score=None, damage_score=None, overall_cleanliness_score=None,
+            regions=[], ranking_inputs={},
+        )
     return result.model_copy(update=updates)
 
 
@@ -551,9 +585,10 @@ def list_inference_history(
         .limit(limit)
         .all()
     )
+    classes = classify_records(db, records)
     out = []
     for r in records:
-        evidence_class = classify_record(r)
+        evidence_class = classes[r.id]
         out.append({
             "inference_id": r.inference_id,
             "context": r.context,
@@ -564,9 +599,9 @@ def list_inference_history(
             "barcode_value": r.barcode_value,
             "overall_cleanliness_score": _presentable_score(r.overall_cleanliness_score, evidence_class),
             "baseline_compared": r.baseline_compared,
-            "baseline_match_pct": r.baseline_match_pct,
-            "baseline_verdict": r.baseline_verdict,
-            "finding_count": r.finding_count,
+            "baseline_match_pct": _presentable_metric(r.baseline_match_pct, evidence_class),
+            "baseline_verdict": _presentable_metric(r.baseline_verdict, evidence_class),
+            "finding_count": _presentable_metric(r.finding_count, evidence_class),
             "processing_ms": r.processing_ms,
             "provider_cost_usd": r.provider_cost_usd,
             "review_required": r.review_required,
@@ -603,8 +638,9 @@ def cv_kpi_summary(
         EVIDENCE_MODEL_INFERENCE: [], EVIDENCE_SIMULATED: [], EVIDENCE_AI_UNAVAILABLE: [],
         EVIDENCE_FAILED: [], EVIDENCE_LEGACY_UNVERIFIED: [],
     }
+    classes = classify_records(db, all_records)
     for r in all_records:
-        by_class.setdefault(classify_record(r), []).append(r)
+        by_class.setdefault(classes[r.id], []).append(r)
 
     with_simulated = bool(include_simulated) and simulation_permitted()
     records = list(by_class[EVIDENCE_MODEL_INFERENCE])
