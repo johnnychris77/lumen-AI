@@ -118,6 +118,15 @@ REMEDIATED_MODULES = {
     "app.routes.enterprise_intake": "batch 1",
     "app.routes.vendor_governance": "batch 1",
     "app.routes.capa": "batch 1",
+    # Batch 2 changed three shared tenant resolvers used by 678 routes in 60-odd
+    # modules. Listed here are the modules that batch named and that are clean as a
+    # whole; they are pinned, so a finding reappearing on any of their routes fails
+    # the suite. Other routes fixed by batch 2 simply drop out of the register.
+    "app.routes.audit_logs": "batch 2",
+    "app.routes.tenant_analytics": "batch 2",
+    "app.routes.ml_images": "batch 2",
+    "app.routes.p22_operations": "batch 2",
+    "app.routes.capture": "batch 2",
 }
 BATCH_TESTS = {"batch 1": "tests/test_p472_03_batch1_remediation.py"}
 
@@ -380,6 +389,8 @@ _MANUAL_ROUTES = {
     "GET /api/accreditation/programs": ["AW-08"],
     "GET /api/analytics/vendors/{vendor_name}/scorecard.json": ["AW-08"],
     "GET /api/analytics/vendors/{vendor_name}/scorecard.pdf": ["AW-08"],
+    # Confirmed during batch 2: the replay service loads its subject by id only.
+    "GET /api/guardianx/audit-replay/inspections/{inspection_id}": ["AW-08"],
 }
 _RISK_RANK = {"Critical": 4, "High": 3, "Medium": 2}
 

@@ -93,14 +93,16 @@ def test_no_unauthenticated_or_invalid_token_caller_reaches_tenant_data(observed
 
 def test_remediated_route_groups_show_no_finding(sweep, observed):
     """The CV routes (c13c5eb), the regulatory, predictions, benchmarks and
-    vendor-intelligence routes (6c3072c), and the enterprise intake, vendor
-    governance and CAPA modules (batch 1) stay clean under every variant."""
+    vendor-intelligence routes (6c3072c), the enterprise intake, vendor
+    governance and CAPA modules (batch 1), and the audit-log, tenant-analytics,
+    ML image, operations and capture modules (batch 2) stay clean under every
+    variant."""
     covered = 0
     for record in sweep["routes"]:
         if is_remediated(record):
             covered += 1
             assert route_key(record) not in observed, (route_key(record), observed.get(route_key(record)))
-    assert covered == 13 + 39 + 77 + 8 + 9
+    assert covered == 13 + 39 + 77 + 8 + 9 + 5 + 5 + 8 + 21 + 4
 
 
 def test_no_route_outside_the_register_shows_a_finding(observed):

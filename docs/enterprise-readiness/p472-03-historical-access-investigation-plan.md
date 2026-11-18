@@ -144,9 +144,13 @@ honest conclusion is "cannot be determined", not "no evidence of access".
 6. **Ownerless and mixed records** (inputs to governance decisions GD-2 and
    GD-4): count CAPA rows with an empty tenant; count audit hash chains whose
    events span more than one `tenant_id` value.
-7. **Privileged accounts.** List accounts holding the global role `admin`
-   (they can name any tenant by design) and review their activity across
-   tenants in the windows.
+7. **Accounts.** List accounts holding the global role `admin` (they can name
+   any tenant by design) and review their activity across tenants in the
+   windows. Count accounts that have a global role but **no** enabled tenant
+   membership (`user_role_assignments` and `users` left-joined to
+   `tenant_memberships`): before batch 2 each of them could act in any tenant
+   by header, and after batch 2 each of them is refused, so the same list is
+   both an investigation lead and a deployment precondition.
 8. **Conclude per finding**: accessed (with counts), not accessed (state the
    evidence that supports a negative), or cannot be determined (state which
    evidence is missing and why).

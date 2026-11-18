@@ -271,7 +271,7 @@ def test_aw06n_users_with_no_membership_are_refused_not_pooled():
 @_finding("AW-06N", "getattr(current_user, 'tenant_id', None) or 'default-tenant': no membership is pooled, not refused")
 def test_aw06n_users_with_no_membership_are_still_pooled_where_the_default_is_a_literal():
     """Still open after batch 2: handlers whose fallback is the literal
-    ``default-tenant`` rather than the request header (16 places in 7 modules)."""
+    ``default-tenant`` rather than the request header (16 places in 6 modules)."""
     db = SessionLocal()
     try:
         db.add(models.Inspection(file_name="pooled.bin", tenant_id="default-tenant", tenant_name="Default",

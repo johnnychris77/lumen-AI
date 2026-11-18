@@ -1,8 +1,10 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 2, governance decisions (parent 6b20bb9)",
+ "baseline_commit": "remediation batch 2 (parent 48ef45f)",
  "sweeps": [
-  "sqlite"
+  "sqlite",
+  "sqlite",
+  "postgresql"
  ],
  "classes": {
   "AW-01": "Tenant header trusted with no membership check",
