@@ -78,6 +78,10 @@ REFUSED = (401, 403)
 RUN = uuid.uuid4().hex[:8]
 TENANT_A, TENANT_B, TENANT_C = f"b2-alpha-{RUN}", f"b2-bravo-{RUN}", f"b2-charlie-{RUN}"
 RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(")
+# (global role, tenant-membership role): the sweep's profiles plus the two global
+# roles that some of these routes require and the sweep does not carry. The
+# platform administrator (global role "admin") is deliberately absent.
+ROLE_PROFILES = [*PROFILES, ("manager", "tenant_admin"), ("technician", "operator")]
 
 
 # ══ 1. The rule ═══════════════════════════════════════════════════════════════
@@ -287,7 +291,7 @@ def world():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        for index, (global_role, tenant_role) in enumerate(PROFILES):
+        for index, (global_role, tenant_role) in enumerate(ROLE_PROFILES):
             for kind, tenants in (("a", [TENANT_A]), ("none", []), ("multi", [TENANT_A, TENANT_C])):
                 user = f"b2-{kind}-{index}-{RUN}@example.com"
                 _USERS[kind][index] = user
@@ -381,7 +385,7 @@ class _Caller:
         key = (method, path)
         if key not in self.profile:
             self.profile[key] = (None, 403)
-            for index in range(len(PROFILES)):
+            for index in range(len(ROLE_PROFILES)):
                 status, _, _ = self.call(method, path, self.headers(_USERS["a"][index], **{"X-Tenant-Id": TENANT_A}))
                 if status not in REFUSED:
                     self.profile[key] = (index, status)
@@ -429,7 +433,7 @@ def test_the_route_table_is_the_mounted_application():
     """The parametrised tests below cover every route that uses the verified
     resolver; these counts change only when a route is added or converted."""
     by_how = {how: sum(1 for _, _, h in ROUTES if h == how) for how in ("dependency", "handler")}
-    assert by_how == {"dependency": 181, "handler": 0}, by_how
+    assert by_how == {"dependency": 181, "handler": 28}, by_how
     assert len(set(ROUTE_IDS)) == len(ROUTE_IDS)
     assert set(OPEN_OWNER_FINDINGS) | set(OPEN_REFUSAL_FINDINGS) <= set(ROUTE_IDS)
 
@@ -734,3 +738,157 @@ class TestSlaScanIsLimitedToTheCallersTenant:
         _, b = _member(TENANT_B)
         status = http.get("/api/governance-sla-scanner/status", headers={**b, "X-Tenant-Id": TENANT_B})
         assert status.status_code == 200 and TENANT_A not in status.text
+
+
+# ══ AW-01 — ML images and operations: the tenant header behind a global role ══
+
+from app.models.p22_operations import OperationsWorkflow, WorkflowExecution  # noqa: E402
+from app.models.retained_image import RetainedImage  # noqa: E402
+
+
+class TestMlImagesAreTenantScoped:
+    @pytest.fixture
+    def images(self):
+        mine, theirs = f"b2-img-mine-{uuid.uuid4().hex[:8]}", f"b2-img-theirs-{uuid.uuid4().hex[:8]}"
+        db = SessionLocal()
+        try:
+            own = RetainedImage(tenant_id=TENANT_A, deident_name=mine, instrument_type="scissors",
+                                content_type="image/png", size_bytes=4, sha256="a" * 64, image_bytes=b"AAAA")
+            other = RetainedImage(tenant_id=TENANT_B, deident_name=theirs, instrument_type="scissors",
+                                  content_type="image/png", size_bytes=10, sha256="b" * 64,
+                                  image_bytes=b"B-PRIVATE!")
+            db.add_all([own, other])
+            db.commit()
+            return mine, theirs, own.id, other.id
+        finally:
+            db.close()
+
+    def test_a_member_lists_only_their_own_images(self, images):
+        mine, theirs, _, _ = images
+        _, headers = _member(TENANT_A)
+        response = http.get("/api/ml/images", headers=headers)
+        assert response.status_code == 200, response.text[:200]
+        assert mine in response.text and theirs not in response.text
+
+    @pytest.mark.parametrize("header", ["X-Tenant-Id", "X-LumenAI-Tenant-Id"])
+    def test_naming_tenant_b_does_not_list_its_images(self, images, header):
+        _, theirs, _, _ = images
+        _, headers = _member(TENANT_A)
+        response = http.get("/api/ml/images", headers={**headers, header: TENANT_B})
+        assert response.status_code == 403 and theirs not in response.text
+
+    def test_tenant_b_image_bytes_cannot_be_fetched_by_id(self, images):
+        _, _, own_id, other_id = images
+        _, headers = _member(TENANT_A)
+        assert http.get(f"/api/ml/images/{own_id}/bytes", headers=headers).content == b"AAAA"
+        for extra in ({}, {"X-Tenant-Id": TENANT_B}, {"X-LumenAI-Tenant-Id": TENANT_B}):
+            response = http.get(f"/api/ml/images/{other_id}/bytes", headers={**headers, **extra})
+            assert response.status_code in (403, 404)
+            assert b"B-PRIVATE!" not in response.content
+
+    def test_tenant_b_image_cannot_be_labelled(self, images):
+        from app.models.retained_image import ImageLabel
+
+        _, _, _, other_id = images
+        _, headers = _member(TENANT_A)
+        for extra in ({}, {"X-Tenant-Id": TENANT_B}):
+            response = http.post(f"/api/ml/images/{other_id}/labels", headers={**headers, **extra},
+                                 json={"finding_type": "corrosion"})
+            assert response.status_code in (403, 404)
+        db = SessionLocal()
+        try:
+            assert db.query(ImageLabel).filter(ImageLabel.image_id == other_id).count() == 0
+        finally:
+            db.close()
+
+    def test_the_dataset_export_holds_only_the_callers_images(self, images):
+        mine, theirs, _, _ = images
+        _, headers = _member(TENANT_A)
+        response = http.get("/api/ml/dataset/export", headers=headers)
+        assert response.status_code == 200, response.text[:200]
+        assert not _contains(response, theirs) and TENANT_B not in response.text
+
+
+class TestOperationsAreTenantScoped:
+    @pytest.fixture
+    def workflows(self):
+        mine, theirs = f"b2-wf-mine-{uuid.uuid4().hex[:8]}", f"b2-wf-theirs-{uuid.uuid4().hex[:8]}"
+        db = SessionLocal()
+        try:
+            own = OperationsWorkflow(tenant_id=TENANT_A, name=mine, workflow_type="capa", created_by="a")
+            other = OperationsWorkflow(tenant_id=TENANT_B, name=theirs, workflow_type="capa", created_by="b")
+            db.add_all([own, other])
+            db.flush()
+            execution = WorkflowExecution(tenant_id=TENANT_B, workflow_id=other.id, resource_type="capa",
+                                          resource_id="b-capa-1", triggered_by="b", status="awaiting_approval")
+            db.add(execution)
+            db.commit()
+            return mine, theirs, other.id, execution.id
+        finally:
+            db.close()
+
+    def test_a_manager_lists_only_their_own_workflows(self, workflows):
+        mine, theirs, _, _ = workflows
+        _, headers = _member(TENANT_A, global_role="manager")
+        response = http.get("/api/operations/workflows", headers=headers)
+        assert response.status_code == 200, response.text[:200]
+        assert mine in response.text and theirs not in response.text
+
+    @pytest.mark.parametrize("header", ["X-Tenant-Id", "X-LumenAI-Tenant-Id"])
+    def test_naming_tenant_b_does_not_list_its_workflows(self, workflows, header):
+        _, theirs, _, _ = workflows
+        _, headers = _member(TENANT_A, global_role="manager")
+        response = http.get("/api/operations/workflows", headers={**headers, header: TENANT_B})
+        assert response.status_code == 403 and theirs not in response.text
+
+    def test_a_manager_with_no_membership_reaches_no_tenant(self, workflows):
+        _, theirs, _, _ = workflows
+        user = f"b2-ops-outsider-{uuid.uuid4().hex[:8]}@example.com"
+        db = SessionLocal()
+        try:
+            db.add(UserRoleAssignment(username=user, role="manager", assigned_by="p472-03-batch2"))
+            db.commit()
+        finally:
+            db.close()
+        headers = {"Authorization": f"Bearer {_make_token(user)}"}
+        for extra in ({}, {"X-Tenant-Id": TENANT_B}):
+            response = http.get("/api/operations/workflows", headers={**headers, **extra})
+            assert response.status_code == 403 and theirs not in response.text
+
+    def test_tenant_b_execution_cannot_be_approved_by_id(self, workflows):
+        _, _, _, execution_id = workflows
+        _, headers = _member(TENANT_A, global_role="manager")
+        body = {"approved_by": "attacker", "approved": True}
+        for extra in ({}, {"X-Tenant-Id": TENANT_B}, {"X-LumenAI-Tenant-Id": TENANT_A, "X-Tenant-Id": TENANT_B}):
+            response = http.post(f"/api/operations/executions/{execution_id}/approve",
+                                 headers={**headers, **extra}, json=body)
+            assert response.status_code in (403, 404)
+        db = SessionLocal()
+        try:
+            execution = db.get(WorkflowExecution, execution_id)
+            assert execution.status == "awaiting_approval" and execution.approved_by is None
+        finally:
+            db.close()
+
+    def test_tenant_b_workflow_steps_cannot_be_read_or_added_by_id(self, workflows):
+        _, _, workflow_id, _ = workflows
+        _, headers = _member(TENANT_A, global_role="manager")
+        assert http.get(f"/api/operations/workflows/{workflow_id}/steps", headers=headers).status_code == 404
+        added = http.post(f"/api/operations/workflows/{workflow_id}/steps", headers=headers,
+                          json={"step_number": 1, "name": "x", "step_type": "review"})
+        assert added.status_code in (404, 422)
+
+    def test_an_operations_write_is_attributed_to_the_authenticated_user(self):
+        """These audit rows used to say actor ``system`` / role ``admin`` for everyone."""
+        user, headers = _member(TENANT_A, global_role="manager")
+        name = f"b2-wf-{uuid.uuid4().hex[:8]}"
+        response = http.post("/api/operations/workflows", headers={**headers, "X-LumenAI-Actor": "spoofed"},
+                             json={"name": name, "workflow_type": "capa", "created_by": "whoever"})
+        assert response.status_code == 201, response.text[:300]
+        db = SessionLocal()
+        try:
+            rows = db.query(AuditLog).filter(AuditLog.actor_email == user,
+                                             AuditLog.action_type == "workflow_created").all()
+            assert len(rows) == 1 and rows[0].tenant_id == TENANT_A and rows[0].actor_role == "manager"
+        finally:
+            db.close()

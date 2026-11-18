@@ -25,8 +25,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.authz import require_roles
-from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.deps import get_current_user, get_db
+from app.auth.tenant_scope import principal_tenant
 from app.models.p22_operations import (
     OperationsWorkflow,
     WorkflowStep,
@@ -44,13 +44,25 @@ router = APIRouter(prefix="/api/operations", tags=["operations"])
 # Audit helper
 # ---------------------------------------------------------------------------
 
-def _audit(db, action_type: str, tenant_id: str, details: dict | None = None):
+def _caller(request: Request, db):
+    """The verified tenant and the authenticated user of this request.
+
+    P472-03 AW-01: these handlers used to take the tenant from the request header
+    with no membership check (only a global role was required).
+    """
+    principal = get_current_user(authorization=request.headers.get("authorization"), db=db)
+    return principal_tenant(principal, request), principal
+
+
+def _audit(db, actor, action_type: str, tenant_id: str, details: dict | None = None):
+    # Attributed to the authenticated user. These rows used to be written as
+    # actor "system" / role "admin" whoever made the request.
     log_audit_event(
         db,
         tenant_id=tenant_id,
         tenant_name="Operations",
-        actor_email="system",
-        actor_role="admin",
+        actor_email=getattr(actor, "email", "") or "unknown",
+        actor_role=getattr(actor, "role", "") or "unknown",
         action_type=action_type,
         resource_type="operations",
         resource_id="",
@@ -107,7 +119,7 @@ class StepIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "manager"))])
 def create_workflow(request: Request, body: WorkflowIn = ...,
                     db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     if body.workflow_type not in _WORKFLOW_TYPES:
         raise HTTPException(400, f"workflow_type must be one of {_WORKFLOW_TYPES}")
     if body.priority not in _PRIORITIES:
@@ -116,7 +128,7 @@ def create_workflow(request: Request, body: WorkflowIn = ...,
     db.add(wf)
     db.commit()
     db.refresh(wf)
-    _audit(db, "workflow_created", tenant_id, {"workflow_id": wf.id, "type": wf.workflow_type})
+    _audit(db, actor, "workflow_created", tenant_id, {"workflow_id": wf.id, "type": wf.workflow_type})
     return {"id": wf.id, "name": wf.name, "workflow_type": wf.workflow_type,
             "status": wf.status, "created_at": wf.created_at.isoformat()}
 
@@ -125,7 +137,7 @@ def create_workflow(request: Request, body: WorkflowIn = ...,
 def list_workflows(request: Request,
                    workflow_type: Optional[str] = Query(None),
                    db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     q = db.query(OperationsWorkflow).filter_by(tenant_id=tenant_id, status="active")
     if workflow_type:
         q = q.filter_by(workflow_type=workflow_type)
@@ -140,7 +152,7 @@ def list_workflows(request: Request,
              dependencies=[Depends(require_roles("admin", "manager"))])
 def add_step(workflow_id: int, request: Request, body: StepIn = ...,
              db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     wf = db.query(OperationsWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
         raise HTTPException(404, "Workflow not found")
@@ -152,7 +164,7 @@ def add_step(workflow_id: int, request: Request, body: StepIn = ...,
     db.add(step)
     db.commit()
     db.refresh(step)
-    _audit(db, "workflow_step_added", tenant_id,
+    _audit(db, actor, "workflow_step_added", tenant_id,
            {"workflow_id": workflow_id, "step_id": step.id, "step_order": step.step_order})
     return {"id": step.id, "workflow_id": workflow_id, "step_order": step.step_order,
             "name": step.name, "assignee_role": step.assignee_role}
@@ -161,7 +173,7 @@ def add_step(workflow_id: int, request: Request, body: StepIn = ...,
 @router.get("/workflows/{workflow_id}/steps",
             dependencies=[Depends(require_roles("admin", "manager", "technician", "executive"))])
 def list_steps(workflow_id: int, request: Request, db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     wf = db.query(OperationsWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
         raise HTTPException(404, "Workflow not found")
@@ -194,7 +206,7 @@ class ApprovalIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
 def execute_workflow(workflow_id: int, request: Request,
                      body: ExecutionIn = ..., db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     wf = db.query(OperationsWorkflow).filter_by(
         id=workflow_id, tenant_id=tenant_id, status="active").first()
     if not wf:
@@ -254,7 +266,7 @@ def execute_workflow(workflow_id: int, request: Request,
 
     db.commit()
     db.refresh(ex)
-    _audit(db, "workflow_execution_started", tenant_id,
+    _audit(db, actor, "workflow_execution_started", tenant_id,
            {"execution_id": ex.id, "workflow_id": workflow_id,
             "resource_type": body.resource_type, "resource_id": body.resource_id,
             "status": initial_status})
@@ -267,7 +279,7 @@ def execute_workflow(workflow_id: int, request: Request,
 def list_executions(request: Request,
                     status: Optional[str] = Query(None),
                     db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     q = db.query(WorkflowExecution).filter_by(tenant_id=tenant_id)
     if status:
         q = q.filter_by(status=status)
@@ -282,7 +294,7 @@ def list_executions(request: Request,
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
 def approve_execution(execution_id: int, request: Request,
                       body: ApprovalIn = ..., db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
         raise HTTPException(404, "Execution not found")
@@ -297,7 +309,7 @@ def approve_execution(execution_id: int, request: Request,
         ex.outcome = "cancelled"
         ex.completed_at = datetime.now(timezone.utc)
     db.commit()
-    _audit(db, "workflow_execution_approved" if body.approved else "workflow_execution_rejected",
+    _audit(db, actor, "workflow_execution_approved" if body.approved else "workflow_execution_rejected",
            tenant_id, {"execution_id": execution_id, "approved_by": body.approved_by})
     return {"id": ex.id, "status": ex.status, "human_approved": ex.human_approved}
 
@@ -307,7 +319,7 @@ def approve_execution(execution_id: int, request: Request,
 def complete_step(execution_id: int, step_id: int, request: Request,
                   assignee_email: str = Query(...), outcome: str = Query(...),
                   notes: Optional[str] = Query(None), db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
         raise HTTPException(404, "Execution not found")
@@ -333,7 +345,7 @@ def complete_step(execution_id: int, step_id: int, request: Request,
         ex.completed_at = datetime.now(timezone.utc)
 
     db.commit()
-    _audit(db, "workflow_step_completed", tenant_id,
+    _audit(db, actor, "workflow_step_completed", tenant_id,
            {"execution_id": execution_id, "step_id": step_id, "outcome": outcome})
     return {"execution_id": execution_id, "step_id": step_id, "status": se.status,
             "execution_status": ex.status}
@@ -344,7 +356,7 @@ def complete_step(execution_id: int, step_id: int, request: Request,
 def escalate_execution(execution_id: int, request: Request,
                         escalated_by: str = Query(...), reason: str = Query(...),
                         db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     ex = db.query(WorkflowExecution).filter_by(id=execution_id, tenant_id=tenant_id).first()
     if not ex:
         raise HTTPException(404, "Execution not found")
@@ -353,7 +365,7 @@ def escalate_execution(execution_id: int, request: Request,
     ex.status = "escalated"
     ex.outcome_notes = f"Escalated by {escalated_by}: {reason}"
     db.commit()
-    _audit(db, "workflow_execution_escalated", tenant_id,
+    _audit(db, actor, "workflow_execution_escalated", tenant_id,
            {"execution_id": execution_id, "escalated_by": escalated_by, "reason": reason})
     return {"id": ex.id, "status": ex.status}
 
@@ -378,7 +390,7 @@ class QueueItemIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
 def add_queue_item(request: Request, body: QueueItemIn = ...,
                    db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     if body.queue_type not in _QUEUE_TYPES:
         raise HTTPException(400, f"queue_type must be one of {_QUEUE_TYPES}")
     if body.priority not in _PRIORITIES:
@@ -387,7 +399,7 @@ def add_queue_item(request: Request, body: QueueItemIn = ...,
     db.add(item)
     db.commit()
     db.refresh(item)
-    _audit(db, "queue_item_created", tenant_id,
+    _audit(db, actor, "queue_item_created", tenant_id,
            {"item_id": item.id, "queue_type": item.queue_type, "priority": item.priority})
     return {"id": item.id, "queue_type": item.queue_type, "status": item.status,
             "priority": item.priority, "created_at": item.created_at.isoformat()}
@@ -400,7 +412,7 @@ def list_queue_items(request: Request,
                      status: Optional[str] = Query(None),
                      priority: Optional[str] = Query(None),
                      db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     q = db.query(WorkQueueItem).filter_by(tenant_id=tenant_id)
     if queue_type:
         q = q.filter_by(queue_type=queue_type)
@@ -422,7 +434,7 @@ def list_queue_items(request: Request,
              dependencies=[Depends(require_roles("admin", "manager", "technician"))])
 def claim_queue_item(item_id: int, request: Request,
                      claimed_by: str = Query(...), db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
         raise HTTPException(404, "Queue item not found")
@@ -433,7 +445,7 @@ def claim_queue_item(item_id: int, request: Request,
     item.claimed_at = datetime.now(timezone.utc)
     item.assigned_to = claimed_by
     db.commit()
-    _audit(db, "queue_item_claimed", tenant_id, {"item_id": item_id, "claimed_by": claimed_by})
+    _audit(db, actor, "queue_item_claimed", tenant_id, {"item_id": item_id, "claimed_by": claimed_by})
     return {"id": item.id, "status": item.status, "claimed_by": item.claimed_by}
 
 
@@ -443,7 +455,7 @@ def complete_queue_item(item_id: int, request: Request,
                          completed_by: str = Query(...),
                          notes: Optional[str] = Query(None),
                          db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
         raise HTTPException(404, "Queue item not found")
@@ -454,7 +466,7 @@ def complete_queue_item(item_id: int, request: Request,
     item.completed_at = datetime.now(timezone.utc)
     item.completion_notes = notes
     db.commit()
-    _audit(db, "queue_item_completed", tenant_id,
+    _audit(db, actor, "queue_item_completed", tenant_id,
            {"item_id": item_id, "completed_by": completed_by})
     return {"id": item.id, "status": item.status}
 
@@ -463,7 +475,7 @@ def complete_queue_item(item_id: int, request: Request,
              dependencies=[Depends(require_roles("admin", "manager"))])
 def escalate_queue_item(item_id: int, request: Request,
                          escalated_by: str = Query(...), db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     item = db.query(WorkQueueItem).filter_by(id=item_id, tenant_id=tenant_id).first()
     if not item:
         raise HTTPException(404, "Queue item not found")
@@ -472,7 +484,7 @@ def escalate_queue_item(item_id: int, request: Request,
     item.escalated = True
     item.priority = "critical"
     db.commit()
-    _audit(db, "queue_item_escalated", tenant_id,
+    _audit(db, actor, "queue_item_escalated", tenant_id,
            {"item_id": item_id, "escalated_by": escalated_by})
     return {"id": item.id, "escalated": item.escalated, "priority": item.priority}
 
@@ -504,14 +516,14 @@ class RiskSnapshotIn(BaseModel):
              dependencies=[Depends(require_roles("admin", "executive"))])
 def create_snapshot(request: Request, body: RiskSnapshotIn = ...,
                     db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     if body.snapshot_type not in _SNAPSHOT_TYPES:
         raise HTTPException(400, f"snapshot_type must be one of {_SNAPSHOT_TYPES}")
     snap = OperationalRiskSnapshot(tenant_id=tenant_id, **body.model_dump())
     db.add(snap)
     db.commit()
     db.refresh(snap)
-    _audit(db, "command_center_snapshot_created", tenant_id,
+    _audit(db, actor, "command_center_snapshot_created", tenant_id,
            {"snapshot_id": snap.id, "type": snap.snapshot_type})
     return {"id": snap.id, "snapshot_type": snap.snapshot_type,
             "risk_score": snap.risk_score, "created_at": snap.created_at.isoformat()}
@@ -522,7 +534,7 @@ def create_snapshot(request: Request, body: RiskSnapshotIn = ...,
 def list_snapshots(request: Request,
                    snapshot_type: Optional[str] = Query(None),
                    db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     q = db.query(OperationalRiskSnapshot).filter_by(tenant_id=tenant_id)
     if snapshot_type:
         q = q.filter_by(snapshot_type=snapshot_type)
@@ -538,7 +550,7 @@ def list_snapshots(request: Request,
             dependencies=[Depends(require_roles("admin", "executive", "manager"))])
 def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Live aggregate dashboard — derived from queue and execution state."""
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     open_items = db.query(WorkQueueItem).filter(
         WorkQueueItem.tenant_id == tenant_id,
         WorkQueueItem.status.in_(("open", "claimed", "in_progress")),
@@ -675,7 +687,7 @@ def scan_step_timeouts(request: Request, db: Session = Depends(get_db)):
       skip     — mark step completed with outcome=skipped
       block    — leave step pending; mark execution escalated for human review
     """
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     now = datetime.now(timezone.utc)
     processed = []
 
@@ -718,7 +730,7 @@ def scan_step_timeouts(request: Request, db: Session = Depends(get_db)):
                 "policy": policy,
                 "deadline": deadline.isoformat(),
             })
-            _audit(db, "step_timeout_enforced", tenant_id,
+            _audit(db, actor, "step_timeout_enforced", tenant_id,
                    {"execution_id": ex.id, "step_id": se.id, "policy": policy})
 
     db.commit()
@@ -730,7 +742,7 @@ def scan_step_timeouts(request: Request, db: Session = Depends(get_db)):
              dependencies=[Depends(require_roles("admin", "manager", "executive"))])
 def submit_copilot_query(request: Request, body: CopilotQueryIn = ...,
                           db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     if body.query_type not in _QUERY_TYPES:
         raise HTTPException(400, f"query_type must be one of {_QUERY_TYPES}")
 
@@ -763,7 +775,7 @@ def submit_copilot_query(request: Request, body: CopilotQueryIn = ...,
     db.commit()
     db.refresh(cq)
     db.refresh(rec)
-    _audit(db, "copilot_query_submitted", tenant_id,
+    _audit(db, actor, "copilot_query_submitted", tenant_id,
            {"query_id": cq.id, "query_type": body.query_type, "asked_by": body.asked_by})
     return {
         "query_id": cq.id,
@@ -784,7 +796,7 @@ def submit_copilot_query(request: Request, body: CopilotQueryIn = ...,
 def list_recommendations(request: Request,
                           review_status: Optional[str] = Query(None),
                           db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     q = db.query(CopilotRecommendation).filter_by(tenant_id=tenant_id)
     if review_status:
         q = q.filter_by(review_status=review_status)
@@ -801,7 +813,7 @@ def list_recommendations(request: Request,
 def review_recommendation(rec_id: int, request: Request,
                             body: RecommendationReviewIn = ...,
                             db: Session = Depends(get_db)):
-    tenant_id = get_request_tenant_id(request)
+    tenant_id, actor = _caller(request, db)
     if body.review_status not in _REVIEW_STATUSES:
         raise HTTPException(400, f"review_status must be one of {_REVIEW_STATUSES}")
     rec = db.query(CopilotRecommendation).filter_by(id=rec_id, tenant_id=tenant_id).first()
@@ -815,7 +827,7 @@ def review_recommendation(rec_id: int, request: Request,
     rec.review_notes = body.review_notes
     rec.human_review_required = False  # satisfied
     db.commit()
-    _audit(db, "copilot_recommendation_reviewed", tenant_id,
+    _audit(db, actor, "copilot_recommendation_reviewed", tenant_id,
            {"rec_id": rec_id, "status": body.review_status, "reviewed_by": body.reviewed_by})
     return {"id": rec.id, "review_status": rec.review_status, "reviewed_by": rec.reviewed_by,
             "reviewed_at": rec.reviewed_at.isoformat()}

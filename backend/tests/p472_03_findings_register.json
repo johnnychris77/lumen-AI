@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 2, resolve_tenant (parent 48ef45f)",
+ "baseline_commit": "remediation batch 2, ML images and operations (parent e59cd26)",
  "sweeps": [
   "sqlite"
  ],
@@ -648,30 +648,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "GET /api/ml/dataset/export": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/ml/images": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/ml/images/{image_id}/bytes": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/ml/images/{image_id}/labels": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
   "GET /api/mobile/device-sessions": [
    "AW-03",
    "AW-06M"
@@ -877,48 +853,6 @@
   ],
   "GET /api/operations-board": [
    "AW-05",
-   "AW-06N"
-  ],
-  "GET /api/operations/command-center/dashboard": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/operations/command-center/snapshots": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/operations/copilot/recommendations": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/operations/executions": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/operations/work-queue": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/operations/workflows": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "GET /api/operations/workflows/{workflow_id}/steps": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
    "AW-06N"
   ],
   "GET /api/or-connect/cases": [
@@ -1855,18 +1789,6 @@
    "AW-05",
    "AW-06N"
   ],
-  "POST /api/ml/images/{image_id}/labels": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
-  "POST /api/ml/images/{image_id}/labels/{label_id}/adjudicate": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
-  ],
   "POST /api/mobile/auth/logout": [
    "AW-03",
    "AW-06M"
@@ -2013,12 +1935,6 @@
   ],
   "POST /api/olympus/trust/{tenant_id}/compute": [
    "AW-04"
-  ],
-  "POST /api/operations/executions/{execution_id}/approve": [
-   "AW-01",
-   "AW-03",
-   "AW-06M",
-   "AW-06N"
   ],
   "POST /api/or-connect/cases": [
    "AW-05",

@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.retained_image import ImageLabel, RetainedImage
 from app.routes.inspections import require_inspection_runner
 from app.services.image_retention_service import (
@@ -93,7 +93,7 @@ async def upload_training_image(
                 "enable the opt-in training-image store."
             ),
         )
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     stored = []
     for img in images:
         content_type = img.content_type or ""
@@ -152,7 +152,7 @@ def list_images(
     current_user=Depends(require_inspection_runner),
 ):
     """List retained-image metadata (never bytes) for the caller's tenant."""
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     q = db.query(RetainedImage).filter(RetainedImage.tenant_id == tenant_id)
     if label_status:
         q = q.filter(RetainedImage.label_status == label_status)
@@ -186,7 +186,7 @@ def get_image_bytes(
     current_user=Depends(require_inspection_runner),
 ):
     """Download the EXIF-stripped bytes for a retained image (access-controlled)."""
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     row = (
         db.query(RetainedImage)
         .filter(RetainedImage.id == image_id, RetainedImage.tenant_id == tenant_id)
@@ -218,7 +218,7 @@ def add_label(
     current_user=Depends(require_inspection_runner),
 ):
     """Apply a (multi-label) annotation to a retained image."""
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     image = (
         db.query(RetainedImage)
         .filter(RetainedImage.id == image_id, RetainedImage.tenant_id == tenant_id)
@@ -280,7 +280,7 @@ def list_labels(
     current_user=Depends(require_inspection_runner),
 ):
     """Return all labels for an image."""
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     labels = (
         db.query(ImageLabel)
         .filter(ImageLabel.image_id == image_id, ImageLabel.tenant_id == tenant_id)
@@ -321,7 +321,7 @@ def adjudicate_label(
     reviewer on the same image+class before they can be adjudicated — enforcing
     the two-reviewer rule from the dataset plan.
     """
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     label = (
         db.query(ImageLabel)
         .filter(
@@ -389,7 +389,7 @@ def export_dataset(
     should enter validation/test sets per the dataset plan. Bytes are fetched
     separately via ``/ml/images/{id}/bytes`` so the manifest stays lightweight.
     """
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     images = (
         db.query(RetainedImage)
         .filter(RetainedImage.tenant_id == tenant_id)
