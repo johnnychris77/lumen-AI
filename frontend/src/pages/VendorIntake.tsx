@@ -103,7 +103,7 @@ export default function VendorIntake() {
     const hdrs = headers();
     const res = await apiFetch(`/api/enterprise/intake`, { raw: true,
       method: "POST",
-      headers: { ...hdrs, "X-Tenant-Id": "bonsecours", "X-Tenant-Name": "Bon Secours", "X-LumenAI-Role": "operator" },
+      headers: { ...hdrs, "X-LumenAI-Role": "operator" },
       body: JSON.stringify(values),
     });
     const data = await res.json();

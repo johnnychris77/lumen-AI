@@ -163,9 +163,13 @@ class CapaSuggestionIn(BaseModel):
 @router.post("/capa-suggestions/create", status_code=201)
 def post_capa_from_suggestion(
     body: CapaSuggestionIn,
+    request: Request,
     current_user=Depends(require_roles(*_LEADERSHIP_ROLES)),
 ):
-    capa = create_capa_from_suggestion(body.model_dump(), owner=_actor(current_user))
+    # The CAPA is created in the tenant this module scopes every other call to.
+    capa = create_capa_from_suggestion(
+        body.model_dump(), owner=_actor(current_user), tenant_id=_tenant(current_user, request),
+    )
     return capa
 
 

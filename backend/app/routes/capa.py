@@ -2,11 +2,15 @@ import csv
 import io
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from pydantic import BaseModel
 from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import authorized_tenant
 from app.authz import require_roles
+from app.deps import get_db
+from app.enterprise_auth import require_enterprise_auth
 from app.services.capa_service import (
     capa_summary,
     build_capa_powerbi_rows,
@@ -21,6 +25,14 @@ from app.services.capa_service import (
 
 
 router = APIRouter()
+
+# Tenant isolation (P472-03 AW-11). The role dependency on each route says WHO may
+# use the CAPA register; it resolves no tenant. Every handler therefore also
+# resolves the caller's membership-verified tenant inline with
+#     authorized_tenant(require_enterprise_auth(request, db=db))
+# and passes it to the service, which scopes every read and write to it. A CAPA
+# that belongs to another tenant is reported exactly like one that does not
+# exist (404). No request field selects the tenant.
 
 
 class CapaCreateRequest(BaseModel):
@@ -56,7 +68,12 @@ class AuditSignalCapaRequest(BaseModel):
 
 
 @router.get("/capa/health")
-def capa_health(current_user=Depends(require_roles("admin", "spd_manager", "viewer"))):
+def capa_health(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     return {
         "status": "healthy",
         "module": "capa_workflow",
@@ -67,27 +84,39 @@ def capa_health(current_user=Depends(require_roles("admin", "spd_manager", "view
             "audit_signal_to_capa": "ready",
             "governance_summary": "ready",
         },
-        "summary": capa_summary(),
+        "summary": capa_summary(tenant_id=tenant_id),
     }
 
 
 @router.get("/capa")
-def get_capas(limit: int = Query(default=50, ge=1, le=500), current_user=Depends(require_roles("admin", "spd_manager", "viewer"))):
-    items = list_capas(limit=limit)
+def get_capas(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    items = list_capas(limit=limit, tenant_id=tenant_id)
 
     return {
         "status": "success",
         "module": "capa_workflow",
         "limit": limit,
         "total_returned": len(items),
-        "summary": capa_summary(),
+        "summary": capa_summary(tenant_id=tenant_id),
         "items": items,
     }
 
 
 @router.post("/capa")
-def post_capa(payload: CapaCreateRequest, current_user=Depends(require_roles("admin", "spd_manager"))):
-    capa = create_capa(**payload.model_dump())
+def post_capa(
+    payload: CapaCreateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    capa = create_capa(**payload.model_dump(), tenant_id=tenant_id)
 
     return {
         "status": "success",
@@ -98,8 +127,14 @@ def post_capa(payload: CapaCreateRequest, current_user=Depends(require_roles("ad
 
 
 @router.post("/capa/from-audit-signal")
-def post_capa_from_audit_signal(payload: AuditSignalCapaRequest, current_user=Depends(require_roles("admin", "spd_manager"))):
-    capa = create_capa_from_audit_signal(payload.model_dump())
+def post_capa_from_audit_signal(
+    payload: AuditSignalCapaRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    capa = create_capa_from_audit_signal(payload.model_dump(), tenant_id=tenant_id)
 
     return {
         "status": "success",
@@ -112,14 +147,26 @@ def post_capa_from_audit_signal(payload: AuditSignalCapaRequest, current_user=De
 
 
 @router.get("/capa/escalation-summary")
-def get_capa_escalation_summary(days_until_due: int = Query(default=7, ge=0, le=90), current_user=Depends(require_roles("admin", "spd_manager"))):
-    return capa_escalation_summary(days_until_due=days_until_due)
+def get_capa_escalation_summary(
+    request: Request,
+    days_until_due: int = Query(default=7, ge=0, le=90),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    return capa_escalation_summary(days_until_due=days_until_due, tenant_id=tenant_id)
 
 
 
 @router.get("/capa/powerbi-csv")
-def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000), current_user=Depends(require_roles("admin", "spd_manager"))):
-    rows = build_capa_powerbi_rows(limit=limit)
+def get_capa_powerbi_csv(
+    request: Request,
+    limit: int = Query(default=500, ge=1, le=5000),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    rows = build_capa_powerbi_rows(limit=limit, tenant_id=tenant_id)
 
     fieldnames = [
         "capa_id",
@@ -160,13 +207,25 @@ def get_capa_powerbi_csv(limit: int = Query(default=500, ge=1, le=5000), current
 
 
 @router.get("/capa/governance-scorecard")
-def get_capa_governance_scorecard(days_until_due: int = Query(default=7, ge=0, le=90), current_user=Depends(require_roles("admin", "spd_manager"))):
-    return capa_governance_scorecard(days_until_due=days_until_due)
+def get_capa_governance_scorecard(
+    request: Request,
+    days_until_due: int = Query(default=7, ge=0, le=90),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    return capa_governance_scorecard(days_until_due=days_until_due, tenant_id=tenant_id)
 
 
 @router.get("/capa/{capa_id}")
-def get_capa_by_id(capa_id: str, current_user=Depends(require_roles("admin", "spd_manager", "viewer"))):
-    capa = get_capa(capa_id)
+def get_capa_by_id(
+    capa_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager", "viewer")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    capa = get_capa(capa_id, tenant_id=tenant_id)
     if not capa:
         raise HTTPException(status_code=404, detail="CAPA not found")
 
@@ -178,13 +237,20 @@ def get_capa_by_id(capa_id: str, current_user=Depends(require_roles("admin", "sp
 
 
 @router.patch("/capa/{capa_id}")
-def patch_capa(capa_id: str, payload: CapaUpdateRequest, current_user=Depends(require_roles("admin", "spd_manager"))):
+def patch_capa(
+    capa_id: str,
+    payload: CapaUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "spd_manager")),
+):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     updates = payload.model_dump(exclude_unset=True)
 
     if not updates:
         raise HTTPException(status_code=400, detail="No update fields provided")
 
-    capa = update_capa(capa_id=capa_id, **updates)
+    capa = update_capa(capa_id=capa_id, **updates, tenant_id=tenant_id)
     if not capa:
         raise HTTPException(status_code=404, detail="CAPA not found")
 

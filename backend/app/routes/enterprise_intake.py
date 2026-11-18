@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, HTTPExc
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import authorized_tenant
 from app.deps import get_db
 from app.services.object_storage import save_upload_file, open_stored_object, storage_health_check
 from app.models.audit_log import AuditLog
@@ -80,6 +81,41 @@ from app.schemas.enterprise_intake import (
 )
 
 router = APIRouter(prefix="/api/enterprise", tags=["Enterprise Intake"])
+
+
+# ── Tenant isolation (P472-03 AW-09) ─────────────────────────────────────────
+#
+# Every handler in this module except the public storage health probe starts by
+# resolving the caller's membership-verified tenant, inline so the
+# endpoint-governance scanner sees the auth call:
+#
+#     tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+#
+# (or the same around the handler's role guard). ``tenant_id`` is never taken
+# from a header, query parameter or request body; where a request can name a
+# tenant, that value is passed to ``authorized_tenant`` as a claim and a claim of
+# any other tenant is refused with 403.
+#
+# Every read and write of a tenant-owned table then goes through the two helpers
+# below, so no query in this module can reach another tenant's rows and an object
+# id that belongs to another tenant behaves exactly like one that does not exist.
+#
+# Not tenant-owned, by design: ``EnterpriseVendorBaselineSubscription`` and
+# ``VendorBaselineAuditEvent`` are the shared vendor baseline library (the table
+# has no tenant column). Access to them requires authentication but is not
+# partitioned by tenant.
+
+def _tq(db: Session, model, tenant_id: str):
+    """``db.query(model)`` restricted to the caller's tenant."""
+    return db.query(model).filter(model.tenant_id == tenant_id)
+
+
+def _tget(db: Session, tenant_id: str, model, object_id):
+    """``db.get(model, object_id)``, or None when the row is another tenant's."""
+    row = db.get(model, object_id)
+    if row is None or getattr(row, "tenant_id", None) != tenant_id:
+        return None
+    return row
 
 EXPORT_READINESS_HISTORY: list[dict] = []
 
@@ -292,23 +328,23 @@ def _risk_scores_for_severity(severity: str) -> tuple[int, int, int, int, int, s
     return 25, 20, 20, 15, 20, "low"
 
 
-def _require_governance_packet_access(request: Request):
-    require_hospital_or_enterprise_admin(request)
+def _require_governance_packet_access(request: Request, db: Session | None = None):
+    return require_hospital_or_enterprise_admin(request, db=db)
 
 
 
-def _require_vendor_baseline_approval_access(request: Request):
-    require_hospital_or_enterprise_admin(request)
+def _require_vendor_baseline_approval_access(request: Request, db: Session | None = None):
+    return require_hospital_or_enterprise_admin(request, db=db)
 
 
 
-def _require_vendor_baseline_audit_access(request: Request):
-    require_hospital_or_enterprise_admin(request)
+def _require_vendor_baseline_audit_access(request: Request, db: Session | None = None):
+    return require_hospital_or_enterprise_admin(request, db=db)
 
 
 
-def _require_vendor_baseline_library_access(request: Request):
-    require_hospital_or_enterprise_admin(request)
+def _require_vendor_baseline_library_access(request: Request, db: Session | None = None):
+    return require_hospital_or_enterprise_admin(request, db=db)
 
 
 
@@ -318,9 +354,9 @@ def create_enterprise_intake(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_hospital_or_enterprise_admin(request)
+    tenant_id = authorized_tenant(require_hospital_or_enterprise_admin(request, db=db), payload.tenant_id)
     facility = EnterpriseFacility(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         name=payload.facility_name,
         facility_type="hospital",
         status="active",
@@ -329,7 +365,7 @@ def create_enterprise_intake(
     db.flush()
 
     department = EnterpriseDepartment(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         facility_id=facility.id,
         name=payload.department_name,
         department_type="spd",
@@ -339,7 +375,7 @@ def create_enterprise_intake(
     db.flush()
 
     vendor = EnterpriseVendor(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         name=payload.vendor_name,
         vendor_type="medical_device",
         risk_tier="unassigned",
@@ -349,7 +385,7 @@ def create_enterprise_intake(
     db.flush()
 
     instrument = EnterpriseInstrument(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         vendor_id=vendor.id,
         name=payload.instrument_name,
         instrument_type=payload.instrument_category,
@@ -363,7 +399,7 @@ def create_enterprise_intake(
     evidence = None
     if payload.evidence_file_name or payload.evidence_file_url:
         evidence = EnterpriseEvidence(
-            tenant_id=payload.tenant_id,
+            tenant_id=tenant_id,
             inspection_id=None,
             evidence_type="inspection_photo",
             file_name=payload.evidence_file_name or "demo-evidence.png",
@@ -375,7 +411,7 @@ def create_enterprise_intake(
         db.flush()
 
     finding = EnterpriseFinding(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         inspection_id=None,
         instrument_id=instrument.id,
         vendor_id=vendor.id,
@@ -399,7 +435,7 @@ def create_enterprise_intake(
         barcode_value=getattr(payload, "barcode_value", "") or "",
         qr_code_value=getattr(payload, "qr_code_value", "") or "",
         key_dot_value=getattr(payload, "key_dot_value", "") or "",
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
     )
     _rank_result = _score_inspection(_rank_req, db=db)
     overall_score = _rank_result.inspection_score
@@ -415,7 +451,7 @@ def create_enterprise_intake(
     ) = _risk_scores_for_severity(payload.severity)
 
     risk_score = EnterpriseRiskScore(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         finding_id=finding.id,
         inspection_id=finding.id,
         patient_safety_score=patient_safety_score,
@@ -432,10 +468,10 @@ def create_enterprise_intake(
     _capa_auto_created = False
     if _rank_result.risk_level == "Critical" and _rank_result.final_ranking_allowed:
         from app.routes.ranking import _maybe_trigger_capa
-        _capa_auto_created = _maybe_trigger_capa(db, finding.id, _rank_result, payload.tenant_id)
+        _capa_auto_created = _maybe_trigger_capa(db, finding.id, _rank_result, tenant_id)
 
     disposition = EnterpriseDisposition(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         inspection_id=finding.id,
         recommended_action=_rank_result.recommended_action or payload.recommended_action,
         final_action="Pending human review",
@@ -447,7 +483,7 @@ def create_enterprise_intake(
     _record_enterprise_audit(
         db,
         request,
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         tenant_name=payload.tenant_name,
         action_type="enterprise_intake_created",
         resource_type="enterprise_finding",
@@ -473,7 +509,7 @@ def create_enterprise_intake(
     return EnterpriseInspectionIntakeResponse(
         status="success",
         message="Enterprise inspection intake created.",
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         facility_id=facility.id,
         department_id=department.id,
         vendor_id=vendor.id,
@@ -492,11 +528,11 @@ def list_enterprise_intake_history(
     limit: int = 25,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     limit = max(1, min(limit, 100))
 
     findings = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .order_by(EnterpriseFinding.id.desc())
         .limit(limit)
         .all()
@@ -505,18 +541,18 @@ def list_enterprise_intake_history(
     items: list[EnterpriseIntakeHistoryItem] = []
 
     for finding in findings:
-        vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-        instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+        vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+        instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
         risk_score = (
-            db.query(EnterpriseRiskScore)
+            _tq(db, EnterpriseRiskScore, tenant_id)
             .filter(EnterpriseRiskScore.finding_id == finding.id)
             .order_by(EnterpriseRiskScore.id.desc())
             .first()
         )
 
         disposition = (
-            db.query(EnterpriseDisposition)
+            _tq(db, EnterpriseDisposition, tenant_id)
             .filter(EnterpriseDisposition.finding_id == finding.id)
             .order_by(EnterpriseDisposition.id.desc())
             .first()
@@ -626,31 +662,32 @@ def get_enterprise_governance_packet(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    finding = db.get(EnterpriseFinding, finding_id)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     risk_score = (
-        db.query(EnterpriseRiskScore)
+        _tq(db, EnterpriseRiskScore, tenant_id)
         .filter(EnterpriseRiskScore.finding_id == finding.id)
         .order_by(EnterpriseRiskScore.id.desc())
         .first()
     )
 
     disposition = (
-        db.query(EnterpriseDisposition)
+        _tq(db, EnterpriseDisposition, tenant_id)
         .filter(EnterpriseDisposition.finding_id == finding.id)
         .order_by(EnterpriseDisposition.id.desc())
         .first()
     )
 
     evidence_rows = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
@@ -703,7 +740,7 @@ def get_enterprise_governance_packet(
     baseline_rows = []
     if baseline_instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == baseline_instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -711,7 +748,7 @@ def get_enterprise_governance_packet(
 
     if not baseline_rows and baseline_vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == baseline_vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -720,7 +757,7 @@ def get_enterprise_governance_packet(
     # Demo/audit fallback: include recent baselines if direct linkage is unexpectedly missing.
     if not baseline_rows:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .limit(10)
             .all()
@@ -728,7 +765,7 @@ def get_enterprise_governance_packet(
 
     if not baseline_rows:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .limit(10)
             .all()
@@ -831,7 +868,7 @@ def get_enterprise_governance_packet_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    _require_governance_packet_access(request)
+    tenant_id = authorized_tenant(_require_governance_packet_access(request, db=db))
 
     from io import BytesIO
     import hashlib
@@ -842,23 +879,23 @@ def get_enterprise_governance_packet_pdf(
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from reportlab.lib import colors
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     risk_score = (
-        db.query(EnterpriseRiskScore)
+        _tq(db, EnterpriseRiskScore, tenant_id)
         .filter(EnterpriseRiskScore.finding_id == finding.id)
         .order_by(EnterpriseRiskScore.id.desc())
         .first()
     )
 
     disposition = (
-        db.query(EnterpriseDisposition)
+        _tq(db, EnterpriseDisposition, tenant_id)
         .filter(EnterpriseDisposition.finding_id == finding.id)
         .order_by(EnterpriseDisposition.id.desc())
         .first()
@@ -871,7 +908,7 @@ def get_enterprise_governance_packet_pdf(
     baseline_rows = []
     if baseline_instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == baseline_instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -879,7 +916,7 @@ def get_enterprise_governance_packet_pdf(
 
     if not baseline_rows and baseline_vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == baseline_vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -887,14 +924,14 @@ def get_enterprise_governance_packet_pdf(
 
     if not baseline_rows:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .limit(10)
             .all()
         )
 
     evidence_rows = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
@@ -1234,7 +1271,7 @@ def verify_enterprise_governance_packet_hash(
     packet_hash: str,
     db: Session = Depends(get_db),
 ):
-    _require_governance_packet_access(request)
+    tenant_id = authorized_tenant(_require_governance_packet_access(request, db=db))
 
     import json
 
@@ -1251,7 +1288,7 @@ def verify_enterprise_governance_packet_hash(
     audit_model = AuditLog if "AuditLog" in globals() else EnterpriseAuditTrail
 
     rows = (
-        db.query(audit_model)
+        _tq(db, audit_model, tenant_id)
         .filter(audit_model.resource_id == str(finding_id))
         .filter(audit_model.action_type == "governance_packet_exported_pdf")
         .order_by(audit_model.created_at.desc())
@@ -1328,14 +1365,14 @@ def get_enterprise_governance_export_history(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    _require_governance_packet_access(request)
+    tenant_id = authorized_tenant(_require_governance_packet_access(request, db=db))
 
     import json
 
     audit_model = AuditLog if "AuditLog" in globals() else EnterpriseAuditTrail
 
     rows = (
-        db.query(audit_model)
+        _tq(db, audit_model, tenant_id)
         .filter(audit_model.resource_id == str(finding_id))
         .filter(
             audit_model.action_type.in_(
@@ -1405,11 +1442,11 @@ def list_enterprise_audit_trail(
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     limit = max(1, min(limit, 100))
 
     rows = (
-        db.query(AuditLog)
+        _tq(db, AuditLog, tenant_id)
         .filter(
             AuditLog.action_type.in_(
                 [
@@ -1453,7 +1490,7 @@ def review_enterprise_finding(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_hospital_or_enterprise_admin(request)
+    tenant_id = authorized_tenant(require_hospital_or_enterprise_admin(request, db=db))
     from fastapi import HTTPException
 
     allowed_decisions = {
@@ -1473,7 +1510,7 @@ def review_enterprise_finding(
             detail=f"Invalid review decision. Allowed: {sorted(allowed_decisions)}",
         )
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
@@ -1481,7 +1518,7 @@ def review_enterprise_finding(
     finding.human_confirmed = payload.human_confirmed
 
     disposition = (
-        db.query(EnterpriseDisposition)
+        _tq(db, EnterpriseDisposition, tenant_id)
         .filter(EnterpriseDisposition.finding_id == finding.id)
         .order_by(EnterpriseDisposition.id.desc())
         .first()
@@ -1517,7 +1554,10 @@ def review_enterprise_finding(
     return EnterpriseHumanReviewResponse(
         status="success",
         message="Enterprise finding human review completed.",
-        inspection_id=finding.id,
+        # The response model's field is ``finding_id``; this passed
+        # ``inspection_id`` and every successful review answered HTTP 500
+        # after it had been committed (pre-existing defect, not tenancy).
+        finding_id=finding.id,
         decision=decision,
         reviewer_name=payload.reviewer_name,
         reviewer_role=payload.reviewer_role,
@@ -1533,10 +1573,10 @@ def create_enterprise_capa(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_hospital_or_enterprise_admin(request)
+    tenant_id = authorized_tenant(require_hospital_or_enterprise_admin(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
@@ -1551,7 +1591,7 @@ def create_enterprise_capa(
     capa_number = f"CAPA-{finding.id:06d}"
 
     existing = (
-        db.query(EnterpriseCapa)
+        _tq(db, EnterpriseCapa, tenant_id)
         .filter(EnterpriseCapa.finding_id == finding.id)
         .order_by(EnterpriseCapa.id.desc())
         .first()
@@ -1561,7 +1601,7 @@ def create_enterprise_capa(
         return EnterpriseCapaCreateResponse(
             status="success",
             message="Existing CAPA found for this finding.",
-            inspection_id=finding.id,
+            finding_id=finding.id,  # was inspection_id: the response model's field is finding_id (HTTP 500 before)
             capa_id=existing.id,
             capa_number=existing.capa_number,
             capa_status=existing.status,
@@ -1584,7 +1624,7 @@ def create_enterprise_capa(
     db.flush()
 
     disposition = (
-        db.query(EnterpriseDisposition)
+        _tq(db, EnterpriseDisposition, tenant_id)
         .filter(EnterpriseDisposition.finding_id == finding.id)
         .order_by(EnterpriseDisposition.id.desc())
         .first()
@@ -1619,7 +1659,7 @@ def create_enterprise_capa(
     return EnterpriseCapaCreateResponse(
         status="success",
         message="Enterprise CAPA opened.",
-        inspection_id=finding.id,
+        finding_id=finding.id,  # was inspection_id: the response model's field is finding_id (HTTP 500 before)
         capa_id=capa.id,
         capa_number=capa.capa_number,
         capa_status=capa.status,
@@ -1633,11 +1673,11 @@ def list_enterprise_capas(
     limit: int = 25,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     limit = max(1, min(limit, 100))
 
     rows = (
-        db.query(EnterpriseCapa)
+        _tq(db, EnterpriseCapa, tenant_id)
         .order_by(EnterpriseCapa.id.desc())
         .limit(limit)
         .all()
@@ -1669,7 +1709,7 @@ def update_enterprise_capa_status(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_hospital_or_enterprise_admin(request)
+    tenant_id = authorized_tenant(require_hospital_or_enterprise_admin(request, db=db))
     from fastapi import HTTPException
 
     allowed_statuses = {
@@ -1689,7 +1729,7 @@ def update_enterprise_capa_status(
             detail=f"Invalid CAPA status. Allowed: {sorted(allowed_statuses)}",
         )
 
-    capa = db.get(EnterpriseCapa, capa_id)
+    capa = _tget(db, tenant_id, EnterpriseCapa, capa_id)
 
     if not capa:
         raise HTTPException(status_code=404, detail="Enterprise CAPA not found")
@@ -1705,7 +1745,7 @@ def update_enterprise_capa_status(
 
     if capa.finding_id:
         disposition = (
-            db.query(EnterpriseDisposition)
+            _tq(db, EnterpriseDisposition, tenant_id)
             .filter(EnterpriseDisposition.finding_id == capa.finding_id)
             .order_by(EnterpriseDisposition.id.desc())
             .first()
@@ -1753,10 +1793,10 @@ def get_enterprise_capa_summary(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
-    rows = db.query(EnterpriseCapa).all()
+    rows = _tq(db, EnterpriseCapa, tenant_id).all()
 
     total = len(rows)
     open_count = sum(1 for row in rows if row.status == "open")
@@ -1817,10 +1857,10 @@ def upload_enterprise_evidence(
     notes: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
-    require_hospital_or_enterprise_admin(request)
+    tenant_id = authorized_tenant(require_hospital_or_enterprise_admin(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
@@ -1888,18 +1928,20 @@ def upload_enterprise_evidence(
 
 @router.get("/intake/{finding_id}/evidence", response_model=EnterpriseEvidenceListResponse)
 def list_enterprise_evidence(
+    request: Request,
     finding_id: int,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
     rows = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
@@ -1928,10 +1970,10 @@ def download_enterprise_evidence(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    evidence = db.get(EnterpriseEvidence, evidence_id)
+    evidence = _tget(db, tenant_id, EnterpriseEvidence, evidence_id)
 
     if not evidence:
         raise HTTPException(status_code=404, detail="Enterprise evidence not found")
@@ -1988,10 +2030,10 @@ def upload_instrument_baseline(
     baseline_status: str = Form(default="pending_review"),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    instrument = db.get(EnterpriseInstrument, instrument_id)
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, instrument_id)
 
     if not instrument:
         raise HTTPException(status_code=404, detail="Enterprise instrument not found")
@@ -2073,18 +2115,20 @@ def upload_instrument_baseline(
 
 @router.get("/instruments/{instrument_id}/baseline", response_model=EnterpriseInstrumentBaselineListResponse)
 def list_instrument_baselines(
+    request: Request,
     instrument_id: int,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    instrument = db.get(EnterpriseInstrument, instrument_id)
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, instrument_id)
 
     if not instrument:
         raise HTTPException(status_code=404, detail="Enterprise instrument not found")
 
     rows = (
-        db.query(EnterpriseInstrumentBaseline)
+        _tq(db, EnterpriseInstrumentBaseline, tenant_id)
         .filter(EnterpriseInstrumentBaseline.instrument_id == instrument.id)
         .order_by(EnterpriseInstrumentBaseline.id.desc())
         .all()
@@ -2117,13 +2161,15 @@ def list_instrument_baselines(
 
 @router.get("/vendor-baselines", response_model=EnterpriseInstrumentBaselineListResponse)
 def list_vendor_baselines(
+    request: Request,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     limit = max(1, min(limit, 100))
 
     rows = (
-        db.query(EnterpriseInstrumentBaseline)
+        _tq(db, EnterpriseInstrumentBaseline, tenant_id)
         .order_by(EnterpriseInstrumentBaseline.id.desc())
         .limit(limit)
         .all()
@@ -2160,16 +2206,16 @@ def compare_finding_to_manufacturer_baseline(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
     instrument = (
-        db.get(EnterpriseInstrument, finding.instrument_id)
+        _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id)
         if finding.instrument_id
         else None
     )
@@ -2178,7 +2224,7 @@ def compare_finding_to_manufacturer_baseline(
         raise HTTPException(status_code=404, detail="Linked enterprise instrument not found")
 
     baseline = (
-        db.query(EnterpriseInstrumentBaseline)
+        _tq(db, EnterpriseInstrumentBaseline, tenant_id)
         .filter(
             EnterpriseInstrumentBaseline.instrument_id == instrument.id,
             EnterpriseInstrumentBaseline.baseline_status == "approved",
@@ -2189,7 +2235,7 @@ def compare_finding_to_manufacturer_baseline(
 
     if not baseline:
         baseline = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == instrument.id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .first()
@@ -2202,7 +2248,7 @@ def compare_finding_to_manufacturer_baseline(
         )
 
     evidence = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .first()
@@ -2335,10 +2381,10 @@ def review_manufacturer_baseline(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    baseline = db.get(EnterpriseInstrumentBaseline, baseline_id)
+    baseline = _tget(db, tenant_id, EnterpriseInstrumentBaseline, baseline_id)
 
     if not baseline:
         raise HTTPException(status_code=404, detail="Manufacturer baseline not found")
@@ -2436,9 +2482,10 @@ def get_enterprise_governance_export_package(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
@@ -2446,7 +2493,7 @@ def get_enterprise_governance_export_package(
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -2454,7 +2501,7 @@ def get_enterprise_governance_export_package(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -2466,7 +2513,7 @@ def get_enterprise_governance_export_package(
     )
 
     evidence_attachment_count = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .count()
     )
@@ -2476,7 +2523,7 @@ def get_enterprise_governance_export_package(
     capa_count = 0
     try:
         capa_count = (
-            db.query(EnterpriseCapa)
+            _tq(db, EnterpriseCapa, tenant_id)
             .filter(EnterpriseCapa.finding_id == finding.id)
             .count()
         )
@@ -2486,7 +2533,7 @@ def get_enterprise_governance_export_package(
     audit_event_count = 0
     try:
         audit_event_count = (
-            db.query(EnterpriseAuditTrail)
+            _tq(db, EnterpriseAuditTrail, tenant_id)
             .filter(EnterpriseAuditTrail.resource_id == str(finding.id))
             .count()
         )
@@ -2589,6 +2636,7 @@ def get_enterprise_governance_zip_bundle(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import json
     import tempfile
     import zipfile
@@ -2600,30 +2648,30 @@ def get_enterprise_governance_zip_bundle(
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from reportlab.lib import colors
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     risk_score = (
-        db.query(EnterpriseRiskScore)
+        _tq(db, EnterpriseRiskScore, tenant_id)
         .filter(EnterpriseRiskScore.finding_id == finding.id)
         .order_by(EnterpriseRiskScore.id.desc())
         .first()
     )
 
     disposition = (
-        db.query(EnterpriseDisposition)
+        _tq(db, EnterpriseDisposition, tenant_id)
         .filter(EnterpriseDisposition.finding_id == finding.id)
         .order_by(EnterpriseDisposition.id.desc())
         .first()
     )
 
     evidence_rows = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
@@ -2632,7 +2680,7 @@ def get_enterprise_governance_zip_bundle(
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -2640,7 +2688,7 @@ def get_enterprise_governance_zip_bundle(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -2873,20 +2921,21 @@ def get_enterprise_vendor_escalation_packet(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -2894,7 +2943,7 @@ def get_enterprise_vendor_escalation_packet(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -2932,7 +2981,7 @@ def get_enterprise_vendor_escalation_packet(
     ]
 
     evidence_rows = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
@@ -3057,6 +3106,7 @@ def get_enterprise_vendor_escalation_packet_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi import HTTPException
     from fastapi.responses import StreamingResponse
@@ -3065,13 +3115,13 @@ def get_enterprise_vendor_escalation_packet_pdf(
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     vendor_name = (
         getattr(vendor, "vendor_name", None)
@@ -3096,7 +3146,7 @@ def get_enterprise_vendor_escalation_packet_pdf(
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -3104,7 +3154,7 @@ def get_enterprise_vendor_escalation_packet_pdf(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -3299,15 +3349,16 @@ def get_enterprise_infection_prevention_review_packet(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     vendor_name = (
         getattr(vendor, "vendor_name", None)
@@ -3332,7 +3383,7 @@ def get_enterprise_infection_prevention_review_packet(
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -3340,7 +3391,7 @@ def get_enterprise_infection_prevention_review_packet(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -3378,7 +3429,7 @@ def get_enterprise_infection_prevention_review_packet(
     ]
 
     evidence_rows = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .order_by(EnterpriseEvidence.id.desc())
         .all()
@@ -3545,6 +3596,7 @@ def get_enterprise_infection_prevention_review_packet_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi import HTTPException
     from fastapi.responses import StreamingResponse
@@ -3553,13 +3605,13 @@ def get_enterprise_infection_prevention_review_packet_pdf(
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
 
-    vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-    instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+    vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+    instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
     vendor_name = (
         getattr(vendor, "vendor_name", None)
@@ -3584,7 +3636,7 @@ def get_enterprise_infection_prevention_review_packet_pdf(
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -3592,7 +3644,7 @@ def get_enterprise_infection_prevention_review_packet_pdf(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -3850,24 +3902,25 @@ def get_enterprise_executive_quality_review_dashboard(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    total_findings = db.query(EnterpriseFinding).count()
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    total_findings = _tq(db, EnterpriseFinding, tenant_id).count()
 
     critical_findings = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .filter(EnterpriseFinding.severity == "critical")
         .count()
     )
 
     high_findings = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .filter(EnterpriseFinding.severity == "high")
         .count()
     )
 
-    baseline_evidence_count = db.query(EnterpriseInstrumentBaseline).count()
+    baseline_evidence_count = _tq(db, EnterpriseInstrumentBaseline, tenant_id).count()
 
     approved_baseline_count = (
-        db.query(EnterpriseInstrumentBaseline)
+        _tq(db, EnterpriseInstrumentBaseline, tenant_id)
         .filter(EnterpriseInstrumentBaseline.baseline_status == "approved")
         .count()
     )
@@ -3875,9 +3928,9 @@ def get_enterprise_executive_quality_review_dashboard(
     audit_event_count = 0
     governance_export_count = 0
     try:
-        audit_event_count = db.query(EnterpriseAuditTrail).count()
+        audit_event_count = _tq(db, EnterpriseAuditTrail, tenant_id).count()
         governance_export_count = (
-            db.query(EnterpriseAuditTrail)
+            _tq(db, EnterpriseAuditTrail, tenant_id)
             .filter(EnterpriseAuditTrail.action_type.in_([
                 "governance_packet_exported_pdf",
                 "governance_export_package_generated",
@@ -3897,12 +3950,12 @@ def get_enterprise_executive_quality_review_dashboard(
     closed_capa_count = 0
     try:
         open_capa_count = (
-            db.query(EnterpriseCapa)
+            _tq(db, EnterpriseCapa, tenant_id)
             .filter(EnterpriseCapa.status.in_(["open", "in_progress", "pending_review"]))
             .count()
         )
         closed_capa_count = (
-            db.query(EnterpriseCapa)
+            _tq(db, EnterpriseCapa, tenant_id)
             .filter(EnterpriseCapa.status.in_(["closed", "completed"]))
             .count()
         )
@@ -3911,7 +3964,7 @@ def get_enterprise_executive_quality_review_dashboard(
         closed_capa_count = 0
 
     recent_rows = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .order_by(EnterpriseFinding.id.desc())
         .limit(10)
         .all()
@@ -3921,8 +3974,8 @@ def get_enterprise_executive_quality_review_dashboard(
     vendor_signal_counts = {}
 
     for finding in recent_rows:
-        vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-        instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+        vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+        instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
         vendor_name = (
             getattr(vendor, "vendor_name", None)
@@ -3966,7 +4019,7 @@ def get_enterprise_executive_quality_review_dashboard(
     vendor_escalation_ready_count = 0
     ip_review_recommended_count = 0
 
-    for finding in db.query(EnterpriseFinding).all():
+    for finding in _tq(db, EnterpriseFinding, tenant_id).all():
         finding_category = (finding.finding_category or "").lower()
         description = (finding.finding_description or "").lower()
         severity = (finding.severity or "").lower()
@@ -4014,7 +4067,7 @@ def get_enterprise_executive_quality_review_dashboard(
     _record_enterprise_audit(
         db,
         request,
-        tenant_id="",
+        tenant_id=tenant_id,
         tenant_name="",
         action_type="executive_quality_review_dashboard_viewed",
         resource_type="enterprise_executive_quality_review_dashboard",
@@ -4061,6 +4114,7 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -4068,24 +4122,24 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    total_findings = db.query(EnterpriseFinding).count()
+    total_findings = _tq(db, EnterpriseFinding, tenant_id).count()
 
     critical_findings = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .filter(EnterpriseFinding.severity == "critical")
         .count()
     )
 
     high_findings = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .filter(EnterpriseFinding.severity == "high")
         .count()
     )
 
-    baseline_evidence_count = db.query(EnterpriseInstrumentBaseline).count()
+    baseline_evidence_count = _tq(db, EnterpriseInstrumentBaseline, tenant_id).count()
 
     approved_baseline_count = (
-        db.query(EnterpriseInstrumentBaseline)
+        _tq(db, EnterpriseInstrumentBaseline, tenant_id)
         .filter(EnterpriseInstrumentBaseline.baseline_status == "approved")
         .count()
     )
@@ -4093,9 +4147,9 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     audit_event_count = 0
     governance_export_count = 0
     try:
-        audit_event_count = db.query(EnterpriseAuditTrail).count()
+        audit_event_count = _tq(db, EnterpriseAuditTrail, tenant_id).count()
         governance_export_count = (
-            db.query(EnterpriseAuditTrail)
+            _tq(db, EnterpriseAuditTrail, tenant_id)
             .filter(EnterpriseAuditTrail.action_type.in_([
                 "governance_packet_exported_pdf",
                 "governance_export_package_generated",
@@ -4117,12 +4171,12 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     closed_capa_count = 0
     try:
         open_capa_count = (
-            db.query(EnterpriseCapa)
+            _tq(db, EnterpriseCapa, tenant_id)
             .filter(EnterpriseCapa.status.in_(["open", "in_progress", "pending_review"]))
             .count()
         )
         closed_capa_count = (
-            db.query(EnterpriseCapa)
+            _tq(db, EnterpriseCapa, tenant_id)
             .filter(EnterpriseCapa.status.in_(["closed", "completed"]))
             .count()
         )
@@ -4133,7 +4187,7 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     vendor_escalation_ready_count = 0
     ip_review_recommended_count = 0
 
-    all_findings = db.query(EnterpriseFinding).all()
+    all_findings = _tq(db, EnterpriseFinding, tenant_id).all()
 
     for finding in all_findings:
         finding_category = (finding.finding_category or "").lower()
@@ -4181,7 +4235,7 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     ]
 
     recent_rows = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .order_by(EnterpriseFinding.id.desc())
         .limit(10)
         .all()
@@ -4191,8 +4245,8 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
     vendor_signal_counts = {}
 
     for finding in recent_rows:
-        vendor = db.get(EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
-        instrument = db.get(EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
+        vendor = _tget(db, tenant_id, EnterpriseVendor, finding.vendor_id) if finding.vendor_id else None
+        instrument = _tget(db, tenant_id, EnterpriseInstrument, finding.instrument_id) if finding.instrument_id else None
 
         vendor_name = (
             getattr(vendor, "vendor_name", None)
@@ -4345,7 +4399,7 @@ def get_enterprise_executive_quality_review_dashboard_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="executive_quality_review_dashboard_pdf_exported",
             resource_type="enterprise_executive_quality_review_dashboard_pdf",
@@ -4382,10 +4436,11 @@ def get_enterprise_export_readiness_status(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
     from fastapi import HTTPException
 
-    finding = db.get(EnterpriseFinding, finding_id)
+    finding = _tget(db, tenant_id, EnterpriseFinding, finding_id)
 
     if not finding:
         raise HTTPException(status_code=404, detail="Enterprise finding not found")
@@ -4393,7 +4448,7 @@ def get_enterprise_export_readiness_status(
     baseline_rows = []
     if finding.instrument_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.instrument_id == finding.instrument_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -4401,7 +4456,7 @@ def get_enterprise_export_readiness_status(
 
     if not baseline_rows and finding.vendor_id:
         baseline_rows = (
-            db.query(EnterpriseInstrumentBaseline)
+            _tq(db, EnterpriseInstrumentBaseline, tenant_id)
             .filter(EnterpriseInstrumentBaseline.vendor_id == finding.vendor_id)
             .order_by(EnterpriseInstrumentBaseline.id.desc())
             .all()
@@ -4415,7 +4470,7 @@ def get_enterprise_export_readiness_status(
     )
 
     evidence_attachment_count = (
-        db.query(EnterpriseEvidence)
+        _tq(db, EnterpriseEvidence, tenant_id)
         .filter(EnterpriseEvidence.inspection_id == finding.id)
         .count()
     )
@@ -4558,13 +4613,15 @@ def get_enterprise_export_readiness_status(
 
 @router.get("/export-readiness-history", response_model=EnterpriseExportReadinessHistoryResponse)
 def get_enterprise_export_readiness_history(
+    request: Request,
     limit: int = 20,
     finding_id: int | None = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     safe_limit = max(1, min(limit, 50))
 
-    query = db.query(EnterpriseExportReadinessHistory)
+    query = _tq(db, EnterpriseExportReadinessHistory, tenant_id)
 
     if finding_id is not None:
         query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
@@ -4604,6 +4661,7 @@ def get_enterprise_export_readiness_history_pdf(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -4613,7 +4671,7 @@ def get_enterprise_export_readiness_history_pdf(
 
     safe_limit = max(1, min(limit, 50))
 
-    query = db.query(EnterpriseExportReadinessHistory)
+    query = _tq(db, EnterpriseExportReadinessHistory, tenant_id)
 
     if finding_id is not None:
         query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
@@ -4712,7 +4770,7 @@ def get_enterprise_export_readiness_history_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_history_pdf_exported",
             resource_type="enterprise_export_readiness_history_pdf",
@@ -4746,13 +4804,14 @@ def get_enterprise_export_readiness_history_csv(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     from io import StringIO
     from fastapi.responses import StreamingResponse
 
     safe_limit = max(1, min(limit, 500))
 
-    query = db.query(EnterpriseExportReadinessHistory)
+    query = _tq(db, EnterpriseExportReadinessHistory, tenant_id)
 
     if finding_id is not None:
         query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
@@ -4806,7 +4865,7 @@ def get_enterprise_export_readiness_history_csv(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_history_csv_exported",
             resource_type="enterprise_export_readiness_history_csv",
@@ -4840,13 +4899,14 @@ def get_enterprise_export_readiness_history_powerbi_csv(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     from io import StringIO
     from fastapi.responses import StreamingResponse
 
     safe_limit = max(1, min(limit, 2000))
 
-    query = db.query(EnterpriseExportReadinessHistory)
+    query = _tq(db, EnterpriseExportReadinessHistory, tenant_id)
 
     if finding_id is not None:
         query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
@@ -4940,7 +5000,7 @@ def get_enterprise_export_readiness_history_powerbi_csv(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_history_powerbi_csv_exported",
             resource_type="enterprise_export_readiness_history_powerbi_csv",
@@ -4972,6 +5032,7 @@ def get_enterprise_export_readiness_powerbi_data_dictionary(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     dictionary = [
         {
             "field_name": "history_id",
@@ -5131,7 +5192,7 @@ def get_enterprise_export_readiness_powerbi_data_dictionary(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_data_dictionary_viewed",
             resource_type="enterprise_export_readiness_powerbi_data_dictionary",
@@ -5184,6 +5245,7 @@ def get_enterprise_export_readiness_powerbi_data_dictionary_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -5299,7 +5361,7 @@ def get_enterprise_export_readiness_powerbi_data_dictionary_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_data_dictionary_pdf_exported",
             resource_type="enterprise_export_readiness_powerbi_data_dictionary_pdf",
@@ -5329,6 +5391,7 @@ def get_enterprise_export_readiness_powerbi_dashboard_spec(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     dashboard_spec = {
         "status": "success",
         "spec_type": "export_readiness_powerbi_starter_dashboard",
@@ -5552,7 +5615,7 @@ def get_enterprise_export_readiness_powerbi_dashboard_spec(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_dashboard_spec_viewed",
             resource_type="enterprise_export_readiness_powerbi_dashboard_spec",
@@ -5576,6 +5639,7 @@ def get_enterprise_export_readiness_powerbi_dashboard_spec_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -5739,7 +5803,7 @@ def get_enterprise_export_readiness_powerbi_dashboard_spec_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_dashboard_spec_pdf_exported",
             resource_type="enterprise_export_readiness_powerbi_dashboard_spec_pdf",
@@ -5771,6 +5835,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_zip(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     import json
     import zipfile
@@ -5779,7 +5844,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_zip(
 
     safe_limit = max(1, min(limit, 2000))
 
-    query = db.query(EnterpriseExportReadinessHistory)
+    query = _tq(db, EnterpriseExportReadinessHistory, tenant_id)
 
     if finding_id is not None:
         query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
@@ -5994,7 +6059,7 @@ record_count={len(rows)}
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_zip_exported",
             resource_type="enterprise_export_readiness_powerbi_toolkit_zip",
@@ -6026,6 +6091,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_readme_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -6194,7 +6260,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_readme_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_readme_pdf_exported",
             resource_type="enterprise_export_readiness_powerbi_toolkit_readme_pdf",
@@ -6221,6 +6287,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_metadata(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     metadata = {
@@ -6290,7 +6357,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_metadata(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_metadata_viewed",
             resource_type="enterprise_export_readiness_powerbi_toolkit_metadata",
@@ -6314,6 +6381,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_health(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     checks = []
@@ -6441,7 +6509,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_health(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_health_checked",
             resource_type="enterprise_export_readiness_powerbi_toolkit_health",
@@ -6468,6 +6536,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_executive_summary_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -6609,7 +6678,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_executive_summary_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_executive_summary_pdf_exported",
             resource_type="enterprise_export_readiness_powerbi_toolkit_executive_summary_pdf",
@@ -6642,6 +6711,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_final_validation(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     health = get_enterprise_export_readiness_powerbi_toolkit_health(
@@ -6756,7 +6826,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_final_validation(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_final_validated",
             resource_type="enterprise_export_readiness_powerbi_toolkit_final_validation",
@@ -6782,6 +6852,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_production_lock(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     health = get_enterprise_export_readiness_powerbi_toolkit_health(
@@ -6874,7 +6945,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_production_lock(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_production_locked",
             resource_type="enterprise_export_readiness_powerbi_toolkit_production_lock",
@@ -6899,6 +6970,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_release_notes_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -7029,7 +7101,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_release_notes_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_release_notes_pdf_exported",
             resource_type="enterprise_export_readiness_powerbi_toolkit_release_notes_pdf",
@@ -7060,6 +7132,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_completion_certificate_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -7206,7 +7279,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_completion_certificate_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_completion_certificate_pdf_exported",
             resource_type="enterprise_export_readiness_powerbi_toolkit_completion_certificate_pdf",
@@ -7239,6 +7312,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_v1_archive_zip(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     import json
     import zipfile
@@ -7248,7 +7322,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_v1_archive_zip(
 
     safe_limit = max(1, min(limit, 2000))
 
-    query = db.query(EnterpriseExportReadinessHistory)
+    query = _tq(db, EnterpriseExportReadinessHistory, tenant_id)
 
     if finding_id is not None:
         query = query.filter(EnterpriseExportReadinessHistory.finding_id == finding_id)
@@ -7494,7 +7568,7 @@ record_count={len(rows)}
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_v1_archive_exported",
             resource_type="enterprise_export_readiness_powerbi_toolkit_v1_archive_zip",
@@ -7529,6 +7603,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_v1_closeout(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     production_lock = get_enterprise_export_readiness_powerbi_toolkit_production_lock(
@@ -7609,7 +7684,7 @@ def get_enterprise_export_readiness_powerbi_toolkit_v1_closeout(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="export_readiness_powerbi_toolkit_v1_closed_out",
             resource_type="enterprise_export_readiness_powerbi_toolkit_v1_closeout",
@@ -7636,12 +7711,13 @@ def get_enterprise_audit_command_center(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     safe_limit = max(1, min(limit, 100))
 
     # Audit events are stored in AuditLog.
-    audit_query = db.query(AuditLog)
+    audit_query = _tq(db, AuditLog, tenant_id)
 
     audit_events = (
         audit_query
@@ -7650,7 +7726,7 @@ def get_enterprise_audit_command_center(
         .all()
     )
 
-    all_events = db.query(AuditLog).all()
+    all_events = _tq(db, AuditLog, tenant_id).all()
 
     def safe_text(value):
         return value or ""
@@ -7807,7 +7883,7 @@ def get_enterprise_audit_command_center(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_viewed",
             resource_type="enterprise_audit_command_center",
@@ -7832,6 +7908,7 @@ def get_enterprise_audit_command_center_pdf(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -7977,7 +8054,7 @@ def get_enterprise_audit_command_center_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_pdf_exported",
             resource_type="enterprise_audit_command_center_pdf",
@@ -8009,6 +8086,7 @@ def get_enterprise_audit_command_center_csv(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     from io import StringIO
     from fastapi.responses import StreamingResponse
@@ -8016,7 +8094,7 @@ def get_enterprise_audit_command_center_csv(
     safe_limit = max(1, min(limit, 1000))
 
     audit_events = (
-        db.query(AuditLog)
+        _tq(db, AuditLog, tenant_id)
         .order_by(AuditLog.id.desc())
         .limit(safe_limit)
         .all()
@@ -8073,7 +8151,7 @@ def get_enterprise_audit_command_center_csv(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_csv_exported",
             resource_type="enterprise_audit_command_center_csv",
@@ -8103,6 +8181,7 @@ def get_enterprise_audit_command_center_powerbi_csv(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     from io import StringIO
     from fastapi.responses import StreamingResponse
@@ -8110,7 +8189,7 @@ def get_enterprise_audit_command_center_powerbi_csv(
     safe_limit = max(1, min(limit, 5000))
 
     audit_events = (
-        db.query(AuditLog)
+        _tq(db, AuditLog, tenant_id)
         .order_by(AuditLog.id.desc())
         .limit(safe_limit)
         .all()
@@ -8267,7 +8346,7 @@ def get_enterprise_audit_command_center_powerbi_csv(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_powerbi_csv_exported",
             resource_type="enterprise_audit_command_center_powerbi_csv",
@@ -8296,6 +8375,7 @@ def get_enterprise_audit_command_center_powerbi_data_dictionary(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     fields = [
@@ -8564,7 +8644,7 @@ def get_enterprise_audit_command_center_powerbi_data_dictionary(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_powerbi_data_dictionary_viewed",
             resource_type="enterprise_audit_command_center_powerbi_data_dictionary",
@@ -8587,6 +8667,7 @@ def get_enterprise_audit_command_center_powerbi_data_dictionary_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.lib import colors
@@ -8749,7 +8830,7 @@ def get_enterprise_audit_command_center_powerbi_data_dictionary_pdf(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_powerbi_data_dictionary_pdf_exported",
             resource_type="enterprise_audit_command_center_powerbi_data_dictionary_pdf",
@@ -8781,6 +8862,7 @@ def get_enterprise_audit_command_center_toolkit_zip(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     import csv
     import json
     import zipfile
@@ -8791,7 +8873,7 @@ def get_enterprise_audit_command_center_toolkit_zip(
     safe_limit = max(1, min(limit, 5000))
 
     audit_events = (
-        db.query(AuditLog)
+        _tq(db, AuditLog, tenant_id)
         .order_by(AuditLog.id.desc())
         .limit(safe_limit)
         .all()
@@ -9056,7 +9138,7 @@ record_count={len(audit_events)}
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_toolkit_zip_exported",
             resource_type="enterprise_audit_command_center_toolkit_zip",
@@ -9086,6 +9168,7 @@ def get_enterprise_audit_command_center_health(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     checks = []
@@ -9245,7 +9328,7 @@ def get_enterprise_audit_command_center_health(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="enterprise_audit_command_center_health_checked",
             resource_type="enterprise_audit_command_center_health",
@@ -9272,7 +9355,7 @@ def calculate_enterprise_baseline_aware_score(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     finding_type = payload.get("finding_type")
     risk_level = payload.get("risk_level")
     vendor_baseline_id = payload.get("vendor_baseline_id")
@@ -9312,7 +9395,7 @@ def calculate_enterprise_baseline_aware_score(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="baseline_aware_score_calculated",
             resource_type="baseline_aware_scoring_engine",
@@ -9338,12 +9421,13 @@ def get_enterprise_baseline_review_queue(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     from datetime import datetime, timezone
 
     safe_limit = max(1, min(limit, 200))
 
     findings = (
-        db.query(EnterpriseFinding)
+        _tq(db, EnterpriseFinding, tenant_id)
         .order_by(EnterpriseFinding.id.desc())
         .limit(safe_limit)
         .all()
@@ -9414,7 +9498,7 @@ def get_enterprise_baseline_review_queue(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name="",
             action_type="baseline_review_queue_viewed",
             resource_type="baseline_review_queue",
@@ -9441,7 +9525,7 @@ def create_enterprise_vendor_baseline_record(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     vendor_name = payload.get("vendor_name") or payload.get("vendor") or ""
     instrument_name = payload.get("instrument_name") or ""
     instrument_category = payload.get("instrument_category") or ""
@@ -9529,7 +9613,7 @@ def create_enterprise_vendor_baseline_record(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name=vendor_name,
             action_type="vendor_baseline_record_created",
             resource_type="vendor_baseline_subscription_baseline",
@@ -9560,12 +9644,14 @@ def create_enterprise_vendor_baseline_record(
 def upload_vendor_baseline_image(
     request: Request,
     file: UploadFile = File(...),
+    db: Session = Depends(get_db),
 ):
     """
     Upload a baseline reference image for a vendor instrument.
     Returns the storage URL to use as baseline_image_url when submitting a baseline record.
     """
-    require_enterprise_auth(request)
+    # Verified caller required. The upload itself is not tenant data.
+    authorized_tenant(require_enterprise_auth(request, db=db))
     from app.services.object_storage import save_upload_file
     import uuid
 
@@ -9598,7 +9684,7 @@ def list_enterprise_vendor_baseline_records(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
-    _require_vendor_baseline_library_access(request)
+    tenant_id = authorized_tenant(_require_vendor_baseline_library_access(request, db=db))
 
     from datetime import datetime, timezone
 
@@ -9660,7 +9746,7 @@ def list_enterprise_vendor_baseline_records(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name=vendor_name or "",
             action_type="vendor_baseline_library_viewed",
             resource_type="vendor_baseline_subscription_library",
@@ -9685,7 +9771,7 @@ def approve_enterprise_vendor_baseline_record(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
-    _require_vendor_baseline_approval_access(request)
+    tenant_id = authorized_tenant(_require_vendor_baseline_approval_access(request, db=db))
 
     from datetime import datetime
 
@@ -9719,7 +9805,7 @@ def approve_enterprise_vendor_baseline_record(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name=record.get("vendor_name", ""),
             action_type="vendor_baseline_record_approved",
             resource_type="vendor_baseline_subscription_baseline",
@@ -9814,7 +9900,7 @@ def match_enterprise_vendor_baseline_record(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
     identifier_value = (payload.get("identifier_value") or "").lower()
     instrument_name = (payload.get("instrument_name") or "").lower()
     vendor_name = (payload.get("vendor_name") or payload.get("vendor") or "").lower()
@@ -9873,7 +9959,7 @@ def match_enterprise_vendor_baseline_record(
         _record_enterprise_audit(
             db,
             request,
-            tenant_id="",
+            tenant_id=tenant_id,
             tenant_name=vendor_name,
             action_type="vendor_baseline_match_requested",
             resource_type="vendor_baseline_subscription_match",
@@ -9901,7 +9987,8 @@ def get_enterprise_vendor_baseline_audit_trail(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
-    _require_vendor_baseline_audit_access(request)
+    # Verified caller required. The vendor baseline library is shared, not tenant-owned.
+    authorized_tenant(_require_vendor_baseline_audit_access(request, db=db))
 
     """
     Return a derived audit trail for a vendor baseline record.
@@ -10144,7 +10231,9 @@ def verify_enterprise_audit_chain(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    _require_governance_packet_access(request)
+    # Verified caller required. Chain verification is by resource id and returns
+    # verification metadata only; it is not partitioned by tenant (see module note).
+    authorized_tenant(_require_governance_packet_access(request, db=db))
 
     result = verify_audit_chain(
         db,
@@ -10164,10 +10253,10 @@ def get_enterprise_governance_packet_certificate(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    _require_governance_packet_access(request)
+    tenant_id = authorized_tenant(_require_governance_packet_access(request, db=db))
 
     latest_export = (
-        db.query(AuditLog)
+        _tq(db, AuditLog, tenant_id)
         .filter(
             AuditLog.resource_type == "enterprise_governance_packet",
             AuditLog.resource_id == str(finding_id),
@@ -10243,10 +10332,11 @@ def list_enterprise_audit_events(
     resource_id: str | None = None,
     limit: int = 50,
 ):
-    require_audit_chain_verify(request)
+    owner_tenant_id = authorized_tenant(require_audit_chain_verify(request), tenant_id)
 
     return query_audit_events(
         db,
+        owner_tenant_id=owner_tenant_id,
         tenant_id=tenant_id,
         actor=actor,
         actor_role=actor_role,
@@ -10273,10 +10363,11 @@ def export_enterprise_audit_events_csv(
     resource_id: str | None = None,
     limit: int = 200,
 ):
-    require_audit_chain_verify(request)
+    owner_tenant_id = authorized_tenant(require_audit_chain_verify(request), tenant_id)
 
     export = export_audit_events_csv(
         db,
+        owner_tenant_id=owner_tenant_id,
         tenant_id=tenant_id,
         actor=actor,
         actor_role=actor_role,
@@ -10293,6 +10384,7 @@ def export_enterprise_audit_events_csv(
         actor=request.headers.get("x-lumenai-actor", "unknown"),
         actor_role=request.headers.get("x-lumenai-role", "viewer"),
         export_result=export,
+        tenant_id=owner_tenant_id,
     )
 
     return Response(
@@ -10316,7 +10408,8 @@ def verify_enterprise_audit_export_hash(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_audit_chain_verify(request)
+    # Verified caller required. Lookup is by export hash; returns verification metadata only.
+    authorized_tenant(require_audit_chain_verify(request))
 
     return verify_audit_export_hash(
         db,
@@ -10330,7 +10423,8 @@ def verify_enterprise_audit_export_manifest_hash(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_audit_chain_verify(request)
+    # Verified caller required. Lookup is by manifest hash; returns verification metadata only.
+    authorized_tenant(require_audit_chain_verify(request))
 
     return verify_audit_export_manifest_hash(
         db,
@@ -10352,10 +10446,11 @@ def export_enterprise_compliance_evidence_bundle(
     resource_id: str | None = None,
     limit: int = 200,
 ):
-    require_audit_chain_verify(request)
+    owner_tenant_id = authorized_tenant(require_audit_chain_verify(request), tenant_id)
 
     return build_compliance_evidence_bundle(
         db,
+        owner_tenant_id=owner_tenant_id,
         actor=request.headers.get("x-lumenai-actor", "unknown"),
         actor_role=request.headers.get("x-lumenai-role", "viewer"),
         tenant_id=tenant_id,
@@ -10376,7 +10471,8 @@ def verify_enterprise_compliance_evidence_bundle_hash(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_audit_chain_verify(request)
+    # Verified caller required. Lookup is by bundle hash; returns verification metadata only.
+    authorized_tenant(require_audit_chain_verify(request))
 
     return verify_compliance_evidence_bundle_hash(
         db,
@@ -10398,10 +10494,11 @@ def download_enterprise_compliance_evidence_bundle_json(
     resource_id: str | None = None,
     limit: int = 200,
 ):
-    require_audit_chain_verify(request)
+    owner_tenant_id = authorized_tenant(require_audit_chain_verify(request), tenant_id)
 
     result = build_compliance_evidence_bundle(
         db,
+        owner_tenant_id=owner_tenant_id,
         actor=request.headers.get("x-lumenai-actor", "unknown"),
         actor_role=request.headers.get("x-lumenai-role", "viewer"),
         tenant_id=tenant_id,
@@ -10435,7 +10532,8 @@ def get_enterprise_compliance_evidence_verification_summary(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_audit_chain_verify(request)
+    # Verified caller required. Lookup is by bundle hash; returns verification metadata only.
+    authorized_tenant(require_audit_chain_verify(request))
 
     return build_compliance_evidence_verification_summary(
         db,
@@ -10449,10 +10547,11 @@ def create_enterprise_demo_audit_event(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_audit_chain_verify(request)
+    tenant_id = authorized_tenant(require_audit_chain_verify(request))
 
     event = record_enterprise_audit_event(
         db,
+        tenant_id=tenant_id,
         action_type=payload.get("action_type", "demo_audit_event"),
         resource_type=payload.get("resource_type", "demo_resource"),
         resource_id=payload.get("resource_id", "demo-resource"),
@@ -10475,13 +10574,15 @@ def create_enterprise_demo_audit_event(
 
 @router.get("/findings/kpi-summary")
 def get_findings_kpi_summary(
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """
     Returns per-category finding counts for dashboard KPI cards.
     Used by the Inspection Intelligence pilot dashboard.
     """
-    all_findings = db.query(EnterpriseFinding).all()
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db))
+    all_findings = _tq(db, EnterpriseFinding, tenant_id).all()
 
     CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "blood": ["blood"],

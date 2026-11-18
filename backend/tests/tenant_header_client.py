@@ -11,7 +11,7 @@ This wrapper performs the migration every real client has to make: it sends the
 tenant the request already names in the ``X-Tenant-Id`` header as well. Nothing
 else about a request changes, and no assertion in those suites was altered.
 
-It applies only to the four remediated route groups, only when the test sent an
+It applies only to the remediated route groups listed below, only when the test sent an
 ``Authorization`` header, and never overrides an ``X-Tenant-Id`` the test set
 itself — so tests of missing authentication and of tenant mismatch are untouched.
 """
@@ -24,6 +24,9 @@ TENANT_SCOPED_PREFIXES = (
     "/api/predictions",
     "/api/enterprise/benchmarks",
     "/api/vendor-intelligence",
+    # P472-03 batch 1: audit queries and exports are scoped to the caller's
+    # verified tenant; a ``tenant_id`` filter is a claim that must agree with it.
+    "/api/enterprise/audit",
 )
 
 

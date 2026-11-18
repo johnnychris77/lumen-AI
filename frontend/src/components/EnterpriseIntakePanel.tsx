@@ -36,8 +36,6 @@ export default function EnterpriseIntakePanel() {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "operator",
           "X-LumenAI-Actor": "john-demo",
-          "X-Tenant-Id": "bonsecours",
-          "X-Tenant-Name": "Bon Secours",
         },
         body: JSON.stringify({
           facility_name: "St. Mary’s Hospital",

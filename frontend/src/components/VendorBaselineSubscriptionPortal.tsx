@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, openProtectedFile } from "@/lib/api";
 import { BaselineImageUpload } from "./ui/baseline-image-upload";
 
 type ComplianceEvidenceBundleResponse = {
@@ -441,7 +441,7 @@ export default function VendorBaselineSubscriptionPortal() {
     const safeFindingId = packetFindingId.trim() || "1";
     const pdfUrl = `${API_BASE}/api/enterprise/intake/${safeFindingId}/governance-packet.pdf`;
 
-    window.open(pdfUrl, "_blank", "noopener,noreferrer");
+    openProtectedFile(pdfUrl).catch((err) => setExportHistoryError(err instanceof Error ? err.message : "Download failed."));
 
     window.setTimeout(() => {
       loadExportHistory();
@@ -579,7 +579,7 @@ export default function VendorBaselineSubscriptionPortal() {
 
   function handleDownloadEvidenceBundle() {
     const url = `${API_BASE}/api/enterprise/audit/evidence-bundle/download.json?limit=200`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    openProtectedFile(url).catch((err) => setEvidenceBundleError(err instanceof Error ? err.message : "Download failed."));
   }
 
 
@@ -778,7 +778,8 @@ return (
             type="button"
             onClick={() => {
               const id = packetFindingId.trim() || "1";
-              window.open(`${API_BASE}/api/enterprise/intake/${id}/governance-packet`, "_blank");
+              openProtectedFile(`${API_BASE}/api/enterprise/intake/${id}/governance-packet`).catch((err) =>
+                setExportHistoryError(err instanceof Error ? err.message : "Download failed."));
             }}
             style={{
               border: "1px solid #0f766e",

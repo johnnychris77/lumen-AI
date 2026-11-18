@@ -155,6 +155,15 @@ def record_enterprise_audit_event(
 
     columns = _auditlog_columns()
 
+    # P472-03: the ``tenant_id`` COLUMN is what tenant-scoped audit reads filter on.
+    # A caller that passes its verified auth context but no explicit tenant used to
+    # leave the column at its default ("default-tenant"), which hid the event from
+    # its own tenant and pooled it with every other such event. Take the column
+    # from the auth context in that case. ``details`` and the event hash are not
+    # affected (the hash is computed from ``details``, never from columns).
+    if tenant_id is None and auth_context is not None:
+        tenant_id = (getattr(auth_context, "tenant_id", "") or "").strip() or None
+
     details = merge_auth_context_into_details(details, auth_context, request=request)
     safe_details = _safe_details(details)
 

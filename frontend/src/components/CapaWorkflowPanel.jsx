@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, openProtectedFile } from "@/lib/api";
 
 export default function CapaWorkflowPanel() {
   const [health, setHealth] = useState(null);
@@ -47,7 +47,8 @@ export default function CapaWorkflowPanel() {
 
 
   function downloadPowerBiCsv() {
-    window.open(`${API_BASE}/api/capa/powerbi-csv?limit=500`, "_blank");
+    openProtectedFile(`${API_BASE}/api/capa/powerbi-csv?limit=500`, "lumenai-capa-powerbi.csv").catch((error) =>
+      setErrorMessage(error.message || "Unable to export CAPA data."));
   }
 
   async function createAuditSignalCapa() {

@@ -221,6 +221,40 @@ export async function apiFetch<T = unknown>(
   }
 }
 
+/**
+ * Open a protected export (PDF, CSV, ZIP, JSON) in a new tab.
+ *
+ * A plain link or `window.open(url)` is a browser navigation: it cannot carry
+ * the bearer token, so every authenticated export answers 401 to it. This
+ * fetches the file through `apiFetch` (token attached) and opens the result as
+ * a blob URL instead. Falls back to a download when the pop-up is blocked.
+ */
+export async function openProtectedFile(url: string, filename?: string): Promise<void> {
+  const response = await apiFetch(url, { raw: true });
+  if (!response.ok) {
+    throw new ApiError(response.status, `Download failed (${response.status})`, null);
+  }
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename || url.split("/").pop()?.split("?")[0] || "download";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+/** `onClick` for an `<a href>` that points at a protected export. */
+export function onProtectedLinkClick(event: { preventDefault: () => void }, url: string): void {
+  event.preventDefault();
+  openProtectedFile(url).catch((error: unknown) => {
+    window.alert(error instanceof Error ? error.message : "Download failed.");
+  });
+}
+
 // Convenience verb helpers. These always parse JSON (type T). For a raw
 // Response, call apiFetch(path, { raw: true }) directly.
 export const api = {

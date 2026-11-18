@@ -112,6 +112,14 @@ REMEDIATED_PREFIXES = {
     "/api/enterprise/benchmarks": "6c3072c",
     "/api/vendor-intelligence": "6c3072c",
 }
+# Whole modules remediated together (every route of the module). The label is
+# the remediation batch: a commit cannot name its own SHA.
+REMEDIATED_MODULES = {
+    "app.routes.enterprise_intake": "batch 1",
+    "app.routes.vendor_governance": "batch 1",
+    "app.routes.capa": "batch 1",
+}
+BATCH_TESTS = {"batch 1": "tests/test_p472_03_batch1_remediation.py"}
 
 
 def _hit(result: dict | None) -> bool:
@@ -330,11 +338,17 @@ def _tables(names: list[str], limit: int | None = 3) -> str:
     return ", ".join(names[:limit]) + f" +{len(names) - limit}"
 
 
-def _remediated(path: str) -> str | None:
+def _remediated(record: dict) -> str | None:
+    """The commit or batch that remediated this route, if any."""
+    path = record["path"]
     for prefix, commit in REMEDIATED_PREFIXES.items():
         if path == prefix or path.startswith(prefix + "/"):
             return commit
-    return None
+    return REMEDIATED_MODULES.get(record["module"])
+
+
+def is_remediated(record: dict) -> bool:
+    return _remediated(record) is not None
 
 
 BATCH = {"AW-UNAUTH": 0, "AW-09": 0, "AW-01": 1, "AW-02": 1, "AW-03": 2, "AW-06M": 2, "AW-04": 3, "AW-05": 4, "AW-06N": 4}
@@ -361,28 +375,11 @@ MANUAL_FINDINGS = {
               "impact": "unverified manufacturer id: 200 -> 403", "code": "403"},
     "AW-08": {"title": "Tenant table read with no tenant predicate", "risk": "High", "batch": 3,
               "impact": "other tenants' rows no longer returned", "code": "filtered"},
-    "AW-10": {"title": "Tenant data in a process-wide in-memory store, read without authentication",
-              "risk": "Critical", "batch": 0, "impact": "unauthenticated: 200 -> 401; listing limited to caller's tenant",
-              "code": "401"},
-    "AW-11": {"title": "CAPA register outside the application database, with no tenant column", "risk": "High",
-              "batch": 6, "impact": "other tenants' CAPAs: listed -> omitted, by id 200 -> 404", "code": "404"},
 }
 _MANUAL_ROUTES = {
     "GET /api/accreditation/programs": ["AW-08"],
     "GET /api/analytics/vendors/{vendor_name}/scorecard.json": ["AW-08"],
     "GET /api/analytics/vendors/{vendor_name}/scorecard.pdf": ["AW-08"],
-    "GET /api/enterprise/vendor-governance/events": ["AW-10"],
-    "GET /api/enterprise/vendor-governance/summary": ["AW-10"],
-    "GET /api/enterprise/vendor-governance/capa-linkage-summary": ["AW-10"],
-    "GET /api/enterprise/vendor-governance/powerbi-csv": ["AW-10"],
-    "GET /api/capa": ["AW-11"],
-    "POST /api/capa": ["AW-11"],
-    "POST /api/capa/from-audit-signal": ["AW-11"],
-    "GET /api/capa/escalation-summary": ["AW-11"],
-    "GET /api/capa/powerbi-csv": ["AW-11"],
-    "GET /api/capa/governance-scorecard": ["AW-11"],
-    "GET /api/capa/{capa_id}": ["AW-11"],
-    "PATCH /api/capa/{capa_id}": ["AW-11"],
 }
 _RISK_RANK = {"Critical": 4, "High": 3, "Medium": 2}
 
@@ -407,7 +404,7 @@ def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
     manual = [name for name in manual_findings(record) if name not in classes]
     baseline = record["baseline"]
     refused = baseline["status"] in REFUSED
-    fixed = _remediated(record["path"])
+    fixed = _remediated(record)
     if refused:
         membership, objects = "n/a (refused)", "n/a (refused)"
     else:
@@ -455,6 +452,13 @@ def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
         status = f"Open — batch {min(batches)}"
     if fixed and not classes and not manual:
         status = f"Remediated ({fixed})"
+        if fixed in BATCH_TESTS:
+            # The sweep's identities lack the roles many of these routes need and use
+            # synthetic object ids, so its own row can read "role-gated" or 404. Every
+            # route of a remediated module is exercised, with the right roles and real
+            # objects of two tenants, by the batch's dedicated test file.
+            result = f"none observed; every route covered by {BATCH_TESTS[fixed]}"
+            risk, impact = "None observed", "—"
     if baseline["status"] >= 400 and not refused and not classes and not manual:
         result += f" (baseline HTTP {baseline['status']}: partly exercised)"
     return [record["method"], f"`{record['path']}`", record["module"].removeprefix("app."), _auth(record),
@@ -497,6 +501,7 @@ _ABBREVIATIONS = [
     ("Review (unscoped SQL lead)", "Review: SQL lead"),
     ("Review (not fully exercised)", "Review: incomplete"),
     ("Review (platform-admin or special credential)", "Review: role-gated"),
+    ("; every route covered by tests/test_p472_03_batch1_remediation.py", "; batch 1 tests"),
     ("Open — batch ", "Open B"),
 ]
 _IDENTITY_TABLES = {"tenant_memberships", "user_role_assignments", "users"}

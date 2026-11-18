@@ -47,7 +47,6 @@ from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
 from app.routes.capa import router as capa_router
 from app.routes.vendor_governance import router as vendor_governance_router
-from app.services.capa_service import capa_summary as persistent_capa_summary
 from app.db import Base, engine
 from app.routes.governance_intelligence import router as governance_intelligence_router
 from app.routes.capa_predictive_risk import router as capa_predictive_risk_router
@@ -636,7 +635,10 @@ def direct_capa_health():
             "audit_signal_to_capa": "ready",
             "governance_summary": "ready"
         },
-        "summary": persistent_capa_summary(),
+        # P472-03 AW-11: this probe is public, so it carries no CAPA figures. It used
+        # to return CAPA counts for every tenant and the register's file path to
+        # anonymous callers. Per-tenant figures: GET /api/capa (authenticated).
+        "summary": {},
         "message": "CAPA workflow backend module is deployed and healthy with persistent database storage."
     }
 

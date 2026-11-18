@@ -86,10 +86,18 @@ def query_audit_events(
     resource_type: str | None = None,
     resource_id: str | None = None,
     limit: int = 50,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
+    """``tenant_id`` and the other filters match values recorded in an event's
+    details, as before. ``owner_tenant_id`` is different: it is the tenant the
+    CALLER is verified for, applied to the ``audit_logs.tenant_id`` column, and it
+    bounds everything else (P472-03). Routes always pass it."""
     safe_limit = max(1, min(limit, 200))
 
     query = db.query(AuditLog)
+
+    if owner_tenant_id is not None:
+        query = query.filter(AuditLog.tenant_id == owner_tenant_id)
 
     if action_type:
         query = query.filter(AuditLog.action_type == action_type)

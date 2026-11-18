@@ -1,11 +1,38 @@
+"""Vendor governance events.
+
+Tenant isolation (P472-03 AW-10): every event records the tenant that created
+it, and every function here takes the caller's tenant and sees only that
+tenant's events. An event of another tenant is indistinguishable from one that
+does not exist. Routes pass the tenant of the verified auth context.
+
+The store is still one in-process list: events are lost on restart and differ
+between replicas. That is a durability limitation, not an isolation one.
+"""
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
 
-from app.services.capa_service import create_capa
+from app.services.capa_service import create_capa, get_capa
 
 
 _VENDOR_EVENTS: List[Dict] = []
+
+# The three illustrative events seeded at start-up belong to the demo tenant
+# (the tenant DEMO_MODE sessions run in). They used to be served to every caller
+# as if they were that caller's own governance events.
+DEMO_TENANT_ID = "demo"
+
+
+def _tenant(tenant_id: Optional[str]) -> str:
+    tenant = (tenant_id or "").strip() if isinstance(tenant_id, str) else ""
+    if not tenant:
+        raise ValueError("vendor_governance_service: a tenant_id is required; events are tenant-owned.")
+    return tenant
+
+
+def _events(tenant_id: str) -> List[Dict]:
+    tenant = _tenant(tenant_id)
+    return [event for event in _VENDOR_EVENTS if event.get("tenant_id") == tenant]
 
 
 def _utc_now() -> str:
@@ -21,9 +48,12 @@ def create_vendor_event(
     device_or_tray: Optional[str] = None,
     owner: Optional[str] = None,
     capa_id: Optional[str] = None,
+    *,
+    tenant_id: str,
 ) -> Dict:
     event = {
         "id": str(uuid4()),
+        "tenant_id": _tenant(tenant_id),
         "vendor_name": vendor_name,
         "event_type": event_type,
         "event_summary": event_summary,
@@ -41,21 +71,22 @@ def create_vendor_event(
     return event
 
 
-def list_vendor_events(limit: int = 50) -> List[Dict]:
-    return _VENDOR_EVENTS[:limit]
+def list_vendor_events(limit: int = 50, *, tenant_id: str) -> List[Dict]:
+    return _events(tenant_id)[:limit]
 
 
-def vendor_governance_summary() -> Dict:
-    total = len(_VENDOR_EVENTS)
-    open_events = len([e for e in _VENDOR_EVENTS if e.get("status") == "open"])
+def vendor_governance_summary(*, tenant_id: str) -> Dict:
+    events = _events(tenant_id)
+    total = len(events)
+    open_events = len([e for e in events if e.get("status") == "open"])
     high_risk = len([
-        e for e in _VENDOR_EVENTS
+        e for e in events
         if e.get("risk_level") in {"high", "critical"}
     ])
-    linked_capas = len([e for e in _VENDOR_EVENTS if e.get("capa_id")])
+    linked_capas = len([e for e in events if e.get("capa_id")])
 
     vendor_counts: Dict[str, int] = {}
-    for event in _VENDOR_EVENTS:
+    for event in events:
         vendor = event.get("vendor_name") or "Unknown"
         vendor_counts[vendor] = vendor_counts.get(vendor, 0) + 1
 
@@ -86,6 +117,7 @@ def seed_vendor_events_if_empty() -> None:
         site="ORC",
         device_or_tray="Orthopedic vendor tray",
         owner="Quality / Operations",
+        tenant_id=DEMO_TENANT_ID,
     )
 
     create_vendor_event(
@@ -96,6 +128,7 @@ def seed_vendor_events_if_empty() -> None:
         site="St Mary",
         device_or_tray="Loaner tray",
         owner="SPD / OR Leadership",
+        tenant_id=DEMO_TENANT_ID,
     )
 
     create_vendor_event(
@@ -106,31 +139,41 @@ def seed_vendor_events_if_empty() -> None:
         site="St Francis",
         device_or_tray="Specialty device set",
         owner="Quality / Operations",
+        tenant_id=DEMO_TENANT_ID,
     )
 
 
 seed_vendor_events_if_empty()
 
 
-def get_vendor_event(event_id: str) -> Optional[Dict]:
-    for event in _VENDOR_EVENTS:
+def get_vendor_event(event_id: str, *, tenant_id: str) -> Optional[Dict]:
+    for event in _events(tenant_id):
         if event.get("id") == event_id:
             return event
     return None
 
 
-def link_vendor_event_to_capa(event_id: str, capa_id: str) -> Optional[Dict]:
-    event = get_vendor_event(event_id)
+class CapaNotFoundError(LookupError):
+    """The CAPA to link does not exist in the caller's tenant."""
+
+
+def link_vendor_event_to_capa(event_id: str, capa_id: str, *, tenant_id: str) -> Optional[Dict]:
+    event = get_vendor_event(event_id, tenant_id=tenant_id)
     if not event:
         return None
+
+    # Both ends of the link must belong to the caller: an event can only point at
+    # a CAPA of the same tenant.
+    if get_capa(capa_id, tenant_id=tenant_id) is None:
+        raise CapaNotFoundError(capa_id)
 
     event["capa_id"] = capa_id
     event["updated_at"] = _utc_now()
     return event
 
 
-def create_capa_from_vendor_event(event_id: str) -> Optional[Dict]:
-    event = get_vendor_event(event_id)
+def create_capa_from_vendor_event(event_id: str, *, tenant_id: str) -> Optional[Dict]:
+    event = get_vendor_event(event_id, tenant_id=tenant_id)
     if not event:
         return None
 
@@ -144,20 +187,22 @@ def create_capa_from_vendor_event(event_id: str) -> Optional[Dict]:
         corrective_action="Contain vendor quality signal, review affected trays/devices, and document immediate correction.",
         preventive_action="Trend vendor events, review recurrence, and define vendor accountability controls.",
         status="open",
+        tenant_id=tenant_id,
     )
 
-    link_vendor_event_to_capa(event_id, capa["id"])
+    link_vendor_event_to_capa(event_id, capa["id"], tenant_id=tenant_id)
 
     return {
-        "vendor_event": get_vendor_event(event_id),
+        "vendor_event": get_vendor_event(event_id, tenant_id=tenant_id),
         "capa": capa,
     }
 
 
-def vendor_capa_linkage_summary() -> Dict:
-    total = len(_VENDOR_EVENTS)
-    linked = [event for event in _VENDOR_EVENTS if event.get("capa_id")]
-    unlinked = [event for event in _VENDOR_EVENTS if not event.get("capa_id")]
+def vendor_capa_linkage_summary(*, tenant_id: str) -> Dict:
+    events = _events(tenant_id)
+    total = len(events)
+    linked = [event for event in events if event.get("capa_id")]
+    unlinked = [event for event in events if not event.get("capa_id")]
 
     high_risk_unlinked = [
         event
@@ -175,13 +220,13 @@ def vendor_capa_linkage_summary() -> Dict:
     }
 
 
-def build_vendor_governance_powerbi_rows(limit: int = 500) -> List[Dict]:
+def build_vendor_governance_powerbi_rows(limit: int = 500, *, tenant_id: str) -> List[Dict]:
     """
     Builds flat Vendor Governance rows for Power BI / analytics export.
     """
     rows = []
 
-    for event in list_vendor_events(limit=limit):
+    for event in list_vendor_events(limit=limit, tenant_id=tenant_id):
         risk_level = event.get("risk_level") or ""
         capa_id = event.get("capa_id")
 

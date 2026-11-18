@@ -44,9 +44,11 @@ def export_audit_events_csv(
     resource_type: str | None = None,
     resource_id: str | None = None,
     limit: int = 200,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
     result = query_audit_events(
         db,
+        owner_tenant_id=owner_tenant_id,
         tenant_id=tenant_id,
         actor=actor,
         actor_role=actor_role,
@@ -108,9 +110,11 @@ def record_audit_export_event(
     actor: str,
     actor_role: str,
     export_result: dict[str, Any],
+    tenant_id: str | None = None,
 ) -> object:
     return record_enterprise_audit_event(
         db,
+        tenant_id=tenant_id,
         action_type="audit_events_csv_exported",
         resource_type="enterprise_audit_export",
         resource_id=export_result["audit_export_hash"],

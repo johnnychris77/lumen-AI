@@ -85,7 +85,11 @@ def test_audit_csv_export_endpoint_returns_hash_headers_and_records_audit_event(
     from app.models.audit_log import AuditLog
     from app.services.enterprise_audit_service import record_enterprise_audit_event
 
-    client = TestClient(app)
+    # P472-03 batch 1: the request below filters by a tenant; the development
+    # token's tenant comes from X-Tenant-Id, which this wrapper sets to match.
+    from tenant_header_client import TenantHeaderClient
+
+    client = TenantHeaderClient(TestClient(app))
 
     db = SessionLocal()
     try:

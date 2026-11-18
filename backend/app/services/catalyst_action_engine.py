@@ -118,7 +118,7 @@ def _execute(db: Session, tenant_id: str, action_type: str, params: dict, *, act
         result = capa_service.create_capa(
             title=params.get("title", "Copilot-drafted CAPA"), source="catalyst_copilot",
             description=params.get("description", ""), risk_level=params.get("risk_level", "medium"),
-            owner=params.get("owner"), status="draft",
+            owner=params.get("owner"), status="draft", tenant_id=tenant_id,
         )
         return {"action_type": action_type, "capa": result}
 

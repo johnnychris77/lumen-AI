@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, onProtectedLinkClick } from "@/lib/api";
 
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 
@@ -95,7 +95,7 @@ export default function InfectionPreventionReviewPanel() {
           {loading ? "Loading..." : "Load IP Review Packet"}
         </button>
 
-        <a href={pdfUrl} target="_blank" rel="noreferrer" style={secondaryButtonStyle}>
+        <a href={pdfUrl} target="_blank" rel="noreferrer" style={secondaryButtonStyle} onClick={(event) => onProtectedLinkClick(event, pdfUrl)}>
           Download IP PDF
         </a>
       </div>

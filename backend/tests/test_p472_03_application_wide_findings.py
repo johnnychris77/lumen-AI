@@ -7,10 +7,12 @@ concrete exploit per root cause against the routes named for priority review:
 tenant B owns a record, and a caller who has no right to tenant B reads it or
 changes it.
 
-Every exploit test states the REQUIRED behaviour and is marked
-``xfail(strict=True)`` with its finding id. They are open security findings, not
-accepted behaviour: the suite fails the moment a route is fixed without its
-marker being removed. Nothing here is skipped.
+Every exploit test states the REQUIRED behaviour. A test for a finding that is
+still open is marked ``xfail(strict=True)`` with its finding id: an open security
+finding, not accepted behaviour, and the suite fails the moment the route is
+fixed without the marker being removed. The tests for AW-09, AW-10 and AW-11
+lost their markers in remediation batch 1 and now simply pass. Nothing here is
+skipped.
 
 The control tests at the end pass today. They record where the existing control
 was examined and found sufficient, so a tenant identifier in a request is not
@@ -310,13 +312,17 @@ def test_aw08_vendor_scorecard_does_not_aggregate_another_tenants_inspections(te
 
 
 # ══ AW-09 — unauthenticated access to tenant data ═════════════════════════════
+#
+# REMEDIATED in P472-03 batch 1 for the enterprise intake module: these are now
+# ordinary tests. Their assertions are unchanged; only the xfail markers went.
+# (Three public aggregate-count routes remain in the sweep register under AW-09
+# pending an owner's decision; they are not exercised here.)
 
 @pytest.mark.parametrize("path", [
     "/api/enterprise/audit-command-center",
     "/api/enterprise/audit-command-center.csv",
     "/api/enterprise/audit-command-center.powerbi.csv",
 ])
-@_finding("AW-09", "the enterprise audit command center has no authentication and reads every tenant's audit log")
 def test_aw09_an_unauthenticated_caller_cannot_read_the_audit_log(tenants, path):
     marker = _uid("b-confidential-audit")
     db = SessionLocal()
@@ -341,13 +347,15 @@ def test_aw09_an_unauthenticated_caller_cannot_read_the_audit_log(tenants, path)
     "/api/enterprise/export-readiness-history",
     "/api/enterprise/vendor-baselines",
 ])
-@_finding("AW-09", "enterprise intake dashboards and lists are served to callers with no credentials")
 def test_aw09_enterprise_quality_data_requires_authentication(path):
     response = client.get(path)
     assert response.status_code in REFUSED, f"HTTP {response.status_code} with no credentials: {response.text[:160]}"
 
 
 # ══ AW-10 — tenant data held outside the database ═════════════════════════════
+#
+# REMEDIATED in P472-03 batch 1: ordinary tests now, assertions unchanged. The
+# description below is of the defect as found.
 #
 # The sweep's oracle is SQL, so it cannot see this store: vendor governance events
 # live in one process-wide list with no tenant field. Writes require enterprise
@@ -371,7 +379,6 @@ def _tenant_b_vendor_event(tenants: Tenants) -> str:
     "/api/enterprise/vendor-governance/capa-linkage-summary",
     "/api/enterprise/vendor-governance/powerbi-csv",
 ])
-@_finding("AW-10", "vendor governance events are kept in one in-memory list and read without authentication")
 def test_aw10_an_unauthenticated_caller_cannot_read_vendor_governance_events(tenants, path):
     marker = _tenant_b_vendor_event(tenants)
 
@@ -382,7 +389,6 @@ def test_aw10_an_unauthenticated_caller_cannot_read_vendor_governance_events(ten
         f"{marker in response.text}")
 
 
-@_finding("AW-10", "vendor governance events are not partitioned by tenant")
 def test_aw10_a_member_of_a_does_not_see_tenant_b_vendor_governance_events(tenants):
     marker = _tenant_b_vendor_event(tenants)
 
@@ -393,6 +399,9 @@ def test_aw10_a_member_of_a_does_not_see_tenant_b_vendor_governance_events(tenan
 
 
 # ══ AW-11 — CAPA records in a store with no tenant column ═════════════════════
+#
+# REMEDIATED in P472-03 batch 1: ordinary tests now, assertions unchanged. The
+# description below is of the defect as found.
 #
 # ``app/services/capa_service.py`` opens its own ``sqlite3`` connection, outside
 # the SQLAlchemy engine the sweep listens on, and its ``capas`` table has no
@@ -410,7 +419,6 @@ def _tenant_b_capa(tenants: Tenants) -> tuple[str, str]:
 
 
 @pytest.mark.parametrize("path", ["/api/capa", "/api/capa/powerbi-csv"])
-@_finding("AW-11", "the CAPA register has no tenant column; any manager lists every tenant's CAPAs")
 def test_aw11_a_member_of_a_does_not_see_tenant_b_capas(tenants, path):
     marker, _ = _tenant_b_capa(tenants)
 
@@ -419,7 +427,6 @@ def test_aw11_a_member_of_a_does_not_see_tenant_b_capas(tenants, path):
     assert marker not in response.text, f"tenant A's {path} contains tenant B's CAPA"
 
 
-@_finding("AW-11", "a CAPA is fetched by id with no tenant check")
 def test_aw11_a_member_of_a_cannot_read_tenant_b_capa_by_id(tenants):
     marker, capa_id = _tenant_b_capa(tenants)
 
@@ -429,7 +436,6 @@ def test_aw11_a_member_of_a_cannot_read_tenant_b_capa_by_id(tenants):
         f"tenant A read tenant B's CAPA by id (HTTP {response.status_code}); record returned: {marker in response.text}")
 
 
-@_finding("AW-11", "a CAPA is updated by id with no tenant check")
 def test_aw11_a_member_of_a_cannot_modify_tenant_b_capa(tenants):
     _, capa_id = _tenant_b_capa(tenants)
 

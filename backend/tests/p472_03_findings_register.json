@@ -1,7 +1,8 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "6c3072c",
+ "baseline_commit": "remediation batch 1 (parent 90fb1a6)",
  "sweeps": [
+  "sqlite",
   "sqlite",
   "postgresql"
  ],
@@ -352,142 +353,6 @@
   "GET /api/decision-policies": [
    "AW-06N"
   ],
-  "GET /api/enterprise/audit-command-center": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.csv": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.health": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.powerbi.csv": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.powerbi.data-dictionary": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.powerbi.data-dictionary.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/audit-command-center.toolkit.zip": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/baseline-review-queue": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/executive-quality-review-dashboard": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/executive-quality-review-dashboard.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.csv": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.completion-certificate.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.executive-summary.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.final-validation": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.health": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.metadata": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.production-lock": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.release-notes.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.v1-archive.zip": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.v1-closeout": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi-toolkit.zip": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi.csv": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi.dashboard-spec": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi.data-dictionary": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/findings/kpi-summary": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/evidence": [
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/export-readiness-status": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/governance-export-package": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/governance-packet": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/governance-zip-bundle": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/infection-prevention-review-packet": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/infection-prevention-review-packet.pdf": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/vendor-escalation-packet": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
-  "GET /api/enterprise/intake/{finding_id}/vendor-escalation-packet.pdf": [
-   "AW-06M",
-   "AW-06N",
-   "AW-09"
-  ],
   "GET /api/enterprise/ranking/history/{finding_id}": [
    "AW-06M"
   ],
@@ -499,9 +364,6 @@
   ],
   "GET /api/enterprise/ranking/score/{finding_id}/report.pdf": [
    "AW-06M"
-  ],
-  "GET /api/enterprise/vendor-baselines": [
-   "AW-09"
   ],
   "GET /api/forge/approval-chains": [
    "AW-05",

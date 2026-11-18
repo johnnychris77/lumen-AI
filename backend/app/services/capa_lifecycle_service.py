@@ -82,7 +82,7 @@ def create_capa_with_recommendation(
     ensure_lifecycle_columns()
     capa = capa_service.create_capa(
         title=title, source="quality_guardian", description=description, risk_level=risk_level,
-        owner=owner, due_date=due_date, status=LIFECYCLE_OPEN,
+        owner=owner, due_date=due_date, status=LIFECYCLE_OPEN, tenant_id=tenant_id,
     )
     with capa_service._connect() as conn:
         conn.execute(
@@ -102,17 +102,22 @@ def create_capa_with_recommendation(
 
 
 def get_capa(tenant_id: str, capa_id: str) -> dict | None:
+    # P472-03 AW-11: strictly the caller's tenant. Rows with no owner (written
+    # before CAPAs were tenant-owned) used to match every tenant here, which let
+    # any tenant read and advance them; they now match nobody.
+    tenant_id = capa_service._tenant(tenant_id)
     ensure_lifecycle_columns()
     with capa_service._connect() as conn:
         row = conn.execute(
-            "SELECT * FROM capas WHERE id = ? AND (tenant_id = ? OR tenant_id IS NULL)", (capa_id, tenant_id),
+            "SELECT * FROM capas WHERE id = ? AND tenant_id = ?", (capa_id, tenant_id),
         ).fetchone()
     return _row_to_dict(row) if row else None
 
 
 def list_capas(tenant_id: str, *, lifecycle_status: str = "", limit: int = 100) -> list[dict]:
+    tenant_id = capa_service._tenant(tenant_id)
     ensure_lifecycle_columns()
-    query = "SELECT * FROM capas WHERE (tenant_id = ? OR tenant_id IS NULL)"
+    query = "SELECT * FROM capas WHERE tenant_id = ?"
     params: list = [tenant_id]
     if lifecycle_status:
         query += " AND lifecycle_status = ?"
@@ -153,17 +158,20 @@ def advance_lifecycle(tenant_id: str, capa_id: str, new_status: str, *, actor: s
 
     set_clause = ", ".join(f"{col} = ?" for col in fields)
     with capa_service._connect() as conn:
-        conn.execute(f"UPDATE capas SET {set_clause} WHERE id = ?", (*fields.values(), capa_id))  # noqa: S608
+        conn.execute(  # noqa: S608
+            f"UPDATE capas SET {set_clause} WHERE id = ? AND tenant_id = ?", (*fields.values(), capa_id, tenant_id),
+        )
         conn.commit()
-        row = conn.execute("SELECT * FROM capas WHERE id = ?", (capa_id,)).fetchone()
+        row = conn.execute("SELECT * FROM capas WHERE id = ? AND tenant_id = ?", (capa_id, tenant_id)).fetchone()
     return _row_to_dict(row)
 
 
 def lifecycle_summary(tenant_id: str) -> dict:
+    tenant_id = capa_service._tenant(tenant_id)
     ensure_lifecycle_columns()
     with capa_service._connect() as conn:
         rows = conn.execute(
-            "SELECT lifecycle_status, COUNT(*) as n FROM capas WHERE (tenant_id = ? OR tenant_id IS NULL) GROUP BY lifecycle_status",
+            "SELECT lifecycle_status, COUNT(*) as n FROM capas WHERE tenant_id = ? GROUP BY lifecycle_status",
             (tenant_id,),
         ).fetchall()
     counts = {state: 0 for state in CAPA_LIFECYCLE_STATES}

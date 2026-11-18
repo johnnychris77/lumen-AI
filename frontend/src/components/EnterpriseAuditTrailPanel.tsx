@@ -36,8 +36,6 @@ export default function EnterpriseAuditTrailPanel() {
           // Tenant scoping headers are specific to this panel; role/actor/token
           // are attached centrally by apiFetch.
           headers: {
-            "X-Tenant-Id": "bonsecours",
-            "X-Tenant-Name": "Bon Secours",
           },
         }
       );

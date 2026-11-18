@@ -88,7 +88,9 @@ def post_create_capa_from_suggestion(
     suggestion = payload.get("suggestion")
     if not suggestion:
         raise HTTPException(status_code=422, detail="payload must include 'suggestion'.")
-    result = apollo_capa_engine_service.create_capa_from_suggestion_reviewed(suggestion, owner=payload.get("owner", actor))
+    result = apollo_capa_engine_service.create_capa_from_suggestion_reviewed(
+        suggestion, owner=payload.get("owner", actor), tenant_id=tenant_id,
+    )
     _audit(db, tenant_id, actor, "apollo.capa_created_from_suggestion", "capas", str(result.get("id")), {"trigger": suggestion.get("trigger")})
     return result
 

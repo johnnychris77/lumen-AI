@@ -69,7 +69,7 @@ def execute_action(db: Session, tenant_id: str, action_type: str, params: dict, 
         result = capa_service.create_capa(
             title=params.get("title", "Workflow-triggered CAPA"), source="workflow_forge",
             description=params.get("description", ""), risk_level=params.get("risk_level", "medium"),
-            owner=params.get("owner"),
+            owner=params.get("owner"), tenant_id=tenant_id,
         )
         return {"action_type": action_type, "capa": result}
 

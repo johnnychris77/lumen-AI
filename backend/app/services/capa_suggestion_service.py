@@ -218,9 +218,12 @@ def generate_capa_suggestions(db: Session, tenant_id: str) -> list[dict]:
     return suggestions
 
 
-def create_capa_from_suggestion(suggestion: dict, *, owner: str = "Quality / Operations") -> dict:
+def create_capa_from_suggestion(suggestion: dict, *, owner: str = "Quality / Operations", tenant_id: str) -> dict:
     """Materialize a chosen suggestion into a real CAPA via the existing
-    capa_service — this is the human-review step, never automatic."""
+    capa_service — this is the human-review step, never automatic.
+
+    ``tenant_id`` is the tenant the CAPA is created in (P472-03 AW-11): the same
+    tenant the suggestion was generated for."""
     from app.services.capa_service import create_capa
 
     return create_capa(
@@ -232,4 +235,5 @@ def create_capa_from_suggestion(suggestion: dict, *, owner: str = "Quality / Ope
         corrective_action=suggestion["corrective_action"],
         preventive_action=suggestion["preventive_action"],
         status="open",
+        tenant_id=tenant_id,
     )

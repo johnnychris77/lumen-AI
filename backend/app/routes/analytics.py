@@ -125,7 +125,7 @@ def kpi_summary(
         round(baselines_approved / total_baselines * 100, 1) if total_baselines else 0.0
     )
 
-    capas = capa_summary()
+    capas = capa_summary(tenant_id=tenant_id)
 
     # The `users` table's physical schema can differ from the current ORM
     # mapping (the legacy login path in auth_simple._verify_user queries it

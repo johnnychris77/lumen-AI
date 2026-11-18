@@ -146,8 +146,6 @@ const [summary, setSummary] = useState<Summary | null>(null);
   const headers = useMemo(
     () => ({
       Authorization: `Bearer ${AUTH_TOKEN}`,
-      "X-Tenant-Id": "bonsecours",
-      "X-Tenant-Name": "Bon Secours",
       "X-LumenAI-Role": "enterprise_admin",
       "X-LumenAI-Actor": "dashboard-viewer",
     }),

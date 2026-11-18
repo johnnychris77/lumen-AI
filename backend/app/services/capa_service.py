@@ -1,3 +1,15 @@
+"""CAPA register.
+
+Tenant isolation (P472-03 AW-11): every CAPA belongs to exactly one tenant and
+every function here requires the caller's tenant. There is no "all tenants"
+mode: a function called without a tenant raises instead of widening its scope.
+Routes must pass the tenant of the verified auth context, never a value the
+client sent.
+
+Rows written before tenant ownership existed have ``tenant_id`` NULL. They
+belong to no tenant and are returned to nobody; assigning them is a data
+decision for the system owner, not something this module guesses.
+"""
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -8,6 +20,14 @@ from uuid import uuid4
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _tenant(tenant_id: Optional[str]) -> str:
+    """The tenant a call is scoped to. Fails closed when none is given."""
+    tenant = (tenant_id or "").strip() if isinstance(tenant_id, str) else ""
+    if not tenant:
+        raise ValueError("capa_service: a tenant_id is required; CAPA records are tenant-owned.")
+    return tenant
 
 
 def _database_path() -> str:
@@ -60,8 +80,22 @@ def init_capa_db() -> None:
                 preventive_action TEXT,
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                tenant_id TEXT
             )
+            """
+        )
+
+        # Tenant ownership (AW-11). Added in place so an existing register keeps
+        # its rows; those legacy rows stay NULL and are visible to no tenant.
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(capas)").fetchall()}
+        if "tenant_id" not in columns:
+            conn.execute("ALTER TABLE capas ADD COLUMN tenant_id TEXT")
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_capas_tenant_id
+            ON capas(tenant_id)
             """
         )
 
@@ -109,7 +143,10 @@ def create_capa(
     corrective_action: Optional[str] = None,
     preventive_action: Optional[str] = None,
     status: str = "open",
+    *,
+    tenant_id: str,
 ) -> Dict:
+    tenant = _tenant(tenant_id)
     init_capa_db()
 
     now = _utc_now()
@@ -143,9 +180,10 @@ def create_capa(
                 preventive_action,
                 status,
                 created_at,
-                updated_at
+                updated_at,
+                tenant_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 capa["id"],
@@ -160,6 +198,7 @@ def create_capa(
                 capa["status"],
                 capa["created_at"],
                 capa["updated_at"],
+                tenant,
             ),
         )
         conn.commit()
@@ -167,7 +206,8 @@ def create_capa(
     return capa
 
 
-def list_capas(limit: int = 50) -> List[Dict]:
+def list_capas(limit: int = 50, *, tenant_id: str) -> List[Dict]:
+    tenant = _tenant(tenant_id)
     init_capa_db()
 
     with _connect() as conn:
@@ -175,16 +215,20 @@ def list_capas(limit: int = 50) -> List[Dict]:
             """
             SELECT *
             FROM capas
+            WHERE tenant_id = ?
             ORDER BY datetime(created_at) DESC
             LIMIT ?
             """,
-            (limit,),
+            (tenant, limit),
         ).fetchall()
 
     return [_row_to_dict(row) for row in rows]
 
 
-def get_capa(capa_id: str) -> Optional[Dict]:
+def get_capa(capa_id: str, *, tenant_id: str) -> Optional[Dict]:
+    """The caller's own CAPA, or None. Another tenant's CAPA is indistinguishable
+    from one that does not exist."""
+    tenant = _tenant(tenant_id)
     init_capa_db()
 
     with _connect() as conn:
@@ -192,36 +236,41 @@ def get_capa(capa_id: str) -> Optional[Dict]:
             """
             SELECT *
             FROM capas
-            WHERE id = ?
+            WHERE id = ? AND tenant_id = ?
             """,
-            (capa_id,),
+            (capa_id, tenant),
         ).fetchone()
 
     return _row_to_dict(row) if row else None
 
 
-def capa_summary() -> Dict:
+def capa_summary(*, tenant_id: str) -> Dict:
+    tenant = _tenant(tenant_id)
     init_capa_db()
 
     with _connect() as conn:
-        total = conn.execute("SELECT COUNT(*) AS count FROM capas").fetchone()["count"]  # nosec B608
+        total = conn.execute(
+            "SELECT COUNT(*) AS count FROM capas WHERE tenant_id = ?",
+            (tenant,),
+        ).fetchone()["count"]
 
         open_count = conn.execute(
-            "SELECT COUNT(*) AS count FROM capas WHERE status = ?",
-            ("open",),
+            "SELECT COUNT(*) AS count FROM capas WHERE tenant_id = ? AND status = ?",
+            (tenant, "open"),
         ).fetchone()["count"]
 
         closed_count = conn.execute(
-            "SELECT COUNT(*) AS count FROM capas WHERE status = ?",
-            ("closed",),
+            "SELECT COUNT(*) AS count FROM capas WHERE tenant_id = ? AND status = ?",
+            (tenant, "closed"),
         ).fetchone()["count"]
 
         high_risk = conn.execute(
             """
             SELECT COUNT(*) AS count
             FROM capas
-            WHERE risk_level IN ('high', 'critical')
-            """
+            WHERE tenant_id = ? AND risk_level IN ('high', 'critical')
+            """,
+            (tenant,),
         ).fetchone()["count"]
 
     return {
@@ -244,10 +293,13 @@ def update_capa(
     description: Optional[str] = None,
     corrective_action: Optional[str] = None,
     preventive_action: Optional[str] = None,
+    *,
+    tenant_id: str,
 ) -> Optional[Dict]:
+    tenant = _tenant(tenant_id)
     init_capa_db()
 
-    existing = get_capa(capa_id)
+    existing = get_capa(capa_id, tenant_id=tenant)
     if not existing:
         return None
 
@@ -271,23 +323,23 @@ def update_capa(
 
     set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
     values = list(updates.values())
-    values.append(capa_id)
+    values.extend([capa_id, tenant])
 
     with _connect() as conn:
         conn.execute(  # nosec B608 - set_clause is built only from explicit server-side allowlisted columns.
             f"""
             UPDATE capas
             SET {set_clause}
-            WHERE id = ?
+            WHERE id = ? AND tenant_id = ?
             """,
             values,
         )
         conn.commit()
 
-    return get_capa(capa_id)
+    return get_capa(capa_id, tenant_id=tenant)
 
 
-def capa_escalation_summary(days_until_due: int = 7) -> Dict:
+def capa_escalation_summary(days_until_due: int = 7, *, tenant_id: str) -> Dict:
     """
     Returns overdue and due-soon CAPA counts for governance escalation.
     Uses ISO date strings in due_date where possible.
@@ -301,7 +353,7 @@ def capa_escalation_summary(days_until_due: int = 7) -> Dict:
 
     open_capas = [
         capa
-        for capa in list_capas(limit=500)
+        for capa in list_capas(limit=500, tenant_id=tenant_id)
         if capa.get("status") not in {"closed", "cancelled"}
     ]
 
@@ -347,7 +399,7 @@ def capa_escalation_summary(days_until_due: int = 7) -> Dict:
     }
 
 
-def build_capa_powerbi_rows(limit: int = 500) -> List[Dict]:
+def build_capa_powerbi_rows(limit: int = 500, *, tenant_id: str) -> List[Dict]:
     """
     Builds flat CAPA rows for Power BI / analytics export.
     """
@@ -356,7 +408,7 @@ def build_capa_powerbi_rows(limit: int = 500) -> List[Dict]:
     today = datetime.now(timezone.utc).date()
     rows = []
 
-    for capa in list_capas(limit=limit):
+    for capa in list_capas(limit=limit, tenant_id=tenant_id):
         due_date_value = capa.get("due_date")
         days_to_due = None
         is_overdue = False
@@ -402,13 +454,13 @@ def build_capa_powerbi_rows(limit: int = 500) -> List[Dict]:
     return rows
 
 
-def capa_governance_scorecard(days_until_due: int = 7) -> Dict:
+def capa_governance_scorecard(days_until_due: int = 7, *, tenant_id: str) -> Dict:
     """
     Builds an executive CAPA governance scorecard using summary,
     escalation, and Power BI export readiness.
     """
-    summary = capa_summary()
-    escalation = capa_escalation_summary(days_until_due=days_until_due)
+    summary = capa_summary(tenant_id=tenant_id)
+    escalation = capa_escalation_summary(days_until_due=days_until_due, tenant_id=tenant_id)
 
     total = summary.get("total", 0)
     open_count = summary.get("open", 0)
@@ -454,7 +506,7 @@ def capa_governance_scorecard(days_until_due: int = 7) -> Dict:
         "message": "CAPA governance scorecard generated successfully.",
     }
 
-def create_capa_from_audit_signal(signal: Dict) -> Dict:
+def create_capa_from_audit_signal(signal: Dict, *, tenant_id: str) -> Dict:
     event_type = signal.get("event_type") or "Audit Signal"
     risk_level = signal.get("risk_level") or "medium"
     event_summary = signal.get("event_summary") or signal.get("description") or ""
@@ -479,6 +531,7 @@ def create_capa_from_audit_signal(signal: Dict) -> Dict:
         corrective_action=corrective_action,
         preventive_action=preventive_action,
         status="open",
+        tenant_id=tenant_id,
     )
 
 

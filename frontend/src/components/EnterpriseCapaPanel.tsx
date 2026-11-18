@@ -26,8 +26,6 @@ async function updateCapaStatus(capaId: number, status: string, note: string) {
       Authorization: `Bearer ${AUTH_TOKEN}`,
       "X-LumenAI-Role": "operator",
       "X-LumenAI-Actor": "john-demo",
-      "X-Tenant-Id": "bonsecours",
-      "X-Tenant-Name": "Bon Secours",
     },
     body: JSON.stringify({
       status,
@@ -63,8 +61,6 @@ export default function EnterpriseCapaPanel() {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
-          "X-Tenant-Id": "bonsecours",
-          "X-Tenant-Name": "Bon Secours",
         },
       });
 
