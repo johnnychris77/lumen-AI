@@ -345,6 +345,32 @@ def test_retention_service_refuses_an_unscoped_research_source_row(env):
         RetainedImage.tenant_id == TENANT, RetainedImage.source == RESEARCH_SOURCE).count() == 0
 
 
+def test_retention_service_refuses_a_research_scope_on_a_non_research_source(env):
+    """The mirror image: a generic source may not carry a research dataset scope."""
+    import inspect
+
+    if "research_dataset_id" not in inspect.signature(retain_image).parameters:
+        pytest.skip("this revision has no research scope parameter")
+    with pytest.raises(ValueError):
+        retain_image(
+            env["s"], data=_jpeg((7, 8, 9)), tenant_id=TENANT, content_type="image/jpeg",
+            source="inspection", uploaded_by=TECH, consent=True, research_dataset_id="SOME-DATASET")
+    env["s"].rollback()
+
+
+def test_research_source_marker_is_defined_once():
+    """The retention service and the authorization service must agree on the marker
+    that separates research images from everything else."""
+    try:
+        from app.services import image_retention_service as retention
+        from app.services import research_image_authorization_service as authorization
+    except ImportError:
+        pytest.skip("the authorization service is not part of this revision")
+    if not hasattr(retention, "RESEARCH_INTAKE_SOURCE"):
+        pytest.skip("this revision does not scope deduplication by source")
+    assert retention.RESEARCH_INTAKE_SOURCE == authorization.RESEARCH_SOURCE == RESEARCH_SOURCE
+
+
 def test_generic_ml_routes_cannot_list_or_read_research_images(env):
     research_ids = _ingest_and_get_research_ids(env)
 

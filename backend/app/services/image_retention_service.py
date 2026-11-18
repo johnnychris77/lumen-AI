@@ -23,6 +23,36 @@ from app.models.retained_image import RetainedImage
 
 _TRUTHY = {"1", "true", "yes", "on", "enabled"}
 
+# SEC-171-01: the source marker that identifies a research-intake image. It is the
+# boundary of an authorization scope: an image retained under a research authorization
+# and an image retained for any other reason are NEVER the same row, even when their
+# bytes are identical. (Kept as a literal here so this low-level service does not import
+# the research authorization service; a test asserts the two constants agree.)
+RESEARCH_INTAKE_SOURCE = "trc001_research_intake"
+
+
+class RetentionScopeError(ValueError):
+    """The caller's retention scope is invalid for the requested source (fail-closed)."""
+
+
+def _dedup_candidates(db: Session, *, tenant_id: str, sha256: str, research_dataset_id: str):
+    """Rows this caller may legitimately be handed back for identical bytes.
+
+    Deduplication is scoped to the caller's authorization scope, not to
+    ``(tenant, sha256)`` alone:
+
+    * a research caller only matches research rows of the SAME research dataset;
+    * every other caller only matches non-research rows.
+    """
+    query = db.query(RetainedImage).filter(
+        RetainedImage.tenant_id == tenant_id, RetainedImage.sha256 == sha256)
+    if research_dataset_id:
+        return query.filter(
+            RetainedImage.source == RESEARCH_INTAKE_SOURCE,
+            RetainedImage.research_dataset_id == research_dataset_id,
+        )
+    return query.filter(RetainedImage.source != RESEARCH_INTAKE_SOURCE)
+
 
 def retention_enabled() -> bool:
     """Whether opt-in image retention is turned on for this deployment."""
@@ -95,6 +125,7 @@ def retain_image(
     consent: bool = False,
     seq: int | None = None,
     commit: bool = True,
+    research_dataset_id: str = "",
 ) -> RetainedImage | None:
     """Persist an EXIF-stripped image IF retention is enabled and consent given.
 
@@ -103,7 +134,17 @@ def retain_image(
 
     With ``commit=False``, new bytes are flushed so a research caller can
     commit image ownership provenance atomically; other callers are unchanged.
+
+    SEC-171-01: the research-intake source marker may only be applied together with
+    the research dataset it is scoped to, and that scope may only be supplied with the
+    research marker. Any other combination raises ``RetentionScopeError`` — a generic
+    caller can neither mint a research row nor be handed one back by deduplication.
     """
+    research_scope = str(research_dataset_id or "").strip()
+    if (source == RESEARCH_INTAKE_SOURCE) != bool(research_scope):
+        raise RetentionScopeError(
+            "The research-intake source and a research dataset scope must be supplied together."
+        )
     if not retention_enabled() or not consent:
         return None
 
@@ -113,8 +154,8 @@ def retain_image(
     # Upload retries (same bytes re-submitted) must not create a duplicate
     # retained-image record for the same tenant.
     existing = (
-        db.query(RetainedImage)
-        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.sha256 == sha256)
+        _dedup_candidates(db, tenant_id=tenant_id, sha256=sha256, research_dataset_id=research_scope)
+        .order_by(RetainedImage.id)
         .first()
     )
     if existing is not None:
@@ -143,6 +184,8 @@ def retain_image(
         uploaded_by=uploaded_by,
         image_bytes=clean_bytes,
         label_status="unlabeled",
+        # Empty for every non-research row; the research scope otherwise.
+        research_dataset_id=research_scope,
     )
     db.add(row)
     if commit:
@@ -191,9 +234,10 @@ def retain_reference_image(
     # endpoint serves them under this media type.
     effective_content_type = _detect_content_type(clean_bytes, fallback=content_type) if stripped else content_type
 
+    # SEC-171-01: a baseline reference is never bound to a research-intake row.
     existing = (
-        db.query(RetainedImage)
-        .filter(RetainedImage.tenant_id == tenant_id, RetainedImage.sha256 == sha256)
+        _dedup_candidates(db, tenant_id=tenant_id, sha256=sha256, research_dataset_id="")
+        .order_by(RetainedImage.id)
         .first()
     )
     if existing is not None:

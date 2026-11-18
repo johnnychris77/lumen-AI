@@ -135,9 +135,14 @@ def test_real_engine_schema_satisfies_guards():
         verify_retained_provenance_columns(conn, revision=REV)
 
 
-def test_association_downgrade_guard():
-    """The association downgrade guard refuses while ANY active authorization exists
-    (a migration is global). Uses a throwaway engine for deterministic isolation."""
+def test_association_downgrade_guard(monkeypatch):
+    """The association downgrade guard refuses while ANY authorization row exists — active
+    OR withdrawn (a migration is global). Uses a throwaway engine for deterministic isolation.
+
+    SEC-171-03 (PR #171 assessment): this test previously asserted that withdrawn-only rows
+    permit the downgrade. Withdrawn rows are the record of who was authorized and when it
+    ended, so dropping them silently is no longer allowed; only the explicit override is."""
+    monkeypatch.delenv("TRC001_ALLOW_PROVENANCE_DOWNGRADE", raising=False)
     eng = sa.create_engine("sqlite://")
     md = sa.MetaData()
     sa.Table("research_image_authorizations", md,
@@ -151,6 +156,16 @@ def test_association_downgrade_guard():
         assert_association_downgrade_allowed(conn, tbl, revision="f1a2b3c4d5e6")
     with eng.begin() as conn:
         conn.execute(sa.text(f"UPDATE {tbl} SET status='withdrawn'"))
+    with eng.connect() as conn, pytest.raises(MigrationSchemaError, match="history"):
+        assert_association_downgrade_allowed(conn, tbl, revision="f1a2b3c4d5e6")
+    # The documented, explicit override still permits it (operator confirms archival).
+    monkeypatch.setenv("TRC001_ALLOW_PROVENANCE_DOWNGRADE", "1")
+    with eng.connect() as conn:
+        assert_association_downgrade_allowed(conn, tbl, revision="f1a2b3c4d5e6")  # no raise
+    monkeypatch.delenv("TRC001_ALLOW_PROVENANCE_DOWNGRADE", raising=False)
+    # An empty table -> allowed (nothing to lose).
+    with eng.begin() as conn:
+        conn.execute(sa.text(f"DELETE FROM {tbl}"))
     with eng.connect() as conn:
         assert_association_downgrade_allowed(conn, tbl, revision="f1a2b3c4d5e6")  # no raise
     # Missing table -> allowed (nothing to lose).

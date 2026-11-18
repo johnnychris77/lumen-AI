@@ -57,6 +57,23 @@ def _actor(user) -> str:
     return getattr(user, "email", None) or getattr(user, "username", "unknown")
 
 
+def _labelable_image(db: Session, image_id: int, tenant_id: str) -> RetainedImage | None:
+    """The tenant's image IF it may be labelled through this generic surface.
+
+    SEC-171-01: a research-intake image is never labelled, adjudicated or have its
+    labels read here. Its ground truth stays unknown and it is training-ineligible, so
+    it is reported as not found — exactly as the listing and bytes routes treat it."""
+    return (
+        db.query(RetainedImage)
+        .filter(
+            RetainedImage.id == image_id,
+            RetainedImage.tenant_id == tenant_id,
+            RetainedImage.source != RESEARCH_SOURCE,
+        )
+        .first()
+    )
+
+
 @router.get("/retention/status")
 def retention_status(current_user=Depends(require_inspection_runner)):
     """Report whether opt-in image retention is enabled for this deployment."""
@@ -93,6 +110,13 @@ async def upload_training_image(
                 "Image retention is disabled. Set RETAIN_INSPECTION_IMAGES to "
                 "enable the opt-in training-image store."
             ),
+        )
+    # SEC-171-01: the research-intake source is reserved for the governed research
+    # intake. A generic upload can never mint a row carrying that marker.
+    if (source or "").strip() == RESEARCH_SOURCE:
+        raise HTTPException(
+            status_code=422,
+            detail="This source is reserved for governed research intake and cannot be set here.",
         )
     tenant_id = get_request_tenant_id(request)
     stored = []
@@ -248,11 +272,7 @@ def add_label(
 ):
     """Apply a (multi-label) annotation to a retained image."""
     tenant_id = get_request_tenant_id(request)
-    image = (
-        db.query(RetainedImage)
-        .filter(RetainedImage.id == image_id, RetainedImage.tenant_id == tenant_id)
-        .first()
-    )
+    image = _labelable_image(db, image_id, tenant_id)
     if image is None:
         raise HTTPException(status_code=404, detail="Retained image not found.")
 
@@ -310,6 +330,8 @@ def list_labels(
 ):
     """Return all labels for an image."""
     tenant_id = get_request_tenant_id(request)
+    if _labelable_image(db, image_id, tenant_id) is None:
+        raise HTTPException(status_code=404, detail="Retained image not found.")
     labels = (
         db.query(ImageLabel)
         .filter(ImageLabel.image_id == image_id, ImageLabel.tenant_id == tenant_id)
@@ -351,6 +373,8 @@ def adjudicate_label(
     the two-reviewer rule from the dataset plan.
     """
     tenant_id = get_request_tenant_id(request)
+    if _labelable_image(db, image_id, tenant_id) is None:
+        raise HTTPException(status_code=404, detail="Label not found.")
     label = (
         db.query(ImageLabel)
         .filter(

@@ -29,6 +29,7 @@ def upgrade() -> None:
     from app.db.migration_guards import (
         RETAINED_INDEX,
         RETAINED_TABLE,
+        columns_needing_not_null,
         require_table,
         verify_retained_provenance_columns,
     )
@@ -50,6 +51,17 @@ def upgrade() -> None:
         op.add_column(RETAINED_TABLE, sa.Column("research_attestation_id", sa.Integer(), nullable=True))
     if RETAINED_INDEX not in {i["name"] for i in sa.inspect(bind).get_indexes(RETAINED_TABLE)}:
         op.create_index(RETAINED_INDEX, RETAINED_TABLE, ["research_dataset_id"])
+
+    # 3b) SEC-171-03: converge a database whose provenance columns already exist because
+    #     the application's startup column back-fill added them (that is how production
+    #     receives schema changes: nullable, with a blank default, no index). Blank any
+    #     NULLs — never inferring ownership — then enforce NOT NULL, so both paths end in
+    #     the same shape instead of this upgrade failing its own post-condition check.
+    for name in columns_needing_not_null(bind):
+        op.execute(sa.text(f"UPDATE {RETAINED_TABLE} SET {name} = '' WHERE {name} IS NULL"))
+        with op.batch_alter_table(RETAINED_TABLE) as batch:
+            batch.alter_column(
+                name, existing_type=sa.String(length=255), nullable=False, server_default="")
 
     # 4-5) Verify columns/nullability/index AFTER the change; a failure raises so a partial
     #      upgrade cannot be mistaken for success.

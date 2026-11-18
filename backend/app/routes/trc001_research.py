@@ -54,7 +54,29 @@ from app.models.governance_approval import GovernanceApproval
 from app.models.retained_image import RetainedImage
 from app.services.enterprise_audit_service import record_enterprise_audit_event
 
-router = APIRouter(tags=["trc001-research"])
+_TRUTHY = {"1", "true", "yes", "on", "enabled"}
+
+
+def trc001_research_api_enabled() -> bool:
+    """SEC-171-03: is THIS deployment explicitly designated a research environment?
+
+    Read per request from ``TRC001_RESEARCH_API_ENABLED``. Unset, empty or any value
+    that is not an explicit affirmative means NO — the production default."""
+    return os.getenv("TRC001_RESEARCH_API_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def require_research_deployment() -> None:
+    """Router-level gate, evaluated BEFORE authentication. On a deployment that is not
+    designated a research environment every research endpoint answers 404 and does
+    nothing, for every caller, so the surface is inert in production and reveals nothing
+    about a caller's authentication state."""
+    if not trc001_research_api_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+router = APIRouter(
+    tags=["trc001-research"], dependencies=[Depends(require_research_deployment)],
+)
 
 # request_type string shared with research.lens_vision.scientific_authorization
 # (kept as a local literal so this app module does not import the research stack to read

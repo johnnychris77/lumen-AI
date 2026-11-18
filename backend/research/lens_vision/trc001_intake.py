@@ -109,6 +109,32 @@ def _blocked_images(reason: str) -> list:
             for k, v in TRC001_IMAGES.items()]
 
 
+class _ProvenanceConflictError(Exception):
+    """Identical bytes are already retained in this dataset under another basis."""
+
+
+def _claimed_under_another_basis(db: Session, image, *, basis: str) -> bool:
+    """SEC-171-01: is this deduplicated research row scoped to the OTHER basis?
+
+    An owner-attested row carries an owner subject and/or per-owner authorization rows;
+    an institutional row carries neither. An owner-attested intake may share a row only
+    with other verified owners; an institutional intake may only reuse its own rows."""
+    from app.models.research_image_authorization import (  # noqa: PLC0415
+        ResearchImageAuthorization,
+    )
+
+    owner_scoped = bool(str(image.research_owner_subject or "").strip()) or (
+        db.query(ResearchImageAuthorization.id)
+        .filter(
+            ResearchImageAuthorization.tenant_id == image.tenant_id,
+            ResearchImageAuthorization.retained_image_id == image.id,
+        )
+        .first()
+        is not None
+    )
+    return owner_scoped if basis == "institutional" else not owner_scoped
+
+
 def _safe_kit_path(kit_dir: str, filename: str) -> str:
     """Resolve a manifest filename to a path INSIDE the kit directory. Rejects
     absolute paths, home expansion, and any traversal that escapes the kit dir."""
@@ -310,24 +336,31 @@ def run_trc001_intake(
                 )
                 if current_attestation.approval_id != attestation.approval_id:
                     raise ScientificAuthorizationError("Owner attestation changed during intake.")
+            # SEC-171-01: deduplication is scoped to THIS research dataset. Identical bytes
+            # retained for any other purpose (inspection, baseline reference, dataset
+            # ingestion) or for another research dataset are never handed back here — the
+            # intake stores its own separately-scoped row instead of claiming theirs.
             retained = retain_image(
                 db, data=data, tenant_id=tenant_id, instrument_type=TRC001_INSTRUMENT_ID,
                 content_type=str(entry.get("content_type") or "image/jpeg"),
                 source="trc001_research_intake", uploaded_by=authorized_actor, consent=True,
-                commit=(basis != "owner_attested"))
+                commit=(basis != "owner_attested"), research_dataset_id=dataset_id)
+            reused = bool(getattr(retained, "_lumenai_dedup_hit", False)) if retained is not None else False
+            if reused and _claimed_under_another_basis(db, retained, basis=basis):
+                # Same dataset, same bytes, but retained under the OTHER authorization
+                # basis. Never reassign or share it: refuse this image (fail-closed).
+                raise _ProvenanceConflictError
             if retained is not None and basis == "owner_attested":
                 # SEC-171-04: ownership is an EXPLICIT per-owner association, never inferred
-                # from matching bytes. Dedup runs by tenant+SHA, so identical bytes may
-                # already belong to another owner/dataset — we NEVER reassign their record;
+                # from matching bytes. Within one research dataset, identical bytes may
+                # already belong to another verified owner — we NEVER reassign their record;
                 # instead this verified owner gets their own authorization association to the
                 # shared row. A newly created row also records a denormalized first-owner
                 # hint, but all authorization/deletion decisions use the association rows.
                 from app.services.research_image_authorization_service import (  # noqa: PLC0415
                     upsert_active_authorization,
                 )
-                reused = bool(getattr(retained, "_lumenai_dedup_hit", False))
                 if not reused:
-                    retained.research_dataset_id = dataset_id
                     retained.research_owner_subject = auth.subject
                     retained.research_attestation_id = attestation.approval_id
                 upsert_active_authorization(
@@ -340,6 +373,11 @@ def run_trc001_intake(
         except ScientificAuthorizationError as exc:
             db.rollback()
             r.reason = f"authorization_revoked_or_changed: {exc}"
+            results.append(r)
+            continue
+        except _ProvenanceConflictError:
+            db.rollback()
+            r.reason = "retained_image_provenance_conflict"
             results.append(r)
             continue
         except Exception:
