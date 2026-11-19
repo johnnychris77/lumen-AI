@@ -29,6 +29,22 @@ this document does not guess.
 | GD-3 | Vendor baselines are tenant-private unless an approved sharing policy explicitly permits access | Product owner, with the clinical quality lead and the data-governance owner | **Private default enforced** in the draft PR (schema + all reads/approvals/scoring scoped; pre-GD-3 rows quarantined). The sharing-grant mechanism is **not** built (undecided). Deployment precondition: existing baselines are attributed first | Pending |
 | GD-4 | Ownerless CAPAs remain quarantined until ownership can be established through verifiable records | Quality / regulatory lead, with the data-governance owner | Yes, since batch 1; pinned by tests | Pending |
 
+**Read the two right-hand columns as different things.** *"Enforced in code"*
+is a **technical control** that exists in the draft PR and is exercised by tests
+— it is engineering evidence, not permission. *"Sign-off"* is **formal approval
+of the policy** by the responsible owner, which has **not** been given for any
+row. A control can be enforced in code while its policy is still Pending; that is
+the normal state here, and it does not authorize release. Every row's Sign-off is
+Pending, so no policy below is approved, and HOLD / NO-GO stands regardless of
+what is enforced in code.
+
+For GD-3 specifically: the tenant-private **technical control** is implemented
+(and its migration validated against representative legacy records — see
+`gd3-quarantine-impact-and-attribution-proposal.md` §1); the **ownership and
+sharing policy**, the manufacturer-managed category and the access-grant
+mechanism are designed only (`gd3-vendor-baseline-architecture-decision.md`) and
+remain unapproved and unbuilt.
+
 ---
 
 ## GD-1 — Public operational counters

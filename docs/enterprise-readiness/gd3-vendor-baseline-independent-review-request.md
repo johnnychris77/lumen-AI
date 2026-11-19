@@ -11,6 +11,19 @@
 > **not** authorization to implement the sharing model or to release. The
 > ownership and sharing policy is **undecided**; this prompt does not approve it.
 
+## 0. Package contents for the reviewer
+
+| Artifact | File / location |
+|---|---|
+| Architecture decision record (ownership model, schema, access-grant table, manufacturer identity, revocation, migration contract, authorization policy, downstream isolation) | `gd3-vendor-baseline-architecture-decision.md` |
+| Migration | `backend/alembic/versions/d8f3a6b914c7_add_vendor_baseline_tenant_id.py` |
+| Migration validation vs. representative legacy records (PG16: preserved + quarantined, reversible) | `gd3-quarantine-impact-and-attribution-proposal.md` §1 |
+| Authorization changes (the enforced floor) | `backend/app/routes/enterprise_intake.py`, `app/services/baseline_comparison_scoring_service.py`, `app/services/veritas_baseline_resolution_service.py`, `app/services/vendor_baseline_audit_service.py`, `app/models/{enterprise_quality,vendor_baseline_audit}.py` |
+| Test evidence | `tests/test_p472_03_governance_policies.py::TestGd3VendorBaselinesAreTenantPrivate` (5 tests) + the cross-tenant adversarial suite |
+| Clinical-workflow impact of quarantine | `gd3-quarantine-impact-and-attribution-proposal.md` §2 |
+| Attribution procedure proposal (no production attribution performed) | `gd3-quarantine-impact-and-attribution-proposal.md` §3 |
+| Residual risks / open findings | §2 below, plus AW-07 and the governance register |
+
 ## 1. Two things are submitted, at two different maturities
 
 1. **Design (not implemented):** the ownership model (tenant-private /
