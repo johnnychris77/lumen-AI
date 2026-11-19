@@ -280,7 +280,9 @@ def test_aw06n_users_with_no_membership_are_refused_not_pooled():
         f"other user's list HTTP {listed.status_code}, device visible: {name in listed.text}")
 
 
-@_finding("AW-06N", "getattr(current_user, 'tenant_id', None) or 'default-tenant': no membership is pooled, not refused")
+# Remediated in P472-03 batch 4 (Issue #186): these handlers resolve the tenant with
+# principal_tenant (a user with no membership is refused). The strict-xfail marker is
+# removed; the assertion is unchanged.
 def test_aw06n_users_with_no_membership_are_still_pooled_where_the_default_is_a_literal():
     """Still open after batch 2: handlers whose fallback is the literal
     ``default-tenant`` rather than the request header (16 places in 6 modules)."""

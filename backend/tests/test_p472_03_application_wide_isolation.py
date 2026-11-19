@@ -98,13 +98,14 @@ def test_remediated_route_groups_show_no_finding(sweep, observed):
     ML image, operations and capture modules (batch 2), and the thirteen
     modules that re-read the tenant header (batch 4, AW-03/AW-06M) and the ten
     modules whose tenant parameter is now a verified claim (batch 4, AW-04) stay
-    clean under every variant."""
+    clean under every variant, as do the six modules that pooled users with no
+    membership in a literal default tenant (batch 4, AW-06N)."""
     covered = 0
     for record in sweep["routes"]:
         if is_remediated(record):
             covered += 1
             assert route_key(record) not in observed, (route_key(record), observed.get(route_key(record)))
-    assert covered == 13 + 39 + 77 + 8 + 9 + 5 + 5 + 8 + 21 + 4 + 142 + 190
+    assert covered == 13 + 39 + 77 + 8 + 9 + 5 + 5 + 8 + 21 + 4 + 142 + 190 + 46
 
 
 def test_no_route_outside_the_register_shows_a_finding(observed):

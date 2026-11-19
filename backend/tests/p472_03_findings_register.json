@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 4, AW-04 (parent 5adde8d)",
+ "baseline_commit": "remediation batch 4, AW-06N (parent 4308443)",
  "sweeps": [
   "sqlite",
   "sqlite",
@@ -23,92 +23,8 @@
  ],
  "unstable": {},
  "findings": {
-  "GET /api/agents/run/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/agents/trace/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/analytics/kpi-summary": [
-   "AW-06N"
-  ],
-  "GET /api/analytics/powerbi": [
-   "AW-06N"
-  ],
-  "GET /api/cios/certificate/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/cios/certificate/{inspection_id}/pdf": [
-   "AW-06N"
-  ],
-  "GET /api/cios/dashboard": [
-   "AW-06N"
-  ],
-  "GET /api/cios/decision-ledger/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/cios/events": [
-   "AW-06N"
-  ],
-  "GET /api/cios/run/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/cios/state/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/decision-policies": [
-   "AW-06N"
-  ],
   "GET /api/genesis-ai/manufacturer-updates": [
    "AW-04"
-  ],
-  "GET /api/knowledge-graph/analytics": [
-   "AW-06N"
-  ],
-  "GET /api/knowledge-graph/explain/{inspection_id}": [
-   "AW-06N"
-  ],
-  "GET /api/knowledge-graph/learning-confidence": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/baseline-coverage": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/clinical-inspection-readiness": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/dashboard": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/executive-risk-dashboard": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/facility-readiness": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/high-risk-findings": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/instrument-readiness": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/missing-zone-coverage": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/repair-remove-queue": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/supervisor-review-queue": [
-   "AW-06N"
-  ],
-  "GET /api/pre-sterilization-command-center/tray-readiness": [
-   "AW-06N"
-  ],
-  "GET /api/unknown-findings": [
-   "AW-06N"
-  ],
-  "POST /api/decision-policies/simulate": [
-   "AW-06N"
   ]
  }
 }

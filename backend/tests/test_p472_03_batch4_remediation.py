@@ -492,3 +492,46 @@ def test_guardianx_evidence_audit_event_is_attributed_to_the_verified_tenant():
         assert [row.tenant_id for row in rows] == [TENANT_A]
     finally:
         db.close()
+
+
+# ══ AW-06N — no membership pooled in the literal "default-tenant" ═════════════
+#
+# Handlers in six modules used ``getattr(current_user, "tenant_id", None) or
+# "default-tenant"``: a signed-in user with no membership (whose principal has no
+# active tenant) was served the shared default tenant, and a member of several
+# tenants could not select one at all. They now use ``principal_tenant``.
+
+AW06N_ROUTES = [
+    "/api/pre-sterilization-command-center/tray-readiness", "/api/pre-sterilization-command-center/dashboard",
+    "/api/cios/dashboard", "/api/cios/events", "/api/knowledge-graph/analytics",
+    "/api/knowledge-graph/learning-confidence", "/api/decision-policies", "/api/unknown-findings",
+    "/api/analytics/kpi-summary",
+]
+NOMEMBER_MANAGER = f"b4-06n-none-{RUN}@example.com"
+MULTI_MANAGER = f"b4-06n-ac-{RUN}@example.com"
+MEMBERSHIPS.extend([(TENANT_A, MULTI_MANAGER), (TENANT_C, MULTI_MANAGER)])
+
+
+@pytest.fixture(scope="module")
+def aw06n_users(_users):
+    db = SessionLocal()
+    try:
+        for user in (NOMEMBER_MANAGER, MULTI_MANAGER):
+            db.add(UserRoleAssignment(username=user, role="spd_manager", assigned_by="p472-03-batch4"))
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("path", AW06N_ROUTES)
+def test_aw06n_a_user_with_no_membership_is_refused_not_pooled(aw06n_users, path):
+    response = client.get(path, headers=_h(NOMEMBER_MANAGER))
+    assert response.status_code in REFUSED, f"HTTP {response.status_code}: {response.text[:160]}"
+
+
+@pytest.mark.parametrize("path", AW06N_ROUTES)
+def test_aw06n_a_member_of_several_tenants_selects_one_and_is_served(aw06n_users, path):
+    assert client.get(path, headers=_h(MULTI_MANAGER)).status_code in REFUSED
+    selected = client.get(path, headers=_h(MULTI_MANAGER, **{"X-Tenant-Id": TENANT_C}))
+    assert selected.status_code not in REFUSED, selected.text[:200]
+    assert client.get(path, headers=_h(MULTI_MANAGER, **{"X-Tenant-Id": TENANT_B})).status_code in REFUSED

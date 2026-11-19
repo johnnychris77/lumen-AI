@@ -154,6 +154,13 @@ REMEDIATED_MODULES = {
     "app.routes.olympus_network": "batch 4",
     "app.routes.billing": "batch 4",
     "app.routes.accreditation": "batch 4",
+    # Batch 4 (Issue #186), AW-06N: principal_tenant instead of a literal "default-tenant".
+    "app.routes.pre_sterilization_command_center": "batch 4",
+    "app.routes.cios": "batch 4",
+    "app.routes.knowledge_graph": "batch 4",
+    "app.routes.agents_pipeline": "batch 4",
+    "app.routes.lumen_decision_engine": "batch 4",
+    "app.routes.analytics": "batch 4",
 }
 BATCH_TESTS = {"batch 1": "tests/test_p472_03_batch1_remediation.py"}
 

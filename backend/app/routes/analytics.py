@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.auth.tenant_membership import require_enabled_tenant_membership
+from app.auth.tenant_scope import named_tenant, principal_tenant
 from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
@@ -31,31 +32,23 @@ def _scoped(db: Session, *, role: str, tenant_id: str):
 
 
 def _resolve_scoped_tenant(request: Request, db: Session, current_user, role: str) -> str:
-    """Resolve the tenant a caller is scoped to, closing a real tenant-
-    isolation gap: `current_user` from the simple dev/JWT auth path
-    (app/deps.py) never carries its own `tenant_id`, so falling back to the
-    caller-supplied X-Tenant-Id header meant any operator/viewer could set
-    that header to an arbitrary tenant and read its data.
+    """The tenant a caller is scoped to (P472-03 batch 4, AW-06N).
 
-    A user's own `tenant_id` (when the auth context actually carries one —
-    e.g. the enterprise OIDC path) is always trusted as-is. Otherwise, a
-    request that doesn't supply a tenant header at all keeps the existing
-    single-tenant-deployment default ("default-tenant") unchanged. Only a
-    request that *explicitly claims a specific tenant identity* via header
-    is now required to prove real, enabled membership in that tenant
-    before the claim is honored — this is exactly the exploit path the
-    review comment described."""
-    own_tenant_id = getattr(current_user, "tenant_id", None)
-    if own_tenant_id:
-        return own_tenant_id
+    Always the verified resolver: a tenant named in a header must be one of the
+    caller's enabled memberships; with none named, their sole membership; a user
+    with no membership, or several and none selected, is refused (403). The
+    previous fallback served such users the shared ``default-tenant``. The
+    platform administrator keeps the documented PA-1 rule (``principal_tenant``),
+    and ``_scoped`` still lifts the filter for that role only.
 
-    header_tenant_id = request.headers.get("x-lumenai-tenant-id") or request.headers.get("x-tenant-id")
-    tenant_id = header_tenant_id or "default-tenant"
-
-    if role != "admin" and header_tenant_id:
+    This module is stricter than ``principal_tenant`` for development tokens: any
+    non-admin caller that NAMES a tenant must hold an enabled membership in it
+    (PR #81), and that check is kept rather than relaxed.
+    """
+    tenant_id = principal_tenant(current_user, request)
+    if role != "admin" and named_tenant(request):
         user_email = getattr(current_user, "email", None) or getattr(current_user, "username", "") or ""
         require_enabled_tenant_membership(db, tenant_id=tenant_id, user_email=user_email)
-
     return tenant_id
 
 

@@ -4,9 +4,10 @@ Route: /knowledge-graph (frontend). API prefix below.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import principal_tenant
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
@@ -64,12 +65,13 @@ def get_reasoning_chain(
 
 @router.get("/explain/{inspection_id}")
 def get_explainability_graph(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 6 — the "Why?" explainability graph for one real inspection."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = (
         db.query(models.Inspection)
         .filter(models.Inspection.id == inspection_id, models.Inspection.tenant_id == tenant_id)
@@ -82,31 +84,34 @@ def get_explainability_graph(
 
 @router.get("/explore")
 def get_explorer(
+    request: Request,
     category: str = Query(..., description="manufacturer|instrument|model|finding|zone|failure_mode|recommendation|supervisor_learning"),
     q: str = Query("", description="Optional search text"),
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 7 — Knowledge Graph Explorer."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     return explore(db, tenant_id, category, q)
 
 
 @router.get("/analytics")
 def get_enterprise_analytics(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
     """Section 8 — Enterprise Knowledge Analytics."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     return enterprise_knowledge_analytics(db, tenant_id)
 
 
 @router.get("/learning-confidence")
 def get_learning_confidence(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
     """Section 9 — Continuous Knowledge Learning confidence signals."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     return learning_confidence(db, tenant_id)
