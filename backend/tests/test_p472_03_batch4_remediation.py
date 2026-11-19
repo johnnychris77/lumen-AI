@@ -419,3 +419,58 @@ def test_aw04_the_same_tenant_contract_is_preserved(aw04, key):
 def test_aw04_most_routes_have_a_working_owner(aw04):
     working = [key for key in AW04_ROUTES if aw04.owner_profile(key)[0] is not None]
     assert len(working) >= len(AW04_ROUTES) - 4, sorted(set(AW04_ROUTES) - set(working))
+
+
+# ══ require_tenant_roles — the shared membership dependency (562 call sites) ════
+#
+# Two defects, found when the AW-04 routes that use this dependency joined the
+# route-wide harness: a tenant named in X-LumenAI-Tenant-Id was verified and a
+# DISAGREEING X-Tenant-Id ignored; and a member who named no tenant was placed in
+# a shared "default-tenant" (refused unless they belonged to it, pooled if they did).
+
+RTR_ROUTE = "/api/olympus/trust/{tenant}/history"          # require_tenant_roles(*_ALL_ROLES)
+RTR_MEMBER = f"b4-rtr-a-{RUN}@example.com"
+RTR_MULTI = f"b4-rtr-ac-{RUN}@example.com"
+RTR_DEFAULT_TOO = f"b4-rtr-a-default-{RUN}@example.com"
+MEMBERSHIPS.extend([(TENANT_A, RTR_MEMBER), (TENANT_A, RTR_MULTI), (TENANT_C, RTR_MULTI),
+                    (TENANT_A, RTR_DEFAULT_TOO), (DEFAULT, RTR_DEFAULT_TOO)])
+_RTR_ROLE = {RTR_MEMBER: "operator", RTR_MULTI: "operator", RTR_DEFAULT_TOO: "operator"}
+
+
+@pytest.fixture(autouse=True)
+def _rtr_roles(_memberships):
+    db = SessionLocal()
+    try:
+        for row in db.query(models.TenantMembership).filter(models.TenantMembership.user_email.in_(list(_RTR_ROLE))):
+            row.role = _RTR_ROLE[row.user_email]
+        db.commit()
+    finally:
+        db.close()
+
+
+class TestRequireTenantRoles:
+    def test_a_member_who_names_no_tenant_acts_in_their_own_tenant(self):
+        response = client.get(RTR_ROUTE.format(tenant=TENANT_A), headers=_h(RTR_MEMBER))
+        assert response.status_code == 200, response.text
+
+    @pytest.mark.parametrize("headers", [
+        {"X-LumenAI-Tenant-Id": "A", "X-Tenant-Id": "B"},
+        {"X-Tenant-Id": "A", "X-LumenAI-Tenant-Id": "B"},
+    ], ids=["lumenai A + tenant-id B", "tenant-id A + lumenai B"])
+    def test_two_tenant_headers_that_disagree_are_refused(self, headers):
+        named = {k: {"A": TENANT_A, "B": TENANT_B}[v] for k, v in headers.items()}
+        response = client.get(RTR_ROUTE.format(tenant=TENANT_A), headers=_h(RTR_MEMBER, **named))
+        assert response.status_code == 403
+
+    def test_a_member_of_several_tenants_must_select_one(self):
+        assert client.get(RTR_ROUTE.format(tenant=TENANT_A), headers=_h(RTR_MULTI)).status_code == 403
+        selected = client.get(RTR_ROUTE.format(tenant=TENANT_C), headers=_h(RTR_MULTI, **{"X-Tenant-Id": TENANT_C}))
+        assert selected.status_code == 200, selected.text
+
+    def test_a_member_of_default_tenant_and_another_is_not_pooled_into_default(self):
+        """Belonging to the legacy shared tenant no longer makes it the silent default."""
+        response = client.get(RTR_ROUTE.format(tenant=DEFAULT), headers=_h(RTR_DEFAULT_TOO))
+        assert response.status_code == 403
+
+    def test_a_user_with_no_membership_is_refused(self):
+        assert client.get(RTR_ROUTE.format(tenant=DEFAULT), headers=_h(OUTSIDER)).status_code == 403

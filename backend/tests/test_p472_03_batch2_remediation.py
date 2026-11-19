@@ -80,7 +80,8 @@ RUN = uuid.uuid4().hex[:8]
 TENANT_A, TENANT_B, TENANT_C = f"b2-alpha-{RUN}", f"b2-bravo-{RUN}", f"b2-charlie-{RUN}"
 # ``request_tenant(`` is the batch 4 (AW-03/AW-06M) resolver for ``require_enterprise_auth``
 # handlers; it also matches ``verified_request_tenant(``.
-RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(", "request_tenant(", "principal_claim_tenant(")
+RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(", "request_tenant(", "principal_claim_tenant(",
+                  "refuse_other_tenants(")
 # (global role, tenant-membership role): the sweep's profiles plus the two global
 # roles that some of these routes require and the sweep does not carry. The
 # platform administrator (global role "admin") is deliberately absent.
@@ -483,7 +484,7 @@ def test_the_route_table_is_the_mounted_application():
     """The parametrised tests below cover every route that uses the verified
     resolver; these counts change only when a route is added or converted."""
     by_how = {how: sum(1 for _, _, h in ROUTES if h == how) for how in ("dependency", "handler")}
-    assert by_how == {"dependency": 195, "handler": 664}, by_how
+    assert by_how == {"dependency": 195, "handler": 669}, by_how
     assert len(set(ROUTE_IDS)) == len(ROUTE_IDS)
     assert set(OPEN_OWNER_FINDINGS) | set(OPEN_REFUSAL_FINDINGS) <= set(ROUTE_IDS)
 

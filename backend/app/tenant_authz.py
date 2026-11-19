@@ -99,6 +99,38 @@ def _resolve_user_email_from_token(request) -> str:
     raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def _membership_tenant(db: Session, request: Request, user_email: str) -> str:
+    """The tenant a ``require_tenant_roles`` caller acts in (P472-03 batch 4).
+
+    * A tenant named in EITHER header is the explicit selection; membership is
+      asserted on it by the caller of this function. Two headers that disagree
+      are refused (403) — previously ``X-LumenAI-Tenant-Id`` won and a
+      disagreeing ``X-Tenant-Id`` was silently ignored.
+    * With no tenant named, the caller acts in their SOLE enabled membership.
+      Previously they were placed in a shared ``default-tenant`` (AW-06M), which
+      refused every member who did not happen to belong to it and pooled every
+      member who did.
+    * No membership, or several with none selected: refused (403). Nothing is
+      served from a shared default.
+    """
+    from app.auth.tenant_scope import NO_VERIFIED_TENANT_DETAIL, named_tenant
+
+    named = named_tenant(request)
+    if named:
+        return named
+    if not user_email:
+        raise HTTPException(status_code=403, detail="Unable to resolve current user email for tenant authorization.")
+    memberships = (
+        db.query(models.TenantMembership.tenant_id)
+        .filter(models.TenantMembership.user_email == user_email, models.TenantMembership.is_enabled)
+        .distinct()
+        .all()
+    )
+    if len(memberships) == 1:
+        return memberships[0][0]
+    raise HTTPException(status_code=403, detail=NO_VERIFIED_TENANT_DETAIL)
+
+
 def require_tenant_roles(*allowed_roles: str):
     """
     FastAPI dependency factory for tenant-scoped role enforcement.
@@ -117,11 +149,7 @@ def require_tenant_roles(*allowed_roles: str):
         # Resolve identity from the bearer token (raises 401 if invalid)
         user_email = _resolve_user_email_from_token(request)
 
-        tenant_id = (
-            request.headers.get("x-lumenai-tenant-id")
-            or request.headers.get("x-tenant-id")
-            or "default-tenant"
-        ).strip() or "default-tenant"
+        tenant_id = _membership_tenant(db, request, user_email)
 
         tenant_name = (
             request.headers.get("x-lumenai-tenant-name")
