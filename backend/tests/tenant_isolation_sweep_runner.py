@@ -141,7 +141,14 @@ def _unscoped_tenant_tables(capture, tenant_tables: set[str]) -> list[str]:
         kind, tables = _statement_tables(statement)
         if kind == "write" and statement.lstrip().upper().startswith("INSERT"):
             continue
-        where = statement.upper().split(" WHERE ", 1)
+        # Split on the WHERE keyword regardless of the surrounding whitespace.
+        # SQLAlchemy renders the clause on its own line (``...\nWHERE foo.tenant_id
+        # = ?``), so a plain ``" WHERE "`` match missed it and reported a genuinely
+        # tenant-scoped statement as unscoped (a false positive that made this lead
+        # noisier, never a missed leak). ``\sWHERE\s`` matches a space, newline or
+        # tab on either side; a statement with no WHERE, or a WHERE that does not
+        # mention tenant_id, is still reported exactly as before.
+        where = re.split(r"\sWHERE\s", statement.upper(), maxsplit=1)
         scoped = len(where) == 2 and "TENANT_ID" in where[1]
         if not scoped:
             unscoped |= tables & tenant_tables

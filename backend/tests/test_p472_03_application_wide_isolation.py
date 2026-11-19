@@ -150,3 +150,40 @@ def test_the_register_is_internally_consistent():
     assert not any(
         key.split(" ", 1)[1] == prefix or key.split(" ", 1)[1].startswith(prefix + "/")
         for key in REGISTER["findings"] for prefix in REMEDIATED_PREFIXES)
+
+
+# ── GD-3 oracle: the unscoped-table detector must read the WHERE clause the way
+#    SQLAlchemy renders it (on its own line), or it mis-reports a scoped statement.
+from tenant_isolation_sweep_runner import _unscoped_tenant_tables  # noqa: E402
+
+_TENANT_TABLES = {"accreditation_programs"}
+
+
+def test_unscoped_detector_reads_where_regardless_of_whitespace():
+    """A statement whose tenant_id WHERE clause is rendered on its own line
+    (``...\\nWHERE ...tenant_id...``), as SQLAlchemy does, is tenant-scoped and
+    must NOT be reported as unscoped. A plain ``" WHERE "`` match missed it and
+    produced a false positive; the fix must not re-introduce one."""
+    newline_scoped = [(
+        "SELECT accreditation_programs.id \nFROM accreditation_programs \n"
+        "WHERE accreditation_programs.tenant_id = ?", ("t-a",))]
+    space_scoped = [(
+        "SELECT accreditation_programs.id FROM accreditation_programs "
+        "WHERE accreditation_programs.tenant_id = ?", ("t-a",))]
+    assert _unscoped_tenant_tables(newline_scoped, _TENANT_TABLES) == []
+    assert _unscoped_tenant_tables(space_scoped, _TENANT_TABLES) == []
+
+
+def test_unscoped_detector_still_flags_genuinely_unscoped_statements():
+    """The fix must not weaken detection: a statement with no WHERE, or a WHERE
+    that does not mention tenant_id, is still reported for manual review."""
+    no_where = [("SELECT accreditation_programs.id FROM accreditation_programs", ())]
+    where_without_tenant = [(
+        "SELECT accreditation_programs.id FROM accreditation_programs "
+        "WHERE accreditation_programs.id = ?", (1,))]
+    newline_without_tenant = [(
+        "SELECT accreditation_programs.id \nFROM accreditation_programs \n"
+        "WHERE accreditation_programs.id = ?", (1,))]
+    assert _unscoped_tenant_tables(no_where, _TENANT_TABLES) == ["accreditation_programs"]
+    assert _unscoped_tenant_tables(where_without_tenant, _TENANT_TABLES) == ["accreditation_programs"]
+    assert _unscoped_tenant_tables(newline_without_tenant, _TENANT_TABLES) == ["accreditation_programs"]
