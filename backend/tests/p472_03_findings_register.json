@@ -1,8 +1,7 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 4, AW-06N (parent 4308443)",
+ "baseline_commit": "remediation batch 4 final (c826fcc)",
  "sweeps": [
-  "sqlite",
   "sqlite",
   "postgresql"
  ],
