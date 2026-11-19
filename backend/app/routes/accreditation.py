@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.authz import require_roles
+from app.tenant import resolve_tenant
 from app.deps import get_db
 from app.db import models
 from app.models.network_benchmark import NetworkParticipant
@@ -181,12 +182,21 @@ def create_program(
 def list_programs(
     tenant_id: str | None = Query(default=None),
     accreditor: str | None = Query(default=None),
+    tenant: dict = Depends(resolve_tenant),
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.AccreditationProgram)
-    if tenant_id:
-        q = q.filter(models.AccreditationProgram.tenant_id == tenant_id)
+    # P472-03 AW-08a / AW-04: the tenant is ALWAYS the caller's verified tenant
+    # (resolved from membership by ``resolve_tenant``). The ``tenant_id`` query
+    # parameter is inert — it can no longer widen the scope to every tenant
+    # (AW-08a) nor select another tenant's programs (AW-04); a caller only ever
+    # reads programs of the tenant they are a verified member of. The selector a
+    # multi-tenant member uses is the verified ``X-Tenant-Id`` header, never this
+    # query field.
+    verified = tenant["tenant_id"]
+    q = db.query(models.AccreditationProgram).filter(
+        models.AccreditationProgram.tenant_id == verified
+    )
     if accreditor:
         q = q.filter(models.AccreditationProgram.accreditor == accreditor)
     rows = q.order_by(models.AccreditationProgram.created_at.desc()).all()
@@ -197,13 +207,17 @@ def list_programs(
 def update_program_status(
     program_id: int,
     status: str = Query(...),
+    tenant: dict = Depends(resolve_tenant),
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     if status not in _PROGRAM_STATUSES:
         raise HTTPException(status_code=422, detail=f"Invalid status '{status}'")
     p = db.get(models.AccreditationProgram, program_id)
-    if not p:
+    # P472-03 AW-08a: object-ownership check. A program of another tenant is
+    # indistinguishable from one that does not exist (non-disclosing 404), so a
+    # caller cannot mutate foreign records or probe which program ids exist.
+    if not p or p.tenant_id != tenant["tenant_id"]:
         raise HTTPException(status_code=404, detail="Program not found")
     p.status = status
     db.commit()

@@ -13,12 +13,17 @@ TS = str(int(time.time()))[-6:]
 class TestAccreditationPrograms:
     def test_create_and_list(self):
         tid = f"acc-{TS}"
+        # P472-03: the listing is scoped to the caller's verified tenant. This
+        # smoke test selects the tenant it operates in with the verified
+        # ``X-Tenant-Id`` header (honoured here for the dev/admin token), rather
+        # than passing a tenant selector in the query string (now inert, AW-04).
+        scoped = {**AUTH, "X-Tenant-Id": tid}
         r = client.post("/api/accreditation/programs",
                         json={"tenant_id": tid, "facility_id": "F1",
-                              "accreditor": "joint_commission"}, headers=AUTH)
+                              "accreditor": "joint_commission"}, headers=scoped)
         assert r.status_code == 201
         pid = r.json()["id"]
-        lst = client.get(f"/api/accreditation/programs?tenant_id={tid}", headers=AUTH)
+        lst = client.get("/api/accreditation/programs", headers=scoped)
         assert any(p["id"] == pid for p in lst.json()["programs"])
 
     def test_invalid_accreditor_422(self):
@@ -28,11 +33,16 @@ class TestAccreditationPrograms:
         assert r.status_code == 422
 
     def test_update_status(self):
+        # P472-03: the status update enforces object ownership — the program must
+        # belong to the caller's verified tenant (AW-08a). Operate in that tenant
+        # via the verified ``X-Tenant-Id`` header.
+        tid = f"acc2-{TS}"
+        scoped = {**AUTH, "X-Tenant-Id": tid}
         r = client.post("/api/accreditation/programs",
-                        json={"tenant_id": f"acc2-{TS}", "facility_id": "F1",
-                              "accreditor": "dnv"}, headers=AUTH)
+                        json={"tenant_id": tid, "facility_id": "F1",
+                              "accreditor": "dnv"}, headers=scoped)
         pid = r.json()["id"]
-        u = client.patch(f"/api/accreditation/programs/{pid}?status=accredited", headers=AUTH)
+        u = client.patch(f"/api/accreditation/programs/{pid}?status=accredited", headers=scoped)
         assert u.status_code == 200
         assert u.json()["status"] == "accredited"
 
