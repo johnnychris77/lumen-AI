@@ -292,7 +292,9 @@ def test_replay_workflow_execution_includes_model_version():
         db.commit()
         db.refresh(workflow)
 
-        execution = WorkflowExecution(workflow_id=workflow.id)
+        # P472-03 B6.2: replay is tenant-scoped; the execution must belong to the
+        # replaying tenant (set-up corrected; assertions unchanged).
+        execution = WorkflowExecution(workflow_id=workflow.id, tenant_id=tenant_id)
         db.add(execution)
         db.commit()
         db.refresh(execution)

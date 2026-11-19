@@ -12,7 +12,8 @@ written, no audit hash changed, no migration executed. The ownership ADR and qua
 | `GET /evidence?source_type=&source_id=` | API | every tenant's entries for the key | **only entries owned by the caller** |
 | `GET /evidence/{id}/verify` | API | any tenant | **owner tenant only** (GD-2 consistency), else 404 |
 | `GET /audit-replay/inspections/{id}` | replay service (inspection already tenant-scoped, AW-08) | embedded all tenants' ledger entries for the inspection id | embeds only the caller's |
-| `GET /audit-replay/workflow-executions/{id}` | replay service | embedded all tenants' entries | embeds only the caller's (the execution lookup itself is not tenant-scoped — **lead, not changed**) |
+| `GET /audit-replay/workflow-executions/{id}` | replay service | **returned another tenant's execution** (decision path, log) and embedded all tenants' entries | execution looked up **by verified tenant** (B6.2b; reproduced 200 → now 404); embeds only the caller's entries |
+| `GET /audit-replay/rules/{id}` | replay service | **returned another tenant's rule logic** | looked up by verified tenant (B6.2b; reproduced 200 → 404) |
 | `GET /audit-replay/recommendations?source_type=&source_id=` | replay service | **embedded another tenant's evidence and reviewer email** (reproduced on `e2173c2`; new test) | embeds only the caller's |
 | export | none exists for the ledger | — | — |
 

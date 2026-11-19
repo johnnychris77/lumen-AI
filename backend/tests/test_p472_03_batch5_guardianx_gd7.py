@@ -352,3 +352,53 @@ class TestB62ReadGateControls:
         response = client.post(BASE, headers=_h(USER_A, TENANT_B),
                                json={"source_type": "capa_suggestion", "source_id": "x", "evidence": []})
         assert response.status_code == 403
+
+
+class TestB62ReplayObjectScope:
+    """B6.2 (found while tracing ledger consumers): audit replay of a workflow
+    execution and of a workflow rule loaded the object by id with no tenant
+    predicate (both models carry ``tenant_id``), returning another tenant's
+    decision path / execution log / rule logic. Same class as the inspection
+    replay finding fixed on Day 3 (AW-08)."""
+
+    def _execution(self, tenant: str) -> int:
+        from app.models.workflow_forge import WorkflowExecution
+        db = SessionLocal()
+        try:
+            row = WorkflowExecution(tenant_id=tenant, workflow_id=999999, triggered_by="seed",
+                                    decision_path_json='["secret-node"]', execution_log_json='[{"n":"secret-log"}]')
+            db.add(row)
+            db.commit()
+            return row.id
+        finally:
+            db.close()
+
+    def _rule(self, tenant: str) -> int:
+        from app.models.workflow_forge import WorkflowRule
+        db = SessionLocal()
+        try:
+            row = WorkflowRule(tenant_id=tenant, rule_ref=f"rule-{uuid.uuid4().hex[:8]}", name="secret-rule",
+                               condition_json='{"secret": true}')
+            db.add(row)
+            db.commit()
+            return row.id
+        finally:
+            db.close()
+
+    def test_another_tenant_cannot_replay_a_workflow_execution(self):
+        execution_id = self._execution(TENANT_A)
+        response = client.get(f"/api/guardianx/audit-replay/workflow-executions/{execution_id}", headers=_h(USER_B, TENANT_B))
+        assert response.status_code == 404
+        assert "secret-node" not in response.text and "secret-log" not in response.text
+
+    def test_another_tenant_cannot_replay_a_workflow_rule(self):
+        rule_id = self._rule(TENANT_A)
+        response = client.get(f"/api/guardianx/audit-replay/rules/{rule_id}", headers=_h(USER_B, TENANT_B))
+        assert response.status_code == 404
+        assert "secret-rule" not in response.text
+
+    def test_the_owning_tenant_can_replay_its_execution_and_rule(self):
+        execution_id, rule_id = self._execution(TENANT_A), self._rule(TENANT_A)
+        assert client.get(f"/api/guardianx/audit-replay/workflow-executions/{execution_id}",
+                          headers=_h(USER_A, TENANT_A)).status_code == 200
+        assert client.get(f"/api/guardianx/audit-replay/rules/{rule_id}", headers=_h(USER_A, TENANT_A)).status_code == 200

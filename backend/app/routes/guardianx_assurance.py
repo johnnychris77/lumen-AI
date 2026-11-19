@@ -215,7 +215,7 @@ def get_replay_workflow_execution(execution_id: int, current_user: dict = Depend
 @router.get("/audit-replay/rules/{rule_id}")
 def get_replay_rule(rule_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return guardianx_audit_replay_service.replay_rule(db, rule_id)
+        return guardianx_audit_replay_service.replay_rule(db, rule_id, _tenant(current_user))
     except guardianx_audit_replay_service.ReplayNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

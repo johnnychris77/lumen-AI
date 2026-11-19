@@ -57,7 +57,11 @@ def replay_inspection(db: Session, inspection_id: int, tenant_id: str | None = N
 
 
 def replay_workflow_execution(db: Session, execution_id: int, tenant_id: str = "") -> dict:
-    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+    # P472-03 B6.2: scope by the verified tenant (the execution is tenant-owned);
+    # another tenant's execution is indistinguishable from a missing one.
+    execution = (db.query(WorkflowExecution)
+                 .filter(WorkflowExecution.id == execution_id, WorkflowExecution.tenant_id == tenant_id)
+                 .first() if tenant_id else None)
     if execution is None:
         raise ReplayNotFoundError(f"Workflow execution {execution_id} not found.")
 
@@ -80,8 +84,10 @@ def replay_workflow_execution(db: Session, execution_id: int, tenant_id: str = "
     }
 
 
-def replay_rule(db: Session, rule_id: int) -> dict:
-    rule = db.query(WorkflowRule).filter(WorkflowRule.id == rule_id).first()
+def replay_rule(db: Session, rule_id: int, tenant_id: str = "") -> dict:
+    # P472-03 B6.2: scope by the verified tenant (the rule is tenant-owned).
+    rule = (db.query(WorkflowRule).filter(WorkflowRule.id == rule_id, WorkflowRule.tenant_id == tenant_id).first()
+            if tenant_id else None)
     if rule is None:
         raise ReplayNotFoundError(f"Workflow rule {rule_id} not found.")
     return {
