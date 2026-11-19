@@ -358,7 +358,7 @@ def post_evidence(payload: dict, current_user: dict = Depends(require_tenant_rol
         db, source_type=payload.get("source_type", ""), source_id=payload.get("source_id", ""),
         evidence=payload.get("evidence", []), knowledge_version=payload.get("knowledge_version", ""),
         model_version=payload.get("model_version", ""), workflow_version=payload.get("workflow_version", ""),
-        reviewer=actor,
+        reviewer=actor, tenant_id=_tenant(current_user),
     )
 
 

@@ -474,3 +474,21 @@ class TestRequireTenantRoles:
 
     def test_a_user_with_no_membership_is_refused(self):
         assert client.get(RTR_ROUTE.format(tenant=DEFAULT), headers=_h(OUTSIDER)).status_code == 403
+
+
+def test_guardianx_evidence_audit_event_is_attributed_to_the_verified_tenant():
+    """Surfaced by the require_tenant_roles fix: once a member who names no tenant is
+    served (instead of refused at the dependency), POST /api/guardianx/evidence wrote
+    its paired audit event under the shared "default-tenant". It must be the caller's."""
+    from app.models.audit_log import AuditLog
+
+    response = client.post("/api/guardianx/evidence", headers=_h(RTR_MEMBER), json={
+        "source_type": "inspection", "source_id": f"b4-{RUN}", "evidence": ["e1"]})
+    assert response.status_code in (200, 201), response.text
+    db = SessionLocal()
+    try:
+        rows = db.query(AuditLog).filter(AuditLog.resource_type == "guardianx_evidence_ledger_entry",
+                                         AuditLog.resource_id == str(response.json()["id"])).all()
+        assert [row.tenant_id for row in rows] == [TENANT_A]
+    finally:
+        db.close()

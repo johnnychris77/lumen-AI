@@ -484,7 +484,7 @@ def test_the_route_table_is_the_mounted_application():
     """The parametrised tests below cover every route that uses the verified
     resolver; these counts change only when a route is added or converted."""
     by_how = {how: sum(1 for _, _, h in ROUTES if h == how) for how in ("dependency", "handler")}
-    assert by_how == {"dependency": 195, "handler": 669}, by_how
+    assert by_how == {"dependency": 195, "handler": 676}, by_how
     assert len(set(ROUTE_IDS)) == len(ROUTE_IDS)
     assert set(OPEN_OWNER_FINDINGS) | set(OPEN_REFUSAL_FINDINGS) <= set(ROUTE_IDS)
 

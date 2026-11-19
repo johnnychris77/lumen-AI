@@ -52,7 +52,7 @@ def _to_dict(entry: EvidenceLedgerEntry) -> dict:
 
 def record_evidence(
     db: Session, *, source_type: str, source_id: str, evidence: list[str], knowledge_version: str = "",
-    model_version: str = "", workflow_version: str = "", reviewer: str,
+    model_version: str = "", workflow_version: str = "", reviewer: str, tenant_id: str | None = None,
 ) -> dict:
     row = EvidenceLedgerEntry(
         source_type=source_type, source_id=source_id, evidence_json=json.dumps(evidence),
@@ -66,6 +66,9 @@ def record_evidence(
     audit_row = record_enterprise_audit_event(
         db, action_type="guardianx.evidence_recorded", resource_type=_RESOURCE_TYPE,
         resource_id=str(row.id), actor=reviewer, actor_email=reviewer,
+        # P472-03 batch 4: attribute the audit event to the caller's verified tenant;
+        # with no tenant it was written under the shared "default-tenant".
+        tenant_id=tenant_id,
         details={
             "source_type": source_type, "source_id": source_id, "knowledge_version": knowledge_version,
             "model_version": model_version, "workflow_version": workflow_version,
