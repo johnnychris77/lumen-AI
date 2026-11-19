@@ -114,4 +114,10 @@ The remaining route, `GET /api/genesis-ai/manufacturer-updates` (AW-04), is tria
 | 356 "unscoped SQL" leads in the matrix (81 of the batch-4 ones are the audit hash-chain tail read) | Leads, not findings; e.g. post-insert refresh by PK, network aggregates (GD-1) | Manual review list; none in batch-4 modules was a cross-tenant read |
 
 ## 6. Verification
-See `p472-03-release-gate-evidence-index-v3.md` for exact commands, counts and CI job ids on the final SHA.
+See `p472-03-release-gate-evidence-index-v3.md` for exact commands, counts and CI job ids on the final SHA
+(`d62dddc`: SQLite 9111 passed / 3 skipped / 1 xfailed / 0 failed; PostgreSQL 16 9112 / 2 / 1 / 0).
+
+**Tripwires are release blockers, not passes.** The remaining strict xfail (RB-T01) and every tripwire
+converted in this batch (RB-T02…T14; §3 "0 markers remain" refers to these author conversions) stay
+release blockers until a non-author reviewer records a disposition:
+`p472-03-security-tripwire-disposition-v1.md`.

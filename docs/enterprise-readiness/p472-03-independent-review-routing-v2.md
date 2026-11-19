@@ -16,6 +16,7 @@ program owner with repository rights assigns a qualified non-author and requests
 | 7 | **PA-1 platform-administrator / development-token exception** | Platform-security owner | packet B below | **UNASSIGNED — HUMAN ACTION REQUIRED** |
 | 8 | Remaining register entry + GD-6 / GD-7 leads | Governance owners + security reviewer | review §5; `gd1-gd4-governance-decision-register-v3.md` | **UNASSIGNED — HUMAN ACTION REQUIRED** |
 | 9 | Clinical workflow (legacy quarantine / attribution) | Clinical operations owner | `gd3-clinical-workflow-approval-checklist-v2.md` | **UNASSIGNED — HUMAN ACTION REQUIRED** |
+| 11 | **Tripwire dispositions RB-T01…RB-T14** (1 failing, 13 author-converted) | Independent application-security reviewer | `p472-03-security-tripwire-disposition-v1.md` | **UNASSIGNED — HUMAN ACTION REQUIRED** |
 | 10 | Final release | Independent security / release authority | `p472-03-release-gate-evidence-index-v3.md` | **UNASSIGNED — HUMAN ACTION REQUIRED** |
 
 ## Packet A — AW-07 facts for the IAM reviewer (author-assembled; not an assessment)
