@@ -25,12 +25,20 @@ header is a claim that must be one of the caller's memberships.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import HTTPException, Request
 
 from app.auth.context import AuthContext
 from app.security.principal import AuthenticatedPrincipal
+
+# Structured security log for privileged cross-tenant access (P472-03 PA-1). The
+# resolver is a pure function with no database handle, so it cannot write a
+# tamper-evident audit row here; a standard security log at least makes the
+# access detectable. A durable, hash-chained sink is part of the governance-owned
+# closure of PA-1, not of this change.
+_security_log = logging.getLogger("lumenai.security.tenant")
 
 # One message for every refusal, so a response does not reveal whether the named
 # tenant exists.
@@ -108,7 +116,27 @@ def principal_tenant(principal: Any, request: Request) -> str:
 
     own = principal.tenant_id
     if principal.is_development or principal.is_platform_admin:
-        return own or requested or LEGACY_DEFAULT_TENANT
+        resolved = own or requested or LEGACY_DEFAULT_TENANT
+        # P472-03 PA-1: the platform-administrator / development cross-tenant rule
+        # is UNCHANGED here (an open governance item, pinned by the batch 2 tests).
+        # Previously this privileged path left no access record at all. Emit a
+        # structured security log whenever such a principal is resolved to a tenant
+        # it is not a verified member of, so cross-tenant privileged access is at
+        # least detectable. This does not alter the access decision; whether this
+        # access should exist, and a tamper-evident audit sink for it, are reserved
+        # for governance review and are not closed by this log.
+        if resolved not in principal.verified_tenant_ids():
+            _security_log.warning(
+                "P472-03 PA-1 privileged cross-tenant access: principal=%s method=%s "
+                "role=%s resolved_tenant=%s source=%s (access decision unchanged; "
+                "governance review pending)",
+                getattr(principal, "subject", None) or getattr(principal, "email", None),
+                getattr(principal, "authentication_method", None),
+                getattr(principal, "role", None),
+                resolved,
+                "named-header" if requested else ("own-tenant" if own else "legacy-default"),
+            )
+        return resolved
 
     verified = principal.verified_tenant_ids()
     if requested:

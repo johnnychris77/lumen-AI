@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import logging
 import re
 import signal
 import socket
@@ -199,6 +200,24 @@ class TestTheRule:
     def test_disagreeing_headers_are_refused_for_every_caller_class(self):
         for principal in (_principal(role="admin"), _principal(role="admin", method=METHOD_DEVELOPMENT)):
             assert _refusal(principal, _request(x_tenant_id="t-a", x_lumenai_tenant_id="t-b"))[0] == 403
+
+    def test_privileged_cross_tenant_access_is_logged(self, caplog):
+        """P472-03 PA-1 (partial remediation): the admin/dev cross-tenant rule is
+        UNCHANGED (asserted above), but it no longer goes unrecorded. A principal
+        resolved to a tenant it is not a verified member of emits a security log.
+        Closing PA-1 — whether this access should exist and a tamper-evident sink —
+        is reserved for governance review."""
+        admin = _principal(role="admin")
+        with caplog.at_level(logging.WARNING, logger="lumenai.security.tenant"):
+            assert principal_tenant(admin, _request(x_tenant_id="t-b")) == "t-b"
+        records = [r for r in caplog.records if r.name == "lumenai.security.tenant"]
+        assert records and "PA-1 privileged cross-tenant access" in records[-1].getMessage()
+        assert "t-b" in records[-1].getMessage()
+
+    def test_a_member_acting_in_their_own_tenant_is_not_logged_as_privileged(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="lumenai.security.tenant"):
+            assert principal_tenant(_principal("t-a"), _request()) == "t-a"
+        assert [r for r in caplog.records if r.name == "lumenai.security.tenant"] == []
 
     def test_no_legacy_fallback_remains_in_remediated_code(self):
         """``resolve_tenant`` no longer reads a header on its own."""
