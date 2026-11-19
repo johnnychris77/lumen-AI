@@ -469,6 +469,7 @@ filtering.
 | GET | /api/public/module-status/all | routers.public_module_status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/health | system | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
 | POST | /api/auth/login | system | undetermined (anonymous 400) | — | no | — | — | — | none observed (baseline 400) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/auth/tenants | system | bearer | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/reviews/queue | system | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
 | GET | /api/v1/system/inference-status | system | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
 | POST | /api/baseline-ranking/audit-evidence | inspect | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
