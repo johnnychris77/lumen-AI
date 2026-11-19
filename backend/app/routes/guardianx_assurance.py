@@ -195,7 +195,11 @@ def get_explainability_for_source(
 @router.get("/audit-replay/inspections/{inspection_id}")
 def get_replay_inspection(inspection_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return guardianx_audit_replay_service.replay_inspection(db, inspection_id)
+        # P472-03 AW-08c: scope the replay to the caller's verified tenant
+        # (require_tenant_roles has already asserted membership), so the inspection
+        # lookup cannot reach another tenant's record.
+        return guardianx_audit_replay_service.replay_inspection(
+            db, inspection_id, tenant_id=current_user["tenant_id"])
     except guardianx_audit_replay_service.ReplayNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

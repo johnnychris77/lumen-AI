@@ -31,8 +31,17 @@ class ReplayNotFoundError(Exception):
     pass
 
 
-def replay_inspection(db: Session, inspection_id: int) -> dict:
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
+def replay_inspection(db: Session, inspection_id: int, tenant_id: str | None = None) -> dict:
+    # P472-03 AW-08c (defence in depth): the route already refuses callers who are
+    # not a verified member of the tenant they name, so a cross-tenant replay is
+    # blocked before this service runs. Scope the lookup by the verified tenant as
+    # well, so the service cannot return another tenant's inspection even if a
+    # future caller reaches it without that route guard. A missing or foreign
+    # inspection is an indistinguishable not-found (the route maps it to 404).
+    query = db.query(Inspection).filter(Inspection.id == inspection_id)
+    if tenant_id is not None:
+        query = query.filter(Inspection.tenant_id == tenant_id)
+    inspection = query.first()
     if inspection is None:
         raise ReplayNotFoundError(f"Inspection {inspection_id} not found.")
 

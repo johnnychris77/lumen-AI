@@ -266,7 +266,9 @@ def test_replay_inspection():
     db = SessionLocal()
     try:
         _seed_membership(db, tenant_id)
-        inspection = Inspection(file_name="scope-01.png")
+        # P472-03 AW-08c: the replay is scoped to the caller's verified tenant, so
+        # the inspection must belong to that tenant (its legitimate owner).
+        inspection = Inspection(file_name="scope-01.png", tenant_id=tenant_id)
         db.add(inspection)
         db.commit()
         db.refresh(inspection)
