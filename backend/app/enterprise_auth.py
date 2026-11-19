@@ -469,17 +469,35 @@ def _enabled_manufacturer_ids(user_email: str) -> set[str]:
     from app.db import SessionLocal
     from app.db.models import ManufacturerMembership
 
+    from datetime import datetime, timezone
+
+    from sqlalchemy import or_
+
     db = SessionLocal()
     try:
         rows = (
-            db.query(ManufacturerMembership.manufacturer_id)
+            db.query(ManufacturerMembership.manufacturer_id, ManufacturerMembership.expires_at)
             .filter(
                 ManufacturerMembership.user_email == user,
                 ManufacturerMembership.is_enabled.is_(True),
+                # B5.2: an expired membership is no membership (fail closed).
+                or_(ManufacturerMembership.expires_at.is_(None),
+                    ManufacturerMembership.expires_at > datetime.now(timezone.utc)),
             )
             .all()
         )
-        return {r[0] for r in rows if r[0]}
+        now = datetime.now(timezone.utc)
+        live = set()
+        for manufacturer_id, expires_at in rows:
+            if not manufacturer_id:
+                continue
+            # Re-check in Python: SQLite returns naive datetimes and compares them as text.
+            if expires_at is not None:
+                aware = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+                if aware <= now:
+                    continue
+            live.add(manufacturer_id)
+        return live
     finally:
         db.close()
 

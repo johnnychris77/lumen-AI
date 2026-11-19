@@ -222,6 +222,16 @@ class ManufacturerMembership(Base):
     role = Column(String(100), nullable=False, default="manufacturer_viewer")
     is_enabled = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Lifecycle (P472-03 Batch 5 B5.2; migration b5a2c7e19d40). All nullable, no
+    # backfill: NULL keeps the Batch 3 behaviour. ``expires_at`` in the past makes
+    # the membership count as none (fail closed). Revocation and grant provenance
+    # are written only by app.services.manufacturer_membership_service.
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by = Column(String(255), nullable=True)
+    revocation_reason = Column(String(500), nullable=True)
+    granted_by = Column(String(255), nullable=True)
+    grant_reference = Column(String(255), nullable=True)
 
 
 __all__ = [
