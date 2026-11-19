@@ -36,6 +36,18 @@ def _details(raw: Any) -> dict:
         return {}
 
 
+def audit_owner_tenant(db: Session, entry_id: int) -> str | None:
+    """The single real tenant on an entry's audit trail, or None (no event,
+    only ``default-tenant``/no tenant, or several tenants). Read-only; used by
+    the B6.2 read gate. Integrity is reported separately by ``verify``."""
+    tenants = {(t or "").strip() for (t,) in db.query(AuditLog.tenant_id)
+               .filter(AuditLog.resource_type == RESOURCE_TYPE, AuditLog.resource_id == str(entry_id)).all()}
+    real = tenants - UNATTRIBUTED_TENANTS
+    if len(real) != 1 or tenants & UNATTRIBUTED_TENANTS:
+        return None
+    return next(iter(real))
+
+
 def classify_entries(db: Session) -> list[dict]:
     from app.services.guardianx_evidence_ledger_service import entry_integrity
 

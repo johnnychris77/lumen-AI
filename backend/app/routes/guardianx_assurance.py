@@ -207,7 +207,7 @@ def get_replay_inspection(inspection_id: int, current_user: dict = Depends(requi
 @router.get("/audit-replay/workflow-executions/{execution_id}")
 def get_replay_workflow_execution(execution_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return guardianx_audit_replay_service.replay_workflow_execution(db, execution_id)
+        return guardianx_audit_replay_service.replay_workflow_execution(db, execution_id, _tenant(current_user))
     except guardianx_audit_replay_service.ReplayNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -225,7 +225,7 @@ def get_replay_recommendation(
     source_type: str = Query(...), source_id: str = Query(...),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
-    return guardianx_audit_replay_service.replay_recommendation(db, source_type, source_id)
+    return guardianx_audit_replay_service.replay_recommendation(db, source_type, source_id, _tenant(current_user))
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +365,7 @@ def post_evidence(payload: dict, current_user: dict = Depends(require_tenant_rol
 @router.get("/evidence/{entry_id}")
 def get_evidence_entry(entry_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return guardianx_evidence_ledger_service.get_entry(db, entry_id)
+        return guardianx_evidence_ledger_service.get_entry(db, entry_id, _tenant(current_user))
     except guardianx_evidence_ledger_service.UnknownEvidenceLedgerEntryError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -373,7 +373,7 @@ def get_evidence_entry(entry_id: int, current_user: dict = Depends(require_tenan
 @router.get("/evidence/{entry_id}/verify")
 def get_evidence_verify(entry_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return guardianx_evidence_ledger_service.verify_entry(db, entry_id)
+        return guardianx_evidence_ledger_service.verify_entry(db, entry_id, _tenant(current_user))
     except guardianx_evidence_ledger_service.UnknownEvidenceLedgerEntryError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -383,7 +383,7 @@ def get_evidence_for_source(
     source_type: str = Query(...), source_id: str = Query(...),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
-    return {"entries": guardianx_evidence_ledger_service.list_entries_for_source(db, source_type, source_id)}
+    return {"entries": guardianx_evidence_ledger_service.list_entries_for_source(db, source_type, source_id, _tenant(current_user))}
 
 
 # ---------------------------------------------------------------------------

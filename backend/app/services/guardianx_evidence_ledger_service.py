@@ -108,18 +108,39 @@ def _get_or_404(db: Session, entry_id: int) -> EvidenceLedgerEntry:
     return row
 
 
-def get_entry(db: Session, entry_id: int) -> dict:
-    return _to_dict(_get_or_404(db, entry_id))
+def _readable_by(db: Session, entry: EvidenceLedgerEntry, caller_tenant_id: str) -> bool:
+    """P472-03 B6.2 read gate (fail closed, no migration; GD-7 unsigned).
+
+    The ledger has no tenant column. An entry is served only when its
+    hash-chained audit trail names exactly one real tenant and that tenant is
+    the caller's verified tenant. Another tenant's entry, and any legacy entry
+    whose ownership cannot be proven (no audit event, only ``default-tenant``,
+    several tenants), is refused to every tenant — quarantined, not attributed.
+    """
+    from app.services.guardianx_ledger_ownership import audit_owner_tenant
+
+    return bool(caller_tenant_id) and audit_owner_tenant(db, entry.id) == caller_tenant_id
 
 
-def list_entries_for_source(db: Session, source_type: str, source_id: str) -> list[dict]:
+def _get_readable_or_404(db: Session, entry_id: int, caller_tenant_id: str) -> EvidenceLedgerEntry:
+    row = db.query(EvidenceLedgerEntry).filter(EvidenceLedgerEntry.id == entry_id).first()
+    if row is None or not _readable_by(db, row, caller_tenant_id):
+        raise UnknownEvidenceLedgerEntryError(f"Evidence ledger entry {entry_id} not found.")
+    return row
+
+
+def get_entry(db: Session, entry_id: int, caller_tenant_id: str) -> dict:
+    return _to_dict(_get_readable_or_404(db, entry_id, caller_tenant_id))
+
+
+def list_entries_for_source(db: Session, source_type: str, source_id: str, caller_tenant_id: str) -> list[dict]:
     rows = (
         db.query(EvidenceLedgerEntry)
         .filter(EvidenceLedgerEntry.source_type == source_type, EvidenceLedgerEntry.source_id == source_id)
         .order_by(EvidenceLedgerEntry.recorded_at.asc())
         .all()
     )
-    return [_to_dict(r) for r in rows]
+    return [_to_dict(r) for r in rows if _readable_by(db, r, caller_tenant_id)]
 
 
 def entry_integrity(db: Session, entry: EvidenceLedgerEntry) -> dict:
@@ -173,7 +194,8 @@ def entry_integrity(db: Session, entry: EvidenceLedgerEntry) -> dict:
     }
 
 
-def verify_entry(db: Session, entry_id: int) -> dict:
+def verify_entry(db: Session, entry_id: int, caller_tenant_id: str) -> dict:
     """Confirms the entry's content and `digital_signature` still match an
-    unbroken hash chain -- proof the ledger hasn't been tampered with."""
-    return entry_integrity(db, _get_or_404(db, entry_id))
+    unbroken hash chain -- proof the ledger hasn't been tampered with. Only the
+    owning tenant may verify (B6.2; GD-2: verification stays inside the tenant)."""
+    return entry_integrity(db, _get_readable_or_404(db, entry_id, caller_tenant_id))

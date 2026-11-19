@@ -9,8 +9,10 @@ platform-wide or tenant-owned is governance decision **GD-7 — unsigned**.
   content, and ``verify`` never compared the ledger's stored signature with the
   audit chain — so evidence or signatures edited in the database still
   "verified". (Reproduced before the fix: these tests failed.)
-* ``TestOpenOwnershipFindings`` — cross-tenant ledger exposures, STRICT expected
-  failures (tripwires = open findings = release blockers) until GD-7 is signed.
+* ``TestOpenOwnershipFindings`` — cross-tenant ledger exposures, reproduced in
+  Batch 5 as STRICT expected failures; converted in Batch 6 (B6.2) by a
+  fail-closed read gate (audit-trail ownership, no migration). Still RELEASE
+  BLOCKERS (RB-T24…RB-T28) until a non-author reviewer records a disposition.
 * ``TestOwnershipClassificationDryRun`` — the read-only classifier that a
   GD-7-approved migration would use. It attributes nothing; it only reports
   which historical rows are attributable and which must be quarantined.
@@ -179,12 +181,12 @@ class TestIntegrity:
 
 
 class TestOpenOwnershipFindings:
-    @_gd7("GD7-01", "another tenant can read a ledger entry by id")
+    # GD7-01 — strict tripwire in Batch 5; converted in B6.2 (assertion unchanged).
     def test_another_tenant_cannot_read_an_entry_by_id(self):
         entry = _record()
         assert client.get(f"{BASE}/{entry['id']}", headers=_h(USER_B, TENANT_B)).status_code == 404
 
-    @_gd7("GD7-02", "listing by source returns every tenant's entries for that source key")
+    # GD7-02 — strict tripwire in Batch 5; converted in B6.2 (assertion unchanged).
     def test_listing_by_source_returns_only_own_entries(self):
         source = f"shared-{uuid.uuid4().hex[:8]}"
         _record(source_id=source)
@@ -192,18 +194,18 @@ class TestOpenOwnershipFindings:
                             params={"source_type": "capa_suggestion", "source_id": source}).json()["entries"]
         assert listed == []
 
-    @_gd7("GD7-03", "another tenant can run verification of an entry (chain metadata), contrary to GD-2")
+    # GD7-03 — strict tripwire in Batch 5; converted in B6.2 (assertion unchanged).
     def test_another_tenant_cannot_verify_an_entry(self):
         entry = _record()
         assert client.get(f"{BASE}/{entry['id']}/verify", headers=_h(USER_B, TENANT_B)).status_code == 404
 
-    @_gd7("GD7-04", "the reviewer's user identity (email) is disclosed to other tenants")
+    # GD7-04 — strict tripwire in Batch 5; converted in B6.2 (assertion unchanged).
     def test_reviewer_identity_is_not_disclosed_cross_tenant(self):
         entry = _record()
         response = client.get(f"{BASE}/{entry['id']}", headers=_h(USER_B, TENANT_B))
         assert USER_A not in response.text
 
-    @_gd7("GD7-05", "a tenant can append evidence under another tenant's source key (ledger contamination)")
+    # GD7-05 — strict tripwire in Batch 5; converted in B6.2 (assertion unchanged).
     def test_another_tenant_cannot_contaminate_a_source(self):
         source = f"victim-{uuid.uuid4().hex[:8]}"
         _record(source_id=source)
@@ -271,3 +273,82 @@ class TestOwnershipClassificationDryRun:
         finally:
             db.close()
         assert before == after
+
+
+class TestB62ReplayEmbedding:
+    """B6.2: the audit-replay service embeds ledger entries for a source key.
+    Reproduced on e2173c2 before the fix: another tenant's entries (with the
+    reviewer's email) were embedded in the caller's replay."""
+
+    def test_replay_by_source_embeds_only_the_callers_entries(self):
+        source = f"replay-{uuid.uuid4().hex[:8]}"
+        _record(source_id=source, evidence=["tenant-a-evidence"])
+        response = client.get("/api/guardianx/audit-replay/recommendations", headers=_h(USER_B, TENANT_B),
+                              params={"source_type": "capa_suggestion", "source_id": source})
+        assert response.status_code in (200, 404)
+        assert "tenant-a-evidence" not in response.text
+        assert USER_A not in response.text
+
+
+MULTI = f"b54-multi-{RUN}@example.com"
+NOBODY = f"b54-nobody-{RUN}@example.com"
+
+
+@pytest.fixture
+def _extra_users():
+    db = SessionLocal()
+    try:
+        for user in (MULTI, NOBODY):
+            if not db.query(UserRoleAssignment).filter_by(username=user).first():
+                db.add(UserRoleAssignment(username=user, role="admin", assigned_by="p472-03-batch6"))
+        for tenant in (TENANT_A, TENANT_B):
+            db.add(models.TenantMembership(tenant_id=tenant, user_email=MULTI, role="admin", is_enabled=True))
+        db.commit()
+    finally:
+        db.close()
+
+
+class TestB62ReadGateControls:
+    def test_the_owning_tenant_reads_lists_and_verifies_its_entry(self):
+        entry = _record(source_id=f"own-{uuid.uuid4().hex[:6]}")
+        assert client.get(f"{BASE}/{entry['id']}", headers=_h(USER_A, TENANT_A)).json()["reviewer"] == USER_A
+        listed = client.get(BASE, headers=_h(USER_A, TENANT_A),
+                            params={"source_type": "capa_suggestion", "source_id": entry["source_id"]}).json()["entries"]
+        assert [e["id"] for e in listed] == [entry["id"]]
+        assert _verify(entry["id"])["verified"] is True
+
+    def test_multi_member_sees_an_entry_only_while_selecting_its_tenant(self, _extra_users):
+        entry = _record()
+        assert client.get(f"{BASE}/{entry['id']}", headers=_h(MULTI, TENANT_A)).status_code == 200
+        assert client.get(f"{BASE}/{entry['id']}", headers=_h(MULTI, TENANT_B)).status_code == 404
+
+    def test_a_user_without_membership_is_refused(self, _extra_users):
+        entry = _record()
+        assert client.get(f"{BASE}/{entry['id']}", headers=_h(NOBODY, TENANT_A)).status_code == 403
+
+    def test_a_legacy_pooled_entry_is_readable_by_no_tenant(self):
+        db = SessionLocal()
+        try:
+            row = EvidenceLedgerEntry(source_type="capa_suggestion", source_id=f"pooled-read-{RUN}", reviewer="x@example.com")
+            db.add(row)
+            db.commit()
+            from app.services.enterprise_audit_service import record_enterprise_audit_event
+            record_enterprise_audit_event(db, action_type="guardianx.evidence_recorded",
+                                          resource_type=ownership.RESOURCE_TYPE, resource_id=str(row.id),
+                                          actor="x@example.com", tenant_id="default-tenant", details={})
+            entry_id = row.id
+        finally:
+            db.close()
+        for user, tenant in ((USER_A, TENANT_A), (USER_B, TENANT_B)):
+            assert client.get(f"{BASE}/{entry_id}", headers=_h(user, tenant)).status_code == 404
+
+    def test_a_tampered_own_entry_stays_visible_to_its_owner_as_tampered(self):
+        entry = _record()
+        _sql("UPDATE guardianx_evidence_ledger_entries SET evidence_json = '[\"changed\"]' WHERE id = :i", i=entry["id"])
+        result = _verify(entry["id"])
+        assert result["verified"] is False and result["integrity"] == "evidence_mismatch"
+
+    def test_a_write_cannot_claim_another_tenant(self):
+        response = client.post(BASE, headers=_h(USER_A, TENANT_B),
+                               json={"source_type": "capa_suggestion", "source_id": "x", "evidence": []})
+        assert response.status_code == 403
