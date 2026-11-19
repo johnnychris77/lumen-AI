@@ -35,4 +35,4 @@ supersede 201; submitter email disclosed). Sweep at `3c8d347`: 1 route with an A
 
 ## Contract changes (API/frontend owner)
 Non-owners get `null` identities and no unpublished content; the publisher filter is own-tenant only;
-cross-tenant review is 404. No frontend file calls these routes (checked).
+cross-tenant review is 404. Frontend: `IntelligenceCloudCenter.tsx` calls the unfiltered list and renders only `title`, `update_type`, `version`, `status` — compatible. (Correction: an earlier draft of this note, in commit `38251e6`, wrongly said no frontend file calls these routes.)
