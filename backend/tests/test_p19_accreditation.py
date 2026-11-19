@@ -66,8 +66,9 @@ class TestReadinessEngine:
     def test_readiness_scoring(self):
         tid, fid = f"rd-{TS}", "F1"
         self._seed(tid, fid)
+        # P472-03 AW-04: readiness scopes to the caller's verified tenant; select it.
         r = client.get(f"/api/accreditation/readiness?tenant_id={tid}&facility_id={fid}&accreditor=cms",
-                       headers=AUTH)
+                       headers={**AUTH, "X-Tenant-Id": tid})
         assert r.status_code == 200
         body = r.json()
         assert body["total_items"] == 4
@@ -93,7 +94,7 @@ class TestReadinessEngine:
         assert s.status_code == 201
         assert "assessment_id" in s.json()
         t = client.get(f"/api/accreditation/readiness/trend?tenant_id={tid}&facility_id={fid}",
-                       headers=AUTH)
+                       headers={**AUTH, "X-Tenant-Id": tid})
         assert t.status_code == 200
         assert len(t.json()["points"]) >= 1
 
@@ -112,7 +113,7 @@ class TestSurveyEvidence:
         assert body["item_count"] == 1
         assert body["complete_count"] == 1
         assert "readiness" in body
-        lst = client.get(f"/api/accreditation/survey-evidence?tenant_id={tid}", headers=AUTH)
+        lst = client.get(f"/api/accreditation/survey-evidence?tenant_id={tid}", headers={**AUTH, "X-Tenant-Id": tid})
         assert lst.json()["count"] >= 1
 
     def test_invalid_package_type_422(self):

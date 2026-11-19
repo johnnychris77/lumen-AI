@@ -302,10 +302,13 @@ def list_evidence(
     tenant_id: str = Query(...),
     facility_id: str | None = Query(default=None),
     accreditor: str | None = Query(default=None),
+    tenant: dict = Depends(resolve_tenant),
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.EvidenceItem).filter(models.EvidenceItem.tenant_id == tenant_id)
+    # P472-03 AW-04: scope to the caller's verified tenant; the tenant_id query
+    # parameter is inert and cannot select another tenant's evidence items.
+    q = db.query(models.EvidenceItem).filter(models.EvidenceItem.tenant_id == tenant["tenant_id"])
     if facility_id:
         q = q.filter(models.EvidenceItem.facility_id == facility_id)
     if accreditor:
@@ -416,13 +419,15 @@ def readiness_score(
     tenant_id: str = Query(...),
     facility_id: str = Query(...),
     accreditor: str | None = Query(default=None),
+    tenant: dict = Depends(resolve_tenant),
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     """Compute live readiness / evidence-completeness / risk scores for a facility."""
     if accreditor and accreditor not in _ACCREDITORS:
         raise HTTPException(status_code=422, detail=f"Invalid accreditor '{accreditor}'")
-    return _score_facility(db, tenant_id, facility_id, accreditor)
+    # P472-03 AW-04: score the caller's verified tenant, not a client-named one.
+    return _score_facility(db, tenant["tenant_id"], facility_id, accreditor)
 
 
 class ReadinessSnapshotRequest(BaseModel):
@@ -473,10 +478,13 @@ def readiness_trend(
     facility_id: str = Query(...),
     accreditor: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
+    tenant: dict = Depends(resolve_tenant),
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     """Historical readiness-assessment snapshots for trend visualization."""
+    # P472-03 AW-04: scope to the caller's verified tenant.
+    tenant_id = tenant["tenant_id"]
     q = db.query(models.ReadinessAssessment).filter(
         models.ReadinessAssessment.tenant_id == tenant_id,
         models.ReadinessAssessment.facility_id == facility_id,
@@ -584,11 +592,13 @@ def generate_evidence_package(
 def list_packages(
     tenant_id: str = Query(...),
     facility_id: str | None = Query(default=None),
+    tenant: dict = Depends(resolve_tenant),
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04: scope to the caller's verified tenant.
     q = db.query(models.SurveyEvidencePackage).filter(
-        models.SurveyEvidencePackage.tenant_id == tenant_id)
+        models.SurveyEvidencePackage.tenant_id == tenant["tenant_id"])
     if facility_id:
         q = q.filter(models.SurveyEvidencePackage.facility_id == facility_id)
     rows = q.order_by(models.SurveyEvidencePackage.generated_at.desc()).all()
@@ -733,12 +743,14 @@ def create_certification(
 def list_certifications(
     tenant_id: str | None = Query(default=None),
     certification_type: str | None = Query(default=None),
+    tenant: dict = Depends(resolve_tenant),
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.CertifiedSite)
-    if tenant_id:
-        q = q.filter(models.CertifiedSite.tenant_id == tenant_id)
+    # P472-03 AW-08a/AW-04: always scope to the caller's verified tenant; the
+    # tenant_id query parameter is inert (no list-all, no foreign selection).
+    q = db.query(models.CertifiedSite).filter(
+        models.CertifiedSite.tenant_id == tenant["tenant_id"])
     if certification_type:
         q = q.filter(models.CertifiedSite.certification_type == certification_type)
     rows = q.order_by(models.CertifiedSite.created_at.desc()).all()
