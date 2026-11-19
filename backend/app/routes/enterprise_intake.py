@@ -9602,7 +9602,7 @@ def create_enterprise_vendor_baseline_record(
             break
 
     existing_submit_event = (
-        db.query(VendorBaselineAuditEvent)
+        _tq(db, VendorBaselineAuditEvent, tenant_id)
         .filter(VendorBaselineAuditEvent.baseline_id == record.get("baseline_id"))
         .filter(VendorBaselineAuditEvent.event_type == "baseline_submitted")
         .first()
@@ -9855,7 +9855,7 @@ def approve_enterprise_vendor_baseline_record(
                 break
 
         existing_approval_event = (
-            db.query(VendorBaselineAuditEvent)
+            _tq(db, VendorBaselineAuditEvent, tenant_id)
             .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
             .filter(VendorBaselineAuditEvent.event_type == "baseline_approved")
             .first()
@@ -9882,7 +9882,7 @@ def approve_enterprise_vendor_baseline_record(
             )
 
         existing_scoring_event = (
-            db.query(VendorBaselineAuditEvent)
+            _tq(db, VendorBaselineAuditEvent, tenant_id)
             .filter(VendorBaselineAuditEvent.baseline_id == baseline_id)
             .filter(VendorBaselineAuditEvent.event_type == "baseline_used_in_scoring")
             .first()
