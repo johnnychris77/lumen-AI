@@ -32,7 +32,7 @@ def test_register_facility():
         "tenant_id": TENANT, "facility_type": "hospital",
         "bed_count_range": "300-499", "region": "northeast",
         "participation_tier": "contributor",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 201
     body = r.json()
     assert body["facility_pseudonym"].startswith("SPD-")
@@ -41,22 +41,23 @@ def test_register_facility():
 
 def test_register_facility_duplicate_returns_409():
     payload = {"tenant_id": TENANT + "-dup", "facility_type": "hospital"}
-    client.post("/api/network-intelligence/registry", json=payload, headers=HEADERS)
-    r = client.post("/api/network-intelligence/registry", json=payload, headers=HEADERS)
+    headers = {**HEADERS, "X-Tenant-Id": payload["tenant_id"]}
+    client.post("/api/network-intelligence/registry", json=payload, headers=headers)
+    r = client.post("/api/network-intelligence/registry", json=payload, headers=headers)
     assert r.status_code == 409
 
 
 def test_get_registry_own_record():
     tid = TENANT + "-get"
     client.post("/api/network-intelligence/registry", json={"tenant_id": tid, "facility_type": "asc"},
-                headers=HEADERS)
-    r = client.get(f"/api/network-intelligence/registry?tenant_id={tid}", headers=HEADERS)
+                headers={**HEADERS, "X-Tenant-Id": tid})
+    r = client.get(f"/api/network-intelligence/registry?tenant_id={tid}", headers={**HEADERS, "X-Tenant-Id": tid})
     assert r.status_code == 200
     assert r.json()["facility_type"] == "asc"
 
 
 def test_get_registry_not_found():
-    r = client.get("/api/network-intelligence/registry?tenant_id=nobody", headers=HEADERS)
+    r = client.get("/api/network-intelligence/registry?tenant_id=nobody", headers={**HEADERS, "X-Tenant-Id": "nobody"})
     assert r.status_code == 404
 
 
@@ -137,7 +138,7 @@ def test_create_lifecycle_record():
         "instrument_uid": "INST-001", "manufacturer_name": "AcmeSurg",
         "model_name": "Laparoscope-X", "instrument_category": "laparoscope",
         "udi": "00888888001234", "acquisition_source": "new_purchase",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 201
     assert r.json()["lifecycle_status"] == "active"
 
@@ -148,8 +149,9 @@ def test_create_lifecycle_record_duplicate_returns_409():
         "instrument_uid": "INST-DUP", "manufacturer_name": "AcmeSurg",
         "model_name": "Model-A", "instrument_category": "forceps",
     }
-    client.post("/api/network-intelligence/lifecycle/instruments", json=payload, headers=HEADERS)
-    r = client.post("/api/network-intelligence/lifecycle/instruments", json=payload, headers=HEADERS)
+    headers = {**HEADERS, "X-Tenant-Id": payload["tenant_id"]}
+    client.post("/api/network-intelligence/lifecycle/instruments", json=payload, headers=headers)
+    r = client.post("/api/network-intelligence/lifecycle/instruments", json=payload, headers=headers)
     assert r.status_code == 409
 
 
@@ -158,9 +160,9 @@ def test_list_lifecycle_records():
         "tenant_id": TENANT + "-list", "facility_id": "F1",
         "instrument_uid": "INST-LST", "manufacturer_name": "AcmeSurg",
         "model_name": "Model-B", "instrument_category": "retractor",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": TENANT + "-list"})
     r = client.get(f"/api/network-intelligence/lifecycle/instruments?tenant_id={TENANT}-list",
-                   headers=HEADERS)
+                   headers={**HEADERS, "X-Tenant-Id": f"{TENANT}-list"})
     assert r.status_code == 200
     assert len(r.json()["instruments"]) >= 1
 
@@ -171,12 +173,12 @@ def test_log_lifecycle_event_inspected():
         "tenant_id": tid, "facility_id": "F1",
         "instrument_uid": "INST-EV1", "manufacturer_name": "AcmeSurg",
         "model_name": "Trocar-Y", "instrument_category": "trocar",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     r = client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": tid, "instrument_uid": "INST-EV1",
         "event_type": "inspected", "outcome": "pass",
         "performed_by": "tech_a",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     assert r.status_code == 201
     assert r.json()["event_type"] == "inspected"
 
@@ -187,16 +189,16 @@ def test_log_lifecycle_event_defect_updates_rate():
         "tenant_id": tid, "facility_id": "F1",
         "instrument_uid": "INST-DEF", "manufacturer_name": "AcmeSurg",
         "model_name": "Model-C", "instrument_category": "scissors",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     # 2 inspections, 1 fail → defect_rate = 0.5
     client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": tid, "instrument_uid": "INST-DEF",
-        "event_type": "inspected", "outcome": "pass"}, headers=HEADERS)
+        "event_type": "inspected", "outcome": "pass"}, headers={**HEADERS, "X-Tenant-Id": tid})
     client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": tid, "instrument_uid": "INST-DEF",
-        "event_type": "inspected", "outcome": "fail"}, headers=HEADERS)
+        "event_type": "inspected", "outcome": "fail"}, headers={**HEADERS, "X-Tenant-Id": tid})
     recs = client.get(f"/api/network-intelligence/lifecycle/instruments?tenant_id={tid}",
-                      headers=HEADERS).json()["instruments"]
+                      headers={**HEADERS, "X-Tenant-Id": tid}).json()["instruments"]
     assert recs[0]["defect_rate"] == pytest.approx(0.5, abs=0.01)
 
 
@@ -206,14 +208,14 @@ def test_log_lifecycle_event_retired():
         "tenant_id": tid, "facility_id": "F1",
         "instrument_uid": "INST-RET", "manufacturer_name": "AcmeSurg",
         "model_name": "Model-D", "instrument_category": "clamp",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     r = client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": tid, "instrument_uid": "INST-RET",
         "event_type": "retired", "notes": "end_of_life",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     assert r.status_code == 201
     recs = client.get(f"/api/network-intelligence/lifecycle/instruments?tenant_id={tid}",
-                      headers=HEADERS).json()["instruments"]
+                      headers={**HEADERS, "X-Tenant-Id": tid}).json()["instruments"]
     assert recs[0]["lifecycle_status"] == "retired"
 
 
@@ -223,11 +225,11 @@ def test_lifecycle_event_invalid_type_returns_400():
         "tenant_id": tid, "facility_id": "F1",
         "instrument_uid": "INST-BAD", "manufacturer_name": "AcmeSurg",
         "model_name": "Model-E", "instrument_category": "needle",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     r = client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": tid, "instrument_uid": "INST-BAD",
         "event_type": "invented_event_type",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     assert r.status_code == 400
 
 
@@ -237,12 +239,12 @@ def test_list_lifecycle_events():
         "tenant_id": tid, "facility_id": "F1",
         "instrument_uid": "INST-EL", "manufacturer_name": "AcmeSurg",
         "model_name": "Model-F", "instrument_category": "grasper",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": tid, "instrument_uid": "INST-EL", "event_type": "inspected",
-        "outcome": "pass"}, headers=HEADERS)
+        "outcome": "pass"}, headers={**HEADERS, "X-Tenant-Id": tid})
     r = client.get(f"/api/network-intelligence/lifecycle/events?tenant_id={tid}&instrument_uid=INST-EL",
-                   headers=HEADERS)
+                   headers={**HEADERS, "X-Tenant-Id": tid})
     assert r.status_code == 200
     assert len(r.json()["events"]) == 1
 
@@ -541,7 +543,7 @@ def test_create_executive_dashboard():
     r = client.post("/api/network-intelligence/executive/dashboards", json={
         "tenant_id": TENANT, "dashboard_name": "Q2 2026 Network Overview",
         "dashboard_type": "national_benchmark", "created_by": "ceo@hospital.org",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 201
     assert r.json()["dashboard_type"] == "national_benchmark"
 
@@ -550,13 +552,13 @@ def test_create_dashboard_invalid_type_returns_400():
     r = client.post("/api/network-intelligence/executive/dashboards", json={
         "tenant_id": TENANT, "dashboard_name": "Bad Dashboard",
         "dashboard_type": "invalid_type", "created_by": "admin",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 400
 
 
 def test_list_executive_dashboards():
     r = client.get(f"/api/network-intelligence/executive/dashboards?tenant_id={TENANT}",
-                   headers=HEADERS)
+                   headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 200
     assert "dashboards" in r.json()
 
@@ -573,14 +575,14 @@ def test_capture_executive_snapshot():
         "accreditation_readiness_score": 88.0,
         "network_percentile": 71.0,
         "captured_by": "steward",
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 201
     assert r.json()["human_review_required"] is True
 
 
 def test_list_executive_snapshots():
     r = client.get(f"/api/network-intelligence/executive/snapshots?tenant_id={TENANT}",
-                   headers=HEADERS)
+                   headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 200
     assert "disclaimer" in r.json()
 
@@ -588,7 +590,7 @@ def test_list_executive_snapshots():
 def test_executive_network_intelligence_summary():
     r = client.get(
         f"/api/network-intelligence/executive/network-intelligence-summary?tenant_id={TENANT}",
-        headers=HEADERS)
+        headers={**HEADERS, "X-Tenant-Id": TENANT})
     assert r.status_code == 200
     body = r.json()
     assert "open_recall_early_warnings" in body
@@ -606,11 +608,11 @@ def test_tenant_isolation_lifecycle():
             "tenant_id": t, "facility_id": "F1",
             "instrument_uid": f"INST-{t}", "manufacturer_name": "AcmeSurg",
             "model_name": "Model-ISO", "instrument_category": "clamp",
-        }, headers=HEADERS)
+        }, headers={**HEADERS, "X-Tenant-Id": t})
     r1 = client.get(f"/api/network-intelligence/lifecycle/instruments?tenant_id={t1}",
-                    headers=HEADERS).json()["instruments"]
+                    headers={**HEADERS, "X-Tenant-Id": t1}).json()["instruments"]
     r2 = client.get(f"/api/network-intelligence/lifecycle/instruments?tenant_id={t2}",
-                    headers=HEADERS).json()["instruments"]
+                    headers={**HEADERS, "X-Tenant-Id": t2}).json()["instruments"]
     uids1 = {i["instrument_uid"] for i in r1}
     uids2 = {i["instrument_uid"] for i in r2}
     assert uids1.isdisjoint(uids2), "Tenant isolation violated: instrument_uids overlap"
@@ -624,18 +626,18 @@ def _seed_consenting_facility(tid, category, n_inspections, n_defects, scope="be
     """Register a facility, sign a benchmark agreement, and feed it lifecycle data."""
     client.post("/api/network-intelligence/sharing-agreements", json={
         "tenant_id": tid, "agreed_by": "admin@test.com", "sharing_scope": scope,
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     uid = f"INST-{tid}"
     client.post("/api/network-intelligence/lifecycle/instruments", json={
         "tenant_id": tid, "facility_id": "F1", "instrument_uid": uid,
         "manufacturer_name": "AcmeSurg", "model_name": "M", "instrument_category": category,
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": tid})
     for i in range(n_inspections):
         outcome = "fail" if i < n_defects else "pass"
         client.post("/api/network-intelligence/lifecycle/events", json={
             "tenant_id": tid, "instrument_uid": uid,
             "event_type": "inspected", "outcome": outcome,
-        }, headers=HEADERS)
+        }, headers={**HEADERS, "X-Tenant-Id": tid})
     return uid
 
 
@@ -683,10 +685,10 @@ def test_compute_benchmark_excludes_non_consenting():
     client.post("/api/network-intelligence/lifecycle/instruments", json={
         "tenant_id": noconsent, "facility_id": "F1", "instrument_uid": uid,
         "manufacturer_name": "AcmeSurg", "model_name": "M", "instrument_category": cat,
-    }, headers=HEADERS)
+    }, headers={**HEADERS, "X-Tenant-Id": noconsent})
     client.post("/api/network-intelligence/lifecycle/events", json={
         "tenant_id": noconsent, "instrument_uid": uid,
-        "event_type": "inspected", "outcome": "pass"}, headers=HEADERS)
+        "event_type": "inspected", "outcome": "pass"}, headers={**HEADERS, "X-Tenant-Id": noconsent})
     r = client.post(
         f"/api/network-intelligence/lifecycle/benchmarks/compute"
         f"?instrument_category={cat}&metric_name=defect_rate",

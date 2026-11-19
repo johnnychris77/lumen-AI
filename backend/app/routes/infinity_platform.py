@@ -67,6 +67,7 @@ from app.services import (
     infinity_marketplace_service,
     infinity_sandbox_service,
 )
+from app.auth.tenant_scope import refuse_other_tenants
 from app.tenant_authz import require_tenant_roles
 
 router = APIRouter(prefix="/api/infinity", tags=["infinity"])
@@ -441,6 +442,10 @@ def get_partner_licenses(
     developer_account_id: int = Query(None), tenant_id_filter: str = Query(""), status: str = Query(""),
     current_user: dict = Depends(require_tenant_roles(*_LEADERSHIP_ROLES)), db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): a tenant's leadership lists its OWN partner licenses.
+    # tenant_id_filter is a claim (another tenant -> 403); an empty filter no longer
+    # lists every tenant's licenses.
+    tenant_id_filter = refuse_other_tenants(_tenant(current_user), tenant_id_filter)
     return {"licenses": infinity_billing_service.list_partner_licenses(db, developer_account_id=developer_account_id, tenant_id=tenant_id_filter, status=status)}
 
 

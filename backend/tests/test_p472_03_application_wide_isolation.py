@@ -96,14 +96,15 @@ def test_remediated_route_groups_show_no_finding(sweep, observed):
     vendor-intelligence routes (6c3072c), the enterprise intake, vendor
     governance and CAPA modules (batch 1), the audit-log, tenant-analytics,
     ML image, operations and capture modules (batch 2), and the thirteen
-    modules that re-read the tenant header (batch 4, AW-03/AW-06M) stay clean
-    under every variant."""
+    modules that re-read the tenant header (batch 4, AW-03/AW-06M) and the ten
+    modules whose tenant parameter is now a verified claim (batch 4, AW-04) stay
+    clean under every variant."""
     covered = 0
     for record in sweep["routes"]:
         if is_remediated(record):
             covered += 1
             assert route_key(record) not in observed, (route_key(record), observed.get(route_key(record)))
-    assert covered == 13 + 39 + 77 + 8 + 9 + 5 + 5 + 8 + 21 + 4 + 142
+    assert covered == 13 + 39 + 77 + 8 + 9 + 5 + 5 + 8 + 21 + 4 + 142 + 190
 
 
 def test_no_route_outside_the_register_shows_a_finding(observed):

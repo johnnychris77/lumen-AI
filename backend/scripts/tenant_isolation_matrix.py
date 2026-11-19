@@ -142,6 +142,18 @@ REMEDIATED_MODULES = {
     "app.routes.global_intelligence": "batch 4",
     "app.routes.p24_standards": "batch 4",
     "app.routes.p25_infrastructure": "batch 4",
+    # Batch 4 (Issue #186), AW-04: a client-supplied tenant_id is a claim that must name
+    # the verified tenant (``refuse_other_tenants`` and the resolvers built on it).
+    "app.routes.ranking": "batch 4",
+    "app.routes.intelligence": "batch 4",
+    "app.routes.intelligence_consent": "batch 4",
+    "app.routes.commercial": "batch 4",
+    "app.routes.growth": "batch 4",
+    "app.routes.p20_network_intelligence": "batch 4",
+    "app.routes.infinity_platform": "batch 4",
+    "app.routes.olympus_network": "batch 4",
+    "app.routes.billing": "batch 4",
+    "app.routes.accreditation": "batch 4",
 }
 BATCH_TESTS = {"batch 1": "tests/test_p472_03_batch1_remediation.py"}
 

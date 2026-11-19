@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.auth.tenant_scope import request_tenant
 from app.enterprise_auth import require_enterprise_auth
 from app.schemas.vendor_intelligence import ConsentCreateRequest, ConsentResult
 
@@ -37,7 +38,9 @@ def create_consent(
     db: Session = Depends(get_db),
 ):
     """Create or update intelligence sharing consent for a facility (HIPAA/BAA opt-in)."""
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): consent is recorded for the caller's verified tenant;
+    # a body tenant_id naming any other tenant is refused.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, body.tenant_id)
 
     from app.models.vendor_intelligence import IntelligenceSharingConsent
 
@@ -53,7 +56,7 @@ def create_consent(
     existing = (
         db.query(IntelligenceSharingConsent)
         .filter(
-            IntelligenceSharingConsent.tenant_id == body.tenant_id,
+            IntelligenceSharingConsent.tenant_id == tenant_id,
             IntelligenceSharingConsent.facility_id == body.facility_id,
         )
         .first()
@@ -77,7 +80,7 @@ def create_consent(
 
     # Create new consent record
     row = IntelligenceSharingConsent(
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         facility_id=body.facility_id,
         consented_by=body.consented_by,
         consent_version=body.consent_version,

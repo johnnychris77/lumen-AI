@@ -52,7 +52,18 @@ def authorized_tenant(ctx: AuthContext, *claimed_tenant_ids: str | None) -> str:
     parameter, body field). Empty or absent claims are ignored — the request then
     simply acts in the verified tenant. Fails closed with HTTP 403.
     """
-    tenant = (getattr(ctx, "tenant_id", "") or "").strip()
+    return refuse_other_tenants(getattr(ctx, "tenant_id", "") or "", *claimed_tenant_ids)
+
+
+def refuse_other_tenants(verified_tenant: str, *claimed_tenant_ids: str | None) -> str:
+    """Return ``verified_tenant``; refuse (403) any non-empty claim naming another tenant.
+
+    The verified tenant must come from the authentication layer (an AuthContext,
+    ``principal_tenant``, or a ``require_tenant_roles`` membership). Claims are
+    what the client sent: query, path or body ``tenant_id`` values, or a tenant
+    header. Fails closed when there is no verified tenant.
+    """
+    tenant = (verified_tenant or "").strip()
     if not tenant:
         raise HTTPException(status_code=403, detail="No verified tenant for this request.")
     for claimed in claimed_tenant_ids:
@@ -88,7 +99,7 @@ def named_tenant(request: Request) -> str | None:
     return next(iter(named), None)
 
 
-def request_tenant(ctx: AuthContext, request: Request) -> str:
+def request_tenant(ctx: AuthContext, request: Request, *claimed_tenant_ids: str | None) -> str:
     """The tenant a ``require_enterprise_auth`` handler acts in (P472-03 AW-03/AW-06M).
 
     Always the tenant of the VERIFIED auth context. A tenant named in a request
@@ -99,8 +110,11 @@ def request_tenant(ctx: AuthContext, request: Request) -> str:
     ``default-tenant`` when absent. Usage, inline so the auth call stays visible::
 
         tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
+
+    ``claimed_tenant_ids`` are tenant ids the client put in the query, path or
+    body (P472-03 AW-04): each must name the verified tenant or be empty.
     """
-    return authorized_tenant(ctx, named_tenant(request))
+    return authorized_tenant(ctx, named_tenant(request), *claimed_tenant_ids)
 
 
 def principal_tenant(principal: Any, request: Request) -> str:
@@ -163,13 +177,41 @@ def principal_tenant(principal: Any, request: Request) -> str:
     raise HTTPException(status_code=403, detail=NO_VERIFIED_TENANT_DETAIL)
 
 
-def verified_request_tenant(request: Request, db: Any) -> str:
+def principal_claim_tenant(
+    principal: Any, request: Request, *claimed_tenant_ids: str | None, allow_platform_wide: bool = False,
+) -> str | None:
+    """``principal_tenant``, refusing a query/path/body tenant claim of any other tenant (AW-04).
+
+    ``allow_platform_wide``: a few reporting routes also have a tenant-less,
+    platform-wide view. Only the privileged class of ``principal_tenant`` (the
+    platform administrator and non-production development tokens — the PA-1
+    exception, unchanged) gets it, and only when it names no tenant at all; the
+    access is logged like every other privileged cross-tenant resolution. For
+    everyone else the view is their own verified tenant. Returns ``None`` for the
+    platform-wide view.
+    """
+    privileged = isinstance(principal, AuthenticatedPrincipal) and (
+        principal.is_development or principal.is_platform_admin)
+    claims = [c for c in claimed_tenant_ids if isinstance(c, str) and c.strip()]
+    if allow_platform_wide and privileged and not claims and named_tenant(request) is None:
+        _security_log.warning(
+            "P472-03 PA-1 privileged platform-wide access: principal=%s method=%s role=%s path=%s "
+            "(access decision unchanged; governance review pending)",
+            getattr(principal, "subject", None) or getattr(principal, "email", None),
+            getattr(principal, "authentication_method", None), getattr(principal, "role", None),
+            request.url.path)
+        return None
+    return refuse_other_tenants(principal_tenant(principal, request), *claimed_tenant_ids)
+
+
+def verified_request_tenant(request: Request, db: Any, *claimed_tenant_ids: str | None) -> str:
     """``principal_tenant`` for a handler that holds no principal object.
 
     Authenticates the bearer token exactly as ``get_current_user`` does (401 when
-    it is missing or invalid) and resolves the tenant from that identity.
+    it is missing or invalid) and resolves the tenant from that identity. Any
+    ``claimed_tenant_ids`` (query, path or body values) must name that tenant.
     """
     from app.deps import get_current_user
 
     principal = get_current_user(authorization=request.headers.get("authorization"), db=db)
-    return principal_tenant(principal, request)
+    return principal_claim_tenant(principal, request, *claimed_tenant_ids)

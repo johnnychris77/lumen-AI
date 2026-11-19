@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.billing import build_invoice_preview, get_plan, persist_invoice_preview
+from app.auth.tenant_scope import request_tenant
 from app.enterprise_auth import require_enterprise_auth
 from app.event_dispatcher import dispatch_event
 from app.deps import get_db
@@ -199,7 +200,9 @@ def _downgrade_tenant_tier(tenant_id: str, tier: str, db: Session) -> None:
 
 @router.get("/billing/status")
 def billing_status(tenant_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): the tenant_id query is a claim; it must name the
+    # caller's verified tenant.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     from app.tier_guard import get_tenant_tier, TIER_FEATURES
     from app.models.tenant_plan import TenantPlan
 

@@ -80,7 +80,7 @@ RUN = uuid.uuid4().hex[:8]
 TENANT_A, TENANT_B, TENANT_C = f"b2-alpha-{RUN}", f"b2-bravo-{RUN}", f"b2-charlie-{RUN}"
 # ``request_tenant(`` is the batch 4 (AW-03/AW-06M) resolver for ``require_enterprise_auth``
 # handlers; it also matches ``verified_request_tenant(``.
-RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(", "request_tenant(")
+RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(", "request_tenant(", "principal_claim_tenant(")
 # (global role, tenant-membership role): the sweep's profiles plus the two global
 # roles that some of these routes require and the sweep does not carry. The
 # platform administrator (global role "admin") is deliberately absent.
@@ -390,12 +390,15 @@ class _Caller:
         if self.capturing:
             self.captured.append((statement, parameters))
 
-    def call(self, method: str, path: str, headers: dict) -> tuple[int, list, str]:
+    def call(self, method: str, path: str, headers: dict, claim: str = TENANT_A) -> tuple[int, list, str]:
+        """``claim`` is the tenant written into the route's own tenant parameters (path,
+        query, body). Since batch 4 (AW-04) such a parameter must name the tenant the
+        request acts in, so a request acting in tenant C claims C."""
         from app.limiter import limiter
 
         plan = _Plan(self.spec, method, path)
-        url, params, body = plan.request(path_tenant=TENANT_A, query_tenant=TENANT_A, body_tenant=TENANT_A)
-        params.update({name: TENANT_A for name in plan.required_tenant_query})
+        url, params, body = plan.request(path_tenant=claim, query_tenant=claim, body_tenant=claim)
+        params.update({name: claim for name in plan.required_tenant_query})
         params.update(TENANT_BRANCH_PARAMS.get(f"{method} {path}", {}))
         body = TENANT_BRANCH_BODIES.get(f"{method} {path}", body)
         if limiter is not None:
@@ -480,7 +483,7 @@ def test_the_route_table_is_the_mounted_application():
     """The parametrised tests below cover every route that uses the verified
     resolver; these counts change only when a route is added or converted."""
     by_how = {how: sum(1 for _, _, h in ROUTES if h == how) for how in ("dependency", "handler")}
-    assert by_how == {"dependency": 195, "handler": 635}, by_how
+    assert by_how == {"dependency": 195, "handler": 664}, by_how
     assert len(set(ROUTE_IDS)) == len(ROUTE_IDS)
     assert set(OPEN_OWNER_FINDINGS) | set(OPEN_REFUSAL_FINDINGS) <= set(ROUTE_IDS)
 
@@ -530,7 +533,7 @@ def test_the_owner_and_a_selected_membership_are_served(caller, method, path, ho
     assert _bound(capture, TENANT_B) == [] and _bound(capture, TENANT_C) == []
 
     status, capture, text = caller.call(
-        method, path, caller.headers(_USERS["multi"][index], **{"X-Tenant-Id": TENANT_C}))
+        method, path, caller.headers(_USERS["multi"][index], **{"X-Tenant-Id": TENANT_C}), claim=TENANT_C)
     assert status not in REFUSED, f"user with two memberships selecting one of them got HTTP {status}"
     assert _bound(capture, TENANT_B) == []
     assert TENANT_B not in text

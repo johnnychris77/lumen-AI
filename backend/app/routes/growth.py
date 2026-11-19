@@ -16,12 +16,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
+from app.auth.tenant_scope import principal_claim_tenant
 from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
@@ -314,9 +315,13 @@ def _reference_dict(r: models.ReferenceCustomer, *, redact: bool = True) -> dict
 @router.post("/reference-customers", status_code=201)
 def create_reference(
     payload: ReferenceCreate,
+    request: Request,
     current_user=Depends(require_roles("admin", "executive")),
     db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): a reference-customer record is created for the caller's
+    # verified tenant only; a body tenant_id naming another tenant is refused.
+    principal_claim_tenant(current_user, request, payload.tenant_id)
     r = models.ReferenceCustomer(
         tenant_id=payload.tenant_id,
         display_name=payload.display_name,

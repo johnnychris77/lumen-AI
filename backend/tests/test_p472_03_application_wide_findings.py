@@ -147,7 +147,9 @@ def test_aw03_a_member_of_a_cannot_opt_tenant_b_into_the_intelligence_network(te
 
 # ══ AW-04 — tenant taken from a query, path or body parameter ═════════════════
 
-@_finding("AW-04", "POST /api/accreditation/programs stores the tenant named in the body")
+# Remediated in P472-03 batch 4 (Issue #186): a client-supplied tenant_id is a claim that
+# must name the caller's verified tenant; any other is refused (403). The strict-xfail
+# marker is removed; the assertions are unchanged.
 def test_aw04_a_member_of_a_cannot_create_an_accreditation_program_in_tenant_b(tenants):
     before = _rows(models.AccreditationProgram, tenants.b)
 
@@ -159,7 +161,9 @@ def test_aw04_a_member_of_a_cannot_create_an_accreditation_program_in_tenant_b(t
         f"HTTP {response.status_code}; {written} program(s) written into tenant B by a member of tenant A")
 
 
-@_finding("AW-04", "GET /api/accreditation/programs?tenant_id= serves the tenant named in the query")
+# Remediated in P472-03 batch 4 (Issue #186): a client-supplied tenant_id is a claim that
+# must name the caller's verified tenant; any other is refused (403). The strict-xfail
+# marker is removed; the assertions are unchanged.
 def test_aw04_a_member_of_a_cannot_list_tenant_b_accreditation_programs(tenants):
     note = _uid("b-confidential-note")
     created = client.post("/api/accreditation/programs", headers=tenants.headers_b, json={
@@ -172,7 +176,9 @@ def test_aw04_a_member_of_a_cannot_list_tenant_b_accreditation_programs(tenants)
         "tenant A listed tenant B's accreditation programs by naming B in the query")
 
 
-@_finding("AW-04", "POST /api/intelligence/consent records sharing consent for the tenant named in the body")
+# Remediated in P472-03 batch 4 (Issue #186): a client-supplied tenant_id is a claim that
+# must name the caller's verified tenant; any other is refused (403). The strict-xfail
+# marker is removed; the assertions are unchanged.
 def test_aw04_a_member_of_a_cannot_grant_data_sharing_consent_for_tenant_b(tenants):
     from app.models.vendor_intelligence import IntelligenceSharingConsent
 
@@ -186,7 +192,9 @@ def test_aw04_a_member_of_a_cannot_grant_data_sharing_consent_for_tenant_b(tenan
         f"HTTP {response.status_code}; {written} consent record(s) created for tenant B by a member of tenant A")
 
 
-@_finding("AW-04", "GET /api/network-intelligence/registry?tenant_id= serves the tenant named in the query")
+# Remediated in P472-03 batch 4 (Issue #186): a client-supplied tenant_id is a claim that
+# must name the caller's verified tenant; any other is refused (403). The strict-xfail
+# marker is removed; the assertions are unchanged.
 def test_aw04_a_member_of_a_cannot_read_tenant_b_network_registry_entry():
     """These routes require the ``executive`` or ``admin`` global role."""
     a, b = _uid("aw-tenant-a"), _uid("aw-tenant-b")

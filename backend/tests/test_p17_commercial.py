@@ -136,14 +136,14 @@ class TestCustomerSuccess:
         tid = f"cs-tenant-{TS}"
         r = client.post("/api/commercial/customer-success/snapshot",
                         json={"tenant_id": tid, "onboarding_pct": 80, "training_pct": 90},
-                        headers=AUTH)
+                        headers={**AUTH, "X-Tenant-Id": tid})
         assert r.status_code == 201
         body = r.json()
         assert body["tenant_id"] == tid
         assert 0 <= body["composite_score"] <= 100
 
         # Trend should now include the snapshot.
-        t = client.get(f"/api/commercial/customer-success/trend?tenant_id={tid}", headers=AUTH)
+        t = client.get(f"/api/commercial/customer-success/trend?tenant_id={tid}", headers={**AUTH, "X-Tenant-Id": tid})
         assert t.status_code == 200
         assert t.json()["count"] >= 1
 
@@ -151,9 +151,9 @@ class TestCustomerSuccess:
         tid = f"cs-snap-{TS}"
         client.post("/api/commercial/customer-success/snapshot",
                     json={"tenant_id": tid, "onboarding_pct": 40, "training_pct": 50},
-                    headers=AUTH)
+                    headers={**AUTH, "X-Tenant-Id": tid})
         r = client.get(f"/api/commercial/customer-success/health-score?tenant_id={tid}",
-                       headers=AUTH)
+                       headers={**AUTH, "X-Tenant-Id": tid})
         body = r.json()
         assert body["source"] == "snapshot"
         assert body["dimensions"]["onboarding"] == 40.0
@@ -163,9 +163,9 @@ class TestCustomerSuccess:
         tid = f"cs-override-{TS}"
         client.post("/api/commercial/customer-success/snapshot",
                     json={"tenant_id": tid, "onboarding_pct": 40, "training_pct": 50},
-                    headers=AUTH)
+                    headers={**AUTH, "X-Tenant-Id": tid})
         r = client.get(f"/api/commercial/customer-success/health-score"
-                       f"?tenant_id={tid}&onboarding_pct=100", headers=AUTH)
+                       f"?tenant_id={tid}&onboarding_pct=100", headers={**AUTH, "X-Tenant-Id": tid})
         body = r.json()
         assert body["source"] == "query"
         assert body["dimensions"]["onboarding"] == 100.0

@@ -294,8 +294,13 @@ def test_research_opt_in_unknown_participant_404s():
         _seed_membership(db, tenant_id)
     finally:
         db.close()
-    r = client.patch(f"/api/genesis-ai/participants/{uid('gai-unknown')}/research-opt-in", json={"research_opt_in": True}, headers=_headers(AUTH_ADMIN, tenant_id))
+    # P472-03 batch 4 (AW-04): a tenant changes only its OWN research consent, so the
+    # unknown participant is the caller's own tenant (a member, but not a consortium
+    # participant). Naming any other tenant is refused with 403 whether or not it exists.
+    r = client.patch(f"/api/genesis-ai/participants/{tenant_id}/research-opt-in", json={"research_opt_in": True}, headers=_headers(AUTH_ADMIN, tenant_id))
     assert r.status_code == 404
+    other = client.patch(f"/api/genesis-ai/participants/{uid('gai-unknown')}/research-opt-in", json={"research_opt_in": True}, headers=_headers(AUTH_ADMIN, tenant_id))
+    assert other.status_code == 403
 
 
 def test_learning_engine_summary_composes_horizon_and_phoenix():

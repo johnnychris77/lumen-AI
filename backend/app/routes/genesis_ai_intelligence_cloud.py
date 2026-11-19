@@ -49,6 +49,7 @@ from app.services import (
     genesis_ai_standards_observatory_service,
 )
 from app.services import olympus_exchange_service
+from app.auth.tenant_scope import refuse_other_tenants
 from app.tenant_authz import require_tenant_roles
 
 router = APIRouter(prefix="/api/genesis-ai", tags=["genesis-ai"])
@@ -237,6 +238,8 @@ def get_research_hub_summary(current_user: dict = Depends(require_tenant_roles(*
 def patch_research_opt_in(
     tenant_id: str, payload: dict, current_user: dict = Depends(require_tenant_roles(*_LEADERSHIP_ROLES)), db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): a tenant changes only its OWN research consent.
+    refuse_other_tenants(_tenant(current_user), tenant_id)
     member = db.query(AdvisoryConsortiumMember).filter(AdvisoryConsortiumMember.tenant_id == tenant_id).first()
     if member is None:
         raise HTTPException(status_code=404, detail=f"Consortium member '{tenant_id}' not found.")

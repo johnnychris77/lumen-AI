@@ -15,13 +15,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.authz import require_roles
+from app.auth.tenant_scope import principal_claim_tenant, refuse_other_tenants
 from app.tenant import resolve_tenant
 from app.deps import get_db
 from app.db import models
@@ -158,10 +159,14 @@ def _program_dict(p: models.AccreditationProgram) -> dict:
 
 @router.post("/programs", status_code=201)
 def create_program(
+    request: Request,
     payload: ProgramCreate,
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     p = models.AccreditationProgram(
         tenant_id=payload.tenant_id,
         facility_id=payload.facility_id,
@@ -188,12 +193,14 @@ def list_programs(
 ):
     # P472-03 AW-08a / AW-04: the tenant is ALWAYS the caller's verified tenant
     # (resolved from membership by ``resolve_tenant``). The ``tenant_id`` query
-    # parameter is inert — it can no longer widen the scope to every tenant
-    # (AW-08a) nor select another tenant's programs (AW-04); a caller only ever
+    # parameter can no longer widen the scope to every tenant (AW-08a) nor select
+    # another tenant's programs (AW-04); a caller only ever
     # reads programs of the tenant they are a verified member of. The selector a
     # multi-tenant member uses is the verified ``X-Tenant-Id`` header, never this
     # query field.
-    verified = tenant["tenant_id"]
+    # Batch 4 (Issue #186): a tenant_id claim naming another tenant is refused (403),
+    # not silently ignored.
+    verified = refuse_other_tenants(tenant["tenant_id"], tenant_id)
     q = db.query(models.AccreditationProgram).filter(
         models.AccreditationProgram.tenant_id == verified
     )
@@ -274,10 +281,14 @@ def _evidence_dict(e: models.EvidenceItem) -> dict:
 
 @router.post("/evidence-items", status_code=201)
 def create_evidence(
+    request: Request,
     payload: EvidenceCreate,
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     e = models.EvidenceItem(
         tenant_id=payload.tenant_id,
         facility_id=payload.facility_id,
@@ -306,8 +317,9 @@ def list_evidence(
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
-    # P472-03 AW-04: scope to the caller's verified tenant; the tenant_id query
-    # parameter is inert and cannot select another tenant's evidence items.
+    # P472-03 AW-04: scope to the caller's verified tenant; a tenant_id claim naming
+    # another tenant is refused (batch 4).
+    refuse_other_tenants(tenant["tenant_id"], tenant_id)
     q = db.query(models.EvidenceItem).filter(models.EvidenceItem.tenant_id == tenant["tenant_id"])
     if facility_id:
         q = q.filter(models.EvidenceItem.facility_id == facility_id)
@@ -426,8 +438,8 @@ def readiness_score(
     """Compute live readiness / evidence-completeness / risk scores for a facility."""
     if accreditor and accreditor not in _ACCREDITORS:
         raise HTTPException(status_code=422, detail=f"Invalid accreditor '{accreditor}'")
-    # P472-03 AW-04: score the caller's verified tenant, not a client-named one.
-    return _score_facility(db, tenant["tenant_id"], facility_id, accreditor)
+    # P472-03 AW-04: score the caller's verified tenant; a claim of another is refused.
+    return _score_facility(db, refuse_other_tenants(tenant["tenant_id"], tenant_id), facility_id, accreditor)
 
 
 class ReadinessSnapshotRequest(BaseModel):
@@ -445,11 +457,15 @@ class ReadinessSnapshotRequest(BaseModel):
 
 @router.post("/readiness/snapshot", status_code=201)
 def snapshot_readiness(
+    request: Request,
     payload: ReadinessSnapshotRequest,
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     """Persist a reproducible readiness assessment. Audit-logged."""
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     scored = _score_facility(db, payload.tenant_id, payload.facility_id, payload.accreditor)
     a = models.ReadinessAssessment(
         tenant_id=payload.tenant_id,
@@ -483,8 +499,8 @@ def readiness_trend(
     db: Session = Depends(get_db),
 ):
     """Historical readiness-assessment snapshots for trend visualization."""
-    # P472-03 AW-04: scope to the caller's verified tenant.
-    tenant_id = tenant["tenant_id"]
+    # P472-03 AW-04: scope to the caller's verified tenant; a claim of another is refused.
+    tenant_id = refuse_other_tenants(tenant["tenant_id"], tenant_id)
     q = db.query(models.ReadinessAssessment).filter(
         models.ReadinessAssessment.tenant_id == tenant_id,
         models.ReadinessAssessment.facility_id == facility_id,
@@ -537,12 +553,16 @@ class PackageGenerateRequest(BaseModel):
 
 @router.post("/survey-evidence/generate", status_code=201)
 def generate_evidence_package(
+    request: Request,
     payload: PackageGenerateRequest,
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     """Generate a survey binder / compliance report / audit evidence package from
     the facility's tracked evidence. Captures a readiness summary. Audit-logged."""
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     items = db.query(models.EvidenceItem).filter(
         models.EvidenceItem.tenant_id == payload.tenant_id,
         models.EvidenceItem.facility_id == payload.facility_id,
@@ -596,7 +616,8 @@ def list_packages(
     _=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
-    # P472-03 AW-04: scope to the caller's verified tenant.
+    # P472-03 AW-04: scope to the caller's verified tenant; a claim of another is refused.
+    refuse_other_tenants(tenant["tenant_id"], tenant_id)
     q = db.query(models.SurveyEvidencePackage).filter(
         models.SurveyEvidencePackage.tenant_id == tenant["tenant_id"])
     if facility_id:
@@ -720,10 +741,14 @@ def _cert_dict(c: models.CertifiedSite) -> dict:
 
 @router.post("/certifications", status_code=201)
 def create_certification(
+    request: Request,
     payload: CertificationCreate,
     current_user=Depends(require_roles("admin", "executive")),
     db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     c = models.CertifiedSite(
         tenant_id=payload.tenant_id,
         facility_id=payload.facility_id,
@@ -748,7 +773,9 @@ def list_certifications(
     db: Session = Depends(get_db),
 ):
     # P472-03 AW-08a/AW-04: always scope to the caller's verified tenant; the
-    # tenant_id query parameter is inert (no list-all, no foreign selection).
+    # tenant_id query parameter cannot list all or select another tenant: a claim of
+    # another tenant is refused (batch 4).
+    refuse_other_tenants(tenant["tenant_id"], tenant_id)
     q = db.query(models.CertifiedSite).filter(
         models.CertifiedSite.tenant_id == tenant["tenant_id"])
     if certification_type:
@@ -846,12 +873,16 @@ class SeedEvidenceRequest(BaseModel):
 
 @router.post("/evidence-items/seed", status_code=201)
 def seed_evidence(
+    request: Request,
     payload: SeedEvidenceRequest,
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     """Seed a facility's evidence checklist from the standard template for an
     accreditor. Skips templates already present (idempotent on standard_ref)."""
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     template = _EVIDENCE_TEMPLATES.get(payload.accreditor, [])
     existing = {
         e.standard_ref for e in db.query(models.EvidenceItem).filter(
@@ -905,12 +936,16 @@ class ReadinessCapaRequest(BaseModel):
 
 @router.post("/readiness/create-capas", status_code=201)
 def create_capas_from_gaps(
+    request: Request,
     payload: ReadinessCapaRequest,
     current_user=Depends(require_roles("admin", "executive", "spd_manager")),
     db: Session = Depends(get_db),
 ):
     """Create CAPA records in the existing enterprise CAPA workflow for each open
     critical evidence gap, so remediation is owned and tracked. Audit-logged."""
+    # P472-03 AW-04 (batch 4): the body tenant_id is a claim; it must name the caller's
+    # verified tenant, and everything below acts in that tenant.
+    payload = payload.model_copy(update={"tenant_id": principal_claim_tenant(current_user, request, payload.tenant_id)})
     from app.models.enterprise_quality import EnterpriseCapa
 
     gaps = db.query(models.EvidenceItem).filter(

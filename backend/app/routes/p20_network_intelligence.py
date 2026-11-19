@@ -24,11 +24,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
+from app.auth.tenant_scope import verified_request_tenant
 from app.authz import require_roles
 from app.deps import get_db
 from app.models.p20_network_intelligence import (
@@ -136,8 +137,10 @@ class RegistryIn(BaseModel):
 
 @router.post("/registry", status_code=201,
              dependencies=[Depends(require_roles("admin", "executive"))])
-def register_facility(body: RegistryIn, db: Session = Depends(get_db)):
+def register_facility(request: Request, body: RegistryIn, db: Session = Depends(get_db)):
     """Register a facility in the national SPD intelligence network."""
+    # P472-03 AW-04 (batch 4): the body tenant_id must name the caller's verified tenant.
+    body = body.model_copy(update={"tenant_id": verified_request_tenant(request, db, body.tenant_id)})
     if body.facility_type not in _FACILITY_TYPES:
         raise HTTPException(400, f"facility_type must be one of {_FACILITY_TYPES}")
     if body.participation_tier not in _PARTICIPATION_TIERS:
@@ -168,8 +171,10 @@ def register_facility(body: RegistryIn, db: Session = Depends(get_db)):
 
 @router.get("/registry",
             dependencies=[Depends(require_roles("admin", "executive"))])
-def list_registry(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def list_registry(request: Request, tenant_id: str = Query(...), db: Session = Depends(get_db)):
     """Return the registry entry for the requesting tenant (own record only)."""
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified tenant.
+    tenant_id = verified_request_tenant(request, db, tenant_id)
     entry = db.query(SPDRegistryEntry).filter_by(tenant_id=tenant_id).first()
     if not entry:
         raise HTTPException(404, "Not registered. POST /registry to join the network.")
@@ -327,7 +332,9 @@ class LifecycleRecordIn(BaseModel):
 
 @router.post("/lifecycle/instruments", status_code=201,
              dependencies=[Depends(require_roles("admin", "spd_manager"))])
-def create_lifecycle_record(body: LifecycleRecordIn, db: Session = Depends(get_db)):
+def create_lifecycle_record(request: Request, body: LifecycleRecordIn, db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): the body tenant_id must name the caller's verified tenant.
+    body = body.model_copy(update={"tenant_id": verified_request_tenant(request, db, body.tenant_id)})
     existing = (db.query(InstrumentLifecycleRecord)
                 .filter_by(tenant_id=body.tenant_id, instrument_uid=body.instrument_uid)
                 .first())
@@ -343,10 +350,12 @@ def create_lifecycle_record(body: LifecycleRecordIn, db: Session = Depends(get_d
 
 @router.get("/lifecycle/instruments",
             dependencies=[Depends(require_roles("admin", "spd_manager", "executive"))])
-def list_lifecycle_records(tenant_id: str = Query(...),
+def list_lifecycle_records(request: Request, tenant_id: str = Query(...),
                            facility_id: Optional[str] = None,
                            lifecycle_status: Optional[str] = None,
                            db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified tenant.
+    tenant_id = verified_request_tenant(request, db, tenant_id)
     q = db.query(InstrumentLifecycleRecord).filter_by(tenant_id=tenant_id)
     if facility_id:
         q = q.filter_by(facility_id=facility_id)
@@ -385,7 +394,9 @@ _LIFECYCLE_EVENT_TYPES = {
 
 @router.post("/lifecycle/events", status_code=201,
              dependencies=[Depends(require_roles("admin", "spd_manager"))])
-def log_lifecycle_event(body: LifecycleEventIn, db: Session = Depends(get_db)):
+def log_lifecycle_event(request: Request, body: LifecycleEventIn, db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): the body tenant_id must name the caller's verified tenant.
+    body = body.model_copy(update={"tenant_id": verified_request_tenant(request, db, body.tenant_id)})
     if body.event_type not in _LIFECYCLE_EVENT_TYPES:
         raise HTTPException(400, f"event_type must be one of {_LIFECYCLE_EVENT_TYPES}")
 
@@ -442,9 +453,11 @@ def log_lifecycle_event(body: LifecycleEventIn, db: Session = Depends(get_db)):
 
 @router.get("/lifecycle/events",
             dependencies=[Depends(require_roles("admin", "spd_manager"))])
-def list_lifecycle_events(tenant_id: str = Query(...),
+def list_lifecycle_events(request: Request, tenant_id: str = Query(...),
                           instrument_uid: str = Query(...),
                           db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified tenant.
+    tenant_id = verified_request_tenant(request, db, tenant_id)
     events = (db.query(LifecycleEvent)
               .filter_by(tenant_id=tenant_id, instrument_uid=instrument_uid)
               .order_by(LifecycleEvent.event_date.asc()).all())
@@ -1053,7 +1066,9 @@ _DASHBOARD_TYPES = {"national_benchmark", "manufacturer", "lifecycle", "recall_w
 
 @router.post("/executive/dashboards", status_code=201,
              dependencies=[Depends(require_roles("admin", "executive"))])
-def create_executive_dashboard(body: DashboardIn, db: Session = Depends(get_db)):
+def create_executive_dashboard(request: Request, body: DashboardIn, db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): the body tenant_id must name the caller's verified tenant.
+    body = body.model_copy(update={"tenant_id": verified_request_tenant(request, db, body.tenant_id)})
     if body.dashboard_type not in _DASHBOARD_TYPES:
         raise HTTPException(400, f"dashboard_type must be one of {_DASHBOARD_TYPES}")
     dash = ExecutiveIntelligenceDashboard(**body.model_dump())
@@ -1068,7 +1083,9 @@ def create_executive_dashboard(body: DashboardIn, db: Session = Depends(get_db))
 
 @router.get("/executive/dashboards",
             dependencies=[Depends(require_roles("admin", "executive"))])
-def list_executive_dashboards(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def list_executive_dashboards(request: Request, tenant_id: str = Query(...), db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified tenant.
+    tenant_id = verified_request_tenant(request, db, tenant_id)
     rows = (db.query(ExecutiveIntelligenceDashboard)
             .filter_by(tenant_id=tenant_id)
             .order_by(ExecutiveIntelligenceDashboard.created_at.desc()).all())
@@ -1094,7 +1111,9 @@ class ExecSnapshotIn(BaseModel):
 
 @router.post("/executive/snapshots", status_code=201,
              dependencies=[Depends(require_roles("admin", "executive"))])
-def capture_executive_snapshot(body: ExecSnapshotIn, db: Session = Depends(get_db)):
+def capture_executive_snapshot(request: Request, body: ExecSnapshotIn, db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): the body tenant_id must name the caller's verified tenant.
+    body = body.model_copy(update={"tenant_id": verified_request_tenant(request, db, body.tenant_id)})
     snap = ExecutiveIntelligenceSnapshot(**body.model_dump(), human_review_required=True)
     db.add(snap)
     db.commit()
@@ -1110,7 +1129,9 @@ def capture_executive_snapshot(body: ExecSnapshotIn, db: Session = Depends(get_d
 
 @router.get("/executive/snapshots",
             dependencies=[Depends(require_roles("admin", "executive"))])
-def list_executive_snapshots(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def list_executive_snapshots(request: Request, tenant_id: str = Query(...), db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified tenant.
+    tenant_id = verified_request_tenant(request, db, tenant_id)
     rows = (db.query(ExecutiveIntelligenceSnapshot)
             .filter_by(tenant_id=tenant_id)
             .order_by(ExecutiveIntelligenceSnapshot.captured_at.desc())
@@ -1135,8 +1156,10 @@ def list_executive_snapshots(tenant_id: str = Query(...), db: Session = Depends(
 
 @router.get("/executive/network-intelligence-summary",
             dependencies=[Depends(require_roles("admin", "executive"))])
-def network_intelligence_summary(tenant_id: str = Query(...), db: Session = Depends(get_db)):
+def network_intelligence_summary(request: Request, tenant_id: str = Query(...), db: Session = Depends(get_db)):
     """Composite executive summary: registry, lifecycle, recall watch, research."""
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified tenant.
+    tenant_id = verified_request_tenant(request, db, tenant_id)
     registry = db.query(SPDRegistryEntry).filter_by(registry_status="active").count()
     open_warnings = (db.query(RecallEarlyWarning)
                      .filter(RecallEarlyWarning.status.in_(["candidate", "under_review", "escalated"]))

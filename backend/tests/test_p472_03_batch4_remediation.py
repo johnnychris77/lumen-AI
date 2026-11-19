@@ -238,3 +238,184 @@ def test_no_route_handler_reads_the_tenant_header_itself():
     routes = pathlib.Path(__file__).resolve().parents[1] / "app" / "routes"
     offenders = sorted(p.name for p in routes.glob("*.py") if "get_request_tenant_id(" in p.read_text())
     assert offenders == []
+
+
+# ══ AW-04 — a tenant named in the query, path or body ═════════════════════════
+#
+# A ``tenant_id`` the client sends is only a CLAIM: it must name the caller's
+# verified tenant or be absent. It is never a selector and is never rewritten.
+# Every route registered for AW-04 at baseline 4fdac4c (the six accreditation
+# routes were fixed in batch 3 and are kept here as regression coverage):
+
+import signal  # noqa: E402
+
+from sqlalchemy import event  # noqa: E402
+from sqlalchemy.engine import Engine  # noqa: E402
+from tenant_isolation_sweep_runner import _Plan, _scope_hits, _Spec, _tables_touched  # noqa: E402
+
+AW04_ROUTES = [
+    "GET /api/accreditation/certifications", "GET /api/accreditation/evidence-items",
+    "GET /api/accreditation/programs", "GET /api/accreditation/readiness",
+    "GET /api/accreditation/readiness/trend", "GET /api/accreditation/survey-evidence",
+    "GET /api/billing/status",
+    "GET /api/commercial/business-case/executive-summary", "GET /api/commercial/customer-success/health-score",
+    "POST /api/commercial/customer-success/snapshot", "GET /api/commercial/customer-success/trend",
+    "POST /api/enterprise/ranking/composite-score", "GET /api/enterprise/ranking/kpi-summary",
+    "POST /api/enterprise/ranking/profiles", "GET /api/enterprise/ranking/profiles/{tenant_id}",
+    "POST /api/enterprise/ranking/score",
+    "PATCH /api/genesis-ai/participants/{tenant_id}/research-opt-in",
+    "POST /api/growth/reference-customers",
+    "GET /api/infinity/billing/partner-licenses",
+    "GET /api/intelligence/capa-effectiveness", "POST /api/intelligence/consent",
+    "GET /api/intelligence/dashboard", "GET /api/intelligence/recalls", "GET /api/intelligence/recalls/{recall_id}",
+    "GET /api/network-intelligence/executive/dashboards", "POST /api/network-intelligence/executive/dashboards",
+    "GET /api/network-intelligence/executive/network-intelligence-summary",
+    "GET /api/network-intelligence/executive/snapshots", "POST /api/network-intelligence/executive/snapshots",
+    "GET /api/network-intelligence/lifecycle/events", "GET /api/network-intelligence/lifecycle/instruments",
+    "POST /api/network-intelligence/lifecycle/instruments",
+    "GET /api/network-intelligence/registry", "POST /api/network-intelligence/registry",
+    "POST /api/olympus/trust/{tenant_id}/compute", "GET /api/olympus/participants/{tenant_id}",
+    "GET /api/olympus/trust/{tenant_id}/history",
+]
+# The publisher filter of the network knowledge feed names a MANUFACTURER, not the
+# caller's tenant; see the batch 4 review (triaged separately, still registered).
+AW04_NOT_A_CALLER_CLAIM = {"GET /api/genesis-ai/manufacturer-updates"}
+# Tenant-membership roles each test identity holds in turn, with the global role the
+# route may require (the platform administrator, global role "admin", is excluded).
+AW04_PROFILES = [("spd_manager", "spd_manager"), ("spd_manager", "tenant_admin"), ("executive", "admin"),
+                 ("executive", "tenant_admin"), ("manager", "tenant_admin"), ("operator", "operator"),
+                 ("viewer", "viewer")]
+AW04_OWNERS = {i: f"b4-aw04-a-{i}-{RUN}@example.com" for i in range(len(AW04_PROFILES))}
+AW04_MULTI = {i: f"b4-aw04-ac-{i}-{RUN}@example.com" for i in range(len(AW04_PROFILES))}
+for _i, (_global, _tenant_role) in enumerate(AW04_PROFILES):
+    MEMBERSHIPS.append((TENANT_A, AW04_OWNERS[_i]))
+    MEMBERSHIPS.extend([(TENANT_A, AW04_MULTI[_i]), (TENANT_C, AW04_MULTI[_i])])
+_AW04_TENANT_ROLE = {**{AW04_OWNERS[i]: r for i, (_, r) in enumerate(AW04_PROFILES)},
+                     **{AW04_MULTI[i]: r for i, (_, r) in enumerate(AW04_PROFILES)}}
+
+
+@pytest.fixture(scope="module")
+def aw04_world(_users):
+    db = SessionLocal()
+    try:
+        for index, (global_role, _) in enumerate(AW04_PROFILES):
+            for user in (AW04_OWNERS[index], AW04_MULTI[index]):
+                db.add(UserRoleAssignment(username=user, role=global_role, assigned_by="p472-03-batch4"))
+        db.query(models.TenantMembership).filter(
+            models.TenantMembership.user_email.in_(list(_AW04_TENANT_ROLE))).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.fixture(autouse=True)
+def _aw04_roles(_memberships):
+    """The shared membership fixture adds ``tenant_admin`` rows; give AW-04 identities their role."""
+    db = SessionLocal()
+    try:
+        for row in db.query(models.TenantMembership).filter(
+                models.TenantMembership.user_email.in_(list(_AW04_TENANT_ROLE))):
+            row.role = _AW04_TENANT_ROLE[row.user_email]
+        db.commit()
+    finally:
+        db.close()
+
+
+class _Aw04Caller:
+    def __init__(self) -> None:
+        self.client = TestClient(app, raise_server_exceptions=False)
+        self.spec = _Spec(app.openapi())
+        self.capturing, self.captured = False, []
+        self.owner: dict[str, tuple[int | None, int]] = {}
+
+    def on_sql(self, _conn, _cursor, statement, parameters, _context, _executemany):
+        if self.capturing:
+            self.captured.append((statement, parameters))
+
+    def call(self, key: str, headers: dict, claim: str):
+        from app.limiter import limiter
+
+        method, path = key.split(" ", 1)
+        plan = _Plan(self.spec, method, path)
+        url, params, body = plan.request(path_tenant=claim, query_tenant=claim, body_tenant=claim)
+        params.update({name: claim for name in plan.required_tenant_query})
+        if limiter is not None:
+            try:
+                limiter.reset()
+            except Exception:  # noqa: BLE001
+                pass
+        self.captured, self.capturing = [], True
+        previous = signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError()))
+        signal.alarm(30)
+        try:
+            response = self.client.request(method, url, headers=headers, params=params or None, json=body)
+            status, text = response.status_code, response.text[:200000]
+        except TimeoutError:
+            status, text = -1, ""
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous)
+            self.capturing = False
+        return status, list(self.captured), text
+
+    def owner_profile(self, key: str) -> tuple[int | None, int]:
+        if key not in self.owner:
+            self.owner[key] = (None, 403)
+            for index in range(len(AW04_PROFILES)):
+                status, _, _ = self.call(key, _h(AW04_OWNERS[index], **{"X-Tenant-Id": TENANT_A}), TENANT_A)
+                if status not in REFUSED:
+                    self.owner[key] = (index, status)
+                    break
+        return self.owner[key]
+
+
+@pytest.fixture(scope="module")
+def aw04(aw04_world):
+    caller = _Aw04Caller()
+    event.listen(Engine, "before_cursor_execute", caller.on_sql)
+    yield caller
+    event.remove(Engine, "before_cursor_execute", caller.on_sql)
+
+
+def _bound_to(capture, tenant: str) -> list[str]:
+    hits = _scope_hits(capture, tenant)
+    return sorted(set(hits["read"]) | set(hits["write"]))
+
+
+def _writes(capture) -> list[str]:
+    return sorted(set(_tables_touched(capture)["write"]) - {"tenant_memberships", "scheduler_leader"})
+
+
+@pytest.mark.parametrize("key", AW04_ROUTES)
+def test_aw04_a_claim_of_another_tenant_is_refused_and_changes_nothing(aw04, key):
+    index, owner_status = aw04.owner_profile(key)
+    user = AW04_OWNERS[index if index is not None else 0]
+    for name, headers in (("own tenant header", {"X-Tenant-Id": TENANT_A}), ("no header", {})):
+        status, capture, text = aw04.call(key, _h(user, **headers), TENANT_B)
+        failed_like_the_owner = owner_status >= 400 and status == owner_status
+        assert status in REFUSED or failed_like_the_owner, f"{name}: claim of B got HTTP {status} (owner {owner_status})"
+        assert _bound_to(capture, TENANT_B) == [], f"{name}: SQL bound to tenant B on {_bound_to(capture, TENANT_B)}"
+        if status in REFUSED:
+            assert _writes(capture) == [], f"{name}: refused request wrote {_writes(capture)}"
+        assert TENANT_B not in text, f"{name}: the response names tenant B"
+
+
+@pytest.mark.parametrize("key", AW04_ROUTES)
+def test_aw04_the_same_tenant_contract_is_preserved(aw04, key):
+    index, owner_status = aw04.owner_profile(key)
+    if index is None:
+        pytest.skip("no tenant role profile may call this route (role-gated); refusal covered above")
+    # The owner, selecting tenant A and claiming tenant A, is served (``owner_profile``).
+    # Whether a member who sends NO tenant header is served is AW-06M, tested below.
+    assert owner_status not in REFUSED
+    status, capture, _ = aw04.call(key, _h(AW04_OWNERS[index], **{"X-Tenant-Id": TENANT_A}), TENANT_A)
+    assert status not in REFUSED, f"owner selecting and claiming their own tenant got HTTP {status}"
+    assert _bound_to(capture, TENANT_B) == [] and _bound_to(capture, TENANT_C) == []
+    status, capture, _ = aw04.call(key, _h(AW04_MULTI[index], **{"X-Tenant-Id": TENANT_C}), TENANT_C)
+    assert status not in REFUSED, f"multi-member selecting and claiming C got HTTP {status}"
+    assert _bound_to(capture, TENANT_A) == [] and _bound_to(capture, TENANT_B) == []
+
+
+def test_aw04_most_routes_have_a_working_owner(aw04):
+    working = [key for key in AW04_ROUTES if aw04.owner_profile(key)[0] is not None]
+    assert len(working) >= len(AW04_ROUTES) - 4, sorted(set(AW04_ROUTES) - set(working))

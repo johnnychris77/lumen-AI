@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 4, AW-03/AW-06M (parent 4fdac4c)",
+ "baseline_commit": "remediation batch 4, AW-04 (parent 5adde8d)",
  "sweeps": [
   "sqlite",
   "sqlite",
@@ -23,24 +23,6 @@
  ],
  "unstable": {},
  "findings": {
-  "GET /api/accreditation/certifications": [
-   "AW-04"
-  ],
-  "GET /api/accreditation/evidence-items": [
-   "AW-04"
-  ],
-  "GET /api/accreditation/programs": [
-   "AW-04"
-  ],
-  "GET /api/accreditation/readiness": [
-   "AW-04"
-  ],
-  "GET /api/accreditation/readiness/trend": [
-   "AW-04"
-  ],
-  "GET /api/accreditation/survey-evidence": [
-   "AW-04"
-  ],
   "GET /api/agents/run/{inspection_id}": [
    "AW-06N"
   ],
@@ -52,9 +34,6 @@
   ],
   "GET /api/analytics/powerbi": [
    "AW-06N"
-  ],
-  "GET /api/billing/status": [
-   "AW-04"
   ],
   "GET /api/cios/certificate/{inspection_id}": [
    "AW-06N"
@@ -77,46 +56,10 @@
   "GET /api/cios/state/{inspection_id}": [
    "AW-06N"
   ],
-  "GET /api/commercial/business-case/executive-summary": [
-   "AW-04"
-  ],
-  "GET /api/commercial/customer-success/health-score": [
-   "AW-04"
-  ],
-  "GET /api/commercial/customer-success/trend": [
-   "AW-04"
-  ],
   "GET /api/decision-policies": [
    "AW-06N"
   ],
-  "GET /api/enterprise/ranking/history/{finding_id}": [
-   "AW-06M"
-  ],
-  "GET /api/enterprise/ranking/kpi-summary": [
-   "AW-04"
-  ],
-  "GET /api/enterprise/ranking/profiles/{tenant_id}": [
-   "AW-04"
-  ],
-  "GET /api/enterprise/ranking/score/{finding_id}/report.pdf": [
-   "AW-06M"
-  ],
   "GET /api/genesis-ai/manufacturer-updates": [
-   "AW-04"
-  ],
-  "GET /api/infinity/billing/partner-licenses": [
-   "AW-04"
-  ],
-  "GET /api/intelligence/capa-effectiveness": [
-   "AW-04"
-  ],
-  "GET /api/intelligence/dashboard": [
-   "AW-04"
-  ],
-  "GET /api/intelligence/recalls": [
-   "AW-04"
-  ],
-  "GET /api/intelligence/recalls/{recall_id}": [
    "AW-04"
   ],
   "GET /api/knowledge-graph/analytics": [
@@ -127,30 +70,6 @@
   ],
   "GET /api/knowledge-graph/learning-confidence": [
    "AW-06N"
-  ],
-  "GET /api/network-intelligence/executive/dashboards": [
-   "AW-04"
-  ],
-  "GET /api/network-intelligence/executive/network-intelligence-summary": [
-   "AW-04"
-  ],
-  "GET /api/network-intelligence/executive/snapshots": [
-   "AW-04"
-  ],
-  "GET /api/network-intelligence/lifecycle/events": [
-   "AW-04"
-  ],
-  "GET /api/network-intelligence/lifecycle/instruments": [
-   "AW-04"
-  ],
-  "GET /api/network-intelligence/registry": [
-   "AW-04"
-  ],
-  "GET /api/olympus/participants/{tenant_id}": [
-   "AW-04"
-  ],
-  "GET /api/olympus/trust/{tenant_id}/history": [
-   "AW-04"
   ],
   "GET /api/pre-sterilization-command-center/baseline-coverage": [
    "AW-06N"
@@ -188,46 +107,8 @@
   "GET /api/unknown-findings": [
    "AW-06N"
   ],
-  "PATCH /api/genesis-ai/participants/{tenant_id}/research-opt-in": [
-   "AW-04"
-  ],
-  "POST /api/commercial/customer-success/snapshot": [
-   "AW-04"
-  ],
   "POST /api/decision-policies/simulate": [
    "AW-06N"
-  ],
-  "POST /api/enterprise/ranking/composite-score": [
-   "AW-04",
-   "AW-06M"
-  ],
-  "POST /api/enterprise/ranking/profiles": [
-   "AW-04"
-  ],
-  "POST /api/enterprise/ranking/score": [
-   "AW-04",
-   "AW-06M"
-  ],
-  "POST /api/growth/reference-customers": [
-   "AW-04"
-  ],
-  "POST /api/intelligence/consent": [
-   "AW-04"
-  ],
-  "POST /api/network-intelligence/executive/dashboards": [
-   "AW-04"
-  ],
-  "POST /api/network-intelligence/executive/snapshots": [
-   "AW-04"
-  ],
-  "POST /api/network-intelligence/lifecycle/instruments": [
-   "AW-04"
-  ],
-  "POST /api/network-intelligence/registry": [
-   "AW-04"
-  ],
-  "POST /api/olympus/trust/{tenant_id}/compute": [
-   "AW-04"
   ]
  }
 }

@@ -44,6 +44,7 @@ from app.services import (
     olympus_observatory_service,
     olympus_trust_service,
 )
+from app.auth.tenant_scope import refuse_other_tenants
 from app.tenant_authz import require_tenant_roles
 
 router = APIRouter(prefix="/api/olympus", tags=["olympus"])
@@ -80,6 +81,8 @@ def get_participants(
 
 @router.get("/participants/{tenant_id}")
 def get_participant(tenant_id: str, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): the path tenant must be the caller's verified membership tenant.
+    refuse_other_tenants(_tenant(current_user), tenant_id)
     result = olympus_network_identity_service.get_participant(db, tenant_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Network participant '{tenant_id}' not found.")
@@ -98,6 +101,8 @@ def get_directory_summary(current_user: dict = Depends(require_tenant_roles(*_AL
 
 @router.post("/trust/{tenant_id}/compute")
 def post_compute_trust(tenant_id: str, current_user: dict = Depends(require_tenant_roles(*_LEADERSHIP_ROLES)), db: Session = Depends(get_db)):
+    # P472-03 AW-04 (batch 4): the path tenant must be the caller's verified membership tenant.
+    refuse_other_tenants(_tenant(current_user), tenant_id)
     return olympus_trust_service.compute_and_record_trust_snapshot(db, tenant_id)
 
 
@@ -106,6 +111,8 @@ def get_trust_history(
     tenant_id: str, limit: int = Query(20, le=100),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
+    # P472-03 AW-04 (batch 4): the path tenant must be the caller's verified membership tenant.
+    refuse_other_tenants(_tenant(current_user), tenant_id)
     return {"history": olympus_trust_service.trust_history(db, tenant_id, limit=limit)}
 
 
