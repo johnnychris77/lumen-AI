@@ -7,8 +7,10 @@ may publish is governance decision **GD-6 — unsigned**. This file therefore do
 NOT change behaviour; it pins it:
 
 * ``TestControls`` — what is already enforced (passes).
-* ``TestOpenFindings`` — every exposure reproduced against the current code,
-  each a STRICT expected failure (a tripwire). A tripwire is an OPEN finding
+* ``TestOpenFindings`` — every exposure reproduced in Batch 5 as a STRICT
+  expected failure; converted in Batch 6 (B6.1) after the fail-closed fix. A
+  converted tripwire is still a RELEASE BLOCKER until a non-author reviewer
+  records its disposition (RB-T15…RB-T23). A tripwire is an OPEN finding
   and a RELEASE BLOCKER, not a passing check. It flips to a failure the moment
   behaviour changes, forcing the marker to be removed deliberately once an
   approved GD-6 policy is implemented and independently reviewed.
@@ -128,29 +130,34 @@ class TestControls:
 class TestOpenFindings:
     """Each test asserts the PROPOSED least-privilege behaviour; each fails today."""
 
-    @_gd6("GD6-01", "another tenant can read a pending update by id (object-id substitution)")
+    # GD6-01 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_another_tenant_cannot_read_a_pending_update_by_id(self, pending):
         response = client.get(f"{BASE}/{pending['id']}", headers=_h(VIEW_B, HOSP_B))
         assert response.status_code == 404
         assert pending["body"] not in response.text
 
-    @_gd6("GD6-02", "the feed lists every tenant's unpublished updates")
+    # GD6-02 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_the_feed_does_not_list_another_tenants_unpublished_updates(self, pending):
         listed = client.get(BASE, headers=_h(VIEW_B, HOSP_B)).json()["updates"]
         assert pending["id"] not in {u["id"] for u in listed}
 
-    @_gd6("GD6-03", "status filter enumerates other tenants' pending/draft updates (filter side channel)")
+    # GD6-03 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_status_filter_does_not_reveal_another_tenants_pending_updates(self, pending):
         listed = client.get(BASE, headers=_h(VIEW_B, HOSP_B), params={"status": "pending_review"}).json()["updates"]
         assert all(u["manufacturer_tenant_id"] == HOSP_B for u in listed)
 
-    @_gd6("GD6-04 / RB-T01", "publisher filter returns a named tenant's unpublished updates (AW-04 register entry)")
+    # Converted in B6.1. ASSERTION AMENDED (for reviewer attention): the publisher
+    # filter naming another tenant is now refused (403, Batch 4 claim rule), so there
+    # is no list to inspect; a refusal is accepted as "not revealed" and the pending
+    # id must still be absent from the response body.
     def test_publisher_filter_does_not_reveal_unpublished_content(self, pending):
-        listed = client.get(BASE, headers=_h(VIEW_B, HOSP_B),
-                            params={"manufacturer_tenant_id": MFR_A}).json()["updates"]
+        response = client.get(BASE, headers=_h(VIEW_B, HOSP_B), params={"manufacturer_tenant_id": MFR_A})
+        assert response.status_code in (200, 403)
+        listed = response.json()["updates"] if response.status_code == 200 else []
         assert pending["id"] not in {u["id"] for u in listed}
+        assert pending["body"] not in response.text
 
-    @_gd6("GD6-05", "the version chain discloses another tenant's unpublished predecessors")
+    # GD6-05 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_version_chain_does_not_disclose_unpublished_versions(self):
         draft = _submit()
         published = _submit(supersedes_id=draft["id"])
@@ -158,26 +165,68 @@ class TestOpenFindings:
         chain = client.get(f"{BASE}/{published['id']}/version-chain", headers=_h(VIEW_B, HOSP_B)).json()["chain"]
         assert draft["id"] not in {u["id"] for u in chain}
 
-    @_gd6("GD6-06", "any tenant's leadership can publish another tenant's update")
+    # GD6-06 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_another_tenant_cannot_publish(self, pending):
         response = client.post(f"{BASE}/{pending['id']}/review", headers=_h(LEAD_B, HOSP_B), json={"decision": "published"})
         assert response.status_code in (403, 404)
 
-    @_gd6("GD6-07", "any tenant's leadership can reject (unpublish to draft) another tenant's update")
+    # GD6-07 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_another_tenant_cannot_reject(self, pending):
         response = client.post(f"{BASE}/{pending['id']}/review", headers=_h(LEAD_B, HOSP_B), json={"decision": "rejected"})
         assert response.status_code in (403, 404)
 
-    @_gd6("GD6-08", "a tenant can link its update into another tenant's version chain (supersedes_id) "
-                    "and probe ids for existence (201 vs 404)")
+    # GD6-08 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_cannot_supersede_another_tenants_update(self, pending):
         response = client.post(BASE, headers=_h(LEAD_B, HOSP_B),
                                json={"update_type": "ifu", "title": "hijack", "supersedes_id": pending["id"]})
         assert response.status_code in (403, 404, 422)
 
-    @_gd6("GD6-09", "submitter / reviewer user identities (emails) are disclosed to other tenants")
+    # GD6-09 — strict tripwire in Batch 5; converted in B6.1 (assertion unchanged).
     def test_other_tenants_do_not_see_submitter_identities(self):
         published = _published()
         listed = client.get(BASE, headers=_h(VIEW_B, HOSP_B)).json()["updates"]
         row = next(u for u in listed if u["id"] == published["id"])
         assert LEAD_A not in str(row)
+
+
+class TestB61FailClosedControls:
+    """B6.1: what the fail-closed rule still allows, and what it records."""
+
+    def test_the_owning_tenant_can_still_review_its_own_update_and_it_is_audited(self, pending):
+        from app.models.audit_log import AuditLog
+        response = client.post(f"{BASE}/{pending['id']}/review", headers=_h(LEAD_A, MFR_A), json={"decision": "published"})
+        assert response.status_code == 200 and response.json()["status"] == "published"
+        db = SessionLocal()
+        try:
+            events = db.query(AuditLog).filter(AuditLog.resource_type == "genesis_manufacturer_update",
+                                               AuditLog.resource_id == str(pending["id"])).all()
+        finally:
+            db.close()
+        assert [e.action_type for e in events] == ["genesis.manufacturer_update.published"]
+        assert events[0].tenant_id == MFR_A
+
+    def test_another_tenants_id_and_a_missing_id_are_indistinguishable(self, pending):
+        other = client.get(f"{BASE}/{pending['id']}", headers=_h(VIEW_B, HOSP_B))
+        missing = client.get(f"{BASE}/999999999", headers=_h(VIEW_B, HOSP_B))
+        assert other.status_code == missing.status_code == 404
+        assert other.json()["detail"].replace(str(pending["id"]), "N") == missing.json()["detail"].replace("999999999", "N")
+
+    def test_the_publisher_filter_works_for_the_callers_own_tenant(self, pending):
+        listed = client.get(BASE, headers=_h(LEAD_A, MFR_A), params={"manufacturer_tenant_id": MFR_A}).json()["updates"]
+        assert pending["id"] in {u["id"] for u in listed}
+        assert all(u["owned_by_caller"] for u in listed)
+
+    def test_published_content_from_another_tenant_is_pseudonymous(self):
+        published = _published()
+        row = next(u for u in client.get(BASE, headers=_h(VIEW_B, HOSP_B)).json()["updates"] if u["id"] == published["id"])
+        assert row["manufacturer_tenant_id"] is None and row["submitted_by"] is None and row["reviewed_by"] is None
+        assert row["owned_by_caller"] is False and row["body"] == published["body"]
+
+    def test_the_owner_sees_its_own_identities(self, pending):
+        row = client.get(f"{BASE}/{pending['id']}", headers=_h(LEAD_A, MFR_A)).json()
+        assert row["submitted_by"] == LEAD_A and row["manufacturer_tenant_id"] == MFR_A
+
+    def test_superseding_own_update_still_works(self, pending):
+        newer = _submit(supersedes_id=pending["id"])
+        chain = client.get(f"{BASE}/{newer['id']}/version-chain", headers=_h(LEAD_A, MFR_A)).json()["chain"]
+        assert [u["id"] for u in chain] == [pending["id"], newer["id"]]

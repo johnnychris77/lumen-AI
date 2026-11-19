@@ -178,7 +178,9 @@ def post_manufacturer_update_review(
 ):
     actor = _actor(current_user)
     try:
-        return genesis_ai_manufacturer_portal_service.review_update(db, update_id, decision=payload.get("decision", ""), reviewed_by=actor)
+        return genesis_ai_manufacturer_portal_service.review_update(
+            db, update_id, decision=payload.get("decision", ""), reviewed_by=actor, caller_tenant_id=_tenant(current_user),
+        )
     except genesis_ai_manufacturer_portal_service.UnknownManufacturerUpdateError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, genesis_ai_manufacturer_portal_service.InvalidManufacturerUpdateStateError) as exc:
@@ -188,7 +190,7 @@ def post_manufacturer_update_review(
 @router.get("/manufacturer-updates/{update_id}/version-chain")
 def get_manufacturer_update_version_chain(update_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return {"chain": genesis_ai_manufacturer_portal_service.version_chain(db, update_id)}
+        return {"chain": genesis_ai_manufacturer_portal_service.version_chain(db, update_id, _tenant(current_user))}
     except genesis_ai_manufacturer_portal_service.UnknownManufacturerUpdateError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -196,7 +198,7 @@ def get_manufacturer_update_version_chain(update_id: int, current_user: dict = D
 @router.get("/manufacturer-updates/{update_id}")
 def get_manufacturer_update(update_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return genesis_ai_manufacturer_portal_service.get_update(db, update_id)
+        return genesis_ai_manufacturer_portal_service.get_update(db, update_id, _tenant(current_user))
     except genesis_ai_manufacturer_portal_service.UnknownManufacturerUpdateError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -206,9 +208,14 @@ def get_manufacturer_updates(
     manufacturer_tenant_id: str = Query(""), update_type: str = Query(""), status: str = Query(""),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
+    # P472-03 B6.1 (RB-T01): the publisher filter is a tenant CLAIM — it may only
+    # name the caller's own tenant (Batch 4 rule); naming another tenant is 403.
+    # Filtering other publishers' content is a GD-6 question and stays refused.
+    tenant_id = refuse_other_tenants(_tenant(current_user), manufacturer_tenant_id)
     try:
         return {"updates": genesis_ai_manufacturer_portal_service.list_updates(
-            db, manufacturer_tenant_id=manufacturer_tenant_id, update_type=update_type, status=status,
+            db, caller_tenant_id=tenant_id, own_only=bool(manufacturer_tenant_id),
+            update_type=update_type, status=status,
         )}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

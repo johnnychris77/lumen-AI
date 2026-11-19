@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 5 final (3c8d347)",
+ "baseline_commit": "remediation batch 6 B6.1 (Genesis fail-closed)",
  "sweeps": [
   "sqlite",
   "postgresql"
@@ -21,9 +21,5 @@
   "POST /api/billing/webhook"
  ],
  "unstable": {},
- "findings": {
-  "GET /api/genesis-ai/manufacturer-updates": [
-   "AW-04"
-  ]
- }
+ "findings": {}
 }
