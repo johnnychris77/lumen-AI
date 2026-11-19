@@ -319,7 +319,9 @@ def test_aw07_a_hospital_user_cannot_assume_an_arbitrary_manufacturer_identity(t
 
 # ══ AW-08 — listing with no tenant predicate ══════════════════════════════════
 
-@_finding("AW-08", "GET /api/accreditation/programs with no tenant_id returns every tenant's programs")
+# Remediated (P472-03 Day 3: list_programs scopes to the verified tenant); re-verified in batch 4 (Issue #186) as a genuine
+# code fix, not a test artefact. The strict-xfail marker is removed; the assertion is
+# unchanged.
 def test_aw08_listing_accreditation_programs_does_not_return_other_tenants(tenants):
     note = _uid("b-confidential-note")
     created = client.post("/api/accreditation/programs", headers=tenants.headers_b, json={
@@ -331,7 +333,9 @@ def test_aw08_listing_accreditation_programs_does_not_return_other_tenants(tenan
     assert note not in response.text, "tenant A's unfiltered listing contains tenant B's accreditation program"
 
 
-@_finding("AW-08", "vendor analytics loads every tenant's inspections (db.query(Inspection).all()) behind a global role")
+# Remediated (P472-03 Day 3: 137e9b1, _tenant_inspections predicate); re-verified in batch 4 (Issue #186) as a genuine
+# code fix, not a test artefact. The strict-xfail marker is removed; the assertion is
+# unchanged.
 def test_aw08_vendor_scorecard_does_not_aggregate_another_tenants_inspections(tenants):
     vendor = _uid("b-confidential-vendor")
     db = SessionLocal()
@@ -351,7 +355,9 @@ def test_aw08_vendor_scorecard_does_not_aggregate_another_tenants_inspections(te
         f"{response.text[:200]}")
 
 
-@_finding("AW-08", "GuardianX audit replay loads its subject by id with no tenant predicate")
+# Remediated (P472-03 Day 3: ae54f5e, replay lookup filtered by the membership tenant); re-verified in batch 4 (Issue #186) as a genuine
+# code fix, not a test artefact. The strict-xfail marker is removed; the assertion is
+# unchanged.
 def test_aw08_guardianx_replay_does_not_serve_another_tenants_inspection(tenants):
     """Confirmed while implementing governance decision GD-2 (batch 2); not fixed."""
     db = SessionLocal()

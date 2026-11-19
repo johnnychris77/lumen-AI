@@ -426,6 +426,14 @@ _MANUAL_ROUTES = {
     # Confirmed during batch 2: the replay service loads its subject by id only.
     "GET /api/guardianx/audit-replay/inspections/{inspection_id}": ["AW-08"],
 }
+# Manual findings whose code fix is in place, whose reproduction test now passes with
+# its assertion unchanged, and which await INDEPENDENT review (not closed by the
+# author). They are no longer shown as open in the matrix.
+MANUAL_REMEDIATED = {
+    "AW-07": "batch 3 (e615afd): manufacturer identity from a verified ManufacturerMembership",
+    "AW-08": "day 3 (accreditation programs fbd2581, vendor analytics 137e9b1, GuardianX replay ae54f5e); "
+             "tripwires converted in batch 4",
+}
 _RISK_RANK = {"Critical": 4, "High": 3, "Medium": 2}
 
 
@@ -436,7 +444,7 @@ def manual_findings(record: dict) -> list[str]:
     found = list(_MANUAL_ROUTES.get(route_key(record), []))
     if "require_manufacturer_auth" in record["deps"] or "require_manufacturer_auth" in record["guards"]:
         found.append("AW-07")
-    return found
+    return [name for name in found if name not in MANUAL_REMEDIATED]
 
 
 def matrix_row(record: dict, limit: int | None = 3) -> list[str]:
