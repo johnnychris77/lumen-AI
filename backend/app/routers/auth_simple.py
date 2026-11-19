@@ -3,6 +3,7 @@ from typing import Optional
 import os
 import time
 import threading
+import logging
 import jwt
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from pydantic import BaseModel
@@ -10,6 +11,8 @@ from passlib.hash import bcrypt
 from sqlalchemy import text
 
 from app.db.session import engine
+
+logger = logging.getLogger(__name__)
 
 _rate_lock = threading.Lock()
 _rate_buckets: dict[str, tuple[int, float]] = {}  # ip → (count, window_start)
@@ -56,48 +59,79 @@ def _make_token(sub: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def _verify_user(u: str, password: str) -> Optional[str]:
-    # Case-insensitive match — an email typed with different capitalization
-    # than it was stored with must still authenticate.
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT username, password_hash FROM users WHERE LOWER(username)=LOWER(:u)"),
-            {"u": u.strip()},
-        ).fetchone()
-        if not row:
-            return None
-        if not bcrypt.verify(password, row.password_hash):
-            return None
-        return row.username
+    """Legacy users-table password login — DISABLED (P472-03 B5.5).
+
+    This used to query ``users.username`` / ``users.password_hash``. The
+    canonical ``users`` table (ORM ``app.models.user.User``; Alembic baseline
+    ``4b336d3ed612``) has ``email`` / ``hashed_password``, so the query raised on
+    every call and the caller turned that into 401: this path has never
+    authenticated anyone against the canonical schema, and no mounted code
+    creates ``users`` rows. Making it work would add an unreviewed credential
+    source, so it stays closed — explicitly and visibly — until the
+    authentication owner decides otherwise (decision AUTH-1). Login through
+    ``admin_credentials`` (``/api/auth/login``) is unaffected.
+    """
+    logger.warning(
+        "legacy users-table password login is disabled (AUTH-1 pending); refused login for an account "
+        "not found in admin_credentials",
+    )
+    return None
+
+
+def _role_from(conn, sql: str, identity: str) -> Optional[str]:
+    """One role source; exact-case match wins, disagreeing case variants are ambiguous."""
+    rows = conn.execute(text(sql), {"u": identity}).fetchall()
+    if not rows:
+        return None
+    exact = [r.role for r in rows if r.ident == identity and r.role]
+    if exact:
+        return exact[0]
+    roles = {r.role for r in rows if r.role}
+    if len(roles) == 1:
+        return roles.pop()
+    if roles:
+        logger.warning("role lookup is ambiguous for a principal (case-variant rows with different roles); "
+                       "failing closed to viewer")
+        raise _AmbiguousRole()
+    return None
+
+
+class _AmbiguousRole(Exception):
+    pass
+
+
+_ROLE_SOURCES = (
+    # Admin-managed assignments (User Management UI / bootstrap) — the source of truth.
+    ("user_role_assignments",
+     "SELECT username AS ident, role FROM user_role_assignments WHERE LOWER(username) = LOWER(:u)"),
+    # Canonical users table: the principal's identity is its email (B5.5; was users.username).
+    ("users", "SELECT email AS ident, role FROM users WHERE LOWER(email) = LOWER(:u)"),
+)
 
 
 def _user_role(username: str) -> str:
-    """Return the stored role for a user so the frontend gets the real role,
-    not a hard-coded 'viewer' default.
+    """Stored role of an AUTHENTICATED principal (the validated JWT ``sub`` /
+    the username just verified at login — never a client-supplied identity).
 
-    Resolution order: admin-managed role assignment table → users.role column →
-    'viewer'. The assignment table is the source of truth for roles granted via
-    the User Management UI / bootstrap.
+    Resolution order: role assignment table → ``users.role`` (by email) →
+    ``viewer``. Fail closed to ``viewer`` (least privilege) on an ambiguous
+    identity or any database error — and LOG the error, so a broken lookup is
+    no longer indistinguishable from "no role" (P472-03 B5.5).
     """
-    normalized = username.strip()
-    try:
-        with engine.begin() as conn:
-            row = conn.execute(
-                text("SELECT role FROM user_role_assignments WHERE LOWER(username)=LOWER(:u)"),
-                {"u": normalized},
-            ).fetchone()
-            if row and row.role:
-                return row.role
-    except Exception:
-        pass
-    try:
-        with engine.begin() as conn:
-            row = conn.execute(
-                text("SELECT role FROM users WHERE LOWER(username)=LOWER(:u)"), {"u": normalized}
-            ).fetchone()
-            if row and row.role:
-                return row.role
-    except Exception:
-        pass
+    identity = (username or "").strip()
+    if not identity:
+        return "viewer"
+    for source, sql in _ROLE_SOURCES:
+        try:
+            with engine.begin() as conn:
+                role = _role_from(conn, sql, identity)
+        except _AmbiguousRole:
+            return "viewer"
+        except Exception:
+            logger.warning("role lookup in %s failed; failing closed to viewer", source, exc_info=True)
+            return "viewer"
+        if role:
+            return role
     return "viewer"
 
 @router.post("/login")
