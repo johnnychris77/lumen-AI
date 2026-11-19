@@ -289,7 +289,10 @@ def test_aw06n_users_with_no_membership_are_still_pooled_where_the_default_is_a_
 
 # ══ AW-07 — manufacturer identity asserted by the client ══════════════════════
 
-@_finding("AW-07", "require_manufacturer_auth accepts whatever X-Manufacturer-ID the caller sends")
+# Remediated in P472-03 Batch 3: require_manufacturer_auth resolves the
+# manufacturer identity from a verified ManufacturerMembership, so a hospital user
+# with no manufacturer relationship is refused. The assertion below is unchanged;
+# only the strict-xfail marker was removed (the exploit no longer reproduces).
 def test_aw07_a_hospital_user_cannot_assume_an_arbitrary_manufacturer_identity(tenants):
     statuses = {
         manufacturer: client.get("/api/manufacturer-portal/my-scorecard",

@@ -460,23 +460,68 @@ def require_vendor_baseline_library_read(request: Request) -> AuthContext:
     )
 
 
-def require_manufacturer_auth(request: Request) -> str:
-    """
-    Auth helper for manufacturer portal endpoints.
-    Validates Bearer token (same as require_enterprise_auth) then requires
-    X-Manufacturer-ID header.  Returns the manufacturer_id string.
-    Does NOT require enterprise role — manufacturer role is separate.
-    """
-    # Validate the bearer token using the existing auth mechanism
-    require_enterprise_auth(request)
+MANUFACTURER_DENIED_DETAIL = "Access to the requested manufacturer is not permitted."
+NO_MANUFACTURER_MEMBERSHIP_DETAIL = "No verified manufacturer membership for this request."
 
-    manufacturer_id = request.headers.get("X-Manufacturer-ID", "").strip()
-    if not manufacturer_id:
-        raise HTTPException(
-            status_code=403,
-            detail="X-Manufacturer-ID header required for manufacturer portal access.",
+
+def _enabled_manufacturer_ids(user_email: str) -> set[str]:
+    """The manufacturer / repair-partner organizations the user is an ENABLED,
+    verified member of (P472-03 AW-07). Empty when the user has no membership."""
+    user = (user_email or "").strip()
+    if not user:
+        return set()
+    from app.db import SessionLocal
+    from app.db.models import ManufacturerMembership
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ManufacturerMembership.manufacturer_id)
+            .filter(
+                ManufacturerMembership.user_email == user,
+                ManufacturerMembership.is_enabled.is_(True),
+            )
+            .all()
         )
-    return manufacturer_id
+        return {r[0] for r in rows if r[0]}
+    finally:
+        db.close()
+
+
+def require_manufacturer_auth(request: Request) -> str:
+    """Auth for manufacturer / repair-partner portal endpoints (P472-03 AW-07).
+
+    The manufacturer identity a request acts under is ALWAYS one the authenticated
+    user is a verified, enabled member of — exactly as ``principal_tenant`` governs
+    the tenant identity:
+
+    * an ``X-Manufacturer-ID`` header is honoured only when the user is an enabled
+      member of that organization; any other claimed organization is refused (403),
+      never served from a different one;
+    * with no header, the user acts in their sole manufacturer membership;
+    * a user with no manufacturer membership, or several with none selected, is
+      refused. The header is never trusted on its own, so a hospital user (or any
+      user without a manufacturer relationship) can no longer assume a manufacturer
+      identity by sending the header.
+
+    Fails closed (403) for a missing, revoked or disabled membership — a disabled
+    membership is no membership, since the query filters on ``is_enabled``.
+    """
+    # Authenticate the bearer token (401 on an invalid/missing token). This also
+    # runs the tenant-membership check for the user's hospital identity.
+    ctx = require_enterprise_auth(request)
+    user = (getattr(ctx, "actor", "") or "").strip()
+
+    claimed = request.headers.get("X-Manufacturer-ID", "").strip()
+    memberships = _enabled_manufacturer_ids(user)
+
+    if claimed:
+        if claimed not in memberships:
+            raise HTTPException(status_code=403, detail=MANUFACTURER_DENIED_DETAIL)
+        return claimed
+    if len(memberships) == 1:
+        return next(iter(memberships))
+    raise HTTPException(status_code=403, detail=NO_MANUFACTURER_MEMBERSHIP_DETAIL)
 
 
 def require_audit_chain_verify(request: Request) -> AuthContext:

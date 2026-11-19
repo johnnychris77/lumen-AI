@@ -12,6 +12,7 @@ Covers:
 """
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tenant_header_client import TenantHeaderClient
@@ -730,14 +731,42 @@ class TestIntelligenceConsent:
 # TestManufacturerPortal
 # ────────────────────────────────────────────────────────────────────────────────
 
+# P472-03 AW-07: manufacturer portals require a verified manufacturer membership.
+MFR_USER = "p6-mfr-user@example.com"
 MFR_AUTH = {
     "Authorization": "Bearer dev-token",
     "X-LumenAI-Role": "manufacturer",
+    "x-lumenai-actor": MFR_USER,
     "X-Manufacturer-ID": "mfr-stryker",
 }
 
 
+def _grant_manufacturer(manufacturer_id: str, user: str = MFR_USER) -> None:
+    from app.db.session import SessionLocal
+    from app.db.models import ManufacturerMembership
+
+    db = SessionLocal()
+    try:
+        if not (
+            db.query(ManufacturerMembership)
+            .filter(
+                ManufacturerMembership.user_email == user,
+                ManufacturerMembership.manufacturer_id == manufacturer_id,
+            )
+            .first()
+        ):
+            db.add(ManufacturerMembership(
+                manufacturer_id=manufacturer_id, user_email=user,
+                role="manufacturer_admin", is_enabled=True))
+            db.commit()
+    finally:
+        db.close()
+
+
 class TestManufacturerPortal:
+    @pytest.fixture(autouse=True)
+    def _seed_manufacturer_membership(self):
+        _grant_manufacturer("mfr-stryker")
     def test_my_scorecard_requires_manufacturer_header(self):
         r = client.get(
             "/api/manufacturer-portal/my-scorecard",
