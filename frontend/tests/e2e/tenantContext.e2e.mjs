@@ -132,6 +132,9 @@ try {
     await page.getByTestId("tenant-required").getByTestId("tenant-switcher").selectOption("e2e-hosp-c");
     await page.getByRole("button", { name: "Seed checklist" }).click();
     await page.getByText(/Seeded \d+ item/).waitFor({ timeout: 15000 });
+    // The post-seed reload for hosp-c may still be in flight: wait for it, so it
+    // is not counted as a request made after the switch (harness race seen under load).
+    await page.waitForLoadState("networkidle");
     const afterC = accreditationCalls(requests).length;
     assertTenantDiscipline(requests, ["e2e-hosp-c"]);
     await Promise.all([readinessLoaded(page), page.getByTestId("tenant-switcher").first().selectOption("e2e-hosp-a")]);
