@@ -78,7 +78,9 @@ from app.tenant import resolve_tenant
 REFUSED = (401, 403)
 RUN = uuid.uuid4().hex[:8]
 TENANT_A, TENANT_B, TENANT_C = f"b2-alpha-{RUN}", f"b2-bravo-{RUN}", f"b2-charlie-{RUN}"
-RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(")
+# ``request_tenant(`` is the batch 4 (AW-03/AW-06M) resolver for ``require_enterprise_auth``
+# handlers; it also matches ``verified_request_tenant(``.
+RESOLVER_CALLS = ("principal_tenant(", "verified_request_tenant(", "request_tenant(")
 # (global role, tenant-membership role): the sweep's profiles plus the two global
 # roles that some of these routes require and the sweep does not carry. The
 # platform administrator (global role "admin") is deliberately absent.
@@ -478,7 +480,7 @@ def test_the_route_table_is_the_mounted_application():
     """The parametrised tests below cover every route that uses the verified
     resolver; these counts change only when a route is added or converted."""
     by_how = {how: sum(1 for _, _, h in ROUTES if h == how) for how in ("dependency", "handler")}
-    assert by_how == {"dependency": 195, "handler": 497}, by_how
+    assert by_how == {"dependency": 195, "handler": 635}, by_how
     assert len(set(ROUTE_IDS)) == len(ROUTE_IDS)
     assert set(OPEN_OWNER_FINDINGS) | set(OPEN_REFUSAL_FINDINGS) <= set(ROUTE_IDS)
 
@@ -512,10 +514,19 @@ def test_the_owner_and_a_selected_membership_are_served(caller, method, path, ho
         return
     assert owner_status not in REFUSED
 
-    status, capture, _ = caller.call(method, path, caller.headers(_USERS["a"][index]))
-    if how == "handler":
-        # The web client sends no tenant header: the member acts in their own tenant.
-        assert status not in REFUSED, f"member with no tenant header got HTTP {status}"
+    status, capture, text = caller.call(method, path, caller.headers(_USERS["a"][index]))
+    if how == "handler" and status in REFUSED:
+        # The web client sends no tenant header: the member acts in their own tenant,
+        # so the request must be treated exactly as the same member naming tenant A
+        # NOW. (``owner_status`` is cached from earlier in the run, and other routes'
+        # requests may since have changed tenant A's business state — e.g. a pending
+        # network enrolment whose unsigned DPA then gates a contribution. Before
+        # batch 4 such requests were pooled in ``default-tenant`` and never met it.)
+        named, _, named_text = caller.call(
+            method, path, caller.headers(_USERS["a"][index], **{"X-Tenant-Id": TENANT_A}))
+        assert status == named and TENANT_DENIED_DETAIL not in text and NO_VERIFIED_TENANT_DETAIL not in text, (
+            f"member with no tenant header got HTTP {status} ({text[:160]}); "
+            f"naming their own tenant got HTTP {named} ({named_text[:160]})")
     assert _bound(capture, TENANT_B) == [] and _bound(capture, TENANT_C) == []
 
     status, capture, text = caller.call(

@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.mobile import (
     DeviceSession,
     ImageCaptureSession,
@@ -125,8 +126,7 @@ class AddToQueueBody(BaseModel):
 
 @router.post("/sessions")
 def create_session(body: CreateSessionBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     started = datetime.utcnow()
     if body.started_at_device:
@@ -163,8 +163,7 @@ def list_sessions(
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(OfflineInspectionSession).filter_by(tenant_id=tenant_id)
     if sync_status:
@@ -191,8 +190,7 @@ def list_sessions(
 
 @router.get("/sessions/{session_id}")
 def get_session(session_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     session = db.query(OfflineInspectionSession).filter_by(session_id=session_id, tenant_id=tenant_id).first()
     if not session:
@@ -220,8 +218,7 @@ def get_session(session_id: str, request: Request, db: Session = Depends(get_db)
 
 @router.patch("/sessions/{session_id}")
 def update_session(session_id: str, body: UpdateSessionBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     session = db.query(OfflineInspectionSession).filter_by(session_id=session_id, tenant_id=tenant_id).first()
     if not session:
@@ -247,8 +244,7 @@ def update_session(session_id: str, body: UpdateSessionBody, request: Request, d
 
 @router.post("/sessions/{session_id}/sync")
 def sync_session(session_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = process_offline_sync(db, session_id, tenant_id)
     log_audit_event(db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=get_request_actor(request), actor_role="", action_type="mobile.session.sync", resource_type="offline_inspection_sessions", resource_id=session_id)
@@ -257,8 +253,7 @@ def sync_session(session_id: str, request: Request, db: Session = Depends(get_db
 
 @router.get("/sessions/{session_id}/sync-status")
 def sync_status(session_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     session = db.query(OfflineInspectionSession).filter_by(session_id=session_id, tenant_id=tenant_id).first()
     if not session:
@@ -281,8 +276,7 @@ def sync_status(session_id: str, request: Request, db: Session = Depends(get_db)
 
 @router.post("/scan/decode")
 def decode_scan(body: ScanDecodeBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     seed_key = body.image_base64[:32] if len(body.image_base64) >= 32 else body.image_base64
     rng = _seed(seed_key)
@@ -327,8 +321,7 @@ def list_scan_results(
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(ScanResult).filter_by(tenant_id=tenant_id)
     if session_id:
@@ -356,8 +349,7 @@ def list_scan_results(
 
 @router.post("/scan/lookup")
 def lookup_scan(body: ScanLookupBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = resolve_scan_value(db, tenant_id, body.value, body.scan_type)
     if not result:
@@ -377,8 +369,7 @@ _MAX_SESSION_BYTES = 50 * 1024 * 1024  # 50 MB per session
 
 @router.post("/images/session")
 def create_capture_session(body: CreateCaptureSessionBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     cap = ImageCaptureSession(
         tenant_id=tenant_id,
@@ -401,8 +392,7 @@ def create_capture_session(body: CreateCaptureSessionBody, request: Request, db:
 
 @router.post("/images/upload")
 def upload_image(body: UploadImageBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     cap = db.query(ImageCaptureSession).filter_by(
         capture_session_id=body.capture_session_id, tenant_id=tenant_id
@@ -448,8 +438,7 @@ def upload_image(body: UploadImageBody, request: Request, db: Session = Depends(
 
 @router.get("/images/session/{capture_session_id}")
 def get_capture_session(capture_session_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     cap = db.query(ImageCaptureSession).filter_by(
         capture_session_id=capture_session_id, tenant_id=tenant_id
@@ -482,8 +471,7 @@ def list_notifications(
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _recipient_id = tenant_id  # use tenant_id as proxy in dev
 
     q = db.query(MobileNotification).filter_by(tenant_id=tenant_id)
@@ -514,8 +502,7 @@ def list_notifications(
 
 @router.post("/notifications")
 def create_notification(body: CreateNotificationBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     expires = None
     if body.expires_at:
@@ -545,8 +532,7 @@ def create_notification(body: CreateNotificationBody, request: Request, db: Sess
 
 @router.patch("/notifications/{notification_id}/read")
 def mark_read(notification_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     notif = db.query(MobileNotification).filter_by(notification_id=notification_id, tenant_id=tenant_id).first()
     if not notif:
@@ -560,8 +546,7 @@ def mark_read(notification_id: str, request: Request, db: Session = Depends(get_
 
 @router.patch("/notifications/{notification_id}/dismiss")
 def dismiss_notification(notification_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     notif = db.query(MobileNotification).filter_by(notification_id=notification_id, tenant_id=tenant_id).first()
     if not notif:
@@ -574,8 +559,7 @@ def dismiss_notification(notification_id: str, request: Request, db: Session = D
 
 @router.post("/notifications/broadcast")
 def broadcast_notification(body: BroadcastNotificationBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     recipient_id = f"broadcast:{body.facility_id}"
     notif = dispatch_notification(
@@ -599,8 +583,7 @@ def broadcast_notification(body: BroadcastNotificationBody, request: Request, db
 
 @router.post("/device-sessions")
 def register_device(body: RegisterDeviceBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     user_id = get_request_actor(request) or tenant_id
 
     dev = DeviceSession(
@@ -620,8 +603,7 @@ def register_device(body: RegisterDeviceBody, request: Request, db: Session = De
 
 @router.get("/device-sessions")
 def list_device_sessions(request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     sessions = (
         db.query(DeviceSession)
@@ -648,8 +630,7 @@ def list_device_sessions(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/device-sessions/{device_session_id}/logout")
 def remote_logout(device_session_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     dev = db.query(DeviceSession).filter_by(device_session_id=device_session_id, tenant_id=tenant_id).first()
     if not dev:
@@ -663,8 +644,7 @@ def remote_logout(device_session_id: str, request: Request, db: Session = Depend
 
 @router.post("/device-sessions/{device_session_id}/wipe")
 def remote_wipe(device_session_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     dev = db.query(DeviceSession).filter_by(device_session_id=device_session_id, tenant_id=tenant_id).first()
     if not dev:
@@ -682,8 +662,7 @@ def remote_wipe(device_session_id: str, request: Request, db: Session = Depends(
 
 @router.post("/sync-queue")
 def add_to_queue(body: AddToQueueBody, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     queue_ids = []
     for item in body.items:
@@ -704,8 +683,7 @@ def add_to_queue(body: AddToQueueBody, request: Request, db: Session = Depends(g
 
 @router.post("/sync-queue/process")
 def process_queue(request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     pending = (
         db.query(MobileSyncQueue)
@@ -741,8 +719,7 @@ _VALID_ROLES = {"technician", "supervisor", "manager", "quality_director", "infe
 
 @router.get("/dashboard/{role}")
 def mobile_dashboard(role: str, request: Request, facility_id: Optional[str] = None, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     if role not in _VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(_VALID_ROLES)}")
@@ -772,8 +749,7 @@ def token_refresh(request: Request):
 
 @router.get("/auth/check")
 def auth_check(request: Request):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request), request)
 
     return {
         "authenticated": True,
@@ -784,8 +760,7 @@ def auth_check(request: Request):
 
 @router.post("/auth/logout")
 def auth_logout(request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     # In production: add token to revocation list
     log_audit_event(db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=get_request_actor(request), actor_role="", action_type="mobile.auth.logout", resource_type="device_sessions", resource_id="token")

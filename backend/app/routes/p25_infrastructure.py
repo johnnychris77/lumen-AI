@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.p25_infrastructure import (
     IndustryAPICredential,
     InstrumentDigitalIdentity,
@@ -34,9 +35,6 @@ router = APIRouter(prefix="/api/infrastructure", tags=["p25_infrastructure"])
 
 _DISCLAIMER = DISCLAIMER
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -111,8 +109,7 @@ def list_instruments(
     db: Session = Depends(get_db),
 ) -> Any:
     """List this tenant's instrument digital identities."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     identities = get_instrument_identities(db, tenant_id, category=category, status=status)
     _audit(db, tenant_id, _actor(request),
            "p25.instruments.list", "instrument_identities", "all",
@@ -132,8 +129,7 @@ def get_instrument(
     db: Session = Depends(get_db),
 ) -> Any:
     """Get a single instrument digital identity."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     obj = get_instrument_identity(db, tenant_id, instrument_id)
     if obj is None:
         raise HTTPException(status_code=404, detail={"error": "not_found"})
@@ -150,8 +146,7 @@ def register_instrument(
     db: Session = Depends(get_db),
 ) -> Any:
     """Register a new instrument digital identity."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     # Require at least one identifier
     identifiers = [body.udi, body.barcode, body.qr_code, body.keydot_id, body.internal_id]
@@ -218,8 +213,7 @@ def update_lifecycle_status(
     db: Session = Depends(get_db),
 ) -> Any:
     """Update an instrument's lifecycle status (quarantine, retire, reactivate)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     VALID = {"active", "in_maintenance", "quarantined", "retired", "lost"}
     if status not in VALID:
@@ -264,8 +258,7 @@ def compute_readiness(
     db: Session = Depends(get_db),
 ) -> Any:
     """Compute surgical readiness score for facility, tray, or enterprise."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     VALID_SCOPES = {"facility", "tray", "enterprise"}
     if body.scope not in VALID_SCOPES:
@@ -299,8 +292,7 @@ def get_passport(
     db: Session = Depends(get_db),
 ) -> Any:
     """Get the full lifecycle passport for an instrument."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     # Verify the instrument belongs to this tenant
     obj = get_instrument_identity(db, tenant_id, instrument_id)
@@ -331,8 +323,7 @@ def add_passport_event(
     db: Session = Depends(get_db),
 ) -> Any:
     """Record a lifecycle event in an instrument's passport."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     VALID_TYPES = {
         "inspection", "sterilization", "maintenance",
@@ -405,8 +396,7 @@ def list_quality_registry(
     db: Session = Depends(get_db),
 ) -> Any:
     """Global quality registry (contamination/defect/baseline/reliability)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     entries = get_quality_registry(db, tenant_id, registry_type=registry_type)
     _audit(db, tenant_id, _actor(request),
            "p25.quality_registry.list", "quality_registry", "all",
@@ -431,8 +421,7 @@ def list_api_credentials(
     db: Session = Depends(get_db),
 ) -> Any:
     """List this tenant's active API credentials (key hashes only — never raw keys)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     rows = db.query(IndustryAPICredential).filter_by(tenant_id=tenant_id).all()
     result = []
     for r in rows:
@@ -459,8 +448,7 @@ def issue_api_credential(
     db: Session = Depends(get_db),
 ) -> Any:
     """Issue a new industry utility API credential."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     VALID_TYPES = {"hospital", "manufacturer", "researcher", "governance"}
     if body.consumer_type not in VALID_TYPES:
@@ -515,8 +503,7 @@ def revoke_api_credential(
     db: Session = Depends(get_db),
 ) -> Any:
     """Revoke an active API credential."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     cred = db.query(IndustryAPICredential).filter_by(
         id=cred_id, tenant_id=tenant_id
@@ -554,8 +541,7 @@ def list_forecasts(
     db: Session = Depends(get_db),
 ) -> Any:
     """Quality forecasts (contamination/failure/compliance/workforce_impact)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     forecasts = get_forecasts(db, tenant_id, forecast_type=forecast_type)
     _audit(db, tenant_id, _actor(request),
            "p25.forecasts.list", "quality_forecasts", "all",
@@ -580,8 +566,7 @@ def infrastructure_dashboard(
     db: Session = Depends(get_db),
 ) -> Any:
     """Consolidated P25 infrastructure dashboard."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     dashboard = get_infrastructure_dashboard(db, tenant_id)
     _audit(db, tenant_id, _actor(request),
            "p25.dashboard.get", "infrastructure_dashboard", "all", {})

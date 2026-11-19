@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.network_benchmark import NetworkParticipant
 from app.services.network_benchmark_service import (
     METRICS,
@@ -44,7 +45,7 @@ def _require_participant(db: Session, tenant_id: str) -> NetworkParticipant:
 def opt_in(request: Request, db: Session = Depends(get_db)):
     """Opt tenant into the national intelligence network."""
     auth = require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(auth, request)
 
     existing = db.query(NetworkParticipant).filter(NetworkParticipant.tenant_id == tenant_id).first()
     if existing and existing.is_active:
@@ -94,8 +95,7 @@ def opt_in(request: Request, db: Session = Depends(get_db)):
 @router.get("/opt-in/status")
 def opt_in_status(request: Request, db: Session = Depends(get_db)):
     """Get participation status for this tenant."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     participant = db.query(NetworkParticipant).filter(NetworkParticipant.tenant_id == tenant_id).first()
     if not participant:
@@ -126,7 +126,7 @@ def opt_in_status(request: Request, db: Session = Depends(get_db)):
 def opt_out(request: Request, db: Session = Depends(get_db)):
     """Opt tenant out of the network."""
     auth = require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(auth, request)
 
     participant = db.query(NetworkParticipant).filter(NetworkParticipant.tenant_id == tenant_id).first()
     if not participant or not participant.is_active:
@@ -158,8 +158,7 @@ def opt_out(request: Request, db: Session = Depends(get_db)):
 @router.get("/benchmarks")
 def get_benchmarks(request: Request, db: Session = Depends(get_db)):
     """Return current industry benchmarks (requires network participation)."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _require_participant(db, tenant_id)
 
     log_audit_event(
@@ -195,8 +194,7 @@ def get_benchmarks(request: Request, db: Session = Depends(get_db)):
 @router.get("/benchmarks/my-percentile")
 def my_percentile(request: Request, db: Session = Depends(get_db)):
     """Return this tenant's percentile rank per metric."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _require_participant(db, tenant_id)
 
     log_audit_event(

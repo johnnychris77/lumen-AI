@@ -1,6 +1,6 @@
 {
  "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
- "baseline_commit": "remediation batch 2 (parent 48ef45f)",
+ "baseline_commit": "remediation batch 4, AW-03/AW-06M (parent 4fdac4c)",
  "sweeps": [
   "sqlite",
   "sqlite",
@@ -104,92 +104,8 @@
   "GET /api/genesis-ai/manufacturer-updates": [
    "AW-04"
   ],
-  "GET /api/global-intelligence/dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/global-intelligence/participant-status": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/global-intelligence/recall-warnings": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/global-intelligence/regulatory-evidence": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/global-intelligence/risk-registry": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/global-intelligence/signals": [
-   "AW-03",
-   "AW-06M"
-  ],
   "GET /api/infinity/billing/partner-licenses": [
    "AW-04"
-  ],
-  "GET /api/infrastructure/api-credentials": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/infrastructure/dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/infrastructure/forecasts": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/infrastructure/instruments": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/infrastructure/instruments/{instrument_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/infrastructure/instruments/{instrument_id}/passport": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/infrastructure/quality-registry": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/correlation-candidates": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/errors": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/external-events": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/imports": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/imports/{import_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/systems": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/integrations/systems/{system_id}/health": [
-   "AW-03",
-   "AW-06M"
   ],
   "GET /api/intelligence/capa-effectiveness": [
    "AW-04"
@@ -197,39 +113,11 @@
   "GET /api/intelligence/dashboard": [
    "AW-04"
   ],
-  "GET /api/intelligence/emerging-risks": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/intelligence/executive-summary": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/intelligence/investigations": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/intelligence/quality-dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
   "GET /api/intelligence/recalls": [
    "AW-04"
   ],
   "GET /api/intelligence/recalls/{recall_id}": [
    "AW-04"
-  ],
-  "GET /api/intelligence/recommendations": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/intelligence/risk-graph": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/intelligence/signals": [
-   "AW-03",
-   "AW-06M"
   ],
   "GET /api/knowledge-graph/analytics": [
    "AW-06N"
@@ -239,34 +127,6 @@
   ],
   "GET /api/knowledge-graph/learning-confidence": [
    "AW-06N"
-  ],
-  "GET /api/mobile/device-sessions": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/mobile/images/session/{capture_session_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/mobile/notifications": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/mobile/scan/results": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/mobile/sessions": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/mobile/sessions/{session_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/mobile/sessions/{session_id}/sync-status": [
-   "AW-03",
-   "AW-06M"
   ],
   "GET /api/network-intelligence/executive/dashboards": [
    "AW-04"
@@ -286,119 +146,11 @@
   "GET /api/network-intelligence/registry": [
    "AW-04"
   ],
-  "GET /api/network/baselines": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/baselines/search": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/baselines/stats": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/baselines/{entry_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/benchmarks": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/benchmarks/my-percentile": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/dashboard/health-system": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/dashboard/hospital": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/dashboard/manufacturer": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/dashboard/quality-leader": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/dashboard/vendor": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/opt-in/status": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/recall-signals": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/recall-signals/my-exposure": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/recall-signals/{signal_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/registry/lookup": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/registry/search": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/registry/stats": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/network/registry/{udi}/defect-history": [
-   "AW-03",
-   "AW-06M"
-  ],
   "GET /api/olympus/participants/{tenant_id}": [
    "AW-04"
   ],
   "GET /api/olympus/trust/{tenant_id}/history": [
    "AW-04"
-  ],
-  "GET /api/patient-safety/capa-effectiveness": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/executive-risk": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/infection-prevention": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/near-misses": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/quality-investigations": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/signals": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/patient-safety/signals/{signal_id}": [
-   "AW-03",
-   "AW-06M"
   ],
   "GET /api/pre-sterilization-command-center/baseline-coverage": [
    "AW-06N"
@@ -433,87 +185,11 @@
   "GET /api/pre-sterilization-command-center/tray-readiness": [
    "AW-06N"
   ],
-  "GET /api/quality-twin/dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/quality-twin/executive-brief": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/quality-twin/forecasts": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/quality-twin/interventions": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/quality-twin/scenarios": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/quality-twin/state": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/api-partners": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/baseline-governance": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/benchmarks": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/consortium": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/dashboard": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/publications": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/quality-standards": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "GET /api/standards/regional-deployments": [
-   "AW-03",
-   "AW-06M"
-  ],
   "GET /api/unknown-findings": [
    "AW-06N"
   ],
   "PATCH /api/genesis-ai/participants/{tenant_id}/research-opt-in": [
    "AW-04"
-  ],
-  "PATCH /api/intelligence/investigations/{investigation_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "PATCH /api/mobile/notifications/{notification_id}/dismiss": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "PATCH /api/mobile/notifications/{notification_id}/read": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "PATCH /api/mobile/sessions/{session_id}": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "PATCH /api/quality-twin/scenarios/{scenario_id}/approve": [
-   "AW-03",
-   "AW-06M"
   ],
   "POST /api/commercial/customer-success/snapshot": [
    "AW-04"
@@ -532,107 +208,11 @@
    "AW-04",
    "AW-06M"
   ],
-  "POST /api/global-intelligence/contribute": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/global-intelligence/enroll": [
-   "AW-03",
-   "AW-06M"
-  ],
   "POST /api/growth/reference-customers": [
    "AW-04"
   ],
-  "POST /api/infrastructure/readiness": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/correlation-candidates/run": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/external-events/import": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/systems": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/systems/{system_id}/dry-run": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/systems/{system_id}/preview-import": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/systems/{system_id}/run-import": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/integrations/systems/{system_id}/test": [
-   "AW-03",
-   "AW-06M"
-  ],
   "POST /api/intelligence/consent": [
    "AW-04"
-  ],
-  "POST /api/intelligence/investigations": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/intelligence/run-analysis": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/auth/logout": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/device-sessions": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/device-sessions/{device_session_id}/logout": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/device-sessions/{device_session_id}/wipe": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/images/session": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/images/upload": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/notifications": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/notifications/broadcast": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/scan/decode": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/sessions": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/sessions/{session_id}/sync": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/mobile/sync-queue/process": [
-   "AW-03",
-   "AW-06M"
   ],
   "POST /api/network-intelligence/executive/dashboards": [
    "AW-04"
@@ -646,60 +226,8 @@
   "POST /api/network-intelligence/registry": [
    "AW-04"
   ],
-  "POST /api/network/baselines": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/network/baselines/{entry_id}/approve": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/network/opt-in": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/network/opt-out": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/network/recall-signals/{signal_id}/escalate": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/network/registry": [
-   "AW-03",
-   "AW-06M"
-  ],
   "POST /api/olympus/trust/{tenant_id}/compute": [
    "AW-04"
-  ],
-  "POST /api/patient-safety/correlate": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/patient-safety/events/import": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/quality-twin/interventions": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/quality-twin/simulate": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/quality-twin/synthesize": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/standards/api-partners/{app_id}/approve": [
-   "AW-03",
-   "AW-06M"
-  ],
-  "POST /api/standards/baseline-governance/{record_id}/approve": [
-   "AW-03",
-   "AW-06M"
   ]
  }
 }

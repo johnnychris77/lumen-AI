@@ -72,6 +72,35 @@ def get_request_tenant_name(request: Request) -> str:
     )
 
 
+def _verified_user_tenant(request: Request, db: Session, username: str) -> str:
+    """The tenant a signed per-user JWT acts in. Fails closed (P472-03 AW-03/AW-06M).
+
+    A tenant named in EITHER request header (``X-Tenant-Id`` or
+    ``X-LumenAI-Tenant-Id``) is the caller's explicit selection and is honoured
+    only when the user is an enabled member of it; two headers that disagree are
+    refused. Previously only ``X-Tenant-Id`` counted as a selection, so a tenant
+    named in ``X-LumenAI-Tenant-Id`` was never verified here, yet handlers later
+    re-read that header and acted in it.
+
+    With no tenant named, the user acts in their sole enabled membership. A user
+    with no membership, or several and none selected, is refused: nothing is
+    served from a header alone or from a shared ``default-tenant``. (Previously a
+    multi-member user who sent no header passed a ``default-tenant`` membership
+    check and was handed ``tenant_id=None``.)
+    """
+    from app.auth.tenant_membership import resolve_effective_tenant
+    from app.auth.tenant_scope import NO_VERIFIED_TENANT_DETAIL, named_tenant
+
+    explicit = named_tenant(request)
+    if explicit:
+        require_enabled_tenant_membership(db, tenant_id=explicit, user_email=username)
+        return explicit
+    effective = resolve_effective_tenant(db, user_email=username, requested_tenant_id=None)
+    if not effective:
+        raise HTTPException(status_code=403, detail=NO_VERIFIED_TENANT_DETAIL)
+    return effective
+
+
 def _extract_bearer_token(request: Request) -> str:
     authorization = request.headers.get("authorization", "")
 
@@ -151,36 +180,8 @@ def _require_dev_auth_context(
                 pass
 
             tenant_id = get_request_tenant_id(request)
-
-            # The tenant_id above may come from a client-supplied header and must
-            # never be trusted on its own. Two cases, both fail-closed:
-            #  * An EXPLICIT X-Tenant-Id is honored only when the user is a
-            #    verified member — a spoofed tenant is rejected (403), never
-            #    silently redirected. (Preserves cross-tenant isolation.)
-            #  * NO explicit tenant header → resolve the user's OWN verified
-            #    tenant from their membership, so a correct request works without
-            #    the client having to know/transmit its tenant id (this is the
-            #    hardcoded-tenant client bug's real fix).
             if db is not None:
-                from app.auth.tenant_membership import resolve_effective_tenant
-
-                explicit_header = (
-                    request.headers.get("x-tenant-id")
-                    or request.headers.get("X-Tenant-Id")
-                )
-                if explicit_header:
-                    require_enabled_tenant_membership(
-                        db, tenant_id=tenant_id, user_email=username,
-                    )
-                else:
-                    effective = resolve_effective_tenant(
-                        db, user_email=username, requested_tenant_id=None
-                    )
-                    if not effective:
-                        require_enabled_tenant_membership(
-                            db, tenant_id=tenant_id, user_email=username,
-                        )
-                    tenant_id = effective
+                tenant_id = _verified_user_tenant(request, db, username)
 
             return build_dev_auth_context(
                 actor=username,
@@ -264,13 +265,8 @@ def _require_oidc_auth_context(
             pass
 
         tenant_id = get_request_tenant_id(request)
-
         if db is not None:
-            require_enabled_tenant_membership(
-                db,
-                tenant_id=tenant_id,
-                user_email=username,
-            )
+            tenant_id = _verified_user_tenant(request, db, username)
 
         return build_dev_auth_context(
             actor=username,

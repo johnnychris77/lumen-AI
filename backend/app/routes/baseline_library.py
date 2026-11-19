@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.baseline_library import BaselineLibraryEntry
 
 router = APIRouter(prefix="/api/network/baselines", tags=["baseline-library"])
@@ -63,8 +64,7 @@ def _mock_baselines(seed_key: str = "all") -> list[dict]:
 @router.get("")
 def list_baselines(request: Request, db: Session = Depends(get_db)):
     """List approved baselines (requires auth)."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     entries = db.query(BaselineLibraryEntry).filter(
         BaselineLibraryEntry.approval_status == "approved"
@@ -95,7 +95,7 @@ def submit_baseline(
 ):
     """Submit a baseline for network contribution (requires auth + enterprise)."""
     auth = require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(auth, request)
 
     entry = BaselineLibraryEntry(
         udi=baseline_data.get("udi"),
@@ -134,8 +134,7 @@ def search_baselines(
     db: Session = Depends(get_db),
 ):
     """Search baselines by instrument or manufacturer."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     query = db.query(BaselineLibraryEntry)
     if q:
@@ -168,8 +167,7 @@ def search_baselines(
 @router.get("/stats")
 def baseline_stats(request: Request, db: Session = Depends(get_db)):
     """Library size and coverage stats."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     total = db.query(BaselineLibraryEntry).count()
     approved = db.query(BaselineLibraryEntry).filter(
@@ -204,8 +202,7 @@ def baseline_stats(request: Request, db: Session = Depends(get_db)):
 @router.get("/{entry_id}")
 def baseline_detail(entry_id: int, request: Request, db: Session = Depends(get_db)):
     """Get baseline detail."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     entry = db.get(BaselineLibraryEntry, entry_id)
 
@@ -243,7 +240,7 @@ def baseline_detail(entry_id: int, request: Request, db: Session = Depends(get_d
 def approve_baseline(entry_id: int, request: Request, db: Session = Depends(get_db)):
     """Approve baseline (admin action)."""
     auth = require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(auth, request)
 
     entry = db.get(BaselineLibraryEntry, entry_id)
     if not entry:

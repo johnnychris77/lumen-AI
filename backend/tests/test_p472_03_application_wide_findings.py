@@ -131,7 +131,9 @@ def test_aw02_split_tenant_headers_cannot_read_tenant_b_audit_logs(tenants):
 
 # ══ AW-03 — handler re-reads an unverified tenant header ══════════════════════
 
-@_finding("AW-03", "POST /api/network/opt-in takes its tenant from X-LumenAI-Tenant-Id after authentication")
+# Remediated in P472-03 batch 4 (Issue #186): handlers take the tenant from the
+# verified auth context (``request_tenant``) and refuse a header naming another
+# tenant. The strict-xfail marker is removed; the assertions are unchanged.
 def test_aw03_a_member_of_a_cannot_opt_tenant_b_into_the_intelligence_network(tenants):
     """Network participation is a data-sharing consent decision."""
     assert _rows(NetworkParticipant, tenants.b) == 0
@@ -231,7 +233,9 @@ def test_aw05_a_user_with_two_memberships_cannot_list_a_third_tenants_devices(te
 
 # ══ AW-06 — a shared default tenant instead of the verified one ═══════════════
 
-@_finding("AW-06M", "handlers read the raw tenant header, so clients that send none all act in default-tenant")
+# Remediated in P472-03 batch 4 (Issue #186) on the header re-read modules: a
+# member who names no tenant acts in their sole verified membership. The
+# strict-xfail marker is removed; the assertions are unchanged.
 def test_aw06m_members_of_different_tenants_do_not_share_a_default_tenant(tenants):
     """No attack: both callers are verified members of different tenants and send
     no tenant header, exactly as the web client does."""

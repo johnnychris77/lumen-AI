@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.services.instrument_registry_service import (
     get_defect_history,
     get_registry_stats,
@@ -26,8 +27,7 @@ def lookup(
     db: Session = Depends(get_db),
 ):
     """Lookup instrument by UDI or barcode (requires auth)."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = lookup_instrument(db, udi=udi, barcode=barcode)
 
@@ -54,7 +54,7 @@ def register(
 ):
     """Register instrument in the national registry (requires auth)."""
     auth = require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(auth, request)
 
     result = register_instrument(db, instrument_data)
 
@@ -76,8 +76,7 @@ def register(
 @router.get("/stats")
 def stats(request: Request, db: Session = Depends(get_db)):
     """Registry size and coverage stats."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     s = get_registry_stats(db)
 
@@ -103,8 +102,7 @@ def search(
     db: Session = Depends(get_db),
 ):
     """Search registry by name or manufacturer."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     results = search_registry(db, query=q, category=category)
 
@@ -126,8 +124,7 @@ def search(
 @router.get("/{udi}/defect-history")
 def defect_history(udi: str, request: Request, db: Session = Depends(get_db)):
     """Aggregated defect history for UDI — no facility IDs."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     history = get_defect_history(db, udi)
 

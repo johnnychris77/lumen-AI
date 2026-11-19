@@ -88,6 +88,21 @@ def named_tenant(request: Request) -> str | None:
     return next(iter(named), None)
 
 
+def request_tenant(ctx: AuthContext, request: Request) -> str:
+    """The tenant a ``require_enterprise_auth`` handler acts in (P472-03 AW-03/AW-06M).
+
+    Always the tenant of the VERIFIED auth context. A tenant named in a request
+    header is only a claim: one naming any other tenant is refused (403), and two
+    headers that disagree are refused. Handlers previously discarded the context
+    and re-read ``X-LumenAI-Tenant-Id`` themselves (``get_request_tenant_id``),
+    which the auth layer had not verified and which fell back to a shared
+    ``default-tenant`` when absent. Usage, inline so the auth call stays visible::
+
+        tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
+    """
+    return authorized_tenant(ctx, named_tenant(request))
+
+
 def principal_tenant(principal: Any, request: Request) -> str:
     """The tenant an authenticated principal acts in for this request. Fails closed.
 

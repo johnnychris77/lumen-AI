@@ -127,6 +127,21 @@ REMEDIATED_MODULES = {
     "app.routes.ml_images": "batch 2",
     "app.routes.p22_operations": "batch 2",
     "app.routes.capture": "batch 2",
+    # Batch 4 (Issue #186), AW-03/AW-06M: handlers take the tenant from the verified
+    # auth context (``request_tenant``) instead of re-reading the tenant header.
+    "app.routes.network_benchmark": "batch 4",
+    "app.routes.recall_signals": "batch 4",
+    "app.routes.instrument_registry": "batch 4",
+    "app.routes.baseline_library": "batch 4",
+    "app.routes.industry_dashboard": "batch 4",
+    "app.routes.patient_safety": "batch 4",
+    "app.routes.integrations": "batch 4",
+    "app.routes.mobile": "batch 4",
+    "app.routes.quality_intelligence": "batch 4",
+    "app.routes.digital_quality_twin": "batch 4",
+    "app.routes.global_intelligence": "batch 4",
+    "app.routes.p24_standards": "batch 4",
+    "app.routes.p25_infrastructure": "batch 4",
 }
 BATCH_TESTS = {"batch 1": "tests/test_p472_03_batch1_remediation.py"}
 
