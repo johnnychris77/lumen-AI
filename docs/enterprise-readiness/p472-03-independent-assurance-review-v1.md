@@ -24,9 +24,12 @@
   `78426ce` (GD-3 floor), `5d3ec59` (Batch 2 review request), `38d1222` (GD-3
   dedup scoping), `c9a0f73` (GD-3 ownership ADR + review request), `1ff863d`
   (GD-3 governance handoff), on top of the Batch 2 stack `cf0eda2`…`728b587`.
-- CI for `1ff863d`: 11 of 13 checks green; **Backend tests (SQLite) and
-  (PostgreSQL 16) in progress → the full PostgreSQL 16 suite is PENDING**
-  (`p472-03-release-gate-evidence-index-v1.md` §1).
+- CI for `1ff863d` (run `44431365412`): **13 of 13 checks `success`**. Backend
+  tests (SQLite) `8505 passed / 3 skipped / 15 xfailed / 0 failed`; Backend tests
+  (PostgreSQL 16) conclusion `success` (full suite passed, 0 failed; the Alembic
+  chain incl. GD-3 `d8f3a6b914c7` applies on PG16). Details and the note on the
+  obscured PG16 integer line: `p472-03-release-gate-evidence-index-v1.md` §1.
+  **Passing CI is engineering evidence, not security or governance approval.**
 
 ## 2. Scope of this package
 

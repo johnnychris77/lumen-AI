@@ -17,7 +17,8 @@ reviewer approval.**
 
 ## 1. CI evidence for the reviewed head
 
-Run `44431365412` ("Pilot Zero Gate"), event `pull_request`, head_sha `1ff863d`.
+Run `44431365412` ("Pilot Zero Gate"), event `pull_request`, head_sha `1ff863d`,
+all 13 jobs **completed**.
 
 | Check | Status | Evidence class |
 |---|---|---|
@@ -30,19 +31,29 @@ Run `44431365412` ("Pilot Zero Gate"), event `pull_request`, head_sha `1ff863d`.
 | enterprise-quality-gate | success | PASS |
 | Dependency audit (report-only) | success | PASS |
 | Frontend build / frontend-security-and-build | success | PASS |
-| **Backend tests (SQLite)** | **in_progress** | **PENDING** |
-| **Backend tests (PostgreSQL 16)** | **in_progress** | **PENDING** |
+| **Backend tests (SQLite)** | **success** | **PASS** |
+| **Backend tests (PostgreSQL 16)** | **success** | **PASS** |
 
-**Full PostgreSQL 16 backend suite on `1ff863d`: PENDING.** Passed / failed /
-skipped / strict-xfailed / unexpected-pass counts and the workflow conclusion are
-not yet available. Per the review rules, the earlier SQLite result and targeted
-PostgreSQL tests are **not** substituted for this.
+**Backend tests (SQLite)** — job `135249265383`, conclusion **success**:
+`8505 passed, 3 skipped, 15 xfailed` (0 failed, 0 unexpected-pass) in 17m34s.
 
-**Local (author) evidence, recorded as supporting only — not CI, not independent:**
-full SQLite suite on the floor tree `8505 passed / 3 skipped / 15 xfailed / 0 failed`;
-GD-3 + baseline/veritas/resolution tests on PostgreSQL 16 `78 passed`; migration
-`d8f3a6b914c7` up/down and legacy-record validation on PostgreSQL 16 (see
-`gd3-quarantine-impact-and-attribution-proposal.md` §1).
+**Backend tests (PostgreSQL 16)** — job `135249265861`, conclusion **success**.
+The job's "Alembic chain applies to PostgreSQL" step passed (migration chain
+including GD-3 `d8f3a6b914c7` applies on PG16), and the "Run full suite on
+PostgreSQL" step completed **success** → **0 failed, 0 unexpected-pass**. The
+exact passed/skipped/xfailed integer line is not reproduced here because the
+step's stdout is overwritten in the retrievable log tail by the PostgreSQL
+container teardown log-dump; the **`success` conclusion is authoritative** that
+the full suite passed (pytest exits non-zero on any failure or unexpected pass,
+which would fail the step and the job). The SQLite job on the **identical tree**
+gives the companion exact figures above; by the established Batch-1/Batch-2
+pattern PG16 differs only by the PostgreSQL-only Alembic test (one more passed,
+one fewer skipped) — stated as the known pattern, not substituted for the PG16
+count.
+
+**Reviewed commit note:** `1ff863d` is the task's reference commit; the current PR
+head `33f1ed5` adds only this assurance package (7 docs) on top of it, so backend
+test behaviour is identical. Its run was still executing at the time of writing.
 
 ## 2. Per-area evidence
 
@@ -77,7 +88,9 @@ AW-08-artifact distinction.
 
 ## 4. Overall gate
 
-**HOLD / NO-GO.** The full PostgreSQL 16 CI suite on `1ff863d` is PENDING; no
-independent non-author review has occurred; no governance policy is signed off;
-AW-07 and the other application-wide findings remain open. Nothing here authorizes
-merge, deploy, attribution, or finding closure.
+**HOLD / NO-GO.** The full SQLite and PostgreSQL 16 CI suites on `1ff863d` now
+pass (SQLite `8505 passed / 3 skipped / 15 xfailed / 0 failed`; PG16 conclusion
+`success`), but passing CI is **not** release readiness: **no independent
+non-author review has occurred**, **no governance policy is signed off**, and
+**AW-07 and the other application-wide findings remain open**. Nothing here
+authorizes merge, deploy, attribution, or finding closure.
