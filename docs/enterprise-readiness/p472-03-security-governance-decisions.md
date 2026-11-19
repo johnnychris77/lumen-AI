@@ -193,7 +193,13 @@ item R2).
 
 **Status: private default enforced in the draft PR; the sharing-grant
 mechanism is not built; sign-off and the data-attribution precondition are
-pending.** The private-by-default half of the policy is now in code (see the
+pending.** The full ownership design (tenant-private / manufacturer-managed /
+platform-governed shared, the access-grant table, manufacturer identity, legacy
+reconciliation) is proposed for governance approval in
+`gd3-vendor-baseline-architecture-decision.md`, and routed for non-author review
+in `gd3-vendor-baseline-independent-review-request.md`; per that brief's
+execution control, implementation of the sharing model stops at design pending
+approval. The private-by-default half of the policy is now in code (see the
 commit below). The `TestGd3VendorBaselinesAreTenantPrivate` suite in
 `test_p472_03_governance_policies.py` replaces the former strict expected
 failure and pins the enforced behaviour: a baseline owned by one tenant is not
