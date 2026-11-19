@@ -20,6 +20,8 @@
  *   No component changes required.
  */
 
+import { isTenantDenial, isValidTenantId, TENANT_DENIED_EVENT, tenantHeaders } from "./tenantContext";
+
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
 
@@ -57,6 +59,20 @@ export function getActor(): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * The tenant the user selected from the server's list of their memberships
+ * (see lib/tenantContext.ts). Held in memory and set ONLY by the TenantProvider
+ * after the server confirmed it; sent as `X-Tenant-Id`. The server re-verifies
+ * it on every request — this is a selection, not authority.
+ */
+let selectedTenant: string | null = null;
+export function setSelectedTenant(tenantId: string | null) {
+  selectedTenant = tenantId && isValidTenantId(tenantId) ? tenantId : null;
+}
+export function getSelectedTenant(): string | null {
+  return selectedTenant;
 }
 
 /** Optional hook so the AuthProvider can react to a global 401 (e.g. sign out). */
@@ -153,6 +169,11 @@ export async function apiFetch<T = unknown>(
         finalHeaders.set("Authorization", `Bearer ${token}`);
       }
     }
+
+    // Verified tenant selection (B5.1). Never a hard-coded fallback.
+    for (const [name, value] of Object.entries(tenantHeaders(selectedTenant))) {
+      if (!finalHeaders.has(name)) finalHeaders.set(name, value);
+    }
   }
 
   const res = await fetch(buildUrl(path), {
@@ -192,6 +213,16 @@ export async function apiFetch<T = unknown>(
       }
     } catch {
       /* fall through with the generic message */
+    }
+
+    // A refused tenant (revoked membership, stale selection): let the
+    // TenantProvider re-read the user's memberships from the server.
+    if (auth && isTenantDenial(res.status, message) && typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent(TENANT_DENIED_EVENT));
+      } catch {
+        /* never let the notification mask the original error */
+      }
     }
 
     // v1.9 — fire-and-forget role-permission-failure logging. Inlined

@@ -109,7 +109,9 @@ function verdictBadge(verdict: string) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?: string }) {
+// P472-03 B5.1: the CV routes take the tenant from the verified session
+// (X-Tenant-Id, attached by apiFetch); no tenant is claimed in the URL.
+export function CVInspectionDashboard() {
   const { token } = useAuth();
   const [kpi, setKpi] = useState<CVKPISummary | null>(null);
   const [metrics, setMetrics] = useState<ProviderMetrics | null>(null);
@@ -129,9 +131,9 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
     try {
       const base = API_BASE || import.meta.env.VITE_API_BASE_URL || "";
       const [kpiRes, metricsRes, historyRes] = await Promise.all([
-        apiFetch(`/api/enterprise/cv/kpi-summary?tenant_id=${tenantId}`, { raw: true, headers }),
-        apiFetch(`/api/enterprise/cv/provider/metrics?tenant_id=${tenantId}`, { raw: true, headers }),
-        apiFetch(`/api/enterprise/cv/history?tenant_id=${tenantId}&limit=10`, { raw: true, headers }),
+        apiFetch(`/api/enterprise/cv/kpi-summary`, { raw: true, headers }),
+        apiFetch(`/api/enterprise/cv/provider/metrics`, { raw: true, headers }),
+        apiFetch(`/api/enterprise/cv/history?limit=10`, { raw: true, headers }),
       ]);
       if (kpiRes.ok) setKpi(await kpiRes.json());
       if (metricsRes.ok) setMetrics(await metricsRes.json());
@@ -141,7 +143,7 @@ export function CVInspectionDashboard({ tenantId = "demo-tenant" }: { tenantId?:
     } finally {
       setLoading(false);
     }
-  }, [tenantId, token]);
+  }, [token]);
 
   useEffect(() => { load(); }, [load]);
 

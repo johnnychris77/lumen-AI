@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
+// No Authorization here: apiFetch attaches the CURRENT session token. A
+// hard-coded "dev-token" fallback (and a token frozen at module load) is not
+// allowed (P472-03 B5.1 / no hard-coded credentials).
 const HEADERS = {
-  Authorization: `Bearer ${localStorage.getItem("token") || "dev-token"}`,
   "X-LumenAI-Role": "operator",
   "Content-Type": "application/json",
 };

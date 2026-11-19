@@ -4,6 +4,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { apiFetch } from "@/lib/api";
+import { RequireTenant, TenantSwitcher } from "@/lib/tenant";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -121,7 +122,7 @@ function OrchestrationTab({ tenant }: { tenant: string }) {
   const [msg, setMsg] = useState("");
 
   const load = () => {
-    apiFetch(`/api/operations/workflows?tenant_id=${tenant}`, { raw: true, headers: authHeaders() })
+    apiFetch(`/api/operations/workflows?tenant_id=${encodeURIComponent(tenant)}`, { raw: true, headers: authHeaders() })
       .then((r) => r.json())
       .then(setWorkflows);
   };
@@ -131,7 +132,7 @@ function OrchestrationTab({ tenant }: { tenant: string }) {
   const create = () => {
     if (!wfName.trim()) return;
     setLoading(true);
-    apiFetch(`/api/operations/workflows?tenant_id=${tenant}`, { raw: true,
+    apiFetch(`/api/operations/workflows?tenant_id=${encodeURIComponent(tenant)}`, { raw: true,
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -220,7 +221,7 @@ function WorkQueuesTab({ tenant }: { tenant: string }) {
   const [queueFilter, setQueueFilter] = useState("technician");
 
   const load = () => {
-    apiFetch(`/api/operations/work-queue?tenant_id=${tenant}&queue_type=${queueFilter}`,
+    apiFetch(`/api/operations/work-queue?tenant_id=${encodeURIComponent(tenant)}&queue_type=${queueFilter}`,
       { raw: true, headers: authHeaders() }
     )
       .then((r) => r.json())
@@ -231,7 +232,7 @@ function WorkQueuesTab({ tenant }: { tenant: string }) {
 
   const claim = (id: number) => {
     const email = localStorage.getItem("user") || "user@hospital.org";
-    apiFetch(`/api/operations/work-queue/${id}/claim?tenant_id=${tenant}&claimed_by=${encodeURIComponent(email)}`,
+    apiFetch(`/api/operations/work-queue/${id}/claim?tenant_id=${encodeURIComponent(tenant)}&claimed_by=${encodeURIComponent(email)}`,
       { raw: true, method: "POST", headers: authHeaders() }
     ).then(() => load());
   };
@@ -307,13 +308,13 @@ function CommandCenterTab({ tenant }: { tenant: string }) {
   const [snapshots, setSnapshots] = useState<RiskSnapshot[]>([]);
 
   useEffect(() => {
-    apiFetch(`/api/operations/command-center/dashboard?tenant_id=${tenant}`, { raw: true,
+    apiFetch(`/api/operations/command-center/dashboard?tenant_id=${encodeURIComponent(tenant)}`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => r.json())
       .then(setDashboard);
 
-    apiFetch(`/api/operations/command-center/snapshots?tenant_id=${tenant}`, { raw: true,
+    apiFetch(`/api/operations/command-center/snapshots?tenant_id=${encodeURIComponent(tenant)}`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => r.json())
@@ -408,13 +409,13 @@ function ExecutionsTab({ tenant }: { tenant: string }) {
   const [executions, setExecutions] = useState<Execution[]>([]);
 
   useEffect(() => {
-    apiFetch(`/api/operations/executions?tenant_id=${tenant}`, { raw: true, headers: authHeaders() })
+    apiFetch(`/api/operations/executions?tenant_id=${encodeURIComponent(tenant)}`, { raw: true, headers: authHeaders() })
       .then((r) => r.json())
       .then(setExecutions);
   }, [tenant]);
 
   const approve = (id: number) => {
-    apiFetch(`/api/operations/executions/${id}/approve?tenant_id=${tenant}`,
+    apiFetch(`/api/operations/executions/${id}/approve?tenant_id=${encodeURIComponent(tenant)}`,
       { raw: true,
         method: "POST",
         headers: authHeaders(),
@@ -424,7 +425,7 @@ function ExecutionsTab({ tenant }: { tenant: string }) {
         }),
       }
     ).then(() =>
-      apiFetch(`/api/operations/executions?tenant_id=${tenant}`, { raw: true, headers: authHeaders() })
+      apiFetch(`/api/operations/executions?tenant_id=${encodeURIComponent(tenant)}`, { raw: true, headers: authHeaders() })
         .then((r) => r.json())
         .then(setExecutions)
     );
@@ -486,7 +487,7 @@ function CopilotTab({ tenant }: { tenant: string }) {
   const [loading, setLoading] = useState(false);
 
   const loadRecs = () => {
-    apiFetch(`/api/operations/copilot/recommendations?tenant_id=${tenant}`, { raw: true,
+    apiFetch(`/api/operations/copilot/recommendations?tenant_id=${encodeURIComponent(tenant)}`, { raw: true,
       headers: authHeaders(),
     })
       .then((r) => r.json())
@@ -499,7 +500,7 @@ function CopilotTab({ tenant }: { tenant: string }) {
     if (!queryText.trim()) return;
     setLoading(true);
     setResult(null);
-    apiFetch(`/api/operations/copilot/query?tenant_id=${tenant}`, { raw: true,
+    apiFetch(`/api/operations/copilot/query?tenant_id=${encodeURIComponent(tenant)}`, { raw: true,
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -514,7 +515,7 @@ function CopilotTab({ tenant }: { tenant: string }) {
   };
 
   const review = (id: number, status: string) => {
-    apiFetch(`/api/operations/copilot/recommendations/${id}/review?tenant_id=${tenant}`,
+    apiFetch(`/api/operations/copilot/recommendations/${id}/review?tenant_id=${encodeURIComponent(tenant)}`,
       { raw: true,
         method: "POST",
         headers: authHeaders(),
@@ -617,10 +618,13 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function AutonomousOperationsConsole() {
+  // P472-03 B5.1: the tenant is the signed-in user's verified selection (sent
+  // as X-Tenant-Id by apiFetch); the routes' `tenant_id` parameter repeats it.
+  return <RequireTenant>{(tenant) => <AutonomousOperationsWorkspace key={tenant} tenant={tenant} />}</RequireTenant>;
+}
+
+function AutonomousOperationsWorkspace({ tenant }: { tenant: string }) {
   const [tab, setTab] = useState<TabId>("orchestration");
-  const [tenant, setTenant] = useState(
-    localStorage.getItem("tenantId") || "demo-tenant"
-  );
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -635,12 +639,7 @@ export default function AutonomousOperationsConsole() {
 
       {/* Tenant selector */}
       <div className="flex items-center gap-2">
-        <label className="text-xs text-slate-500">Tenant</label>
-        <Input
-          className="w-56"
-          value={tenant}
-          onChange={(e) => setTenant(e.target.value)}
-        />
+        <TenantSwitcher />
       </div>
 
       {/* Tab bar */}

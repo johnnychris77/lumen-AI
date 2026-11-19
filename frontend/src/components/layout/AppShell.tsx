@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useNotifications } from "@/lib/notifications";
 import { useAuth } from "@/lib/auth";
+import { TenantSwitcher } from "@/lib/tenant";
 import { NotificationPanel } from "@/components/ui/NotificationPanel";
 import {
   LayoutDashboard,
@@ -370,6 +371,7 @@ function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        <TenantSwitcher className="hidden md:flex" />
         <Badge variant="secondary" className="capitalize hidden sm:inline-flex">
           {role.replace(/_/g, " ")}
         </Badge>

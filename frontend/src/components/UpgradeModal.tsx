@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/lib/tenant";
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -7,7 +8,6 @@ interface UpgradeModalProps {
   currentTier: string;
   requiredTier: string;
   feature: string;
-  tenantId: string;
 }
 
 const TIER_DISPLAY = {
@@ -16,7 +16,9 @@ const TIER_DISPLAY = {
   enterprise: { label: "Enterprise", price: "Custom pricing", color: "#7c3aed" },
 };
 
-export function UpgradeModal({ isOpen, onClose, currentTier, requiredTier, feature, tenantId }: UpgradeModalProps) {
+export function UpgradeModal({ isOpen, onClose, currentTier, requiredTier, feature }: UpgradeModalProps) {
+  // P472-03 B5.1: bill the signed-in user's verified tenant — never a placeholder.
+  const { tenantId } = useTenant();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const API = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -25,6 +27,10 @@ export function UpgradeModal({ isOpen, onClose, currentTier, requiredTier, featu
   if (!isOpen) return null;
 
   const handleUpgrade = async () => {
+    if (!tenantId) {
+      setError("Select a tenant before upgrading.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { API_BASE, setUnauthorizedHandler } from "@/lib/api";
+import { API_BASE, setSelectedTenant, setUnauthorizedHandler } from "@/lib/api";
+import { TENANT_STORAGE_KEY } from "@/lib/tenantContext";
 
 // API_BASE now has a single definition in lib/api.ts. Re-exported here so the
 // many existing `import { API_BASE } from "@/lib/auth"` call sites keep working.
@@ -37,6 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("actor");
+    // The tenant selection belongs to this session only (P472-03 B5.1).
+    localStorage.removeItem(TENANT_STORAGE_KEY);
+    setSelectedTenant(null);
     // Reset auth state in-place (no full page reload). With an empty token the
     // RequireAuth guard redirects to /login using already-loaded code, so a
     // stale cached index.html can't blank the page on a fresh deploy.

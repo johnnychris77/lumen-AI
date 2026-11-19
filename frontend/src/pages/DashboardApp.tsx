@@ -501,7 +501,7 @@ const [summary, setSummary] = useState<Summary | null>(null);
 
         {/* R8: CV Inspection Intelligence dashboard tile */}
         <section style={panel}>
-          <CVInspectionDashboard tenantId="demo-tenant" />
+          <CVInspectionDashboard />
         </section>
 
         {/* P5: Enterprise Multi-Hospital Benchmarking & Portfolio Intelligence */}
@@ -649,7 +649,6 @@ const [summary, setSummary] = useState<Summary | null>(null);
         currentTier={upgradeState.currentTier}
         requiredTier={upgradeState.requiredTier}
         feature={upgradeState.feature}
-        tenantId={AUTH_TOKEN ? "current-tenant" : ""}
       />
     )}
   </>

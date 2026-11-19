@@ -6,9 +6,10 @@ import React, { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 
+// apiFetch attaches the current session token; no hard-coded "dev-token"
+// fallback (P472-03 B5.1 / no hard-coded credentials).
 function authHeaders() {
-  const token = localStorage.getItem("token") ?? "dev-token";
-  return { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+  return { "Content-Type": "application/json" };
 }
 
 // ---- Types ----
