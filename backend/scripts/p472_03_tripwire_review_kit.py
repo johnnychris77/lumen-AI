@@ -52,6 +52,7 @@ F = "backend/tests/test_p472_03_application_wide_findings.py"
 G = "backend/tests/test_p472_03_batch5_genesis_gd6.py"
 X = "backend/tests/test_p472_03_batch5_guardianx_gd7.py"
 H = "backend/tests/test_p472_03_batch2_remediation.py"
+Y = "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py"
 
 # Same-tenant / legitimate-access controls run on the code under review. A fix that
 # refuses everyone would pass the tripwire and fail these.
@@ -76,6 +77,13 @@ CONTROLS: dict[str, list[tuple[str, str]]] = {
         "test_a_tampered_own_entry_stays_visible_to_its_owner_as_tampered",
         "test_a_write_cannot_claim_another_tenant",
         "test_the_owning_tenant_can_replay_its_execution_and_rule")],
+    Y: [(Y, name) for name in (
+        "test_owner_writes_evidence_for_its_inspection",
+        "test_owner_writes_evidence_for_its_workflow_execution",
+        "test_owner_can_write_repeatedly_to_its_own_ownerless_key",
+        "test_a_fresh_ownerless_key_is_writable",
+        "test_owner_attaches_an_explanation_to_its_inspection",
+        "test_digital_twin_context_for_the_callers_own_tenant_still_works")],
 }
 
 
@@ -92,6 +100,7 @@ class Item:
     sweep_class: str | None = None
     supplementary: bool = False
     gov: str = ""
+    open_finding: bool = False  # tripwire still failing on purpose (not fixed)
 
 
 ITEMS: list[Item] = [
@@ -144,6 +153,23 @@ ITEMS: list[Item] = [
             ("RB-T26", 3, "test_another_tenant_cannot_verify_an_entry"),
             ("RB-T27", 4, "test_reviewer_identity_is_not_disclosed_cross_tenant"),
             ("RB-T28", 5, "test_another_tenant_cannot_contaminate_a_source"),
+        ]
+    ],
+    # Batch 7 (GD7-05 write side): reproduced at 4667ab8; RB-T32 is OPEN (expected to fail after).
+    *[
+        Item(rb, finding, Y, t, "4667ab8", None, "6a661bb", gov="GD-7", open_finding=(rb == "RB-T32"),
+             note="OPEN FINDING: strict xfail kept; expected to FAIL on the code under review" if rb == "RB-T32" else "")
+        for rb, finding, t in [
+            ("RB-T29", "GD7-06 ledger write under a foreign owned source",
+             "test_another_tenant_cannot_write_evidence_under_an_owned_inspection"),
+            ("RB-T30", "GD7-07 ledger write into an ownerless key in use",
+             "test_another_tenant_cannot_write_into_an_ownerless_key_in_use"),
+            ("RB-T31", "GX-08 explanation under a foreign owned source",
+             "test_another_tenant_cannot_attach_an_explanation_to_an_owned_inspection"),
+            ("RB-T32", "GX-09 explanations disclosed cross-tenant (OPEN)",
+             "test_explanations_are_not_disclosed_to_another_tenant"),
+            ("RB-T33", "GX-10 digital-twin tenant claim",
+             "test_digital_twin_context_cannot_name_another_tenant"),
         ]
     ],
     # Not tripwires: regressions found during B6.2 and fixed with them; reviewed in the same way.
@@ -377,8 +403,12 @@ def cmd_report(args):
 def expected(item: Item, variant: str) -> str:
     if variant.startswith("before"):
         return "failed"
+    if item.open_finding:
+        return "failed (OPEN finding)"
     if variant == "after/original" and item.id == "RB-T18":
         return "failed (amended assertion; see diff)"
+    if variant == "after/original" and item.id == "RB-T28":
+        return "failed (original set-up's foreign write is now refused, Batch 7)"
     return "passed"
 
 

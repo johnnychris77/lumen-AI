@@ -37,6 +37,11 @@ named risk owner with authority to accept it. Packets: `p472-03-batch7-tripwire-
 | RB-T25 | GD7-02 list by source | `3f479d9` | UNASSIGNED | — | — | **PENDING** | — |
 | RB-T26 | GD7-03 cross-tenant verify | `3f479d9` | UNASSIGNED | — | — | **PENDING** | — |
 | RB-T27 | GD7-04 reviewer email | `3f479d9` | UNASSIGNED | — | — | **PENDING** | — |
-| RB-T28 | GD7-05 source contamination (**read-side only**) | `3f479d9` | UNASSIGNED | — | — | **PENDING** | — |
+| RB-T28 | GD7-05 source contamination (**read-side only; does not show write refusal**) | `3f479d9` (set-up `6a661bb`) | UNASSIGNED | — | — | **PENDING** | — |
+| RB-T29 | GD7-06 ledger write under foreign/missing owned source | `6a661bb` | UNASSIGNED | — | — | **PENDING** | — |
+| RB-T30 | GD7-07 ledger write into ownerless key in use | `6a661bb` | UNASSIGNED | — | — | **PENDING** | — |
+| RB-T31 | GX-08 explanation under foreign owned source | `6a661bb` | UNASSIGNED | — | — | **PENDING** | — |
+| RB-T32 | GX-09 explanations disclosed cross-tenant — **OPEN, failing** | not converted | UNASSIGNED | — | — | **OPEN** | — |
+| RB-T33 | GX-10 digital-twin tenant claim | `6a661bb` | UNASSIGNED | — | — | **PENDING** | — |
 
-**Totals: 28 PENDING · 0 ACCEPT-CONVERSION · 0 REJECT-CONVERSION · 0 ACCEPT-RISK. 28 release blockers.**
+**Totals: 32 PENDING + 1 OPEN (failing) · 0 ACCEPT-CONVERSION · 0 REJECT-CONVERSION · 0 ACCEPT-RISK. 33 release blockers.**
