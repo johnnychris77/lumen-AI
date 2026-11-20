@@ -44,9 +44,12 @@ evidence of anything.
 | Check | Command / source | Result |
 |---|---|---|
 | Full suite, SQLite (CI) | run `44642957981`, job `135978365627` (`2976b4e`) | **9223 passed, 3 skipped, 0 failed, 0 xfailed** (20 m 22 s) |
-| Full suite, PostgreSQL 16 (CI) | run `44642957981`, job `135978365382` (`2976b4e`) | **IN PROGRESS at this commit** — not assumed; recorded in the follow-up revision |
-| Full suite, SQLite (local) | `cd backend && python -m pytest tests/ -q -rsx` (`e81b51d`) | **IN PROGRESS at this commit** — not assumed |
-| Full suite, PostgreSQL 16.15 (local) | same, fresh PG16 database (`e81b51d`) | **IN PROGRESS at this commit** — not assumed |
+| Full suite, PostgreSQL 16 (CI) | run `44642957981`, job `135978365382` (`2976b4e`) | **FAILURE — cause UNEXPLAINED.** Check-run output is empty; the API log tail is service output only; the full-log host is blocked by this environment's proxy. No local reproduction (rows below). **Open: requires a reviewer to read the job log in the GitHub UI.** |
+| Full suite, PostgreSQL 16 (CI), same application code | job `135983149197` (`e81b51d`); job `135988689883` (`33a1a47`) | both **success** (counts not retrievable for the reason above). The `2976b4e` failure is therefore intermittent or environmental — **not** shown to be harmless |
+| Full suite, SQLite (CI), same code | job `135983149174` (`e81b51d`) success; job `135988690139` (`33a1a47`) **9223 passed, 3 skipped** | — |
+| Full suite, SQLite (local, alone) | `cd backend && python -m pytest tests/ -q -rsx` (`e81b51d`) | **9223 passed, 3 skipped, 0 failed, 0 xfailed** (16 m 51 s) |
+| Full suite, PostgreSQL 16.15 (local, isolated worktree) | same, fresh PG16 database (`e81b51d`) | **9224 passed, 2 skipped, 0 failed, 0 xfailed** (30 m 12 s) |
+| Invalid run (recorded, not evidence) | local SQLite on `e81b51d` **concurrently** with a PG16 run in the same `backend/` directory | 78 failed / 9141 passed / 5 errors. Failures clustered at 0–17 % and 92–96 %; they included `no such column manufacturer_memberships.expires_at` and duplicate rows (`2 == 1`). This is cross-run interference through shared working-directory state; the exact mechanism was not isolated. The same code passed alone (row above) and in CI. Lesson: run suites alone, or in separate worktrees. |
 | Skipped | both | `test_benchmarking.py:83` (no hospitals), `test_p10_digital_twin.py:317` (no open alerts); SQLite only: `test_p472_trusted_inference_provenance.py:788` (PG-only Alembic) |
 | Expected failures | both | **0 xfailed**. The 15 Batch 5 tripwires were converted by B6.1/B6.2 with assertions unchanged, except GD6-04, which was amended (see review package D′). |
 | Sweep, SQLite | `tenant_isolation_matrix.py --sweep sqlite --workdir <fresh>` (`2976b4e`) | **1,913 routes, 0 findings**, 0 foreign-write routes |
@@ -73,7 +76,7 @@ evidence of anything.
 | G8 clinical workflow | **PENDING** |
 | G9 frontend contract | browser 6/6; **PENDING** frontend/API owner review |
 | G10 CI security/lint/quality | PASS on `2976b4e` |
-| G11 CI backend suites | SQLite 0 failed / 0 xfailed on `2976b4e`; PG16 see above. **Not a release pass**: 28 tripwires undispositioned. |
+| G11 CI backend suites | SQLite and PG16 green on `e81b51d` and `33a1a47`. PG16 on `2976b4e` failed for an **unexplained** cause (**OPEN**). **Not a release pass**: 28 tripwires undispositioned. |
 | G12 historical access | **BLOCKED** (needs production access; incident response) |
 | G13 independent review | **PENDING**: no reviewer identifiable (1 collaborator, 0 PR reviews) |
 | G14 tripwires | **28 release blockers** (0 failing, 28 author-converted), 0 dispositioned |
