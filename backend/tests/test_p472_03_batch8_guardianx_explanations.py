@@ -13,9 +13,10 @@ Reproduced at ``83dbf70`` on SQLite and PostgreSQL 16.15
 * the generic replay verified the audit chain of any resource the caller named,
   without the GD-2 tenant scope (GX-14).
 
-Tripwires (strict, release blockers until a non-author disposition):
-RB-T34 GX-11, RB-T35 GX-12, RB-T36 GX-13, RB-T37 GX-14 — committed FAILING against the
-unchanged 83dbf70 application code; the fix follows in a separate commit.
+Tripwires RB-T34 GX-11, RB-T35 GX-12, RB-T36 GX-13, RB-T37 GX-14: each failed at 83dbf70 on
+its own assertion (strict xfail, evidence/p472-03-batch8/explanations-before/) and was
+converted with the assertion unchanged. Author conversions: release blockers until a
+non-author disposition.
 
 ``TestControls`` — the owning tenant keeps full use of its explanations;
 multi-membership, role, deleted-source, concurrent-write and replay consumers.
@@ -23,6 +24,7 @@ multi-membership, role, deleted-source, concurrent-write and replay consumers.
 from __future__ import annotations
 
 import json
+import threading
 import uuid
 
 import pytest
@@ -32,7 +34,7 @@ from app.db import models
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.main import app
-from app.models.guardianx_assurance import AIExplainabilityRecord
+from app.models.guardianx_assurance import AIExplainabilityRecord, EvidenceLedgerEntry
 from app.models.inspection import Inspection
 from app.models.user_role_assignment import UserRoleAssignment
 from app.routers.auth_simple import _make_token
@@ -127,7 +129,7 @@ def _legacy_row(summary: str, source_type: str = "capa_suggestion", source_id: s
 
 
 class TestOpenFindings:
-    @_tripwire("GX-11 / RB-T34", "another tenant can append a human override to an explanation by id")
+    # GX-11 / RB-T34: strict tripwire, failed at 83dbf70; converted in Batch 8 (assertion unchanged).
     def test_another_tenant_cannot_override_an_explanation(self):
         created = _explain(USER_A, TENANT_A, "capa_suggestion", _key(), "a-own")
         assert created.status_code == 201
@@ -137,8 +139,7 @@ class TestOpenFindings:
         assert response.status_code == 404
         assert json.loads(_row(record_id).human_overrides_json) == []
 
-    @_tripwire("GX-12 / RB-T35", "another tenant's explanation written into an ownerless key in use "
-                                 "surfaces in the owner's view")
+    # GX-12 / RB-T35: strict tripwire, failed at 83dbf70; converted in Batch 8 (assertion unchanged).
     def test_another_tenant_cannot_write_an_explanation_into_a_key_in_use(self):
         key = _key()
         assert _explain(USER_A, TENANT_A, "capa_suggestion", key, "a-own").status_code == 201
@@ -148,15 +149,14 @@ class TestOpenFindings:
                             params={"source_type": "capa_suggestion", "source_id": key})
         assert f"injected-{key}" not in listed.text
 
-    @_tripwire("GX-13 / RB-T36", "an explanation with no provable owner (legacy row) is served to every tenant")
+    # GX-13 / RB-T36: strict tripwire, failed at 83dbf70; converted in Batch 8 (assertion unchanged).
     def test_an_unattributable_explanation_is_served_to_no_tenant(self):
         marker = f"legacy-{uuid.uuid4().hex[:8]}"
         record_id = _legacy_row(marker)
         for user, tenant in ((USER_A, TENANT_A), (USER_B, TENANT_B)):
             assert marker not in client.get(f"{EXPLAIN}/{record_id}", headers=_h(user, tenant)).text
 
-    @_tripwire("GX-14 / RB-T37", "the generic replay verifies the audit chain of any named resource "
-                                 "without the GD-2 tenant scope")
+    # GX-14 / RB-T37: strict tripwire, failed at 83dbf70; converted in Batch 8 (assertion unchanged).
     def test_replay_does_not_report_another_tenants_audit_chain(self):
         written = client.post("/api/guardianx/evidence", headers=_h(USER_A, TENANT_A),
                               json={"source_type": "capa_suggestion", "source_id": _key(), "evidence": ["e"]})
@@ -229,3 +229,69 @@ class TestControls:
         assert client.get(f"{EXPLAIN}/1").status_code in (401, 403)
         assert client.get(EXPLAIN, params={"source_type": "capa_suggestion", "source_id": "x"}).status_code in (401, 403)
 
+
+class TestNegative:
+    """New with Batch 8 (not tripwires). Each FAILED on 83dbf70 for the defect it names
+    (multi-member read of A while selecting C: 200; concurrent writer read the other
+    tenant's explanation; ledger write into a key holding A's explanation: 201)."""
+
+    def test_multi_member_sees_an_explanation_only_while_selecting_its_tenant(self):
+        key = _key()
+        created = _explain(USER_A, TENANT_A, "capa_suggestion", key, f"m-{key}")
+        record_id = created.json()["id"]
+        assert client.get(f"{EXPLAIN}/{record_id}", headers=_h(USER_MULTI, TENANT_A)).status_code == 200
+        assert client.get(f"{EXPLAIN}/{record_id}", headers=_h(USER_MULTI, TENANT_C)).status_code == 404
+
+    def test_concurrent_first_writes_to_a_fresh_key_never_disclose_across_tenants(self):
+        key = _key()
+        results: dict = {}
+
+        def write(user, tenant):
+            results[tenant] = _explain(user, tenant, "capa_suggestion", key, f"{tenant}-{key}").status_code
+
+        threads = [threading.Thread(target=write, args=pair) for pair in ((USER_A, TENANT_A), (USER_B, TENANT_B))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert sorted(results.values()) in ([201, 201], [201, 403])
+        params = {"source_type": "capa_suggestion", "source_id": key}
+        a = client.get(EXPLAIN, headers=_h(USER_A, TENANT_A), params=params).text
+        b = client.get(EXPLAIN, headers=_h(USER_B, TENANT_B), params=params).text
+        assert f"{TENANT_B}-{key}" not in a and f"{TENANT_A}-{key}" not in b
+
+    def test_a_ledger_write_into_a_key_holding_another_tenants_explanation_is_refused(self):
+        key = _key()
+        assert _explain(USER_A, TENANT_A, "capa_suggestion", key, "a").status_code == 201
+        response = client.post("/api/guardianx/evidence", headers=_h(USER_B, TENANT_B),
+                               json={"source_type": "capa_suggestion", "source_id": key, "evidence": ["x"]})
+        assert response.status_code == 403
+        db = SessionLocal()
+        try:
+            assert db.query(EvidenceLedgerEntry).filter(EvidenceLedgerEntry.source_id == key).count() == 0
+        finally:
+            db.close()
+
+    def test_refused_explanation_writes_persist_nothing(self):
+        from app.models.audit_log import AuditLog
+
+        def counts():
+            db = SessionLocal()
+            try:
+                rows = db.query(AIExplainabilityRecord).filter(AIExplainabilityRecord.created_by == USER_B).count()
+                events = (db.query(AuditLog).filter(AuditLog.resource_type == "guardianx_explainability_record",
+                                                    AuditLog.tenant_id == TENANT_B).count())
+                return rows, events
+            finally:
+                db.close()
+
+        key = _key()
+        created = _explain(USER_A, TENANT_A, "capa_suggestion", key, "a-own").json()["id"]
+        foreign_inspection = _inspection(TENANT_A)
+        before = counts()
+        assert _explain(USER_B, TENANT_B, "capa_suggestion", key, "b").status_code == 403
+        assert _explain(USER_B, TENANT_B, "inspection", foreign_inspection, "b").status_code == 404
+        assert client.post(f"{EXPLAIN}/{created}/human-override", headers=_h(USER_B, TENANT_B),
+                           json={"override_note": "b"}).status_code == 404
+        assert counts() == before
+        assert json.loads(_row(created).human_overrides_json) == []

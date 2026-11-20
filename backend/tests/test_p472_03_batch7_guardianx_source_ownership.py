@@ -16,8 +16,9 @@ Tripwires (strict, release blockers until a non-author disposition):
 * RB-T31 GX-08 — explanation write under another tenant's owned source must be
   refused (it surfaced in the victim's audit replay).
 * RB-T32 GX-09 — explainability records must not be disclosed cross-tenant
-  (list, replay, audit-evidence package). **OPEN**: records have no owner
-  column and no audit trail; ownership semantics depend on GD-7.
+  (list, replay, audit-evidence package). Failing until Batch 8; converted by
+  the audit-trail ownership gate (``test_p472_03_batch8_guardianx_explanations.py``),
+  which does not choose a GD-7 option.
 * RB-T33 GX-10 — ``tenant_id_for_digital_twin`` is a tenant claim; naming
   another tenant must be refused (AW-04 rule).
 
@@ -169,8 +170,9 @@ class TestOpenFindings:
         assert response.status_code == 404
         assert USER_B not in _explanations("inspection", source)
 
-    @_tripwire("GX-09 / RB-T32", "explainability records are listed, replayed and packaged cross-tenant "
-                                 "(no owner column, no audit trail; pending GD-7)")
+    # GX-09 / RB-T32: strict tripwire, FAILING from Batch 7 (4667ab8) through 83dbf70; converted in
+    # Batch 8 (assertion unchanged) by the audit-trail ownership gate on every explanation reader.
+    # Author conversion: a release blocker until a non-author disposition.
     def test_explanations_are_not_disclosed_to_another_tenant(self):
         key = f"capa-{uuid.uuid4().hex[:8]}"
         created = client.post(EXPLAIN, headers=_h(USER_A, TENANT_A),

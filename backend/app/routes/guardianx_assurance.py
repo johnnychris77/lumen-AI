@@ -41,6 +41,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.services.audit_chain_verification_service import AuditChainScopeError
 from app.services import (
     guardianx_assurance_center_service,
     guardianx_audit_replay_service,
@@ -177,14 +178,15 @@ def post_explainability(payload: dict, current_user: dict = Depends(require_tena
         tenant_id_for_digital_twin=twin_tenant,
         clinical_rules_applied=payload.get("clinical_rules_applied"), confidence=payload.get("confidence"),
         alternative_explanations=payload.get("alternative_explanations"),
-        human_overrides=payload.get("human_overrides"), created_by=actor,
+        human_overrides=payload.get("human_overrides"), created_by=actor, tenant_id=tenant,
     )
 
 
 @router.get("/explainability/{record_id}")
 def get_explainability(record_id: int, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     try:
-        return guardianx_explainability_service.get_explanation(db, record_id)
+        # P472-03 Batch 8 (RB-T32): only the explanation's provable owner; foreign == missing (404).
+        return guardianx_explainability_service.get_explanation(db, record_id, tenant_id=_tenant(current_user))
     except guardianx_explainability_service.UnknownExplainabilityRecordError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -195,6 +197,7 @@ def post_explainability_human_override(record_id: int, payload: dict, current_us
     try:
         return guardianx_explainability_service.record_human_override(
             db, record_id, override_note=payload.get("override_note", ""), overridden_by=actor,
+            tenant_id=_tenant(current_user),  # P472-03 Batch 8 (GX-11): no override of a foreign explanation
         )
     except guardianx_explainability_service.UnknownExplainabilityRecordError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -205,7 +208,8 @@ def get_explainability_for_source(
     source_type: str = Query(...), source_id: str = Query(...),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
-    return {"explanations": guardianx_explainability_service.list_explanations_for_source(db, source_type, source_id)}
+    return {"explanations": guardianx_explainability_service.list_explanations_for_source(
+        db, source_type, source_id, _tenant(current_user))}
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +227,8 @@ def get_replay_inspection(inspection_id: int, current_user: dict = Depends(requi
             db, inspection_id, tenant_id=current_user["tenant_id"])
     except guardianx_audit_replay_service.ReplayNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AuditChainScopeError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 @router.get("/audit-replay/workflow-executions/{execution_id}")
@@ -231,6 +237,8 @@ def get_replay_workflow_execution(execution_id: int, current_user: dict = Depend
         return guardianx_audit_replay_service.replay_workflow_execution(db, execution_id, _tenant(current_user))
     except guardianx_audit_replay_service.ReplayNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AuditChainScopeError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 @router.get("/audit-replay/rules/{rule_id}")
@@ -246,7 +254,10 @@ def get_replay_recommendation(
     source_type: str = Query(...), source_id: str = Query(...),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
-    return guardianx_audit_replay_service.replay_recommendation(db, source_type, source_id, _tenant(current_user))
+    try:
+        return guardianx_audit_replay_service.replay_recommendation(db, source_type, source_id, _tenant(current_user))
+    except AuditChainScopeError as exc:  # P472-03 Batch 8 (GX-14): GD-2 scope
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -478,7 +489,10 @@ def get_report_audit_evidence_package(
     source_type: str = Query(...), source_id: str = Query(...),
     current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db),
 ):
-    return guardianx_reports_service.audit_evidence_package(db, source_type, source_id)
+    try:
+        return guardianx_reports_service.audit_evidence_package(db, source_type, source_id, _tenant(current_user))
+    except AuditChainScopeError as exc:  # P472-03 Batch 8 (GX-14): GD-2 scope
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 @router.get("/reports/knowledge-provenance")

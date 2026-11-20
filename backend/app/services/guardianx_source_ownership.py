@@ -23,15 +23,25 @@ and fails closed elsewhere:
    with no single-tenant audit trail). A key no one has used stays writable, as
    before — whether that should continue is part of GD-7 (risk R-GX-OWNERLESS-KEYS).
 
-Explanations for ownerless keys are not checked here: explanation rows carry no
-owner and no audit trail, so their ownership cannot be proven at all (open
-finding GX-09 / RB-T32, pending GD-7).
+3. **Explanations** (Batch 8, RB-T32 / GX-11..GX-14) — explanation rows have no
+   owner column; adding one would pre-empt GD-7 (Option T vs P). Instead each
+   explanation is attributed exactly like a ledger entry since B6.2: by the
+   single real tenant on its hash-chained audit trail. New explanations and
+   human overrides record an audit event under the writer's verified tenant.
+   A row with no provable owner (written before Batch 8, or with a conflicting
+   trail) is readable and writable by **no tenant** — quarantined, never
+   re-attributed (GD-7 / CLIN-1 decide its release).
+
+An ownerless key is treated as one namespace across both artifacts: a write
+(ledger or explanation) into a key that already holds a ledger entry or an
+explanation not provably the caller's is refused. This is the rule-2 floor
+extended to explanations; it does not decide what an ownerless key means.
 """
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models.guardianx_assurance import EvidenceLedgerEntry
+from app.models.guardianx_assurance import AIExplainabilityRecord, EvidenceLedgerEntry
 from app.models.inspection import Inspection
 from app.models.workflow_forge import WorkflowExecution
 
@@ -43,6 +53,7 @@ OWNED_SOURCE_TYPES = {
     "workflow_execution": (WorkflowExecution, WorkflowExecution.id, WorkflowExecution.tenant_id),
 }
 MAX_SOURCE_FIELD = 200
+EXPLANATION_RESOURCE_TYPE = "guardianx_explainability_record"
 
 
 class InvalidSourceError(ValueError):
@@ -84,19 +95,41 @@ def authorize_evidence_write(db: Session, source_type, source_id, tenant_id: str
     if st in OWNED_SOURCE_TYPES:
         _require_owned_source(db, st, sid, tenant_id)
         return st, sid
-    from app.services.guardianx_ledger_ownership import audit_owner_tenant
-    existing = db.query(EvidenceLedgerEntry.id).filter(EvidenceLedgerEntry.source_type == st,
-                                                       EvidenceLedgerEntry.source_id == sid).all()
-    if any(audit_owner_tenant(db, entry_id) != tenant_id for (entry_id,) in existing):
-        raise SourceWriteRefusedError("Recording evidence for this source is not permitted.")
+    _refuse_key_used_by_another(db, st, sid, tenant_id, "Recording evidence for this source is not permitted.")
     return st, sid
 
 
 def authorize_explanation_write(db: Session, source_type, source_id, tenant_id: str) -> tuple[str, str]:
-    """Owned source types only (see module docstring); ownerless keys pass through unchanged."""
+    """Return the cleaned (source_type, source_id) the verified tenant may explain (rules 1 and 3)."""
     if not (tenant_id or "").strip():
         raise SourceWriteRefusedError("No verified tenant for this request.")
     st, sid = _clean(source_type, source_id)
     if st in OWNED_SOURCE_TYPES:
         _require_owned_source(db, st, sid, tenant_id)
+        return st, sid
+    _refuse_key_used_by_another(db, st, sid, tenant_id, "Explaining this source is not permitted.")
     return st, sid
+
+
+def explanation_owner(db: Session, record_id: int) -> str | None:
+    """The single real tenant on an explanation's audit trail, or None (quarantined)."""
+    from app.services.guardianx_ledger_ownership import audit_trail_owner
+    return audit_trail_owner(db, EXPLANATION_RESOURCE_TYPE, record_id)
+
+
+def explanation_readable_by(db: Session, record_id: int, tenant_id: str) -> bool:
+    """Only the provable owner may read or amend an explanation. No tenant -> no access."""
+    tenant = (tenant_id or "").strip()
+    return bool(tenant) and explanation_owner(db, record_id) == tenant
+
+
+def _refuse_key_used_by_another(db: Session, st: str, sid: str, tenant_id: str, message: str) -> None:
+    from app.services.guardianx_ledger_ownership import audit_owner_tenant
+    ledger = db.query(EvidenceLedgerEntry.id).filter(EvidenceLedgerEntry.source_type == st,
+                                                     EvidenceLedgerEntry.source_id == sid).all()
+    if any(audit_owner_tenant(db, entry_id) != tenant_id for (entry_id,) in ledger):
+        raise SourceWriteRefusedError(message)
+    explanations = db.query(AIExplainabilityRecord.id).filter(AIExplainabilityRecord.source_type == st,
+                                                              AIExplainabilityRecord.source_id == sid).all()
+    if any(explanation_owner(db, record_id) != tenant_id for (record_id,) in explanations):
+        raise SourceWriteRefusedError(message)

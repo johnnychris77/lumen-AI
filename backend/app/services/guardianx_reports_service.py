@@ -59,10 +59,11 @@ def governance_report(db: Session) -> dict:
     }
 
 
-def audit_evidence_package(db: Session, source_type: str, source_id: str) -> dict:
+def audit_evidence_package(db: Session, source_type: str, source_id: str, tenant_id: str) -> dict:
+    # P472-03 Batch 8 (R-GX-PKG-TENANTLESS): the package is the caller's tenant's view of the source.
     return {
         "report_type": "audit_evidence_package",
-        "replay": guardianx_audit_replay_service.replay_recommendation(db, source_type, source_id),
+        "replay": guardianx_audit_replay_service.replay_recommendation(db, source_type, source_id, tenant_id),
         "human_review_required": True,
     }
 
