@@ -13,7 +13,8 @@ passes with the assertion unchanged (or a documented amendment) — **not closed
 | R-AW07-PROV | Manufacturer lifecycle | Partly remediated (B5.2); grants gated | Medium | GD-9 |
 | R-FRONTEND | Accreditation 403 / hard-coded tenants | Remediated (B5.1); browser E2E (see evidence index v5) | Low | routing #3 |
 | R-PG-USERS / R-ROLE-ESCALATION-DATA | auth_simple schema; `users.role` now applied | Remediated / OPEN data-dependent | Low / Unknown | AUTH-1/AUTH-2 |
-| R-E2E-HARNESS | Browser E2E check raced under load (request from previous tenant counted after the switch) | **Harness fixed** (wait for network idle); no app change | Low | re-run evidence in index v5 |
+| R-E2E-HARNESS | Browser E2E check raced under load (request from previous tenant counted after the switch) | **Harness fixed** (wait for network idle); no app change. Re-run with no concurrent load on `e81b51d`: 6/6, twice | Low | routing #3 |
+| R-CENSUS-PIN | Route-census pin not updated after B6.1, so CI backend jobs on `3f479d9`, `c63d398` and `bc0cb94` failed (1 test) | **Fixed** (`2976b4e`); CI SQLite on `2976b4e` 0 failed | Procedural (process gap: author did not run the census after a resolver change) | reviewer to check census in packages C′/D′ |
 | R-TRIPWIRE | 28 author-converted tripwires, 0 failing | **OPEN — 28 release blockers** | Procedural | packages A–G |
 | R-REVIEWER | No independent reviewer exists | **OPEN** | Procedural | release authority |
 | R-PA1 / R-LEGACY / R-HIST / R-OIDC-TENANTS | as v4 | unchanged | as v4 | as v4 |
