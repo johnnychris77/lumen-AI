@@ -148,7 +148,11 @@ ITEMS: list[Item] = [
         ]
     ],
     *[
-        Item(rb, f"GD7-{n:02d}", X, t, "e2173c2", "e2173c2", "3f479d9", gov="GD-7")
+        Item(rb, f"GD7-{n:02d}", X, t, "e2173c2", "e2173c2", "3f479d9", gov="GD-7",
+             note=("LIMITED COVERAGE: proves read-side filtering only (B6.2). It does NOT show that a foreign "
+                   "write is refused; its set-up seeds the foreign entry through the service. Write-side "
+                   "authorization is RB-T29/RB-T30/RB-T31/RB-T33 (Batch 7) and is only a partial floor (GD-7). "
+                   "Do not cite RB-T28 as write authorization.") if rb == "RB-T28" else "")
         for rb, n, t in [
             ("RB-T24", 1, "test_another_tenant_cannot_read_an_entry_by_id"),
             ("RB-T25", 2, "test_listing_by_source_returns_only_own_entries"),
@@ -371,6 +375,8 @@ def cmd_report(args):
             ("After (code under review)", f"`{after[:10]}`"),
             ("Governance dependency", it.gov or "—"),
         ]
+        if it.note and "before" not in it.note:
+            rows.append(("Reviewer note", f"**{it.note}**"))
         if it.test:
             orig_sha = it.original_tests or it.converted_in
             same =body_dump(show(orig_sha, it.test_file) or "", it.test) == body_dump(show(after, it.test_file) or "",

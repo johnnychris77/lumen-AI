@@ -59,9 +59,13 @@
    "source": "job 135967501020",
    "status": "fail",
    "result": {
-    "counts": "n/a"
+    "failed": 1,
+    "passed": 9220,
+    "skipped": 2
    },
-   "notes": "failing test NOT observed; census pin inferred (same test file state), not proven"
+   "notes": "failing test test_the_route_table_is_the_mounted_application ({'dependency': 195, 'handler': 715}) = census pin; read from the CI log in Batch 7 (previously 'inferred')",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt"
   },
   {
    "id": "CI-c63d398-sqlite",
@@ -81,9 +85,13 @@
    "source": "job 135969896426",
    "status": "fail",
    "result": {
-    "counts": "n/a"
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
    },
-   "notes": "failing test NOT observed; local PG16 at c63d398 failed only on the census pin"
+   "notes": "failing test test_the_route_table_is_the_mounted_application ({'dependency': 195, 'handler': 715}) = census pin; read from the CI log in Batch 7 (previously 'inferred')",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt"
   },
   {
    "id": "CI-bc0cb94-sqlite",
@@ -105,9 +113,13 @@
    "source": "job 135970191686",
    "status": "fail",
    "result": {
-    "counts": "n/a"
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
    },
-   "notes": "failing test NOT observed; census pin inferred"
+   "notes": "failing test test_the_route_table_is_the_mounted_application ({'dependency': 195, 'handler': 715}) = census pin; read from the CI log in Batch 7 (previously 'inferred')",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt"
   },
   {
    "id": "CI-2976b4e-sqlite",
@@ -130,9 +142,13 @@
    "source": "run 44642957981 job 135978365382",
    "status": "fail",
    "result": {
-    "counts": "n/a"
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
    },
-   "notes": "UNEXPLAINED; see p472-03-batch7-pg16-ci-anomaly-report-v1.md"
+   "notes": "failing case test_unverified_tenant_requests_are_refused_and_change_nothing[GET /api/pulse/command-center]: SQL-oracle contamination by the 00:30 UTC nightly intelligence scheduler job (route returned 403). Root cause identified in Batch 7 (author analysis; anomaly report v2); not an authorization defect",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-job-135978365382-failure-extract.txt"
   },
   {
    "id": "CI-e81b51d-sqlite",
@@ -322,6 +338,270 @@
    },
    "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-7cead8a-baseline.txt.gz",
    "notes": "reproduction of the frontend defect before B5.1 (expected failure of the baseline)"
+  },
+  {
+   "id": "CI-4667ab8-sqlite",
+   "class": "CI",
+   "sha": "4667ab8",
+   "source": "run 44656944797 job 136025385538",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "artifact backend-tests-sqlite-1 uploaded (id 14593938669)"
+  },
+  {
+   "id": "CI-4667ab8-pg16",
+   "class": "CI",
+   "sha": "4667ab8",
+   "source": "run 44656944797 job 136025385909",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9224,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "first PG16 CI job whose counts are readable (health-check fix bd7af7c)"
+  },
+  {
+   "id": "CI-6a661bb-sqlite",
+   "class": "CI",
+   "sha": "6a661bb",
+   "source": "run 44658831395 job 136031688736",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 strict tripwire (OPEN finding GX-09, explanations disclosed cross-tenant); NOT a passing security gate"
+  },
+  {
+   "id": "CI-6a661bb-pg16",
+   "class": "CI",
+   "sha": "6a661bb",
+   "source": "run 44658831395 job 136031688345",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-3fbbe65-sqlite",
+   "class": "CI",
+   "sha": "3fbbe65",
+   "source": "run 44659812226 job 136034982462",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-3fbbe65-pg16",
+   "class": "CI",
+   "sha": "3fbbe65",
+   "source": "run 44659812226 job 136034982422",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-2976b4e-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "2976b4e",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh (alembic up/down/up + full suite, same fresh DB)",
+   "status": "pass",
+   "result": {
+    "passed": 9224,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-pytest.log.gz",
+   "notes": "did not reproduce CI job 135978365382 (time-of-day dependent cause)"
+  },
+  {
+   "id": "LOCAL-4667ab8-gd705-write-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "4667ab8",
+   "source": "SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_source_write_repro.py",
+   "status": "reproduced",
+   "result": {
+    "foreign_evidence_write": "201",
+    "foreign_capa_key_write": "201",
+    "missing_inspection_write": "201",
+    "foreign_explanation_in_victim_replay": true,
+    "digital_twin_claim_served": true
+   },
+   "notes": "GD7-05 write side: tenant B wrote under tenant A's sources; RB-T28 passed only via read-side filtering"
+  },
+  {
+   "id": "LOCAL-6a661bb-gd705-write-after",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6a661bb",
+   "source": "SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_source_write_repro.py",
+   "status": "pass",
+   "result": {
+    "foreign_evidence_write": "404",
+    "foreign_capa_key_write": "403",
+    "missing_inspection_write": "404",
+    "foreign_explanation_write": "404",
+    "digital_twin_claim": "403"
+   },
+   "notes": "fail-closed floor only; RB-T32 explanation reads still OPEN; ownerless-key semantics await GD-7; NOT independently reviewed"
+  },
+  {
+   "id": "LOCAL-3fbbe65-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "3fbbe65",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -rfEsxX",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-3fbbe65-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "3fbbe65",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "alembic_exit 0; 1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-3fbbe65-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "3fbbe65",
+   "source": "tenant_isolation_matrix.py --sweep sqlite",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "unscoped_leads": 353
+   },
+   "notes": "oracle blind spots: role-gated, partly exercised, unscoped leads, response leakage, IDOR, untyped bodies (R-SWEEP-BLINDSPOTS)"
+  },
+  {
+   "id": "LOCAL-6a661bb-tripwire-kit-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6a661bb",
+   "source": "p472_03_tripwire_review_kit.py run --db sqlite",
+   "command": "before/after x original/final assertions for RB-T01..RB-T33 + controls",
+   "status": "pass",
+   "result": {
+    "variants": 112,
+    "matched_expectation": 112
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-sqlite.json",
+   "notes": "RB-T04 rows re-run with corrected before-SHA 137e9b1; RB-T32 fails as an OPEN finding (expected); author reproduction, not a review"
+  },
+  {
+   "id": "LOCAL-6a661bb-tripwire-kit-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6a661bb",
+   "source": "p472_03_tripwire_review_kit.py run --db postgres",
+   "command": "as above, PostgreSQL 16.15",
+   "status": "pass",
+   "result": {
+    "variants": 112,
+    "matched_expectation": 112
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-postgres.json",
+   "notes": "as above"
+  },
+  {
+   "id": "LOCAL-992a227-b72-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "SQLite, b72_repro_plugin.py",
+   "command": "command-center case with a tenant-bound background scheduler, guard off/on",
+   "status": "reproduced",
+   "result": {
+    "guard_off_failed": "3/5 (+1/2)",
+    "guard_on_failed": "0/5 (+0/2)"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_deterministic_repro.txt",
+   "notes": "reproduces the CI 135978365382 assertion text; timing-dependent"
+  },
+  {
+   "id": "LOCAL-992a227-batch2-harness-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_batch2_remediation.py",
+   "status": "pass",
+   "result": {
+    "passed": 1926,
+    "skipped": 0,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "notes": "includes the 2 B7.2 regression tests"
+  },
+  {
+   "id": "LOCAL-992a227-batch2-harness-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "PostgreSQL 16.15",
+   "command": "pytest tests/test_p472_03_batch2_remediation.py",
+   "status": "pass",
+   "result": {
+    "passed": 1926,
+    "skipped": 0,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "notes": "includes the 2 B7.2 regression tests"
   }
  ],
  "known_discrepancies": [
@@ -356,6 +636,10 @@
   {
    "where": "p472-03-batch5-independent-review-packages-v1.md Package A note 1 (RB-T04)",
    "what": "says reproduce RB-T04 at 30638f0^; the Batch 7 kit shows the test PASSES at 30638f0^ (e615afd) and FAILS at fbd2581^ (137e9b1) and 5ab34f2 \u2014 the fixing commit is fbd2581 (AW-08a). Kit corrected."
+  },
+  {
+   "where": "records.json (Batch 6) and p472-03-batch7-pg16-ci-anomaly-report-v1.md",
+   "what": "PG16 failures on 3f479d9/c63d398/bc0cb94 were recorded as 'inferred census pin' and 2976b4e as 'unknown'; Batch 7 read the CI logs: the first three are the census pin (confirmed), 2976b4e is scheduler contamination of the SQL oracle (v2 report). Records updated; v1 preserved."
   }
  ],
  "governing_files": [
@@ -374,6 +658,18 @@
   "backend/scripts/p472_03_tripwire_review_kit.py",
   "backend/scripts/p472_03_evidence_manifest.py",
   ".github/workflows/pilot-zero-gate.yml",
-  ".github/scripts/junit_failure_summary.py"
+  ".github/scripts/junit_failure_summary.py",
+  "docs/enterprise-readiness/p472-03-residual-risk-register-v6.md",
+  "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v4.md",
+  "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v6.md",
+  "docs/enterprise-readiness/p472-03-batch7-tripwire-disposition-ledger-v1.md",
+  "docs/enterprise-readiness/p472-03-batch7-gd7-05-write-side-authorization-v1.md",
+  "docs/enterprise-readiness/p472-03-batch7-pg16-ci-anomaly-report-v2.md",
+  "docs/enterprise-readiness/p472-03-batch7-governance-decision-packets-v1.md",
+  "docs/enterprise-readiness/p472-03-batch7-clinical-data-governance-packet-v1.md",
+  "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-v1.md",
+  "backend/app/services/guardianx_source_ownership.py",
+  "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py",
+  "backend/scripts/p472_03_gx_source_write_repro.py"
  ]
 }
