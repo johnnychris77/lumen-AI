@@ -23,7 +23,7 @@ engineering.
 | R-LEDGER | Ledger cross-tenant reads (RB-T24…T27) | Remediated fail-closed (`3f479d9`); review pending | Low | platform security | packets E′ |
 | R-LEDGER-LEGACY | Legacy ledger entries unreadable via tenant APIs | OPEN — operational | Medium (availability) | CLIN-1 / GD-7 | B7.4 packet |
 | R-REPLAY-WFX | Replay by id across tenants | Remediated (`00aec32`); review pending | Low | platform security | packet E′ |
-| R-SWEEP-BLINDSPOTS | Oracle misses role-gated (164), partly-exercised (727–733), unscoped leads (354), response leakage, IDOR, untyped `payload: dict` bodies (GX-10 was such a case), jobs | **OPEN** | **High** until leads reviewed | security reviewer | B7.1 §3 |
+| R-SWEEP-BLINDSPOTS | Oracle misses role-gated (164), partly-exercised (727–733), unscoped leads (354), response leakage, IDOR, untyped `payload: dict` bodies (GX-10 was such a case), jobs. Batch 7: the GuardianX write routes now return 422 at the sweep baseline and are only partly exercised; their authorization rests on RB-T29…T33, not on the sweep | **OPEN** | **High** until leads reviewed | security reviewer | B7.1 §3 |
 | R-PA1 | Standing platform-admin / dev-token cross-tenant access; log-only | OPEN | **High** | platform security + compliance | PA-1 |
 | R-DEVTOKEN-GATING | Dev-token acceptance gated by two env vars (`APP_ENV`/`ENABLE_DEV_AUTH` vs `ENVIRONMENT`); startup check only logs | OPEN | Medium (config-dependent) | platform security | PA-1; unify + refuse at startup |
 | R-AW07-PROV | Manufacturer lifecycle; grants gated; pre-Batch-5 rows unprovenanced | Partly remediated | Medium | IAM (GD-9) | GD-9 |

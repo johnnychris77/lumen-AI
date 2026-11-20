@@ -527,9 +527,12 @@
     "routes": 1913,
     "with_finding": 0,
     "foreign_write_routes": 0,
-    "unscoped_leads": 353
+    "unscoped_leads": 353,
+    "partly_exercised": 735,
+    "role_gated": 164
    },
-   "notes": "oracle blind spots: role-gated, partly exercised, unscoped leads, response leakage, IDOR, untyped bodies (R-SWEEP-BLINDSPOTS)"
+   "notes": "oracle blind spots: role-gated, partly exercised, unscoped leads, response leakage, IDOR, untyped bodies (R-SWEEP-BLINDSPOTS)",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-sqlite-3fbbe65.json.gz"
   },
   {
    "id": "LOCAL-6a661bb-tripwire-kit-sqlite",
@@ -602,6 +605,188 @@
     "failed": 0
    },
    "notes": "includes the 2 B7.2 regression tests"
+  },
+  {
+   "id": "CI-7cc7bfb-sqlite",
+   "class": "CI",
+   "sha": "7cc7bfb",
+   "source": "run 44663315052 job 136046505144",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-7cc7bfb-pg16",
+   "class": "CI",
+   "sha": "7cc7bfb",
+   "source": "run 44663315052 job 136046505518",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-992a227-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -p no:cacheprovider -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9240,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-pytest.log.gz",
+   "notes": "+2 vs 3fbbe65 = B7.2 regression tests; 1 xfailed = RB-T32 (OPEN); 20 m 03 s"
+  },
+  {
+   "id": "LOCAL-992a227-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh (alembic up/down/up + full suite)",
+   "status": "pass",
+   "result": {
+    "passed": 9241,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-pytest.log.gz",
+   "notes": "alembic_exit 0; 1 xfailed = RB-T32 (OPEN); 30 m 53 s"
+  },
+  {
+   "id": "LOCAL-992a227-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "Chromium, real login, real backend (SQLite), Vite",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run1.txt",
+   "notes": "no concurrent load"
+  },
+  {
+   "id": "LOCAL-992a227-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "as above",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run2.txt",
+   "notes": "second consecutive run"
+  },
+  {
+   "id": "LOCAL-992a227-frontend",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "frontend/",
+   "command": "npm test; npm run build",
+   "status": "pass",
+   "result": {
+    "passed": 48,
+    "failed": 0
+   },
+   "notes": "build succeeded; frontend unchanged since c63d398"
+  },
+  {
+   "id": "LOCAL-992a227-ruff",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "repo root",
+   "command": "ruff check backend/app backend/tests",
+   "status": "pass",
+   "result": {
+    "errors": 0
+   },
+   "notes": "All checks passed"
+  },
+  {
+   "id": "CI-992a227-sqlite",
+   "class": "CI",
+   "sha": "992a227",
+   "source": "run 44666305369 job 136056334880",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9240,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "matches local exactly; 1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-992a227-pg16",
+   "class": "CI",
+   "sha": "992a227",
+   "source": "run 44666305369 job 136056335112",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9241,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "matches local exactly; 1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-992a227-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "tenant_isolation_matrix.py --sweep postgres (fresh DB, fresh workdir)",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "unscoped_leads": 353,
+    "role_gated": 164,
+    "partly_exercised": 729
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-pg16.json.gz",
+   "notes": "POST /api/guardianx/evidence and /explainability now 422 at the sweep baseline (no valid source) -> partly exercised; covered by RB-T29..T33 tests, not by the sweep"
+  },
+  {
+   "id": "LOCAL-992a227-register-isolation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_application_wide_isolation.py (register regenerated from SQLite 3fbbe65 + PG16 992a227 sweeps)",
+   "status": "pass",
+   "result": {
+    "passed": 17,
+    "failed": 0
+   },
+   "notes": "register empty"
   }
  ],
  "known_discrepancies": [
@@ -670,6 +855,8 @@
   "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-v1.md",
   "backend/app/services/guardianx_source_ownership.py",
   "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py",
-  "backend/scripts/p472_03_gx_source_write_repro.py"
+  "backend/scripts/p472_03_gx_source_write_repro.py",
+  "docs/enterprise-readiness/p472-03-release-gate-assessment-v6.md",
+  "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-generated-v1.md"
  ]
 }
