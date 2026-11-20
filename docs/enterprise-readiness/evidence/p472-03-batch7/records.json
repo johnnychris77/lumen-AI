@@ -1054,6 +1054,240 @@
    },
    "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/pa1/pa1_env_probe_c22a879.json",
    "notes": "PA-1 unsigned; no gate changed; RB-T38..T40 failing"
+  },
+  {
+   "id": "LOCAL-8bfcc9a-pa1-repro-before",
+   "class": "LOCAL-AUTHOR",
+   "sha": "8bfcc9a",
+   "source": "fresh DB per configuration; SQLite and PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_pa1_remediation_repro.py --db sqlite|postgres",
+   "status": "reproduced",
+   "result": {
+    "RB-T38": "dev token admin (ENVIRONMENT-only production)",
+    "RB-T39": "demo reset 200, seeded row deleted",
+    "RB-T40": "JWT-shape check off (APP_ENV-only, capitalised)",
+    "AUTH_MODE=dev+ALLOW": "dev token + header admin/any tenant accepted in production",
+    "sqlite_vs_postgres": "identical"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_postgres.json",
+   "notes": "tests-first commit c2014ff; application code unchanged"
+  },
+  {
+   "id": "LOCAL-8bfcc9a-pa1-tripwires-runxfail",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c2014ff",
+   "source": "SQLite + PA1_PG_ADMIN_URL",
+   "command": "pytest tests/test_p472_03_batch8_pa1_env_gates.py --runxfail",
+   "status": "reproduced",
+   "result": {
+    "failed": 3,
+    "passed": 2
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_postgres.txt",
+   "notes": "same on both DBs; strict run: 3 xfailed"
+  },
+  {
+   "id": "CI-829f36a-sqlite",
+   "class": "CI",
+   "sha": "829f36a",
+   "source": "run 44834645331 job 136627844743",
+   "command": "pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "RB-T38..T40 converted; +56 new tests"
+  },
+  {
+   "id": "CI-829f36a-pg16",
+   "class": "CI",
+   "sha": "829f36a",
+   "source": "run 44834645331 job 136627844401",
+   "command": "alembic chain + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-829f36a-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/pytest.log.gz",
+   "notes": "identical to CI"
+  },
+  {
+   "id": "LOCAL-829f36a-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "ci_pg_repro.sh (fresh DB, alembic up/down/up exit 0)",
+   "command": "pytest tests -q -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/pytest.log.gz",
+   "notes": "identical to CI"
+  },
+  {
+   "id": "LOCAL-829f36a-pa1-repro-after",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "fresh DB per configuration; SQLite and PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_pa1_remediation_repro.py",
+   "status": "pass",
+   "result": {
+    "production_configurations": "refused or closed at every layer",
+    "dev_controls": "unchanged",
+    "sqlite_vs_postgres": "identical"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.json",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-829f36a-pa1-tests",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "fresh SQLite and fresh PostgreSQL",
+   "command": "pytest test_p472_03_batch8_pa1_env_gates.py + test_p472_03_pa1_remediation.py",
+   "status": "pass",
+   "result": {
+    "gates_passed_per_db": 8,
+    "layer_passed_per_db": 53,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_postgres.txt",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-829f36a-tripwire-kit",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "kit --ids RB-T38,RB-T39,RB-T40, SQLite + PG16.15",
+   "command": "p472_03_tripwire_review_kit.py run",
+   "status": "pass",
+   "result": {
+    "variants": 24,
+    "matched_expectation": 24
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/postgres/kit-results-postgres.json",
+   "notes": "after/original for RB-T38/T39 fails by design (amended helper A-1)"
+  },
+  {
+   "id": "LOCAL-829f36a-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "tenant_isolation_matrix.py --sweep sqlite",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 735,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite.json.gz",
+   "notes": "oracle blind spots unchanged (R-SWEEP-BLINDSPOTS)"
+  },
+  {
+   "id": "LOCAL-829f36a-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "tenant_isolation_matrix.py --sweep postgres",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 729,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16.json.gz",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-829f36a-register-isolation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_application_wide_isolation.py",
+   "status": "pass",
+   "result": {
+    "passed": 17,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/register-isolation.txt",
+   "notes": "register regenerated from both sweeps (empty)"
+  },
+  {
+   "id": "LOCAL-829f36a-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "Chromium, real login, real backend",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run1.txt",
+   "notes": "a first attempt without CORS_ORIGINS failed 0/6 (set-up error, R-E2E-CORS-SETUP)"
+  },
+  {
+   "id": "LOCAL-829f36a-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "Chromium, real login, real backend",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run2.txt",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-829f36a-frontend",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "frontend/",
+   "command": "npm test; npm run build",
+   "status": "pass",
+   "result": {
+    "passed": 48,
+    "failed": 0,
+    "build": "ok"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
+   "notes": "frontend unchanged"
   }
  ],
  "known_discrepancies": [
@@ -1100,6 +1334,10 @@
   {
    "where": "p472-03-batch7-governance-decision-packets-v1.md PA-1",
    "what": "said the startup check 'only logs'. Batch 8 probe: main.py refuses to start in production without AUTH_MODE (and AUTH_MODE=dev without ALLOW_DEV_AUTH_IN_PROD); Settings.validate() only logs. Both statements are now in the PA-1 investigation doc."
+  },
+  {
+   "where": "p472-03-batch8-pa1-privileged-access-investigation-v1.md and p472-03-batch8-governance-and-forensic-workflows-v1.md (HIST B2)",
+   "what": "list PA1-01/PA1-02 as 'not fixed' and RB-T38..T40 as failing. Superseded by 829f36a (author fix; PA-1 unsigned): see the PA-1 investigation v2 and assessment v8. v1 documents preserved unchanged; the earlier dev-token discrepancy above now describes pre-829f36a behaviour."
   }
  ],
  "governing_files": [
@@ -1145,6 +1383,17 @@
   "backend/tests/test_p472_03_batch8_guardianx_explanations.py",
   "backend/tests/test_p472_03_batch8_pa1_env_gates.py",
   "backend/scripts/p472_03_gx_explanation_repro.py",
-  "backend/scripts/p472_03_pa1_env_probe.py"
+  "backend/scripts/p472_03_pa1_env_probe.py",
+  "docs/enterprise-readiness/p472-03-release-gate-assessment-v8.md",
+  "docs/enterprise-readiness/p472-03-residual-risk-register-v8.md",
+  "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v6.md",
+  "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v3.md",
+  "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v8.md",
+  "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v2.md",
+  "docs/enterprise-readiness/p472-03-pa1-remediation-assertion-change-log-v1.md",
+  "docs/enterprise-readiness/p472-03-pa1-remediation-review-packets-v1.md",
+  "backend/app/core/environment.py",
+  "backend/tests/test_p472_03_pa1_remediation.py",
+  "backend/scripts/p472_03_pa1_remediation_repro.py"
  ]
 }

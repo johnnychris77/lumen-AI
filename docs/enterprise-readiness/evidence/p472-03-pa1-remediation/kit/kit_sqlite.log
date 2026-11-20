@@ -1,0 +1,13 @@
+RB-T38           before/final     failed        expected=failed     assert True is False
+RB-T38           before/original  failed        expected=failed     assert True is False
+RB-T38           after/final      passed        expected=passed     
+RB-T38           after/original   failed        expected=failed (original probe requires app.main to start; startup is now refused, PA-1 A-1) AssertionError: FATAL: refusing to start (production configuration check): ENABLE_DEV_AUTH is enabled in a pro
+RB-T39           before/final     failed        expected=failed     assert 200 in (401, 403, 404)
+RB-T39           before/original  failed        expected=failed     assert 200 in (401, 403, 404)
+RB-T39           after/final      passed        expected=passed     
+RB-T39           after/original   failed        expected=failed (original probe requires app.main to start; startup is now refused, PA-1 A-1) AssertionError: FATAL: refusing to start (production configuration check): DEMO_MODE is enabled in a productio
+RB-T40           before/final     failed        expected=failed     AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}
+RB-T40           before/original  failed        expected=failed     AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}
+RB-T40           after/final      passed        expected=passed     
+RB-T40           after/original   passed        expected=passed     
+wrote /home/user/lumen-AI/backend/../docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/sqlite/kit-results-sqlite.json

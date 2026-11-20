@@ -1,0 +1,16 @@
+829f36a
+{
+ "mounted": 1913,
+ "shadowed": 2,
+ "with_finding": 0,
+ "per_class": {},
+ "modules_per_class": {},
+ "top_modules": {},
+ "public": 45,
+ "role_gated": 164,
+ "partly_exercised": 729,
+ "unscoped_leads": 353,
+ "foreign_write_routes": 0,
+ "foreign_write_tables": 0
+}
+exit=0

@@ -87,7 +87,10 @@ CONTROLS: dict[str, list[tuple[str, str]]] = {
         "test_owner_attaches_an_explanation_to_its_inspection",
         "test_digital_twin_context_for_the_callers_own_tenant_still_works")],
     P: [(P, "test_control_render_configuration_is_closed"),
-        (P, "test_control_unset_auth_mode_in_production_refuses_to_start")],
+        (P, "test_control_unset_auth_mode_in_production_refuses_to_start"),
+        (P, "test_rb_t38_configuration_refuses_to_start"),
+        (P, "test_rb_t39_configuration_refuses_to_start"),
+        (P, "test_rb_t40_configurations_start")],
     Z: [(Z, name) for name in (
         "test_owner_lists_reads_and_overrides_its_explanation",
         "test_owner_can_add_several_explanations_to_its_own_key",
@@ -207,10 +210,15 @@ ITEMS: list[Item] = [
              "test_replay_does_not_report_another_tenants_audit_chain"),
         ]
     ],
-    # Batch 8 PA-1 investigation: OPEN findings, no fix (PA-1 unsigned). Expected to FAIL everywhere.
+    # Batch 8 PA-1 findings, committed failing in 6b2a8d6 (original tests). Reproduced on SQLite and PostgreSQL
+    # at c2014ff (application code unchanged), converted in 829f36a by the PA-1 remediation (author conversion;
+    # PA-1 governance still unsigned). RB-T38/RB-T39 share an AMENDED probe helper: see expected() and
+    # docs/enterprise-readiness/p472-03-pa1-remediation-assertion-change-log-v1.md.
     *[
-        Item(rb, finding, P, t, "6b2a8d6", None, "-", gov="PA-1", open_finding=True,
-             note="OPEN FINDING: strict xfail; PA-1 unsigned, no gate changed; expected to FAIL on the code under review")
+        Item(rb, finding, P, t, "c2014ff", "6b2a8d6", "829f36a", gov="PA-1",
+             note=("ASSERTION LINE UNCHANGED; shared probe helper AMENDED (A-1): startup is now refused, so the "
+                   "probe evaluates the same gate at layer level. Reviewer must judge the helper change"
+                   if rb in ("RB-T38", "RB-T39") else "assertion and probe unchanged in substance"))
         for rb, finding, t in [
             ("RB-T38", "PA1-01 dev tokens active with ENVIRONMENT=production, APP_ENV unset",
              "test_dev_tokens_are_inactive_whenever_any_production_signal_is_set"),
@@ -459,6 +467,8 @@ def expected(item: Item, variant: str) -> str:
         return "failed (amended assertion; see diff)"
     if variant == "after/original" and item.id == "RB-T28":
         return "failed (original set-up's foreign write is now refused, Batch 7)"
+    if variant == "after/original" and item.id in ("RB-T38", "RB-T39"):
+        return "failed (original probe requires app.main to start; startup is now refused, PA-1 A-1)"
     return "passed"
 
 

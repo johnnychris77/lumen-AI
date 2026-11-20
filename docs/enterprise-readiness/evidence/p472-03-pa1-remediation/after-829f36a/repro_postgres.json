@@ -1,0 +1,171 @@
+{
+ "db": "postgres",
+ "results": {
+  "RB-T38 ENVIRONMENT=production only, AUTH_MODE=oidc, ENABLE_DEV_AUTH=true": {
+   "startup": "refused",
+   "startup_reason": "FATAL: refusing to start (production configuration check): ENABLE_DEV_AUTH is enabled in a production environment; development tokens must never authenticate in production. Set ENABLE_DEV_AUTH=false.",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   }
+  },
+  "RB-T39 APP_ENV=ENVIRONMENT=production, AUTH_MODE=oidc, DEMO_MODE=1": {
+   "startup": "refused",
+   "startup_reason": "FATAL: refusing to start (production configuration check): DEMO_MODE is enabled in a production environment; the demo routes (including the data-deleting /api/demo/reset) accept public literal tokens. Unset DEMO_MODE.",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   }
+  },
+  "RB-T40a APP_ENV=production only, AUTH_MODE=oidc": {
+   "startup": "started",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   },
+   "app.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 2,
+    "demo_rows_after": 2
+   }
+  },
+  "RB-T40b APP_ENV=ENVIRONMENT=Production (capitalised), AUTH_MODE=oidc": {
+   "startup": "started",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   },
+   "app.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 2,
+    "demo_rows_after": 2
+   }
+  },
+  "PA-1 APP_ENV=production, AUTH_MODE=dev, ALLOW_DEV_AUTH_IN_PROD=true": {
+   "startup": "refused",
+   "startup_reason": "FATAL: refusing to start (production configuration check): AUTH_MODE=dev is not permitted in a production environment: development authentication trusts client-supplied identity headers. Use AUTH_MODE=oidc. ALLOW_DEV_AUTH_IN_PROD is no long",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   }
+  },
+  "PA-1 conflict APP_ENV=development, ENVIRONMENT=production, AUTH_MODE=oidc": {
+   "startup": "refused",
+   "startup_reason": "FATAL: refusing to start (production configuration check): conflicting environment signals: APP_ENV=development, ENVIRONMENT=production. Set APP_ENV and ENVIRONMENT to the same value (or leave one unset).",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   }
+  },
+  "control render.yaml (APP_ENV=ENVIRONMENT=production, AUTH_MODE=oidc, ENABLE_DEV_AUTH=false)": {
+   "startup": "started",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": true,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": false,
+    "status": 401
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   },
+   "app.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 2,
+    "demo_rows_after": 2
+   }
+  },
+  "control development, ENABLE_DEV_AUTH=true (authorised dev workflow)": {
+   "startup": "started",
+   "deps.dev_token_admin": true,
+   "enterprise.jwt_shape_check": false,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": true,
+    "role": "admin",
+    "tenant_id": "victim-tenant"
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 1,
+    "demo_rows_after": 1
+   },
+   "app.reset_public_token": {
+    "status": 403,
+    "demo_rows_before": 2,
+    "demo_rows_after": 2
+   }
+  },
+  "control development, DEMO_MODE=1 (authorised demo workflow)": {
+   "startup": "started",
+   "deps.dev_token_admin": false,
+   "enterprise.jwt_shape_check": false,
+   "enterprise.dev_token_with_header_identity": {
+    "accepted": true,
+    "role": "admin",
+    "tenant_id": "victim-tenant"
+   },
+   "db_dialect": "postgresql",
+   "demo.reset_public_token": {
+    "status": 200,
+    "demo_rows_before": 1,
+    "demo_rows_after": 0
+   },
+   "app.reset_public_token": {
+    "status": 200,
+    "demo_rows_before": 1,
+    "demo_rows_after": 0
+   }
+  }
+ }
+}
