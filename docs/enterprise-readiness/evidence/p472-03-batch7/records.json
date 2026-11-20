@@ -787,6 +787,273 @@
     "failed": 0
    },
    "notes": "register empty"
+  },
+  {
+   "id": "LOCAL-83dbf70-explanation-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "83dbf70",
+   "source": "fresh SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_explanation_repro.py",
+   "status": "reproduced",
+   "result": {
+    "cross_tenant_reads_disclosing": "5/5",
+    "foreign_override": "200 persisted",
+    "explanation_into_foreign_key": "201, visible to owner",
+    "explanation_audit_events": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/repro_83dbf70_sqlite.json",
+   "notes": "RB-T32 and GX-11..GX-14"
+  },
+  {
+   "id": "LOCAL-eec3bc8-tripwires-failing",
+   "class": "LOCAL-AUTHOR",
+   "sha": "eec3bc8",
+   "source": "SQLite + PostgreSQL 16.15",
+   "command": "pytest tests/test_p472_03_batch8_guardianx_explanations.py",
+   "status": "reproduced",
+   "result": {
+    "xfailed": 4,
+    "failed_negatives": 3,
+    "passed": 7
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/tests_83dbf70_sqlite.txt",
+   "notes": "strict tripwires committed failing against unchanged application code"
+  },
+  {
+   "id": "LOCAL-c22a879-explanation-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "fresh SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_explanation_repro.py",
+   "status": "pass",
+   "result": {
+    "cross_tenant_reads_disclosing": "0/5",
+    "foreign_override": "404, nothing persisted",
+    "explanation_into_foreign_key": "403",
+    "foreign_chain_event_count": 0,
+    "owner_controls": "all work"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-after/repro_fix_sqlite.json",
+   "notes": "author-remediated; not independently reviewed; GD-7 unsigned"
+  },
+  {
+   "id": "CI-c22a879-sqlite",
+   "class": "CI",
+   "sha": "c22a879",
+   "source": "run 44673768328 job 136080604432",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9256,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "first run with RB-T32 passing; 0 xfails"
+  },
+  {
+   "id": "CI-c22a879-pg16",
+   "class": "CI",
+   "sha": "c22a879",
+   "source": "run 44673768328 job 136080603927",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9257,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": ""
+  },
+  {
+   "id": "CI-6b2a8d6-sqlite",
+   "class": "CI",
+   "sha": "6b2a8d6",
+   "source": "run 44674546943 job 136083146817",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9258,
+    "skipped": 3,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "3 xfailed = RB-T38..T40 (OPEN PA-1 findings); NOT a passing security gate"
+  },
+  {
+   "id": "CI-6b2a8d6-pg16",
+   "class": "CI",
+   "sha": "6b2a8d6",
+   "source": "run 44674546943 job 136083146420",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9259,
+    "skipped": 2,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "3 xfailed = RB-T38..T40 (OPEN)"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9258,
+    "skipped": 3,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-pytest.log.gz",
+   "notes": "identical to CI; 3 xfailed = RB-T38..T40"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh",
+   "status": "pass",
+   "result": {
+    "passed": 9259,
+    "skipped": 2,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-pytest.log.gz",
+   "notes": "alembic_exit 0; identical to CI"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "tenant_isolation_matrix.py --sweep sqlite",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 735,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-sqlite.json.gz",
+   "notes": "oracle blind spots unchanged (R-SWEEP-BLINDSPOTS)"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "tenant_isolation_matrix.py --sweep postgres",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 729,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-pg16.json.gz",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-6b2a8d6-register-isolation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_application_wide_isolation.py",
+   "status": "pass",
+   "result": {
+    "passed": 17,
+    "failed": 0
+   },
+   "notes": "register regenerated (empty); matrix unchanged"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "Chromium, real login, real backend",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run1.txt",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-6b2a8d6-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "as above",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run2.txt",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-batch8-tripwire-kit-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "merged kit results (see meta)",
+   "command": "p472_03_tripwire_review_kit.py run --ids \u2026",
+   "status": "pass",
+   "result": {
+    "variants": 136,
+    "matched_expectation": 136
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-sqlite.json",
+   "notes": "RB-T01..T31/T33 carried from Batch 7 (after 6a661bb); RB-T32,T34..T37 at c22a879; RB-T38..T40 (OPEN) at 6b2a8d6; aborted full re-run (32 variants, all matched) logged"
+  },
+  {
+   "id": "LOCAL-batch8-tripwire-kit-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "merged kit results, PostgreSQL 16.15",
+   "command": "p472_03_tripwire_review_kit.py run --ids \u2026",
+   "status": "pass",
+   "result": {
+    "variants": 136,
+    "matched_expectation": 136
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-postgres.json",
+   "notes": "as above; aborted full re-run 29 variants, all matched"
+  },
+  {
+   "id": "LOCAL-c22a879-pa1-probe",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "8 configurations, fresh subprocess each",
+   "command": "backend/scripts/p472_03_pa1_env_probe.py",
+   "status": "reproduced",
+   "result": {
+    "render_yaml": "closed",
+    "PA1-01": "dev token admin with ENVIRONMENT-only production",
+    "PA1-02": "demo reset 200 with public token",
+    "PA1-03": "JWT-shape check off for APP_ENV-only / capitalised"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/pa1/pa1_env_probe_c22a879.json",
+   "notes": "PA-1 unsigned; no gate changed; RB-T38..T40 failing"
   }
  ],
  "known_discrepancies": [
@@ -825,6 +1092,14 @@
   {
    "where": "records.json (Batch 6) and p472-03-batch7-pg16-ci-anomaly-report-v1.md",
    "what": "PG16 failures on 3f479d9/c63d398/bc0cb94 were recorded as 'inferred census pin' and 2976b4e as 'unknown'; Batch 7 read the CI logs: the first three are the census pin (confirmed), 2976b4e is scheduler contamination of the SQL oracle (v2 report). Records updated; v1 preserved."
+  },
+  {
+   "where": "Issue #190 B7.6 wording",
+   "what": "Issue #190 describes RB-T32 as a write-side defect; in the code RB-T32 (GX-09) is cross-tenant explanation DISCLOSURE. Batch 8 fixed the disclosure and the related writes (foreign override GX-11, key injection GX-12) and recorded each as its own tripwire."
+  },
+  {
+   "where": "p472-03-batch7-governance-decision-packets-v1.md PA-1",
+   "what": "said the startup check 'only logs'. Batch 8 probe: main.py refuses to start in production without AUTH_MODE (and AUTH_MODE=dev without ALLOW_DEV_AUTH_IN_PROD); Settings.validate() only logs. Both statements are now in the PA-1 investigation doc."
   }
  ],
  "governing_files": [
@@ -857,6 +1132,19 @@
   "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py",
   "backend/scripts/p472_03_gx_source_write_repro.py",
   "docs/enterprise-readiness/p472-03-release-gate-assessment-v6.md",
-  "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-generated-v1.md"
+  "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-generated-v1.md",
+  "docs/enterprise-readiness/p472-03-release-gate-assessment-v7.md",
+  "docs/enterprise-readiness/p472-03-residual-risk-register-v7.md",
+  "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v5.md",
+  "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v2.md",
+  "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v7.md",
+  "docs/enterprise-readiness/p472-03-batch8-tripwire-review-packets-generated-v1.md",
+  "docs/enterprise-readiness/p472-03-batch8-guardianx-explanation-ownership-v1.md",
+  "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v1.md",
+  "docs/enterprise-readiness/p472-03-batch8-governance-and-forensic-workflows-v1.md",
+  "backend/tests/test_p472_03_batch8_guardianx_explanations.py",
+  "backend/tests/test_p472_03_batch8_pa1_env_gates.py",
+  "backend/scripts/p472_03_gx_explanation_repro.py",
+  "backend/scripts/p472_03_pa1_env_probe.py"
  ]
 }

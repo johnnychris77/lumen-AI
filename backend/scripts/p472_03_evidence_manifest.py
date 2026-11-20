@@ -114,8 +114,9 @@ def main():
             p = ROOT / r["artifact"]
             r["artifact_sha256"] = sha256(p) if p.exists() else "MISSING"
     files = [file_entry(rel) for rel in records["governing_files"]]
-    files += [file_entry(str(p.relative_to(ROOT))) for p in sorted(EVID.rglob("*")) if p.is_file()
-              and p.name not in ("manifest.json", "records.json")]
+    for evid_dir in (EVID, ROOT / "docs/enterprise-readiness/evidence/p472-03-batch8"):
+        files += [file_entry(str(p.relative_to(ROOT))) for p in sorted(evid_dir.rglob("*")) if p.is_file()
+                  and p.name not in ("manifest.json", "records.json")]
     manifest = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "head": git("rev-parse", "HEAD"), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),

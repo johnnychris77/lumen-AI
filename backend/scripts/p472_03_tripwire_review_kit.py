@@ -209,7 +209,7 @@ ITEMS: list[Item] = [
     ],
     # Batch 8 PA-1 investigation: OPEN findings, no fix (PA-1 unsigned). Expected to FAIL everywhere.
     *[
-        Item(rb, finding, P, t, "c22a879", None, "-", gov="PA-1", open_finding=True,
+        Item(rb, finding, P, t, "6b2a8d6", None, "-", gov="PA-1", open_finding=True,
              note="OPEN FINDING: strict xfail; PA-1 unsigned, no gate changed; expected to FAIL on the code under review")
         for rb, finding, t in [
             ("RB-T38", "PA1-01 dev tokens active with ENVIRONMENT=production, APP_ENV unset",

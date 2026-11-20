@@ -1,0 +1,28 @@
+RB-T32           before/final     failed        expected=failed     AssertionError: /api/guardianx/explainability
+RB-T32           before/original  failed        expected=failed     AssertionError: /api/guardianx/explainability
+RB-T32           after/final      passed        expected=passed     
+RB-T32           after/original   passed        expected=passed     
+RB-T34           before/final     failed        expected=failed     assert 200 == 404
+RB-T34           before/original  failed        expected=failed     assert 200 == 404
+RB-T34           after/final      passed        expected=passed     
+RB-T34           after/original   passed        expected=passed     
+RB-T35           before/final     failed        expected=failed     assert 201 == 403
+RB-T35           before/original  failed        expected=failed     assert 201 == 403
+RB-T35           after/final      passed        expected=passed     
+RB-T35           after/original   passed        expected=passed     
+RB-T36           before/final     failed        expected=failed     assert 'legacy-41375ead' not in '{"id":1,"so...:47.810622"}'
+RB-T36           before/original  failed        expected=failed     assert 'legacy-545b6e36' not in '{"id":1,"so...:03.284726"}'
+RB-T36           after/final      passed        expected=passed     
+RB-T36           after/original   passed        expected=passed     
+RB-T37           before/final     failed        expected=failed     assert 1 == 0
+RB-T37           before/original  failed        expected=failed     assert 1 == 0
+RB-T37           after/final      passed        expected=passed     
+RB-T37           after/original   passed        expected=passed     
+RB-T38           before/final     test-absent   expected=failed     test_dev_tokens_are_inactive_whenever_any_production_signal_is_set not in backend/tests/test_p472_03_batch8_pa
+RB-T38           after/final      test-absent   expected=failed (OPEN finding) test_dev_tokens_are_inactive_whenever_any_production_signal_is_set not in backend/tests/test_p472_03_batch8_pa
+RB-T39           before/final     test-absent   expected=failed     test_demo_reset_is_not_reachable_with_the_public_token_in_production not in backend/tests/test_p472_03_batch8_
+RB-T39           after/final      test-absent   expected=failed (OPEN finding) test_demo_reset_is_not_reachable_with_the_public_token_in_production not in backend/tests/test_p472_03_batch8_
+RB-T40           before/final     test-absent   expected=failed     test_enterprise_jwt_shape_check_follows_every_production_signal not in backend/tests/test_p472_03_batch8_pa1_e
+RB-T40           after/final      test-absent   expected=failed (OPEN finding) test_enterprise_jwt_shape_check_follows_every_production_signal not in backend/tests/test_p472_03_batch8_pa1_e
+wrote /tmp/claude-0/-home-user-lumen-AI/9848bd96-e333-5e5f-906e-c172784b7394/scratchpad/b8/kit8_sqlite/kit-results-sqlite.json
+exit=0
