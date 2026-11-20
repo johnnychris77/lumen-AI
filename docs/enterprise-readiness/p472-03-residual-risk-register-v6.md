@@ -34,7 +34,11 @@ engineering.
 
 | ID | Risk | Status | Owner (role) | Next step |
 |---|---|---|---|---|
-| **R-CI-PG-INTERMITTENT** | CI PG16 job `135978365382` failed; cause unknown; CI-faithful local reproduction passed (9224/2) | **OPEN — UNKNOWN ROOT CAUSE** | engineering + CI owner | read the job log via the GitHub UI (B7.2 report §6); artifact retention added (`bd7af7c`) |
+| **R-CI-PG-INTERMITTENT** | CI PG16 job `135978365382` failed (1 failed / 9223 passed / 2 skipped) | **Root cause identified (author analysis, from the job log): the 00:30 UTC nightly intelligence APScheduler job ran during a route-wide harness case and the process-wide SQL oracle attributed its SQL to the request (route returned 403). Harness guard + 2 regression tests added; deterministic repro 3/5 fail unguarded, 0/7 guarded. Review pending — NOT closed** | engineering + CI owner | reviewer confirms B7.2 report v2 §1–§4 |
+| R-SCHED-SHUTDOWN | App lifespan shutdown never calls `_scheduler.shutdown()`; schedulers outlive the lifespan | OPEN | platform owner | B7.2 v2 §6 |
+| R-NIGHTLY-SILENT | Nightly intelligence job iterates all tenants and swallows every exception without log/audit | OPEN — observability | platform owner | B7.2 v2 §6 |
+| R-ORACLE-SESSION-WIDE | Process-wide SQL oracles can be contaminated by non-scheduler background threads (not inventoried) | OPEN — test-infrastructure | engineering | B7.2 v2 §6 |
+| R-CI-PG-EARLIER | PG16 failures on `3f479d9`/`c63d398`/`bc0cb94` | **Confirmed from CI logs: census pin** (was inferred); fixed by the census update | engineering | — |
 | R-SUITE-SHARED-STATE | Full suites interfere when run concurrently in one directory (78 failures observed) | OPEN — test-infrastructure | engineering | isolate test DB/file paths per run |
 | R-CENSUS-PIN | Census pin forgotten after resolver changes | Process gap (2× now: B6.1, B7) | engineering | reviewer checks census in packets |
 | R-E2E-HARNESS | Browser E2E raced under load | Harness fixed; re-run in Batch 7 index | frontend owner | — |

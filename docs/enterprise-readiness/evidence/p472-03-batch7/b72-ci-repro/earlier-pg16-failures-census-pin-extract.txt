@@ -1,0 +1,24 @@
+### job 135967501020 (commit 3f479d9), retrieved via GitHub MCP get_job_logs on 2026-11-20; lines matching checkout HEAD / FAILED / summary / AssertionError
+2026-11-19T23:41:49.4495588Z HEAD is now at 12c603b Merge 3f479d937a58ddbf3bf20a2b946616b788c54d16 into 0f2ec588d24b7c64ccacd84adf67e89cb1ec1676
+2026-11-20T00:10:07.6301194Z E       AssertionError: {'dependency': 195, 'handler': 715}
+2026-11-20T00:10:07.6304284Z tests/test_p472_03_batch2_remediation.py:487: AssertionError
+2026-11-20T00:10:10.5723364Z =========================== short test summary info ============================
+2026-11-20T00:10:10.5723997Z FAILED tests/test_p472_03_batch2_remediation.py::test_the_route_table_is_the_mounted_application - AssertionError: {'dependency': 195, 'handler': 715}
+2026-11-20T00:10:10.5727695Z 1 failed, 9220 passed, 2 skipped, 1881 warnings in 1676.96s (0:27:56)
+
+### job 135969896426 (commit c63d398), retrieved via GitHub MCP get_job_logs on 2026-11-20; lines matching checkout HEAD / FAILED / summary / AssertionError
+2026-11-19T23:47:00.8455564Z HEAD is now at 7a5eb52 Merge c63d39818302d14e3955a197a46bc35c66a09fc0 into 0f2ec588d24b7c64ccacd84adf67e89cb1ec1676
+2026-11-20T00:25:08.5965629Z E       AssertionError: {'dependency': 195, 'handler': 715}
+2026-11-20T00:25:08.5972358Z tests/test_p472_03_batch2_remediation.py:487: AssertionError
+2026-11-20T00:25:11.0449452Z =========================== short test summary info ============================
+2026-11-20T00:25:11.0450310Z FAILED tests/test_p472_03_batch2_remediation.py::test_the_route_table_is_the_mounted_application - AssertionError: {'dependency': 195, 'handler': 715}
+2026-11-20T00:25:11.0454390Z 1 failed, 9223 passed, 2 skipped, 1881 warnings in 2260.32s (0:37:40)
+
+### job 135970191686 (commit bc0cb94), retrieved via GitHub MCP get_job_logs on 2026-11-20; lines matching checkout HEAD / FAILED / summary / AssertionError
+2026-11-19T23:47:41.1040888Z HEAD is now at f24eede Merge bc0cb94a116265bfa1b08c5b687dac8bb9fad518 into 0f2ec588d24b7c64ccacd84adf67e89cb1ec1676
+2026-11-20T00:26:23.7346236Z E       AssertionError: {'dependency': 195, 'handler': 715}
+2026-11-20T00:26:23.7351468Z tests/test_p472_03_batch2_remediation.py:487: AssertionError
+2026-11-20T00:26:25.6817353Z =========================== short test summary info ============================
+2026-11-20T00:26:25.6819524Z FAILED tests/test_p472_03_batch2_remediation.py::test_the_route_table_is_the_mounted_application - AssertionError: {'dependency': 195, 'handler': 715}
+2026-11-20T00:26:25.6830868Z 1 failed, 9223 passed, 2 skipped, 1881 warnings in 2295.85s (0:38:15)
+

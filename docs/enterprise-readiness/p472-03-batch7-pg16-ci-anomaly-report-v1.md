@@ -1,5 +1,7 @@
 # P472-03 Batch 7 (B7.2) — PostgreSQL 16 CI Failure 135978365382: Investigation Report (v1)
 
+> **Superseded by v2** (`p472-03-batch7-pg16-ci-anomaly-report-v2.md`): the job log was later retrieved through the GitHub MCP log API and the root cause identified. This v1 is preserved unchanged below as the record of what was known at the time.
+
 **Issue #189 · PR #181 (DRAFT).** Conclusion: **ROOT CAUSE UNKNOWN — open risk R-CI-PG-INTERMITTENT.** Later
 green jobs on equivalent code do **not** close it.
 

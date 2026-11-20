@@ -407,6 +407,7 @@ class _Caller:
                 limiter.reset()
             except Exception:  # noqa: BLE001 - not every limiter backend can reset
                 pass
+        _pause_running_schedulers(getattr(self, "schedulers", []))  # B7.2: the leader loop may resume them
         self.captured, self.capturing = [], True
         previous = signal.signal(signal.SIGALRM, _alarm)
         signal.alarm(30)
@@ -439,12 +440,49 @@ class _Caller:
         return self.profile[key]
 
 
+def _pause_running_schedulers(found: list | None = None) -> list:
+    """P472-03 B7.2: keep scheduled background jobs from running while the oracle captures.
+
+    The oracle records every SQL statement executed in the process during a
+    request. An APScheduler started by an earlier test's app lifespan keeps
+    running for the rest of the session, and its jobs run on their own threads.
+    CI job 135978365382 failed because the 00:30 UTC nightly intelligence sweep
+    (``register_intelligence_scheduler``) ran during
+    ``test_unverified_tenant_requests_are_refused_and_change_nothing[GET
+    /api/pulse/command-center]`` and its per-tenant SQL was attributed to the
+    request ("SQL bound to b2-alpha"). Pausing the scheduler removes that
+    contamination without excluding any request SQL from the oracle. ``found``
+    re-pauses schedulers the leader loop may have resumed.
+    """
+    from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
+    if found is None:
+        import gc
+        found = [obj for obj in gc.get_objects() if isinstance(obj, BaseScheduler)]
+    for scheduler in found:
+        if scheduler.state == STATE_RUNNING:
+            scheduler.pause()
+    # Pausing stops new runs only; wait (bounded) for runs already in flight.
+    import time
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline and any(
+            sum(getattr(executor, "_instances", {}).values())
+            for scheduler in found for executor in getattr(scheduler, "_executors", {}).values()):
+        time.sleep(0.05)
+    return found
+
+
 @pytest.fixture(scope="module")
 def caller():
     instance = _Caller()
+    schedulers = _pause_running_schedulers()
+    instance.schedulers = schedulers
     event.listen(Engine, "before_cursor_execute", instance.on_sql)
     yield instance
     event.remove(Engine, "before_cursor_execute", instance.on_sql)
+    from apscheduler.schedulers.base import STATE_PAUSED
+    for scheduler in schedulers:
+        if scheduler.state == STATE_PAUSED:
+            scheduler.resume()
 
 
 def _bound(capture, tenant: str) -> list[str]:
@@ -1029,3 +1067,79 @@ class TestTrendAlertsDoNotNameOtherOrganisations:
         response = http.post("/api/horizon/emerging-trends/detect", headers=headers)
         assert response.status_code == 200, response.text[:300]
         assert TENANT_B not in response.text and TENANT_C not in response.text
+
+
+# ══ P472-03 B7.2 — background jobs must not contaminate the route oracle ══════
+#
+# CI job 135978365382 (2976b4e) failed one case of the route-wide test above:
+# "two memberships, none selected: SQL bound to b2-alpha on emerging_risk_signals,
+# instrument_quality_signals" for GET /api/pulse/command-center. Its captured log
+# shows the 00:30 UTC nightly intelligence sweep running at that moment; the sweep
+# runs run_risk_analysis for every tenant on the scheduler's own thread. These two
+# tests reproduce the mechanism deterministically and pin the guard.
+
+def _tenant_bound_background_scheduler(tenant: str):
+    from datetime import timedelta
+
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from sqlalchemy import text
+
+    def job():
+        # Like the nightly sweep: per-tenant SQL for a while on the scheduler's thread.
+        import time
+        db = SessionLocal()
+        try:
+            until = time.monotonic() + 0.2
+            while time.monotonic() < until:
+                db.execute(text("SELECT id FROM emerging_risk_signals WHERE tenant_id = :t"), {"t": tenant})
+                db.rollback()
+        finally:
+            db.close()
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(job, "interval", seconds=timedelta(milliseconds=50).total_seconds(), id=f"b72-{tenant}",
+                      max_instances=1, coalesce=True)
+    scheduler.start()
+    return scheduler
+
+
+def _capture_for(seconds: float) -> list:
+    import time
+    captured: list = []
+
+    def on_sql(_conn, _cursor, statement, parameters, _context, _executemany):
+        captured.append((statement, parameters))
+    event.listen(Engine, "before_cursor_execute", on_sql)
+    try:
+        time.sleep(seconds)
+    finally:
+        event.remove(Engine, "before_cursor_execute", on_sql)
+    return captured
+
+
+def test_b72_an_unguarded_capture_attributes_a_background_jobs_sql_to_the_request():
+    Base.metadata.create_all(bind=engine)
+    tenant = f"b72-bg-{RUN}"
+    scheduler = _tenant_bound_background_scheduler(tenant)
+    try:
+        captured = _capture_for(1.0)
+    finally:
+        scheduler.shutdown(wait=False)
+    assert _bound(captured, tenant) == ["emerging_risk_signals"], "the hazard behind CI job 135978365382"
+
+
+def test_b72_the_harness_pauses_running_schedulers_before_capturing():
+    import time
+
+    from apscheduler.schedulers.base import STATE_PAUSED
+    Base.metadata.create_all(bind=engine)
+    tenant = f"b72-guard-{RUN}"
+    scheduler = _tenant_bound_background_scheduler(tenant)
+    try:
+        found = _pause_running_schedulers()
+        assert scheduler in found and scheduler.state == STATE_PAUSED
+        time.sleep(0.3)  # let a run already in flight finish
+        captured = _capture_for(1.0)
+    finally:
+        scheduler.shutdown(wait=False)
+    assert _bound(captured, tenant) == []
