@@ -481,9 +481,21 @@ def test_guardianx_evidence_audit_event_is_attributed_to_the_verified_tenant():
     served (instead of refused at the dependency), POST /api/guardianx/evidence wrote
     its paired audit event under the shared "default-tenant". It must be the caller's."""
     from app.models.audit_log import AuditLog
+    from app.models.inspection import Inspection
 
+    # P472-03 Batch 7: evidence may be written only under a source the caller's
+    # tenant owns, so the inspection must exist in TENANT_A (set-up corrected; it
+    # used a non-existent id "b4-<run>"). Assertions unchanged.
+    db = SessionLocal()
+    try:
+        inspection = Inspection(file_name=f"b4-{RUN}.png", tenant_id=TENANT_A)
+        db.add(inspection)
+        db.commit()
+        source_id = str(inspection.id)
+    finally:
+        db.close()
     response = client.post("/api/guardianx/evidence", headers=_h(RTR_MEMBER), json={
-        "source_type": "inspection", "source_id": f"b4-{RUN}", "evidence": ["e1"]})
+        "source_type": "inspection", "source_id": source_id, "evidence": ["e1"]})
     assert response.status_code in (200, 201), response.text
     db = SessionLocal()
     try:

@@ -486,7 +486,9 @@ def test_the_route_table_is_the_mounted_application():
     by_how = {how: sum(1 for _, _, h in ROUTES if h == how) for how in ("dependency", "handler")}
     # 715 handlers: +1 in Batch 6 B6.1 (GET /api/genesis-ai/manufacturer-updates now
     # refuses a foreign publisher-filter claim via refuse_other_tenants).
-    assert by_how == {"dependency": 195, "handler": 715}, by_how
+    # 716: +1 in Batch 7 (POST /api/guardianx/explainability refuses a foreign
+    # tenant_id_for_digital_twin claim via refuse_other_tenants, GX-10).
+    assert by_how == {"dependency": 195, "handler": 716}, by_how
     assert len(set(ROUTE_IDS)) == len(ROUTE_IDS)
     assert set(OPEN_OWNER_FINDINGS) | set(OPEN_REFUSAL_FINDINGS) <= set(ROUTE_IDS)
 

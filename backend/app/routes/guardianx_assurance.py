@@ -53,6 +53,8 @@ from app.services import (
     guardianx_risk_registry_service,
     guardianx_trust_score_service,
 )
+from app.auth.tenant_scope import refuse_other_tenants
+from app.services import guardianx_source_ownership as source_ownership
 from app.services.olympus_model_registry_service import UnknownModelRegistryEntryError
 from app.tenant_authz import require_tenant_roles
 
@@ -68,6 +70,18 @@ def _tenant(current_user: dict) -> str:
 
 def _actor(current_user: dict) -> str:
     return current_user["user_email"]
+
+
+def _authorize_source_write(check, db: Session, payload: dict, tenant_id: str) -> tuple[str, str]:
+    """P472-03 Batch 7: refuse writes under a source the verified tenant may not write to."""
+    try:
+        return check(db, payload.get("source_type", ""), payload.get("source_id", ""), tenant_id)
+    except source_ownership.InvalidSourceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except source_ownership.SourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except source_ownership.SourceWriteRefusedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -149,11 +163,18 @@ def get_all_model_governance(current_user: dict = Depends(require_tenant_roles(*
 @router.post("/explainability", status_code=201)
 def post_explainability(payload: dict, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     actor = _actor(current_user)
+    tenant = _tenant(current_user)
+    source_type, source_id = _authorize_source_write(
+        source_ownership.authorize_explanation_write, db, payload, tenant)
+    # P472-03 Batch 7 (GX-10): the digital-twin tenant is a claim; only the caller's
+    # verified tenant may be named (AW-04 rule), anything else is 403.
+    twin_claim = payload.get("tenant_id_for_digital_twin", "")
+    twin_tenant = refuse_other_tenants(tenant, twin_claim) if twin_claim else ""
     return guardianx_explainability_service.create_explanation(
-        db, source_type=payload.get("source_type", ""), source_id=payload.get("source_id", ""),
+        db, source_type=source_type, source_id=source_id,
         input_summary=payload.get("input_summary", ""), evidence_used=payload.get("evidence_used"),
         knowledge_sources=payload.get("knowledge_sources"),
-        tenant_id_for_digital_twin=payload.get("tenant_id_for_digital_twin", ""),
+        tenant_id_for_digital_twin=twin_tenant,
         clinical_rules_applied=payload.get("clinical_rules_applied"), confidence=payload.get("confidence"),
         alternative_explanations=payload.get("alternative_explanations"),
         human_overrides=payload.get("human_overrides"), created_by=actor,
@@ -354,8 +375,10 @@ def get_compliance_mappings(
 @router.post("/evidence", status_code=201)
 def post_evidence(payload: dict, current_user: dict = Depends(require_tenant_roles(*_ALL_ROLES)), db: Session = Depends(get_db)):
     actor = _actor(current_user)
+    source_type, source_id = _authorize_source_write(
+        source_ownership.authorize_evidence_write, db, payload, _tenant(current_user))
     return guardianx_evidence_ledger_service.record_evidence(
-        db, source_type=payload.get("source_type", ""), source_id=payload.get("source_id", ""),
+        db, source_type=source_type, source_id=source_id,
         evidence=payload.get("evidence", []), knowledge_version=payload.get("knowledge_version", ""),
         model_version=payload.get("model_version", ""), workflow_version=payload.get("workflow_version", ""),
         reviewer=actor, tenant_id=_tenant(current_user),

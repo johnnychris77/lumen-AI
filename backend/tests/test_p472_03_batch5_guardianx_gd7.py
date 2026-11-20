@@ -206,10 +206,23 @@ class TestOpenOwnershipFindings:
         assert USER_A not in response.text
 
     # GD7-05 — strict tripwire in Batch 5; converted in B6.2 (assertion unchanged).
+    # LIMITED COVERAGE (Batch 7): this test proves only READ-side filtering — the
+    # victim does not see a foreign entry stored under its source key. It never
+    # proved that the foreign WRITE is refused. Write-side authorization is
+    # RB-T29/RB-T30 in test_p472_03_batch7_guardianx_source_ownership.py; since
+    # Batch 7 the HTTP write is refused, so the contaminated state (as legacy data
+    # may still hold) is seeded through the service layer instead. Set-up change
+    # only; the assertion is unchanged.
     def test_another_tenant_cannot_contaminate_a_source(self):
         source = f"victim-{uuid.uuid4().hex[:8]}"
         _record(source_id=source)
-        _record(user=USER_B, tenant=TENANT_B, source_id=source, evidence=["injected"])
+        db = SessionLocal()
+        try:
+            from app.services.guardianx_evidence_ledger_service import record_evidence
+            record_evidence(db, source_type="capa_suggestion", source_id=source, evidence=["injected"],
+                            reviewer=USER_B, tenant_id=TENANT_B)
+        finally:
+            db.close()
         listed = client.get(BASE, headers=_h(USER_A, TENANT_A),
                             params={"source_type": "capa_suggestion", "source_id": source}).json()["entries"]
         assert all("injected" not in json.dumps(e) for e in listed)

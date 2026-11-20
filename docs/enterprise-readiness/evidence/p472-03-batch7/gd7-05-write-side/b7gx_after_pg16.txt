@@ -1,0 +1,2 @@
+XFAIL tests/test_p472_03_batch7_guardianx_source_ownership.py::TestOpenFindings::test_explanations_are_not_disclosed_to_another_tenant - OPEN FINDING GX-09 / RB-T32: explainability records are listed, replayed and packaged cross-tenant (no owner column, no audit trail; pending GD-7)
+66 passed, 1 xfailed, 2 warnings in 19.92s
