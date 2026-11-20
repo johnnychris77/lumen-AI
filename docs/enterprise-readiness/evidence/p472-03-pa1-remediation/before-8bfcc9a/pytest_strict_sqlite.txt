@@ -1,0 +1,6 @@
+xxx..                                                                    [100%]
+=========================== short test summary info ============================
+XFAIL tests/test_p472_03_batch8_pa1_env_gates.py::test_dev_tokens_are_inactive_whenever_any_production_signal_is_set - OPEN FINDING PA1-01 / RB-T38: ENVIRONMENT=production with APP_ENV unset still activates dev tokens as admin
+XFAIL tests/test_p472_03_batch8_pa1_env_gates.py::test_demo_reset_is_not_reachable_with_the_public_token_in_production - OPEN FINDING PA1-02 / RB-T39: DEMO_MODE=1 in production accepts the public literal 'Bearer dev-token' on the destructive /api/demo/reset
+XFAIL tests/test_p472_03_batch8_pa1_env_gates.py::test_enterprise_jwt_shape_check_follows_every_production_signal - OPEN FINDING PA1-03 / RB-T40: the enterprise JWT-shape production check ignores APP_ENV and is case-sensitive
+2 passed, 3 xfailed in 37.35s

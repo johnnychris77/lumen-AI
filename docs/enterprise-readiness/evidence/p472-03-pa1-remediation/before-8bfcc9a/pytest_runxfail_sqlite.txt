@@ -1,0 +1,15 @@
+
+    @_tripwire("PA1-03 / RB-T40", "the enterprise JWT-shape production check ignores APP_ENV and is case-sensitive")
+    def test_enterprise_jwt_shape_check_follows_every_production_signal(tmp_path):
+        for env in ({"APP_ENV": "production", "AUTH_MODE": "oidc"},
+                    {"APP_ENV": "Production", "ENVIRONMENT": "Production", "AUTH_MODE": "oidc"}):
+>           assert _probe(tmp_path, **env)["jwt_shape_check"] is True, env
+E           AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}
+E           assert False is True
+
+tests/test_p472_03_batch8_pa1_env_gates.py:80: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_p472_03_batch8_pa1_env_gates.py::test_dev_tokens_are_inactive_whenever_any_production_signal_is_set
+FAILED tests/test_p472_03_batch8_pa1_env_gates.py::test_demo_reset_is_not_reachable_with_the_public_token_in_production
+FAILED tests/test_p472_03_batch8_pa1_env_gates.py::test_enterprise_jwt_shape_check_follows_every_production_signal
+3 failed, 2 passed in 37.50s

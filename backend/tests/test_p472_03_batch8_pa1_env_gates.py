@@ -30,7 +30,7 @@ import pytest
 
 BACKEND = Path(__file__).resolve().parents[1]
 STRIP = ("APP_ENV", "ENVIRONMENT", "AUTH_MODE", "ENABLE_DEV_AUTH", "ALLOW_DEV_AUTH_IN_PROD", "DEMO_MODE",
-         "DATABASE_URL", "DEV_AUTH_TOKEN")
+         "DATABASE_URL", "DEV_AUTH_TOKEN", "PA1_PG_ADMIN_URL")
 CHILD = r'''
 import json, os
 import app.main as m
@@ -49,10 +49,50 @@ def _tripwire(finding: str, summary: str):
     return pytest.mark.xfail(strict=True, reason=f"OPEN FINDING {finding}: {summary}")
 
 
+def _database_url(tmp_path) -> str:
+    """A fresh database for one probe: SQLite by default; PostgreSQL when ``PA1_PG_ADMIN_URL`` is set.
+
+    Set-up only (PA-1 remediation): lets the same tripwires be reproduced on a fresh PostgreSQL
+    database. It changes no assertion.
+    """
+    admin_url = os.environ.get("PA1_PG_ADMIN_URL", "").strip()
+    if not admin_url:
+        return f"sqlite:///{tmp_path}/pa1.db"
+    import uuid
+
+    import psycopg2
+    from sqlalchemy.engine import make_url
+
+    name = f"pa1_t_{uuid.uuid4().hex[:12]}"
+    conn = psycopg2.connect(admin_url)
+    conn.autocommit = True
+    conn.cursor().execute(f'CREATE DATABASE "{name}"')
+    conn.close()
+    _PG_CREATED.append((admin_url, name))
+    return make_url(admin_url).set(drivername="postgresql+psycopg2", database=name).render_as_string(
+        hide_password=False)
+
+
+_PG_CREATED: list[tuple[str, str]] = []
+
+
+@pytest.fixture(autouse=True)
+def _drop_pg_databases():
+    yield
+    while _PG_CREATED:
+        admin_url, name = _PG_CREATED.pop()
+        import psycopg2
+
+        conn = psycopg2.connect(admin_url)
+        conn.autocommit = True
+        conn.cursor().execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+        conn.close()
+
+
 def _probe(tmp_path, **env) -> dict:
     child_env = {k: v for k, v in os.environ.items() if k not in STRIP}
     child_env.update({"SECRET_KEY": "pa1-test-strong-secret-value-0123456789abcdef",
-                      "DEV_AUTH_TOKEN": "pa1-test-local-token", "DATABASE_URL": f"sqlite:///{tmp_path}/pa1.db"})
+                      "DEV_AUTH_TOKEN": "pa1-test-local-token", "DATABASE_URL": _database_url(tmp_path)})
     child_env.update(env)
     proc = subprocess.run([sys.executable, "-c", CHILD], cwd=BACKEND, env=child_env, capture_output=True,
                           text=True, timeout=300)
@@ -89,7 +129,7 @@ def test_control_render_configuration_is_closed(tmp_path):
 def test_control_unset_auth_mode_in_production_refuses_to_start(tmp_path):
     child_env = {k: v for k, v in os.environ.items() if k not in STRIP}
     child_env.update({"SECRET_KEY": "pa1-test-strong-secret-value-0123456789abcdef", "APP_ENV": "prod",
-                      "DATABASE_URL": f"sqlite:///{tmp_path}/pa1.db"})
+                      "DATABASE_URL": _database_url(tmp_path)})
     proc = subprocess.run([sys.executable, "-c", "import app.main"], cwd=BACKEND, env=child_env,
                           capture_output=True, text=True, timeout=300)
     assert proc.returncode != 0 and "AUTH_MODE is not set" in (proc.stderr + proc.stdout)
