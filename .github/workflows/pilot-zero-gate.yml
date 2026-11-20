@@ -49,8 +49,25 @@ jobs:
       - name: Run full suite
         working-directory: backend
         run: |
+          set -o pipefail
           rm -f test.db
-          python -m pytest tests -q -p no:cacheprovider
+          mkdir -p ../test-results
+          # -rfEsxX: every failure, error, skip, xfail and xpass is listed by name.
+          python -m pytest tests -q -p no:cacheprovider -rfEsxX \
+            --junitxml=../test-results/pytest-sqlite.xml 2>&1 | tee ../test-results/pytest-sqlite.log
+      # P472-03 B7.2: a failed suite must be diagnosable after the fact. Test
+      # data is synthetic (no PHI); JUnit carries no captured output
+      # (junit_logging defaults to "no"); the job has no secrets.
+      - name: Failure summary
+        if: failure()
+        run: python .github/scripts/junit_failure_summary.py test-results/pytest-sqlite.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-tests-sqlite-${{ github.run_attempt }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: warn
 
   backend-tests-postgres:
     # Encodes the Foundation Sprint lesson: the first-ever PostgreSQL run
@@ -66,7 +83,7 @@ jobs:
           POSTGRES_DB: lumenai_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U lumenai"
+          --health-cmd "pg_isready -U lumenai -d lumenai_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -90,7 +107,24 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: postgresql://lumenai:lumenai@localhost:5432/lumenai_test
-        run: python -m pytest tests -q -p no:cacheprovider
+        run: |
+          set -o pipefail
+          mkdir -p ../test-results
+          python -m pytest tests -q -p no:cacheprovider -rfEsxX \
+            --junitxml=../test-results/pytest-postgres.xml 2>&1 | tee ../test-results/pytest-postgres.log
+      # P472-03 B7.2: job 135978365382 failed and its failing test could not be
+      # identified (the log tail was PostgreSQL service output). Keep the
+      # results; see the SQLite job for the privacy note.
+      - name: Failure summary
+        if: failure()
+        run: python .github/scripts/junit_failure_summary.py test-results/pytest-postgres.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-tests-postgres-${{ github.run_attempt }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: warn
 
   frontend-build:
     name: Frontend build
