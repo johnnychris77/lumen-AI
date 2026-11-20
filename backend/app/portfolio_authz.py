@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import Depends, Header, HTTPException
 
 from app.auth import get_current_user
+from app.core.environment import is_production
 
 
 GLOBAL_PORTFOLIO_ROLES = {"platform_admin", "portfolio_admin", "tenant_admin"}
@@ -25,7 +26,11 @@ def require_portfolio_access(
     if role_name in GLOBAL_PORTFOLIO_ROLES:
         allowed = True
 
-    if token == "dev-token":
+    # PA-1: the public literal development token never grants anything in
+    # production. (The role/email checks above and below read keys the principal
+    # does not carry, PA1-04; they are deliberately left as they are — "fixing"
+    # them would activate all-tenant access, which needs a PA-1/GD-8 decision.)
+    if token == "dev-token" and not is_production():
         allowed = True
 
     if user_email in {"admin@local", "portfolio@local", "platform@local"}:

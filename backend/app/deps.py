@@ -14,11 +14,14 @@ from app.security.principal import (
     TenantMembershipView,
 )
 
+from app.core.environment import is_production as _is_production  # noqa: E402
+
 _ENABLE_DEV_AUTH = os.getenv("ENABLE_DEV_AUTH", "false").strip().lower() in {"1", "true", "yes"}
-_APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 
 # Dev auth is only active in non-production environments when explicitly enabled.
-_DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and _APP_ENV not in {"production", "prod"}
+# PA-1 (RB-T38): "production" is the canonical determination — APP_ENV **or**
+# ENVIRONMENT names production — not APP_ENV alone.
+_DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and not _is_production()
 
 _DEV_ROLE_MAP: dict[str, str] = {
     os.getenv("DEV_AUTH_TOKEN", ""): "admin",
@@ -30,6 +33,18 @@ _DEV_ROLE_MAP: dict[str, str] = {
 
 # Remove blank-key entries that result from unset env vars
 _DEV_ROLE_MAP = {k: v for k, v in _DEV_ROLE_MAP.items() if k}
+
+
+def dev_token_role(token: str) -> str | None:
+    """The development role for ``token``, or None.
+
+    Every dev-token check goes through here. It re-reads the canonical production
+    determination at call time, so a process whose environment says production
+    never honours a development token, even if this module was imported earlier.
+    """
+    if not _DEV_AUTH_ACTIVE or _is_production():
+        return None
+    return _DEV_ROLE_MAP.get(token)
 
 
 def get_db():
@@ -140,10 +155,11 @@ def get_current_user(
     token = authorization.split(" ", 1)[1].strip()
 
     # Dev token map — only active in development with ENABLE_DEV_AUTH=true.
-    # Production disables this branch entirely (_DEV_AUTH_ACTIVE is False when
-    # APP_ENV is production), so a dev token can never authenticate in prod.
-    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
-        role = _DEV_ROLE_MAP[token]
+    # Production disables this branch entirely (dev_token_role is None whenever
+    # APP_ENV or ENVIRONMENT is production), so a dev token can never
+    # authenticate in prod.
+    role = dev_token_role(token)
+    if role is not None:
         email = f"{role}@local.dev"
         memberships = _load_tenant_memberships(db, email)
         return AuthenticatedPrincipal(

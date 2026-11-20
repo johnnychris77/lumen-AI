@@ -7,9 +7,13 @@ def get_allowed_origins() -> list[str]:
     if raw:
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
-    app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).lower()
+    from app.core.environment import is_production
 
-    if app_env in {"production", "prod"}:
+    app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+
+    # PA-1: canonical production determination (APP_ENV or ENVIRONMENT), plus the
+    # legacy ENV fallback this function always honoured.
+    if is_production() or app_env in {"production", "prod"}:
         return ["https://lumen-ai-1.onrender.com"]
 
     return [

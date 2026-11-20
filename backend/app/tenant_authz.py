@@ -73,7 +73,7 @@ def _resolve_user_email_from_token(request) -> str:
     Extract user identity from the validated bearer token.
     Falls back to headers only after token validation, never trusts headers as identity proof.
     """
-    from app.deps import _decode_jwt, _DEV_AUTH_ACTIVE, _DEV_ROLE_MAP
+    from app.deps import _decode_jwt, dev_token_role
 
     auth_header = (
         request.headers.get("authorization")
@@ -87,8 +87,8 @@ def _resolve_user_email_from_token(request) -> str:
     token = auth_header.split(" ", 1)[1].strip()
 
     # Dev token path (only active when ENABLE_DEV_AUTH=true and not in production)
-    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
-        role = _DEV_ROLE_MAP[token]
+    role = dev_token_role(token)
+    if role is not None:
         return f"{role}@local.dev"
 
     # JWT path

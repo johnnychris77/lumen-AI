@@ -6,6 +6,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.environment import is_production
 from app.deps import get_db
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
@@ -18,7 +19,15 @@ def _is_demo_mode() -> bool:
 
 
 def _require_demo_auth(request: Request) -> None:
-    """Allow dev-token OR demo-token when DEMO_MODE=1."""
+    """Allow dev-token OR demo-token when DEMO_MODE=1, outside production only.
+
+    PA-1 (RB-T39): the accepted tokens are public literals, so the demo routes —
+    including the data-deleting reset — are disabled in production whatever
+    DEMO_MODE says (canonical production determination: APP_ENV or ENVIRONMENT).
+    A production process with DEMO_MODE set also refuses to start.
+    """
+    if is_production():
+        raise HTTPException(status_code=403, detail="Demo routes are disabled in production.")
     if not _is_demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode is not enabled.")
     auth_header = request.headers.get("Authorization", "")

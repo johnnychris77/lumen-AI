@@ -6,6 +6,11 @@ services:
   api:
     environment:
       APP_ENV: production
+      ENVIRONMENT: production
+      # Production requires AUTH_MODE=oidc (dev auth and DEMO_MODE refuse to start).
+      AUTH_MODE: oidc
+      OIDC_ISSUER_URL: "https://your-idp.example.com/"
+      OIDC_AUDIENCE: "lumenai-api"
       ENABLE_DEV_AUTH: "false"
       DEV_AUTH_TOKEN: "replace-with-secret-token-or-real-auth"
       PUBLIC_BASE_URL: "https://your-lumenai-domain.example.com"

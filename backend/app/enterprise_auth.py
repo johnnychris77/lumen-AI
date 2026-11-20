@@ -17,6 +17,7 @@ from app.auth.jwt_validator import (
     validate_jwt_claims,
 )
 from app.auth.tenant_membership import require_enabled_tenant_membership
+from app.core.environment import is_production
 
 
 DEFAULT_DEV_TOKEN = "dev-token"
@@ -24,7 +25,8 @@ DEMO_TOKEN = "demo-token"
 
 
 def is_demo_mode() -> bool:
-    return os.getenv("DEMO_MODE", "0").strip() == "1"
+    # PA-1: demo credentials never apply in production (canonical determination).
+    return os.getenv("DEMO_MODE", "0").strip() == "1" and not is_production()
 
 
 def get_auth_mode() -> str:
@@ -141,7 +143,12 @@ def _require_dev_auth_context(
     authorization = request.headers.get("authorization", "")
     expected = f"Bearer {get_dev_token()}"
 
-    if authorization == expected:
+    # PA-1 (defence in depth): the static development token trusts client-supplied
+    # actor / role / tenant headers. A production process refuses to start with
+    # AUTH_MODE=dev (app.core.environment); if this path is reached in production
+    # anyway (a worker or script that skipped app.main), the static token and the
+    # demo token are never honoured. A signed per-user JWT (below) still is.
+    if authorization == expected and not is_production():
         return build_dev_auth_context(
             actor=get_request_actor(request),
             role=get_request_role(request),
@@ -305,7 +312,11 @@ def get_auth_context(
     )
 
 
-_AUTH_ENV = os.getenv("ENVIRONMENT", "development")
+# PA-1 (RB-T40): the JWT-shape check follows the canonical production
+# determination (APP_ENV or ENVIRONMENT, case-insensitive), not
+# ENVIRONMENT == "production" exactly. ``_AUTH_ENV`` is kept for existing readers.
+_AUTH_ENV = "production" if is_production() else (os.getenv("ENVIRONMENT", "development").strip().lower()
+                                                 or "development")
 
 
 def require_enterprise_auth(
@@ -313,7 +324,7 @@ def require_enterprise_auth(
     db: Session | None = None,
 ) -> AuthContext:
     # In production, reject non-JWT tokens (dev shortcuts like dev-token/test-token)
-    if _AUTH_ENV == "production":
+    if _AUTH_ENV == "production" or is_production():
         auth_header = request.headers.get("Authorization", "")
         token = auth_header.removeprefix("Bearer ").strip()
         parts = token.split(".")

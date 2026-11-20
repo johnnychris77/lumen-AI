@@ -188,8 +188,13 @@ class TestTheRule:
         import app.deps as deps
 
         source = inspect.getsource(deps)
-        assert '_DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and _APP_ENV not in {"production", "prod"}' in source
+        # AMENDED (PA-1 remediation, see p472-03-pa1-remediation-assertion-change-log-v1.md, A-3): the gate
+        # now uses the canonical determination (APP_ENV or ENVIRONMENT). Original line asserted
+        # '_DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and _APP_ENV not in {"production", "prod"}' in source.
+        assert "_DEV_AUTH_ACTIVE = _ENABLE_DEV_AUTH and not _is_production()" in source
         assert "} if _DEV_AUTH_ACTIVE else {}" in source
+        # ...and every dev-token check re-reads production at call time.
+        assert "if not _DEV_AUTH_ACTIVE or _is_production():" in source
 
     def test_the_platform_administrator_rule_is_unchanged_and_explicit(self):
         """OPEN GOVERNANCE ITEM (not closed by this batch): the global role ``admin``

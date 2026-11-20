@@ -429,12 +429,24 @@ class TestLegacyInspectionJobFailsClosed:
         assert row.detected_issue == NOT_EVALUATED
 
 
+def _production_safe_caller(monkeypatch) -> dict:
+    """PA-1 remediation (set-up only): a development token never authenticates once a
+    production signal is present, so production-configured cases use a real member JWT
+    with a route-permitted role resolved server-side. Assertions are unchanged."""
+    import app.routers.auth_simple as auth_simple
+
+    monkeypatch.setattr(auth_simple, "_user_role", lambda username: "spd_manager")
+    return _member("p471-prod")[2]
+
+
 class TestStreamFrameRoute:
     def test_route_never_returns_a_fabricated_finding(self, monkeypatch):
         """Holds whether or not the unrelated metering defect is ever repaired."""
+        caller = _production_safe_caller(monkeypatch)
         _set_env(monkeypatch, "production")
         tolerant = TestClient(app, raise_server_exceptions=False)
-        res = _post_frame(DEV_ADMIN, http=tolerant)
+        res = _post_frame(caller, http=tolerant)
+        assert res.status_code != 401, res.text  # the caller must reach the route
         if res.status_code == 200:
             body = res.json()
             assert body["status"] in ("ai_unavailable", "failed")
@@ -442,8 +454,9 @@ class TestStreamFrameRoute:
 
     @pytest.mark.parametrize("app_env", ["production", "research", None])
     def test_production_configured_route_reports_unavailable(self, monkeypatch, metering_stubbed, app_env):
+        caller = _production_safe_caller(monkeypatch) if app_env == "production" else DEV_ADMIN
         _set_env(monkeypatch, app_env)
-        res = _post_frame(DEV_ADMIN)
+        res = _post_frame(caller)
         assert res.status_code == 200, res.text
         body = res.json()
         assert body["status"] == "ai_unavailable"
@@ -557,8 +570,9 @@ class TestCVProviderFailsClosed:
 
     @pytest.mark.parametrize("app_env", ["production", "research", None])
     def test_analyze_returns_explicit_unavailable(self, monkeypatch, no_network, app_env):
+        caller = _production_safe_caller(monkeypatch) if app_env in ("production", "prod") else DEV_ADMIN
         _set_env(monkeypatch, app_env)
-        res = client.post("/api/enterprise/cv/analyze", json={"image_url": PUBLIC_URL}, headers=DEV_ADMIN)
+        res = client.post("/api/enterprise/cv/analyze", json={"image_url": PUBLIC_URL}, headers=caller)
         assert res.status_code == 200, res.text
         data = res.json()
         _assert_nothing_fabricated_cv(data)
@@ -567,8 +581,9 @@ class TestCVProviderFailsClosed:
         assert no_network == []
 
     def test_analyze_and_rank_does_not_rank_an_unevaluated_image(self, monkeypatch, no_network):
+        caller = _production_safe_caller(monkeypatch)
         _set_env(monkeypatch, "production")
-        res = client.post("/api/enterprise/cv/analyze-and-rank", json={"image_url": PUBLIC_URL}, headers=DEV_ADMIN)
+        res = client.post("/api/enterprise/cv/analyze-and-rank", json={"image_url": PUBLIC_URL}, headers=caller)
         assert res.status_code == 200, res.text
         body = res.json()
         _assert_nothing_fabricated_cv(body["cv"])
@@ -576,10 +591,11 @@ class TestCVProviderFailsClosed:
         assert "priority_score" not in body["ranking"]
 
     def test_video_analysis_is_unavailable_not_a_synthesized_timeline(self, monkeypatch, no_network):
+        caller = _production_safe_caller(monkeypatch)
         _set_env(monkeypatch, "production")
         res = client.post(
             "/api/enterprise/cv/analyze-video",
-            json={"video_url": "https://fixtures.lumenai.dev/video/p471.mp4"}, headers=DEV_ADMIN,
+            json={"video_url": "https://fixtures.lumenai.dev/video/p471.mp4"}, headers=caller,
         )
         assert res.status_code == 200, res.text
         data = res.json()
@@ -590,8 +606,9 @@ class TestCVProviderFailsClosed:
         assert data["total_duration_sec"] == 0.0
 
     def test_provider_info_reports_unavailable(self, monkeypatch):
+        caller = _production_safe_caller(monkeypatch)
         _set_env(monkeypatch, "production")
-        data = client.get("/api/enterprise/cv/provider/info", headers=DEV_ADMIN).json()
+        data = client.get("/api/enterprise/cv/provider/info", headers=caller).json()
         assert data["provider"] == "unavailable"
         assert data["available"] is False and data["simulated"] is False
         assert data["capabilities"] == []

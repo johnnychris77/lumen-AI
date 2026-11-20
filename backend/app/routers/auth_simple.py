@@ -35,8 +35,9 @@ def _check_rate_limit(ip: str) -> None:
 
 SECRET_KEY = os.getenv("SECRET_KEY") or ""
 if not SECRET_KEY:
-    _env = os.getenv("APP_ENV", "development").strip().lower()
-    if _env in {"production", "prod"}:
+    from app.core.environment import is_production as _is_production
+
+    if _is_production():
         raise RuntimeError("SECRET_KEY environment variable must be set in production.")
     SECRET_KEY = "dev-only-secret-not-for-production"
 ALGORITHM = "HS256"

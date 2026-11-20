@@ -109,7 +109,11 @@ class Settings:
 
     @property
     def is_production(self) -> bool:
-        return self.app_env.lower() in {"production", "prod"}
+        # PA-1: canonical determination — this APP_ENV value, or either production
+        # signal in the process environment (APP_ENV or ENVIRONMENT).
+        from app.core.environment import PRODUCTION_VALUES, is_production
+
+        return self.app_env.strip().lower() in PRODUCTION_VALUES or is_production()
 
     @property
     def demo_scoring_effective(self) -> bool:

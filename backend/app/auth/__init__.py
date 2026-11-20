@@ -16,7 +16,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
     unauthenticated. It now requires a valid bearer token:
 
       * a dev token from the ENABLE_DEV_AUTH map (non-production only),
-      * the demo token when DEMO_MODE=1, or
+      * the demo token when DEMO_MODE=1 (non-production only), or
       * a JWT issued by /auth/login (role resolved server-side from the DB).
 
     Tenant id/name remain header-supplied *scoping hints* (tenant membership
@@ -49,11 +49,12 @@ def get_current_user(request: Request) -> dict[str, Any]:
     )
 
     # Import lazily to avoid import-time cycles.
-    from app.deps import _DEV_AUTH_ACTIVE, _DEV_ROLE_MAP, _decode_jwt
+    from app.core.environment import is_production
+    from app.deps import _decode_jwt, dev_token_role
 
     # Dev token map — only active outside production with ENABLE_DEV_AUTH=true.
-    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
-        role = _DEV_ROLE_MAP[token]
+    role = dev_token_role(token)
+    if role is not None:
         actor = f"{role}@local.dev"
         return {
             "email": actor,
@@ -63,11 +64,11 @@ def get_current_user(request: Request) -> dict[str, Any]:
             "tenant_name": tenant_name,
         }
 
-    # Demo token — only when DEMO_MODE=1, scoped to the demo tenant and a
-    # non-privileged role.
+    # Demo token — only when DEMO_MODE=1 outside production (PA-1), scoped to the
+    # demo tenant and a non-privileged role.
     import os
 
-    if os.getenv("DEMO_MODE", "0").strip() == "1" and token == "demo-token":
+    if os.getenv("DEMO_MODE", "0").strip() == "1" and not is_production() and token == "demo-token":
         return {
             "email": "demo@lumenai.com",
             "actor": "demo@lumenai.com",
