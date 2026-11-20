@@ -53,6 +53,8 @@ G = "backend/tests/test_p472_03_batch5_genesis_gd6.py"
 X = "backend/tests/test_p472_03_batch5_guardianx_gd7.py"
 H = "backend/tests/test_p472_03_batch2_remediation.py"
 Y = "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py"
+Z = "backend/tests/test_p472_03_batch8_guardianx_explanations.py"
+P = "backend/tests/test_p472_03_batch8_pa1_env_gates.py"
 
 # Same-tenant / legitimate-access controls run on the code under review. A fix that
 # refuses everyone would pass the tripwire and fail these.
@@ -84,6 +86,16 @@ CONTROLS: dict[str, list[tuple[str, str]]] = {
         "test_a_fresh_ownerless_key_is_writable",
         "test_owner_attaches_an_explanation_to_its_inspection",
         "test_digital_twin_context_for_the_callers_own_tenant_still_works")],
+    P: [(P, "test_control_render_configuration_is_closed"),
+        (P, "test_control_unset_auth_mode_in_production_refuses_to_start")],
+    Z: [(Z, name) for name in (
+        "test_owner_lists_reads_and_overrides_its_explanation",
+        "test_owner_can_add_several_explanations_to_its_own_key",
+        "test_owner_sees_its_inspection_explanation_in_replay_and_package",
+        "test_owner_replay_reports_its_own_audit_chain",
+        "test_a_least_privileged_member_of_the_owner_reads_it",
+        "test_explanation_for_a_deleted_source_is_refused",
+        "test_unauthenticated_explanation_reads_are_refused")],
 }
 
 
@@ -161,10 +173,10 @@ ITEMS: list[Item] = [
             ("RB-T28", 5, "test_another_tenant_cannot_contaminate_a_source"),
         ]
     ],
-    # Batch 7 (GD7-05 write side): reproduced at 4667ab8; RB-T32 is OPEN (expected to fail after).
+    # Batch 7 (GD7-05 write side): reproduced at 4667ab8. RB-T32 stayed a failing tripwire through
+    # 83dbf70 and is converted in Batch 8 (c22a879); its own item follows below.
     *[
-        Item(rb, finding, Y, t, "4667ab8", None, "6a661bb", gov="GD-7", open_finding=(rb == "RB-T32"),
-             note="OPEN FINDING: strict xfail kept; expected to FAIL on the code under review" if rb == "RB-T32" else "")
+        Item(rb, finding, Y, t, "4667ab8", None, "6a661bb", gov="GD-7")
         for rb, finding, t in [
             ("RB-T29", "GD7-06 ledger write under a foreign owned source",
              "test_another_tenant_cannot_write_evidence_under_an_owned_inspection"),
@@ -172,10 +184,40 @@ ITEMS: list[Item] = [
              "test_another_tenant_cannot_write_into_an_ownerless_key_in_use"),
             ("RB-T31", "GX-08 explanation under a foreign owned source",
              "test_another_tenant_cannot_attach_an_explanation_to_an_owned_inspection"),
-            ("RB-T32", "GX-09 explanations disclosed cross-tenant (OPEN)",
-             "test_explanations_are_not_disclosed_to_another_tenant"),
             ("RB-T33", "GX-10 digital-twin tenant claim",
              "test_digital_twin_context_cannot_name_another_tenant"),
+        ]
+    ],
+    Item("RB-T32", "GX-09 explanations disclosed cross-tenant", Y,
+         "test_explanations_are_not_disclosed_to_another_tenant", "83dbf70", "6a661bb", "c22a879", gov="GD-7",
+         note=("Failing strict tripwire from 6a661bb to 83dbf70 (also reproduced at 4667ab8). Converted by the "
+               "audit-trail ownership floor, which chooses no GD-7 option; legacy explanations become unavailable "
+               "to every tenant (R-GX-EXPLAIN-LEGACY).")),
+    # Batch 8 (explanation ownership): committed failing at eec3bc8 (application code = 83dbf70).
+    *[
+        Item(rb, finding, Z, t, "83dbf70", "eec3bc8", "c22a879", gov="GD-7")
+        for rb, finding, t in [
+            ("RB-T34", "GX-11 human override on another tenant's explanation",
+             "test_another_tenant_cannot_override_an_explanation"),
+            ("RB-T35", "GX-12 explanation written into an ownerless key in use",
+             "test_another_tenant_cannot_write_an_explanation_into_a_key_in_use"),
+            ("RB-T36", "GX-13 unattributable (legacy) explanation served to every tenant",
+             "test_an_unattributable_explanation_is_served_to_no_tenant"),
+            ("RB-T37", "GX-14 replay reports another tenant's audit chain (GD-2 scope)",
+             "test_replay_does_not_report_another_tenants_audit_chain"),
+        ]
+    ],
+    # Batch 8 PA-1 investigation: OPEN findings, no fix (PA-1 unsigned). Expected to FAIL everywhere.
+    *[
+        Item(rb, finding, P, t, "c22a879", None, "-", gov="PA-1", open_finding=True,
+             note="OPEN FINDING: strict xfail; PA-1 unsigned, no gate changed; expected to FAIL on the code under review")
+        for rb, finding, t in [
+            ("RB-T38", "PA1-01 dev tokens active with ENVIRONMENT=production, APP_ENV unset",
+             "test_dev_tokens_are_inactive_whenever_any_production_signal_is_set"),
+            ("RB-T39", "PA1-02 DEMO_MODE public dev-token on destructive /api/demo/reset in production",
+             "test_demo_reset_is_not_reachable_with_the_public_token_in_production"),
+            ("RB-T40", "PA1-03 enterprise JWT-shape check ignores APP_ENV / is case-sensitive",
+             "test_enterprise_jwt_shape_check_follows_every_production_signal"),
         ]
     ],
     # Not tripwires: regressions found during B6.2 and fixed with them; reviewed in the same way.
