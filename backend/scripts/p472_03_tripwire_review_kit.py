@@ -111,7 +111,9 @@ ITEMS: list[Item] = [
     Item("RB-T03", "AW-04", F, "test_aw04_a_member_of_a_cannot_create_an_accreditation_program_in_tenant_b",
          "5adde8d", "5adde8d", "76d7fc3"),
     Item("RB-T04", "AW-04", F, "test_aw04_a_member_of_a_cannot_list_tenant_b_accreditation_programs",
-         "e615afd", "5adde8d", "76d7fc3", "read path made inert in 30638f0 and refused in 76d7fc3; before = 30638f0^"),
+         "137e9b1", "5adde8d", "76d7fc3",
+         "fixed by fbd2581 (AW-08a); before = fbd2581^. The Batch 5 packet's 30638f0^ was wrong: the test passes "
+         "there (Batch 7 kit run)"),
     Item("RB-T05", "AW-04", F, "test_aw04_a_member_of_a_cannot_grant_data_sharing_consent_for_tenant_b",
          "5adde8d", "5adde8d", "76d7fc3"),
     Item("RB-T06", "AW-04", F, "test_aw04_a_member_of_a_cannot_read_tenant_b_network_registry_entry",
