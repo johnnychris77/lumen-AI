@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.models.dataset_governance import QUALITY_POOR, QUALITY_REJECT, DatasetRegistryEntry
 from app.models.model_registry import ModelRegistryEntry
+from app.services import ai_availability_diagnostics as diag
 from app.services.ml.candidate_promotion import CANDIDATE_STAGES
 from app.services.ml.image_quality import assess_image_bytes
 from app.services.ml.lens_calibration import apply_temperature
@@ -147,13 +148,32 @@ def _image_block(
     return {"lcid_image_id": lcid_image_id, "sha256": image_sha256, "width": width, "height": height}
 
 
+def _reason_code_for_load(loaded: dict[str, Any]) -> str:
+    """Map a non-available ``load_active_model`` result to an issue #192
+    reason code. "unavailable" with no model row means nothing is registered."""
+    status = loaded.get("status")
+    if status == HEALTH_UNAVAILABLE and loaded.get("model") is None:
+        return diag.NO_MODEL_REGISTERED
+    return {
+        HEALTH_NOT_PROMOTED: diag.MODEL_NOT_PROMOTED,
+        HEALTH_ARTIFACT_MISSING: diag.ARTIFACT_MISSING,
+        HEALTH_CHECKSUM_FAILED: diag.ARTIFACT_INTEGRITY_FAILED,
+        HEALTH_INCOMPATIBLE_PREPROCESSING: diag.MODEL_LOAD_FAILED,
+        HEALTH_INCOMPATIBLE_LABEL_MAP: diag.MODEL_LOAD_FAILED,
+        HEALTH_INITIALIZATION_FAILED: diag.MODEL_LOAD_FAILED,
+    }.get(status, diag.UNKNOWN)
+
+
 def _unavailable_contract(
     health: str, reason: str, *, model_id: str = MODEL_ID, inspection_id: int | str | None = None,
-    image: dict[str, Any] | None = None,
+    image: dict[str, Any] | None = None, reason_code: str | None = None,
 ) -> dict[str, Any]:
     return {
         "inspection_id": inspection_id,
         "analysis_status": "ai_unavailable",
+        # Issue #192 — explicit failure-mode code (see
+        # app.services.ai_availability_diagnostics); never implies a result.
+        "unavailable_reason_code": reason_code,
         "model": {
             "model_id": model_id, "model_version": None, "maturity": health, "status": health,
             "preprocessing_version": None, "calibration_version": None,
@@ -182,6 +202,7 @@ def predict(
         return _unavailable_contract(
             loaded["status"], loaded["reason"], model_id=model_id, inspection_id=inspection_id,
             image=_image_block(db, tenant_id=tenant_id, image_sha256=image_sha256, retained_image_id=retained_image_id),
+            reason_code=_reason_code_for_load(loaded),
         )
 
     model, artifact = loaded["model"], loaded["artifact"]
@@ -197,6 +218,7 @@ def predict(
             "a trained model cannot evaluate real pixel content for this request.",
             model_id=model_id, inspection_id=inspection_id,
             image=_image_block(db, tenant_id=tenant_id, image_sha256=image_sha256, retained_image_id=retained_image_id),
+            reason_code=diag.NO_IMAGE_BYTES,
         )
         contract["model"]["model_version"] = model.model_version
         contract["model"]["status"] = "candidate"

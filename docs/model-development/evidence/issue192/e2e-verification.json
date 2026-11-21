@@ -1,0 +1,235 @@
+{
+  "controls": {
+    "B1_reference_pending_review": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_MODEL_REGISTERED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [
+        "PENDING_REVIEW"
+      ],
+      "baseline_image_status_code": "AWAITING_REVIEW",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "unavailable",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "B2_reference_approved_not_active": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_MODEL_REGISTERED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [
+        "APPROVED"
+      ],
+      "baseline_image_status_code": "AWAITING_ACTIVATION",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "unavailable",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "B3_active_reference_identity_mismatch": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_MODEL_REGISTERED",
+      "analysis_status": "supervisor_review_required",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [
+        "ACTIVE"
+      ],
+      "baseline_image_status_code": "ACTIVE_NOT_MATCHED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "unavailable",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "B4_active_reference_matching": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_MODEL_REGISTERED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": true,
+      "baseline_image_lifecycle_states": [
+        "ACTIVE"
+      ],
+      "baseline_image_status_code": "ACTIVE_RESOLVED",
+      "comparison_status": "exact_match",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "unavailable",
+      "real_image_comparison_completed": true,
+      "risk_level": null
+    },
+    "B5_other_tenant_active_reference": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_MODEL_REGISTERED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [],
+      "baseline_image_status_code": "NOT_REGISTERED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "unavailable",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "M1_engineering_mechanics_synthetic_model": {
+      "artifact_sha256": "e1d5ecfc61f79beabe9b8bc4cb5b271ef64675ab9dff82d8ce9e29cf1d9f03b7",
+      "artifact_sha256_matches_registry": true,
+      "clinical_use": false,
+      "eligible_classes_in_artifact": [
+        "probable_blood_like_residue",
+        "probable_bone_like_fragment",
+        "probable_tissue_or_organic_residue",
+        "probable_retained_debris",
+        "probable_corrosion_like_degradation",
+        "probable_plastic_or_insulation_fragment"
+      ],
+      "image_quality": {
+        "confidence": null,
+        "grade": "Excellent",
+        "status": "sufficient_for_evaluation"
+      },
+      "label": "ENGINEERING MECHANICS ONLY \u2014 synthetic-trained experimental model force-staged in a throwaway database; not validated; not a finding",
+      "live_analysis_status": "completed",
+      "model_id": "lumenai-vision-lens",
+      "model_version": "0.1.0-e2e-synthetic",
+      "observation": {
+        "abstained": true,
+        "abstention_reason": "confidence_below_threshold",
+        "calibrated_confidence": 0.5136,
+        "category": "unknown_review_required",
+        "display_label": "Unknown finding \u2014 review required",
+        "raw_probability": 0.5047
+      },
+      "pipeline_outcome": {
+        "ai_status": "AI_UNAVAILABLE",
+        "ai_unavailable_reason_code": "ABSTAINED_LOW_CONFIDENCE",
+        "analysis_status": "ai_unavailable",
+        "baseline_image_active": false,
+        "baseline_image_lifecycle_states": [],
+        "baseline_image_status_code": "NOT_REGISTERED",
+        "comparison_status": "no_approved_baseline",
+        "confidence": null,
+        "human_review_required": true,
+        "inspection_score": null,
+        "live_model_status": "candidate",
+        "real_image_comparison_completed": false,
+        "risk_level": null
+      },
+      "preprocessing_version": "lens-pillow-features-v1",
+      "supported_categories": [
+        "probable_blood_like_residue",
+        "probable_bone_like_fragment",
+        "probable_tissue_or_organic_residue",
+        "probable_retained_debris",
+        "probable_corrosion_like_degradation",
+        "probable_plastic_or_insulation_fragment",
+        "no_observable_abnormality"
+      ],
+      "test_image_provenance": "procedurally generated random-pixel PNG (no PHI, no patient, no instrument)",
+      "test_image_sha256": "ad90dda6e9356233e36fe682a71da76ba937e7bbfed59b6a6af71e1981ecb3d4",
+      "unsupported_categories": [
+        "probable_lint_or_fiber",
+        "probable_unknown_foreign_material"
+      ]
+    },
+    "N1_no_model_registered": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_MODEL_REGISTERED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [],
+      "baseline_image_status_code": "NOT_REGISTERED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "unavailable",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "N2_synthetic_experimental_model": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "MODEL_NOT_PROMOTED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [],
+      "baseline_image_status_code": "NOT_REGISTERED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "data_provenance": "synthetic_experimental",
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "not_promoted",
+      "real_image_comparison_completed": false,
+      "registry_stage": "Experimental",
+      "risk_level": null
+    },
+    "N3_artifact_missing": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "ARTIFACT_MISSING",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [],
+      "baseline_image_status_code": "NOT_REGISTERED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "artifact_missing",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "N4_artifact_checksum_failed": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "ARTIFACT_INTEGRITY_FAILED",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [],
+      "baseline_image_status_code": "NOT_REGISTERED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "checksum_failed",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    },
+    "N5_eligible_model_no_image_bytes": {
+      "ai_status": "AI_UNAVAILABLE",
+      "ai_unavailable_reason_code": "NO_IMAGE_BYTES",
+      "analysis_status": "ai_unavailable",
+      "baseline_image_active": false,
+      "baseline_image_lifecycle_states": [],
+      "baseline_image_status_code": "NOT_REGISTERED",
+      "comparison_status": "no_approved_baseline",
+      "confidence": null,
+      "human_review_required": true,
+      "inspection_score": null,
+      "live_model_status": "candidate",
+      "real_image_comparison_completed": false,
+      "risk_level": null
+    }
+  },
+  "environment": "isolated throwaway SQLite + temp artifact dir (no deployed system touched)",
+  "generated_at": "2026-11-21T03:41:10.417481+00:00",
+  "git_head": "0f2ec588d24b7c64ccacd84adf67e89cb1ec1676",
+  "inventory": {
+    "real_data_validated_model_found": false,
+    "tracked_lens_artifacts": [],
+    "tracked_weight_files": []
+  },
+  "models_left_promoted_in_throwaway_db": 0,
+  "verdict": "BLOCKED_NO_VALIDATED_MODEL"
+}
