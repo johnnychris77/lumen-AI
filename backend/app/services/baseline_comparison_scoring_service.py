@@ -482,6 +482,29 @@ def _authoritative_ai_analysis(live_result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _apply_ai_unavailable_reason(ai_analysis: dict[str, Any], live_result: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Issue #192 — when the live model produced no usable observation (it was
+    unavailable OR it ran and abstained), make the authoritative AI surface say
+    so explicitly: status AI_UNAVAILABLE, manual inspection required, no
+    observation, plus a reason code. Previously an abstention left
+    ``ai_analysis.status == "COMPLETED"`` with ``manual_inspection_required ==
+    False`` beside a top-level AI_UNAVAILABLE result. The raw abstention stays
+    in ``live_model_result`` for audit. Returns the reason, or None when the
+    model produced a usable observation (nothing is changed then)."""
+    from app.services.ai_availability_diagnostics import classify_ai_unavailable
+
+    observation = live_result.get("observation") or {}
+    usable = live_result.get("analysis_status") == "completed" and not observation.get("abstained")
+    if usable:
+        return None
+    reason = classify_ai_unavailable(live_result)
+    ai_analysis["status"] = "AI_UNAVAILABLE"
+    ai_analysis["manual_inspection_required"] = True
+    ai_analysis["observation"] = None
+    ai_analysis["unavailable_reason"] = reason
+    return reason
+
+
 # Compatibility codes that mean the resolved ACTIVE baseline image is NOT a
 # valid comparison target for this inspection context.
 _INCOMPATIBLE_STATUSES = frozenset({
@@ -501,7 +524,15 @@ def _baseline_evidence(
     from "a trained vision model evaluated the image" — a baseline image may be
     present and usable even while the trained-model status is correctly
     AI_UNAVAILABLE. Each is a verified fact, never an inference from another."""
-    from app.models.baseline_image_library import STATE_ARCHIVED, BaselineImageLink
+    from app.models.baseline_image_library import (
+        STATE_ACTIVE,
+        STATE_APPROVED,
+        STATE_ARCHIVED,
+        STATE_DRAFT,
+        STATE_PENDING_REVIEW,
+        STATE_SUSPENDED,
+        BaselineImageLink,
+    )
 
     comp = live_result.get("baseline_comparison") or {}
     comp_status = comp.get("status")
@@ -529,10 +560,33 @@ def _baseline_evidence(
         _registered_q = _registered_q.filter(
             BaselineImageLink.instrument_family == instrument_type
         )
-    registered = _registered_q.first() is not None
+    # Lifecycle states of this tenant's non-archived links in the same scope.
+    # Only the state names are exposed — never another record's contents.
+    registered_states = sorted({
+        row[0] for row in _registered_q.with_entities(BaselineImageLink.lifecycle_status).distinct().all()
+    })
+    registered = bool(registered_states)
     # An ACTIVE link actually resolved for this context (resolve_baseline_image
     # only ever returns ACTIVE links, and the comparison carries its id).
     active_resolved = comp.get("baseline_id") is not None
+    # Issue #192 — "registered but not ACTIVE" previously covered two different
+    # situations: the image still awaits review/activation, OR an ACTIVE image
+    # exists but did not resolve for this inspection's manufacturer / model /
+    # anatomy zone / view. They need different people to act, so name them.
+    if active_resolved:
+        image_status_code = "ACTIVE_RESOLVED"
+    elif not registered:
+        image_status_code = "NOT_REGISTERED"
+    elif STATE_ACTIVE in registered_states:
+        image_status_code = "ACTIVE_NOT_MATCHED"
+    elif STATE_APPROVED in registered_states:
+        image_status_code = "AWAITING_ACTIVATION"
+    elif STATE_PENDING_REVIEW in registered_states or STATE_DRAFT in registered_states:
+        image_status_code = "AWAITING_REVIEW"
+    elif STATE_SUSPENDED in registered_states:
+        image_status_code = "SUSPENDED"
+    else:
+        image_status_code = "NOT_USABLE"
     real_comparison = (
         comp_status in _REAL_IMAGE_COMPARISON_STATUSES and comp.get("similarity") is not None
     )
@@ -545,6 +599,12 @@ def _baseline_evidence(
         "manufacturer_baseline_metadata_found": bool(resolution.get("baseline_found")),
         "baseline_image_registered": bool(registered),
         "baseline_image_active": bool(active_resolved),
+        # Issue #192 — distinguishes AWAITING_REVIEW / AWAITING_ACTIVATION /
+        # ACTIVE_NOT_MATCHED / SUSPENDED / NOT_USABLE / NOT_REGISTERED /
+        # ACTIVE_RESOLVED. "baseline_image_active" keeps its original meaning
+        # (an ACTIVE image resolved for THIS inspection) for existing readers.
+        "baseline_image_status_code": image_status_code,
+        "baseline_image_lifecycle_states": registered_states,
         "baseline_image_compatible": bool(compatible),
         "inspection_image_bytes_available": image_bytes is not None,
         "real_image_comparison_completed": bool(real_comparison),
@@ -1573,10 +1633,30 @@ def _ai_unavailable_result(
         build_risk_map, compute_coverage, missing_image_guidance,
     )
 
+    from app.services.ai_availability_diagnostics import classify_ai_unavailable
+
     source = resolution["baseline_source"]
     all_kpis = CONTAMINATION_KPIS + CONDITION_KPIS
+    # Issue #192 — say WHICH failure mode applies (no model registered, not
+    # promoted, artifact missing/integrity, load failure, no image bytes, or a
+    # model that ran and abstained) instead of one generic sentence. The code
+    # never changes the outcome: every path below is still AI_UNAVAILABLE.
+    unavailable_reason = (
+        _apply_ai_unavailable_reason(ai_analysis, live_model_result) if isinstance(ai_analysis, dict) else None
+    ) or classify_ai_unavailable(live_model_result)
+    _model_label = {
+        "model": "No eligible trained model",
+        "image": "Eligible model — image not available to it",
+        "abstention": "Trained model abstained",
+    }[unavailable_reason["category"]]
+    if isinstance(ai_analysis, dict):
+        ai_analysis["unavailable_reason"] = unavailable_reason
+        ai_analysis["status"] = "AI_UNAVAILABLE"
+        ai_analysis["manual_inspection_required"] = True
+        ai_analysis["observation"] = None
     result: dict[str, Any] = {
         "analysis_status": "ai_unavailable",
+        "ai_unavailable_reason": unavailable_reason,
         "instrument_type": instrument_type,
         "instrument_anatomy": get_anatomy(instrument_type),
         # Real metadata resolution preserved (requirement 11).
@@ -1612,10 +1692,14 @@ def _ai_unavailable_result(
             "AI analysis unavailable — qualified human inspection is required "
             "before any release decision."
         ),
-        "recommended_action": "Manual inspection required — no eligible trained model.",
+        "recommended_action": (
+            "Manual inspection required — no eligible trained model."
+            if unavailable_reason["category"] == "model"
+            else "Manual inspection required — no AI observation for this image."
+        ),
         "top_risk_drivers": ["AI analysis unavailable"],
         "scoring_explanation": [
-            "No eligible trained vision model evaluated this image.",
+            unavailable_reason["message"],
             "No inspection score, finding probability, confidence, or baseline "
             "image match is produced for an unavailable model.",
             "Qualified human inspection is required before release.",
@@ -1636,7 +1720,7 @@ def _ai_unavailable_result(
         ),
         "human_review_required": True,
         "placeholder_scoring": False,
-        "model_label": "No eligible trained model",
+        "model_label": _model_label,
         "production_validated": False,
         "live_model_result": live_model_result,
         "ai_analysis": ai_analysis,
@@ -1657,8 +1741,8 @@ def _ai_unavailable_result(
         "findings": [],
         "unsupported_categories": all_kpis_unsupported,
         "limitations": [
-            "No eligible trained vision model is available for this deployment, so no "
-            "category is evaluated by a trained computer-vision model.",
+            unavailable_reason["message"],
+            "No category is reported as evaluated by a trained computer-vision model for this image.",
             "Image quality is not automatically assessed by the current model.",
             "Result requires qualified human review.",
         ],
@@ -1803,6 +1887,11 @@ def analyze_inspection(
         # the placeholder. No promoted model ⇒ AI_UNAVAILABLE; any genuine
         # baseline-image similarity from the comparison above is carried here.
         no_baseline["ai_analysis"] = _authoritative_ai_analysis(no_baseline["live_model_result"])
+        # Issue #192 — same explicit failure-mode code as the baseline path
+        # (covers unavailable AND abstained outcomes).
+        _nb_reason = _apply_ai_unavailable_reason(no_baseline["ai_analysis"], no_baseline["live_model_result"])
+        if _nb_reason is not None:
+            no_baseline["ai_unavailable_reason"] = _nb_reason
         no_baseline["ai_observations_source"] = "live_model"
         # Seven independent provenance facts computed from the REAL resolver +
         # comparison result: manufacturer_baseline_metadata_found stays False (no

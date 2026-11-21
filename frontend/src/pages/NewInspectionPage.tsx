@@ -94,6 +94,25 @@ type BaselineEvidence = {
   baseline_image_link_id?: number | null;
   resolution_scope?: string | null;
   resolution_reason?: string | null;
+  // Issue #192 — names WHY no ACTIVE reference image was used.
+  baseline_image_status_code?:
+    | "ACTIVE_RESOLVED"
+    | "NOT_REGISTERED"
+    | "ACTIVE_NOT_MATCHED"
+    | "AWAITING_ACTIVATION"
+    | "AWAITING_REVIEW"
+    | "SUSPENDED"
+    | "NOT_USABLE"
+    | null;
+  baseline_image_lifecycle_states?: string[];
+};
+
+// Issue #192 — explicit AI_UNAVAILABLE failure mode (never a result).
+type AiUnavailableReason = {
+  code: string;
+  category: "model" | "image" | "abstention";
+  message: string;
+  admin_action: string;
 };
 
 type Analysis = {
@@ -131,6 +150,7 @@ type Analysis = {
   placeholder_scoring?: boolean;
   model_label?: string;
   production_validated?: boolean;
+  ai_unavailable_reason?: AiUnavailableReason | null;
   // Authoritative AI surface — derived ONLY from the real live-model contract.
   // When no eligible trained model (or no real image bytes) is available this is
   // AI_UNAVAILABLE with manual_inspection_required; the placeholder findings
@@ -298,8 +318,25 @@ function baselineImageStatusText(ev?: BaselineEvidence | null, reason?: string |
       "Manufacturer image not registered — the approved baseline is a library record only. " +
       "Upload and govern a reference image in the Baseline Image Library to enable a visual comparison."
     );
-  if (!ev.baseline_image_active)
-    return "Reference image awaiting approval/activation — not yet ACTIVE, so it is not used for comparison.";
+  if (!ev.baseline_image_active) {
+    switch (ev.baseline_image_status_code) {
+      case "AWAITING_REVIEW":
+        return "Reference image is awaiting clinical review — not yet APPROVED or ACTIVE, so it is not used for comparison.";
+      case "AWAITING_ACTIVATION":
+        return "Reference image is APPROVED but not yet activated — an authorized reviewer must activate it before it is used for comparison.";
+      case "ACTIVE_NOT_MATCHED":
+        return (
+          "An ACTIVE reference image exists, but it does not match this inspection's manufacturer, model, " +
+          "anatomy zone or view, so it was not used. Check the instrument identity entered for this inspection."
+        );
+      case "SUSPENDED":
+        return "Reference image is SUSPENDED, so it is not used for comparison.";
+      case "NOT_USABLE":
+        return "Reference image was rejected or superseded, so it is not used for comparison.";
+      default:
+        return "Reference image awaiting approval/activation — not yet ACTIVE, so it is not used for comparison.";
+    }
+  }
   if (ev.comparison_status === "BASELINE_INTEGRITY_FAILED")
     return "Stored reference image failed an integrity check and was not used.";
   if (!ev.baseline_image_compatible)
@@ -1382,8 +1419,16 @@ function AIPredictionPanel({
         {aiUnavailable && !baselineMissing && (
           <div className="rounded-lg border border-slate-400 bg-white px-4 py-3 text-sm text-slate-800 space-y-1">
             <p className="font-semibold">AI analysis unavailable — manual inspection required.</p>
+            {prediction.analysis?.ai_unavailable_reason && (
+              <p className="text-xs font-medium text-slate-700" data-testid="ai-unavailable-reason">
+                {prediction.analysis.ai_unavailable_reason.message}{" "}
+                <span className="font-mono text-[11px] text-slate-500">
+                  ({prediction.analysis.ai_unavailable_reason.code})
+                </span>
+              </p>
+            )}
             <p className="text-xs text-slate-600">
-              No eligible trained vision model evaluated this image, so no AI observation,
+              No trained vision model produced an observation for this image, so no AI observation,
               probability, finding, cleanliness score, or clinical interpretation has been
               produced. Any instrument identification and approved-baseline metadata shown
               are verified records — not an AI cleanliness assessment. A qualified person
