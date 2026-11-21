@@ -1,0 +1,145 @@
+{
+ "sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+ "db": "sqlite",
+ "mutations": {
+  "M0-control": {
+   "expected": {
+    "RB-T38": "passed",
+    "RB-T39": "passed",
+    "RB-T40": "passed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "observed": {
+    "RB-T38": "passed",
+    "RB-T39": "passed",
+    "RB-T40": "passed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "matches_expectation": true
+  },
+  "M1-environment-always-dev": {
+   "expected": {
+    "RB-T38": "failed",
+    "RB-T39": "failed",
+    "RB-T40": "failed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "observed": {
+    "RB-T38": "failed",
+    "RB-T39": "failed",
+    "RB-T40": "failed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "matches_expectation": true
+  },
+  "M2-deps-ignores-production": {
+   "expected": {
+    "RB-T38": "failed",
+    "RB-T39": "passed",
+    "RB-T40": "passed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "observed": {
+    "RB-T38": "failed",
+    "RB-T39": "passed",
+    "RB-T40": "passed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "matches_expectation": true
+  },
+  "M3-demo-ignores-production": {
+   "expected": {
+    "RB-T38": "passed",
+    "RB-T39": "failed",
+    "RB-T40": "passed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "observed": {
+    "RB-T38": "passed",
+    "RB-T39": "failed",
+    "RB-T40": "passed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "matches_expectation": true
+  },
+  "M4-jwt-shape-ignores-production": {
+   "expected": {
+    "RB-T38": "passed",
+    "RB-T39": "passed",
+    "RB-T40": "failed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "observed": {
+    "RB-T38": "passed",
+    "RB-T39": "passed",
+    "RB-T40": "failed",
+    "startup-T38": "passed",
+    "startup-T39": "passed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "passed"
+   },
+   "matches_expectation": true
+  },
+  "M5-no-startup-refusal": {
+   "expected": {
+    "RB-T38": "passed",
+    "RB-T39": "passed",
+    "RB-T40": "passed",
+    "startup-T38": "failed",
+    "startup-T39": "failed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "failed"
+   },
+   "observed": {
+    "RB-T38": "passed",
+    "RB-T39": "passed",
+    "RB-T40": "passed",
+    "startup-T38": "failed",
+    "startup-T39": "failed",
+    "startup-T40": "passed",
+    "control-render": "passed",
+    "control-auth-mode": "failed"
+   },
+   "matches_expectation": true
+  }
+ },
+ "all_match": true
+}

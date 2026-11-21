@@ -1288,6 +1288,82 @@
    },
    "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
    "notes": "frontend unchanged"
+  },
+  {
+   "id": "CI-bed42c8-sqlite",
+   "class": "CI",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947604",
+   "command": "pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "Milestone 9 frozen baseline"
+  },
+  {
+   "id": "CI-bed42c8-pg16",
+   "class": "CI",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947540",
+   "command": "alembic chain + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "Milestone 9 frozen baseline"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-freeze",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "git objects at bed42c8",
+   "command": "backend/scripts/m9_evidence_freeze.py freeze/verify",
+   "status": "pass",
+   "result": {
+    "files": 230,
+    "integrity_failures": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/freeze-bed42c8.json",
+   "notes": "custody record, not a review"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-kit-rehearsal",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "kit --ids RB-T24..RB-T37 --after bed42c8, SQLite + PG16.15",
+   "command": "p472_03_tripwire_review_kit.py run",
+   "status": "pass",
+   "result": {
+    "variants_per_db": 48,
+    "matched_expectation_sqlite": 48,
+    "matched_expectation_pg16": 48
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/postgres/kit-results-postgres.json",
+   "notes": "rehearsal of handbook commands; not independent"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-a1-mutation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "6 single-gate mutations, SQLite + PG16.15",
+   "command": "backend/scripts/m9_a1_mutation_check.py",
+   "status": "pass",
+   "result": {
+    "mutations": 6,
+    "matched_sqlite": 6,
+    "matched_pg16": 6
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-postgres.json",
+   "notes": "first SQLite run had an incomplete author expectation for M5 (unset-AUTH_MODE control); corrected and rerun; first output preserved"
   }
  ],
  "known_discrepancies": [
@@ -1394,6 +1470,16 @@
   "docs/enterprise-readiness/p472-03-pa1-remediation-review-packets-v1.md",
   "backend/app/core/environment.py",
   "backend/tests/test_p472_03_pa1_remediation.py",
-  "backend/scripts/p472_03_pa1_remediation_repro.py"
+  "backend/scripts/p472_03_pa1_remediation_repro.py",
+  "docs/enterprise-readiness/m9-independent-reviewer-handbook-v1.md",
+  "docs/enterprise-readiness/m9-forty-tripwire-review-and-disposition-ledger-v1.md",
+  "docs/enterprise-readiness/m9-pa1-architecture-assurance-packet-v1.md",
+  "docs/enterprise-readiness/m9-governance-approval-matrix-v1.md",
+  "docs/enterprise-readiness/m9-historical-access-authorization-package-v1.md",
+  "docs/enterprise-readiness/m9-enterprise-release-readiness-assessment-v1.md",
+  "docs/enterprise-readiness/p472-03-residual-risk-register-v9.md",
+  "backend/scripts/m9_evidence_freeze.py",
+  "backend/scripts/m9_a1_mutation_check.py",
+  "backend/scripts/m9_tripwire_ledger.py"
  ]
 }

@@ -1,0 +1,2089 @@
+{
+ "purpose": "Milestone 9 evidence freeze for independent non-author review (Issue #191)",
+ "frozen_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+ "tree": "5d631a36f0af68214b5922b2952e2300b67b26e7",
+ "commit": [
+  "bed42c86f982efc845130ec65d3b46bdc2d06899",
+  "Claude",
+  "2026-11-20T23:56:08+00:00",
+  "docs(security): PA-1 remediation evidence on 829f36a; assessment v8 (NO-GO); registers, ledger v3, packets, manifest"
+ ],
+ "generated_at": "2026-11-21T02:46:44+00:00",
+ "generated_by": "change author (LOCAL-AUTHOR); a freeze is custody, not review",
+ "branch_history_from_main": [
+  "bed42c8 docs(security): PA-1 remediation evidence on 829f36a; assessment v8 (NO-GO); registers, ledger v3, packets, manifest",
+  "829f36a fix(security): PA-1 canonical production determination; fail closed on dev auth and demo routes (RB-T38..T40)",
+  "c2014ff test(security): PA-1 reproduction on SQLite and PostgreSQL; RB-T38..T40 still failing",
+  "8bfcc9a docs(security): P472-03 Batch 8 release evidence on 6b2a8d6; assessment v7 (NO-GO); registers, ledger v2, packets, manifest",
+  "6b2a8d6 P472-03 Batch 8: PA-1 environment-gate investigation (RB-T38..T40 failing); governance + forensic workflows; kit RB-T32..T40",
+  "c22a879 P472-03 Batch 8: GuardianX explanations owned by their audit trail; RB-T32 and RB-T34..T37 converted",
+  "eec3bc8 P472-03 Batch 8: tripwires RB-T34..T37 for GuardianX explanation ownership (failing; no app change)",
+  "83dbf70 docs(security): P472-03 B7.5 release-gate assessment v6 (NO-GO); final evidence on 992a227; manifest",
+  "643a8e5 P472-03 B7.1/B7.0: generated tripwire review packets (RB-T28 limited-coverage note), kit results, Batch 7 evidence records",
+  "992a227 P472-03 B7.2: root cause of PG16 CI job 135978365382 \u2014 scheduler job contaminated the SQL oracle",
+  "7cc7bfb P472-03 B7.1: correct RB-T04 before-SHA in the review kit (fix was fbd2581, not 30638f0)",
+  "3fbbe65 docs(security): P472-03 B7.2 PG16 CI anomaly report; risk register v6; RB-T29..T33 in registers and kit",
+  "6a661bb P472-03 Batch 7: GuardianX source-object writes fail closed (GD7-05 write side; RB-T29..T33)",
+  "4667ab8 docs(security): P472-03 B7.1/B7.3/B7.4 review packets, governance packets, clinical packet, registers",
+  "2aa7680 P472-03 B7.0/B7.1: tripwire review kit, evidence manifest generator, preserved Batch 6 evidence",
+  "bd7af7c ci(security): P472-03 B7.2 keep backend test results diagnosable after a failure",
+  "c6ba66c docs(security): evidence index v5 final results; unexplained CI PG16 failure on 2976b4e kept open",
+  "33a1a47 docs(security): P472-03 Batch 6 release-gate evidence index v5 (results so far)",
+  "e81b51d docs(security): B6.5 authorization matrix and register regenerated from final sweeps (2976b4e)",
+  "2976b4e test(security): B6.1 follow-up \u2014 resolver census is 715 handlers (Genesis list now refuses foreign claims)",
+  "bc0cb94 docs(security): P472-03 Batch 6 registers \u2014 tripwires v3, risk v5, governance v5, review packages v2",
+  "c63d398 test(e2e): B6.3 wait for network idle before snapshotting requests after a tenant's post-seed reload",
+  "00aec32 P472-03 Batch 6 B6.2b: audit replay of workflow executions and rules is tenant-scoped",
+  "3f479d9 P472-03 Batch 6 B6.2: GuardianX ledger reads fail closed on audit-trail ownership (RB-T24..T28)",
+  "e2173c2 docs(security): B6.1 note \u2014 correct the frontend-caller statement (IntelligenceCloudCenter uses the list; compatible)",
+  "38251e6 P472-03 Batch 6 B6.1: Genesis manufacturer updates fail closed (RB-T01, RB-T15..T23)",
+  "9f2b6e3 docs(security): P472-03 Batch 5 B5.6 handoff \u2014 evidence on 3c8d347, registers, review packages",
+  "3c8d347 P472-03 Batch 5 B5.4: seal GuardianX ledger content; GD-7 tripwires and ownership dry run",
+  "c677590 P472-03 Batch 5 B5.3: reproduce Genesis manufacturer-update exposures as GD-6 tripwires",
+  "de80b7b P472-03 Batch 5 B5.2: manufacturer-membership expiry, audited revocation, gated grants",
+  "06394c0 P472-03 Batch 5 B5.5: drop the bcrypt import left unused by disabling legacy login (ruff F401)",
+  "e226ee2 P472-03 Batch 5 B5.5: role lookup uses the canonical users schema; errors logged",
+  "189094d P472-03 Batch 5 B5.1: web client acts only in a server-verified tenant",
+  "6247d6f docs(security): P472-03 Batch 5 B5.0 evidence freeze at 7cead8a",
+  "7cead8a docs(security): P472-03 Batch 4 final-SHA evidence; tripwires recorded as release blockers",
+  "d62dddc docs(security): P472-03 Batch 4 release-gate evidence index v3",
+  "7605885 docs(security): P472-03 Batch 4 review, matrix, routing, governance and risk registers",
+  "c826fcc P472-03 Batch 4 AW-08: re-verify the Day-3 object-level fixes; convert tripwires",
+  "cea6d7f P472-03 Batch 4 AW-06N: no membership is refused, never pooled in default-tenant",
+  "4308443 P472-03 Batch 4: verify 24ec88d; attribute GuardianX evidence audit to the tenant",
+  "24ec88d P472-03 Batch 4: require_tenant_roles verifies either header, sole-membership fallback",
+  "76d7fc3 P472-03 Batch 4 AW-04: a client tenant_id is a verified claim, never a selector",
+  "5adde8d P472-03 Batch 4 AW-03/AW-06M: take the handler tenant from the verified context",
+  "4fdac4c P472-03 Batch 3: reconcile verified-resolver census (190 -> 195)",
+  "1625fda docs(security): P472-03 Batch 3 assurance, governance & review deliverables",
+  "30638f0 P472-03 AW-04: scope remaining accreditation reads to the verified tenant",
+  "e615afd P472-03 AW-07: bind manufacturer identity to a verified membership",
+  "d653b1f docs(security): P472-03 Day 3 adversarial remediation evidence",
+  "51c2133 P472-03 GD-3 oracle: match the WHERE clause regardless of whitespace",
+  "ae54f5e P472-03 AW-08c: scope GuardianX inspection replay to the verified tenant",
+  "b7b2295 P472-03 PA-1: log privileged cross-tenant tenant resolution",
+  "fbd2581 P472-03 AW-08a/AW-04: scope accreditation programs to the verified tenant",
+  "137e9b1 P472-03 AW-08b: scope vendor analytics to the verified tenant",
+  "4ee1674 docs(security): record confirmed CI result on 1ff863d (full PG16 + SQLite pass)",
+  "33f1ed5 docs(security): P472-03 independent assurance review package (v1, documentation-only)",
+  "1ff863d docs(security): GD-3 governance handoff \u2014 quarantine impact, attribution proposal, register legend",
+  "c9a0f73 docs(security): GD-3 ownership architecture decision + review request (design, not approval)",
+  "38d1222 fix(security): P472-03 GD-3 \u2014 tenant-scope vendor baseline audit dedup reads",
+  "5d3ec59 docs(security): P472-03 \u2014 request for independent review of Batch 2",
+  "78426ce fix(security): P472-03 GD-3 \u2014 vendor baselines are tenant-private",
+  "728b587 docs(security): P472-03 batch 2 \u2014 review document, regenerated register and matrix",
+  "63bc840 fix(security): P472-03 governance decision GD-2 \u2014 audit verification stays inside the caller's tenant",
+  "440c0a1 fix(security): P472-03 governance decision GD-1 \u2014 operational counters require authentication",
+  "6b20bb9 fix(security): P472-03 batch 2 \u2014 no header fallback for the principal's tenant (AW-05)",
+  "3dfd953 fix(security): P472-03 batch 2 \u2014 trend alerts no longer name other organisations (AW-13)",
+  "48183fa fix(security): P472-03 batch 2 \u2014 ML image and operations routes use the verified tenant (AW-01)",
+  "e59cd26 fix(security): P472-03 batch 2 \u2014 a tenant's SLA scan covers only that tenant (AW-12)",
+  "cf0eda2 fix(security): P472-03 batch 2 \u2014 resolve_tenant returns the verified tenant (AW-02, AW-01)",
+  "48ef45f fix(security): P472-03 batch 1 \u2014 tenant-scope enterprise quality, vendor governance and CAPA (AW-09, AW-10, AW-11)",
+  "90fb1a6 P472-03: findings outside the SQL oracle (AW-10, AW-11) and inventory sections",
+  "5ab34f2 P472-03: application-wide tenant-isolation review (tests and matrix, no fix)",
+  "6c3072c fix(p472-03): take the tenant from the verified auth context on regulatory, predictions, benchmarks and vendor-intelligence routes",
+  "be88e4a test(p472): authenticated cross-tenant API adversarial tests (tenant A vs B)",
+  "91be8dd chore(security): conditional, self-lapsing audit exception for picomatch GHSA-fc5q-39xc-vjpf",
+  "55fc655 fix(p472): server-issued, sealed provenance for trusted CV inference",
+  "565aaa9 test(p472): add RED-phase forged evidence and cross-tenant regression cases",
+  "f2c9449 Document P4.7.2 adversarial security remediation gates (draft, no release)",
+  "c13c5eb P4.7.1: secure fail-closed inference foundation (HOLD / NO-GO)",
+  "3067ede test(p47): verify local model fail-closed and no network use",
+  "52076c2 feat(p47): add fail-closed local model artifact integrity policy"
+ ],
+ "ci_records": [
+  {
+   "id": "CI-3c8d347-sqlite",
+   "sha": "3c8d347",
+   "source": "run 44633695173 job 135946704078",
+   "status": "pass",
+   "result": {
+    "passed": 9190,
+    "skipped": 3,
+    "xfailed": 15,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-3c8d347-pg16",
+   "sha": "3c8d347",
+   "source": "job 135946704039",
+   "status": "pass",
+   "result": {
+    "counts": "n/a"
+   }
+  },
+  {
+   "id": "CI-3f479d9-sqlite",
+   "sha": "3f479d9",
+   "source": "job 135967500923",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9219,
+    "skipped": 3
+   }
+  },
+  {
+   "id": "CI-3f479d9-pg16",
+   "sha": "3f479d9",
+   "source": "job 135967501020",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9220,
+    "skipped": 2
+   }
+  },
+  {
+   "id": "CI-c63d398-sqlite",
+   "sha": "c63d398",
+   "source": "job 135969894965",
+   "status": "fail",
+   "result": {
+    "counts": "n/a"
+   }
+  },
+  {
+   "id": "CI-c63d398-pg16",
+   "sha": "c63d398",
+   "source": "job 135969896426",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   }
+  },
+  {
+   "id": "CI-bc0cb94-sqlite",
+   "sha": "bc0cb94",
+   "source": "job 135970191755",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9222,
+    "skipped": 3
+   }
+  },
+  {
+   "id": "CI-bc0cb94-pg16",
+   "sha": "bc0cb94",
+   "source": "job 135970191686",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   }
+  },
+  {
+   "id": "CI-2976b4e-sqlite",
+   "sha": "2976b4e",
+   "source": "run 44642957981 job 135978365627",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-2976b4e-pg16",
+   "sha": "2976b4e",
+   "source": "run 44642957981 job 135978365382",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   }
+  },
+  {
+   "id": "CI-e81b51d-sqlite",
+   "sha": "e81b51d",
+   "source": "job 135983149174",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-e81b51d-pg16",
+   "sha": "e81b51d",
+   "source": "job 135983149197",
+   "status": "pass",
+   "result": {
+    "counts": "n/a"
+   }
+  },
+  {
+   "id": "CI-33a1a47-sqlite",
+   "sha": "33a1a47",
+   "source": "job 135988690139",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-33a1a47-pg16",
+   "sha": "33a1a47",
+   "source": "job 135988689883",
+   "status": "pass",
+   "result": {
+    "counts": "n/a"
+   }
+  },
+  {
+   "id": "CI-4667ab8-sqlite",
+   "sha": "4667ab8",
+   "source": "run 44656944797 job 136025385538",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-4667ab8-pg16",
+   "sha": "4667ab8",
+   "source": "run 44656944797 job 136025385909",
+   "status": "pass",
+   "result": {
+    "passed": 9224,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-6a661bb-sqlite",
+   "sha": "6a661bb",
+   "source": "run 44658831395 job 136031688736",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-6a661bb-pg16",
+   "sha": "6a661bb",
+   "source": "run 44658831395 job 136031688345",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-3fbbe65-sqlite",
+   "sha": "3fbbe65",
+   "source": "run 44659812226 job 136034982462",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-3fbbe65-pg16",
+   "sha": "3fbbe65",
+   "source": "run 44659812226 job 136034982422",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-7cc7bfb-sqlite",
+   "sha": "7cc7bfb",
+   "source": "run 44663315052 job 136046505144",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-7cc7bfb-pg16",
+   "sha": "7cc7bfb",
+   "source": "run 44663315052 job 136046505518",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-992a227-sqlite",
+   "sha": "992a227",
+   "source": "run 44666305369 job 136056334880",
+   "status": "pass",
+   "result": {
+    "passed": 9240,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-992a227-pg16",
+   "sha": "992a227",
+   "source": "run 44666305369 job 136056335112",
+   "status": "pass",
+   "result": {
+    "passed": 9241,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-c22a879-sqlite",
+   "sha": "c22a879",
+   "source": "run 44673768328 job 136080604432",
+   "status": "pass",
+   "result": {
+    "passed": 9256,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-c22a879-pg16",
+   "sha": "c22a879",
+   "source": "run 44673768328 job 136080603927",
+   "status": "pass",
+   "result": {
+    "passed": 9257,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-6b2a8d6-sqlite",
+   "sha": "6b2a8d6",
+   "source": "run 44674546943 job 136083146817",
+   "status": "pass",
+   "result": {
+    "passed": 9258,
+    "skipped": 3,
+    "xfailed": 3,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-6b2a8d6-pg16",
+   "sha": "6b2a8d6",
+   "source": "run 44674546943 job 136083146420",
+   "status": "pass",
+   "result": {
+    "passed": 9259,
+    "skipped": 2,
+    "xfailed": 3,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-829f36a-sqlite",
+   "sha": "829f36a",
+   "source": "run 44834645331 job 136627844743",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-829f36a-pg16",
+   "sha": "829f36a",
+   "source": "run 44834645331 job 136627844401",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-bed42c8-sqlite",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947604",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-bed42c8-pg16",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947540",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   }
+  },
+  {
+   "id": "CI-bed42c8-other",
+   "sha": "bed42c8",
+   "source": "runs 44840371257 (Core CI), 44840371224 (Compliance), 44840371271 (Security Baseline), 44840371359 (Hardening), 44840371212 (Quality Gate); Pilot Zero Gate jobs secret scan, Ruff, frontend build, dependency audit",
+   "status": "pass",
+   "result": {}
+  }
+ ],
+ "app_source": {
+  "path": "backend/app (recursive ls-tree)",
+  "files": 1019,
+  "sha256_of_ls_tree": "265099bdf8982ed55360f8f1401c9d55b61944f8ac428db35e730e66fd02277c"
+ },
+ "files": [
+  {
+   "path": ".github/workflows/pilot-zero-gate.yml",
+   "sha256": "6d1edb7469a4240beee58c3156762eb01b18cf3ac7cb0894f24cd894f0fd9a9f",
+   "bytes": 6525,
+   "git_blob": "ed1a270a2b3c5b7a2ba343c404b0d797025f5494",
+   "last_commit_at_or_before_sha": "bd7af7c 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/.gitkeep",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit_at_or_before_sha": "f2eab5a 2026-07-05T21:55:17-04:00"
+  },
+  {
+   "path": "backend/alembic/versions/001_initial_schema.py",
+   "sha256": "f2986f30fc014019159223d0e5df223b20b0ac0d8266a95e1ef9129d916a1882",
+   "bytes": 456,
+   "git_blob": "4590ce7fa2b5c695a5e98c6226675c0eb5d2fbfc",
+   "last_commit_at_or_before_sha": "f2eab5a 2026-07-05T21:55:17-04:00"
+  },
+  {
+   "path": "backend/alembic/versions/367bc3527700_add_annotation_database_tables.py",
+   "sha256": "8ef3e070bab458de5159dea9381762af3561174c68be0b31b7b730eed1f534fe",
+   "bytes": 11125,
+   "git_blob": "9a7b77b44f01c15cc301dc83c4ce70cddb920ca8",
+   "last_commit_at_or_before_sha": "72a391d 2026-07-16T02:33:38+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/38f48da637e7_add_pilot_status_advisory_columns.py",
+   "sha256": "0cf1f60fd2c516d99fff34761234f8aa23ec0e0625962e5b23269808d3ac731f",
+   "bytes": 2670,
+   "git_blob": "18be15dfbeffae7745c19fe62bb57581ad5a3402",
+   "last_commit_at_or_before_sha": "72a391d 2026-07-16T02:33:38+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/4b336d3ed612_full_schema_baseline.py",
+   "sha256": "a894ecd68501add7f17c6d354cd120505314719ed2a9ad97f0bff9af6e5adc3a",
+   "bytes": 703402,
+   "git_blob": "e55b8d115f91268c7446d30d67a68d2730fcb186",
+   "last_commit_at_or_before_sha": "cc02179 2026-07-12T20:06:39+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/5b7eb6e147e2_add_shadow_predictions_columns.py",
+   "sha256": "c4f3028eb1be6090480e3462e7b3419c519fca7341fecdd773bac52b4d669597",
+   "bytes": 3172,
+   "git_blob": "84b25e4672888463ddc9ff6c08247f3e166065b2",
+   "last_commit_at_or_before_sha": "72a391d 2026-07-16T02:33:38+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/a1b2c3d4e5f6_add_inspections_declared_findings.py",
+   "sha256": "183c7272aa6676eb7a92e019d65417afc1ae20cb50901a639536a9caed733a01",
+   "bytes": 1450,
+   "git_blob": "80d5962436f3c5baaa7109312ccb8c186b06247f",
+   "last_commit_at_or_before_sha": "977598f 2026-11-10T22:41:35+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/a1ba6c5ed8f8_add_oracle_discovery_tables_and_.py",
+   "sha256": "a6e182d7d9da2b2f696efa2ffc72d420110453265e0b1c2dd0638b5a86610ad5",
+   "bytes": 15488,
+   "git_blob": "bd3cdf1713b2cab7c1f6cf07c25d60861fba94f9",
+   "last_commit_at_or_before_sha": "7cc73b5 2026-07-13T01:02:42+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/b2f8c0452835_add_lumen_decision_engine_tables.py",
+   "sha256": "12a3c2f9cd1c26b49217e885b2746b5ec4fc793b37ef0c5523bf496ca7b95651",
+   "bytes": 9497,
+   "git_blob": "40cb726286e3aa8a15b440ec6dcd56d6c1d33a46",
+   "last_commit_at_or_before_sha": "72a391d 2026-07-16T02:33:38+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/b5a2c7e19d40_manufacturer_membership_lifecycle.py",
+   "sha256": "e330d97cb6cc3853b74ad0a8c37eb99a6d295302b60de3f9c3a667fe2e8a07e6",
+   "bytes": 3039,
+   "git_blob": "d8f71962a21f684e44c7fa1902eefd9a80d24cb9",
+   "last_commit_at_or_before_sha": "de80b7b 2026-11-19T22:53:01+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/b5d9e3a71c42_add_inspection_processing_and_baseline_comparison.py",
+   "sha256": "4c66d6cdaf63d62caeed5c474f2ee905535c846f82c4fa2cea2850ecb2c56a30",
+   "bytes": 3906,
+   "git_blob": "f2a5721441bf3eb7dfb9798f32bc13379c4edb50",
+   "last_commit_at_or_before_sha": "b334f69 2026-11-11T17:41:12+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/b7c3d9f1a204_add_model_registry_artifact_integrity_.py",
+   "sha256": "67a58f248d24e961325f9259ab7a565a970cbcf8c6a62f7b276a9936d86390c0",
+   "bytes": 898,
+   "git_blob": "5494f91f08737ce1b931b7a0804db78a3a5f14e6",
+   "last_commit_at_or_before_sha": "4cc651f 2026-07-15T21:00:28+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/bd866f763e40_add_model_registry_ml_lifecycle_columns.py",
+   "sha256": "f966cc4e67890f8bb7f5fd111b8283d8e3d38efdf228c5b4ac09491f31dd23c3",
+   "bytes": 5957,
+   "git_blob": "047cde1147b2bb8ae12583f279de21966db70e4b",
+   "last_commit_at_or_before_sha": "72a391d 2026-07-16T02:33:38+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/c1d4a7f2b8e6_add_baseline_image_library_tables.py",
+   "sha256": "de051b504b74899353b140f372f32ef6e23b9a61135b894bac88c82dd458a839",
+   "bytes": 10851,
+   "git_blob": "1b6c31981480cf25dbe6e9b1820dc2c6d5819491",
+   "last_commit_at_or_before_sha": "1229214 2026-07-16T01:46:02+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/c9d1f7a3e5b2_cv_inference_provenance.py",
+   "sha256": "2b7f1851bea29afef15a1574e630ee40fda86c5c2dd044028fa5b29d046e5911",
+   "bytes": 4554,
+   "git_blob": "76fe72e815f31149e5207f87c4e826e8c9506334",
+   "last_commit_at_or_before_sha": "55fc655 2026-11-18T03:41:04+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/d4e8a1c93f57_add_governed_objects_table.py",
+   "sha256": "0d491feeecfec1cb1ccfc38955e67b079d2a9c0d4a9a2f68fb156234d8d4f7dc",
+   "bytes": 3141,
+   "git_blob": "3c5308b5a05bfa50819f1d144b5d707eb83e8528",
+   "last_commit_at_or_before_sha": "15fd1c6 2026-07-17T14:30:28+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/d8f3a6b914c7_add_vendor_baseline_tenant_id.py",
+   "sha256": "0524ee77c3d09a678035f7d7a28e0643677ffedc1c5c1cd28208ea85f0898b11",
+   "bytes": 2544,
+   "git_blob": "cb4519c158fc0937b864f8e1cc6d11f4c88dd3f4",
+   "last_commit_at_or_before_sha": "78426ce 2026-11-18T23:58:43+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/e7b2f4a86c31_widen_overflowing_varchar_columns.py",
+   "sha256": "979020e25fd320d6810a3f0fdd0ef00c98dd884e8caeb1d0b99b33f6b8d85b29",
+   "bytes": 2010,
+   "git_blob": "3791f9991cdb20ccf0bd8bb3759d0904697cc17b",
+   "last_commit_at_or_before_sha": "15fd1c6 2026-07-17T14:30:28+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/e7c2a9f04b18_add_manufacturer_memberships.py",
+   "sha256": "5a7b1a17bed43a77ce9f0bec2701ac76f2c1659b2be298312f5bb30b12d092ae",
+   "bytes": 2762,
+   "git_blob": "d5944eae712112ab83255e236167b234c249a1d2",
+   "last_commit_at_or_before_sha": "e615afd 2026-11-19T16:51:39+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/f29f1456bdec_add_governed_action_tables.py",
+   "sha256": "cf5ee188d994a9a2400651d2a41d4d960f8a1dcdc7c0db3af37d944589ad84e8",
+   "bytes": 16786,
+   "git_blob": "091f89877655930f2f544f6331f8f445a2068806",
+   "last_commit_at_or_before_sha": "5671cde 2026-07-12T23:30:14+00:00"
+  },
+  {
+   "path": "backend/alembic/versions/f4a7c2e91b08_add_inspections_ai_analysis_status.py",
+   "sha256": "6ffe2980c3179453057a6fad21bbcf88ecc907a0d11049708cdca56b45b13850",
+   "bytes": 1531,
+   "git_blob": "0074224cef02dcb71bfa8d1519759eb2a5517829",
+   "last_commit_at_or_before_sha": "c953ece 2026-11-10T16:07:27-05:00"
+  },
+  {
+   "path": "backend/app/core/environment.py",
+   "sha256": "765b28c858f3448074b522ce97bd7028b2166a365437964f8eaf088c2bf10845",
+   "bytes": 6056,
+   "git_blob": "306747629d54b0cfa93e60b8efebb048ddaabf89",
+   "last_commit_at_or_before_sha": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_evidence_manifest.py",
+   "sha256": "2bed0578f411eb7e6634ebdb3edcf1c389bc89cd60537f35424921843308f9b5",
+   "bytes": 6221,
+   "git_blob": "202111676aad13343d8c55d1671c70a8fe11dd6b",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_gx_explanation_repro.py",
+   "sha256": "2199f3db24f628bc244758178f8edc13e2fa6bf37d63d60ada3215d23fdb1887",
+   "bytes": 6826,
+   "git_blob": "fd7e773c30ca138367aa3a5a57328f326c8555fb",
+   "last_commit_at_or_before_sha": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_pa1_env_probe.py",
+   "sha256": "5ad715ddef2ef6361df50524ed4f49604b83b111f14bf43f8c2685fa0484449f",
+   "bytes": 4192,
+   "git_blob": "0875c5486b88a24e70f153fb5df9e9aadac8c1ee",
+   "last_commit_at_or_before_sha": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_pa1_remediation_repro.py",
+   "sha256": "324551066da12ab46ef463e8277c55427113a589a94cf1dfc8aa0d742718e7e8",
+   "bytes": 8354,
+   "git_blob": "82256e1c61fae4a6a9aafbe5517fd009f5cddbcf",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_tripwire_review_kit.py",
+   "sha256": "ed6bb9b7c0af81c383bbd61dc62272cfc587a84ba4aa831c4313a17c9eb9e802",
+   "bytes": 30533,
+   "git_blob": "550950dec533947ce56b6bd167391a2301e40e84",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "backend/scripts/tenant_isolation_matrix.py",
+   "sha256": "650f13166c0fa9c2ef8eb1921f45d06a333f6a9e30b69c0e1abaf4302dfa04a8",
+   "bytes": 33379,
+   "git_blob": "efe583e1e296b52562032df1becdf63cfffc9e44",
+   "last_commit_at_or_before_sha": "c826fcc 2026-11-19T19:37:49+00:00"
+  },
+  {
+   "path": "backend/tests/p472_03_findings_register.json",
+   "sha256": "804773a6aeddece27bf054159c6a29f7323ffb220cec0d95889fbd6d551384fa",
+   "bytes": 1216,
+   "git_blob": "ecf270e7acbcb7b2fb442c98a8a961f7f8fc3d41",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_application_wide_findings.py",
+   "sha256": "32dd7285fb9bd26c0e948dc49eb9ea486796badafb35419e7535d73d98f9bb9e",
+   "bytes": 29415,
+   "git_blob": "43b9ca469ea6ed36adcf1d503cbd1792ab17e062",
+   "last_commit_at_or_before_sha": "c826fcc 2026-11-19T19:37:49+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_application_wide_isolation.py",
+   "sha256": "d02faeec295be436b00672a388658baa2e7cf45470a3bd6abf85cb510baa1765",
+   "bytes": 8926,
+   "git_blob": "9e113d5c72b0fadbf0fde026977f7ccac7801cc5",
+   "last_commit_at_or_before_sha": "cea6d7f 2026-11-19T19:36:36+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch2_remediation.py",
+   "sha256": "b980f19145981eb04f3f6b1dd9f80572cb255707e0123f1b25532c1fb3548ccb",
+   "bytes": 55735,
+   "git_blob": "4435986593a01d41e15b400250440206d1deff61",
+   "last_commit_at_or_before_sha": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch5_genesis_gd6.py",
+   "sha256": "b2f469d0c2ae6e790775279fb7a4cfff786067f42817458ebc025759a2adb8a8",
+   "bytes": 11910,
+   "git_blob": "0ea6ba4accf4f3a9ce8028f05786d9b7e769ee98",
+   "last_commit_at_or_before_sha": "38251e6 2026-11-19T23:38:17+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch5_guardianx_gd7.py",
+   "sha256": "7faab9d28a0c18e1031f297b9542a3c77ea46ad1fde9df4b933bcbf444b1cbf5",
+   "bytes": 19408,
+   "git_blob": "762239338e8ff2c4be0e1258a941e1e2f7e715cb",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py",
+   "sha256": "ffdc3dcb235aa585f6a3693fb834a3cded04084262a8188e222f1ffb67eb2539",
+   "bytes": 11054,
+   "git_blob": "b72baecbb9124a23c196768f3b9931b13a9cb657",
+   "last_commit_at_or_before_sha": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch8_guardianx_explanations.py",
+   "sha256": "ffe39271ea0c0f4cd7920327cbc511a217233d446ac27d2bcfcca551abee86f3",
+   "bytes": 14294,
+   "git_blob": "b6781859907d9cf63536249350eebd5a029ebf58",
+   "last_commit_at_or_before_sha": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch8_pa1_env_gates.py",
+   "sha256": "0d6104e6a6a970022077f6c84b0e125ed63860ac1272a1aed1ccd2c79d5c6489",
+   "bytes": 8579,
+   "git_blob": "8a9e7c48520e44cfc53867ad5deceaf3bbcab0fa",
+   "last_commit_at_or_before_sha": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_pa1_remediation.py",
+   "sha256": "05b0704e7d6bb61d25e86bd57c296d55b2bae7a889c12f51a3445b492db7e3fe",
+   "bytes": 16403,
+   "git_blob": "e982928b35a14d94701a58258fd48148992a0eb4",
+   "last_commit_at_or_before_sha": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_deterministic_repro.txt",
+   "sha256": "defe51c466c9816e4663c3b7ed2f69fbbacf92aeaaf890dd8d1c12418197955c",
+   "bytes": 1829,
+   "git_blob": "023a369b5c7598c56c8cad04057b86d75d978b20",
+   "last_commit_at_or_before_sha": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_repro_plugin.py",
+   "sha256": "2638e901a0e9f69c3bf2c681d5c1ac666ea2cc6e63cb35f8610766f239291655",
+   "bytes": 678,
+   "git_blob": "4f035330c76d52d89fe13aef3c0f1e89fea5a234",
+   "last_commit_at_or_before_sha": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-env.txt",
+   "sha256": "6c9eaeaac801906eaa9938004068331d8447ed6f6790d7356b0a454f6dabfe01",
+   "bytes": 384,
+   "git_blob": "659d04d21d616fd46b8bac2c3c61b8c9800ce92f",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-junit.xml.gz",
+   "sha256": "cb6e6c46db611e3b31ba98d28f288c726697ff97ac7e3e101f4d55b62b34f7f5",
+   "bytes": 123692,
+   "git_blob": "bcbed7de5e4057c9792563c4a911cf499fc59dbd",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-pytest.log.gz",
+   "sha256": "94df51759802c4db495131102cbb0d261b333a9535640a07c4e0e491cac331ce",
+   "bytes": 11171,
+   "git_blob": "df3c98bfb198a3815d520c39250c737d2792d55c",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-job-135978365382-failure-extract.txt",
+   "sha256": "71d3d6ff2697a5cd25aacd281732a0a3cbbb1651bc3530f837045e4ef65e59d7",
+   "bytes": 199951,
+   "git_blob": "781cc2203ba1b82fcd24f70653a5e99f1962a0fb",
+   "last_commit_at_or_before_sha": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci_pg_repro.sh",
+   "sha256": "b8bdec59c031de47f5fe50ebcf34d0a4ef3d463fa22a649f3c0a1b4f1c06ae6b",
+   "bytes": 1135,
+   "git_blob": "65ed362c7cf3442ef656e5ff233f1eff204d164d",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt",
+   "sha256": "96ae1a8b4d2b850b5fb91a56f88ca478428eeb4cbc9eafbd9dd91c286d468c2c",
+   "bytes": 2613,
+   "git_blob": "2dea818216dfb42528bfd452456a6b42b8e0385b",
+   "last_commit_at_or_before_sha": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/INVALID-local-sqlite-e81b51d-concurrent.log.gz",
+   "sha256": "1c724f46df2b5c45890e019bc82681115889c0ce66aea11953cb288d4e61cbe2",
+   "bytes": 35798,
+   "git_blob": "42c79dd8d1c5daae9d6f2dc54cd51466d24fcca7",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-7cead8a-baseline.txt.gz",
+   "sha256": "248986873d96bff849cb36188be3dbcd65d626e48d6bb1c556173b7abf28683e",
+   "bytes": 311,
+   "git_blob": "495375b8c41a55fde7c41db5183b5ed69e46b4a4",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-e81b51d-run1.txt.gz",
+   "sha256": "cc0b15880f4cb34eb89d5799d1841ff7844e88569ba746cb637ac9f9e71d8e5a",
+   "bytes": 231,
+   "git_blob": "f72730dee4eebb7968a441140ff6855b0654ca55",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-e81b51d-run2.txt.gz",
+   "sha256": "cc0b15880f4cb34eb89d5799d1841ff7844e88569ba746cb637ac9f9e71d8e5a",
+   "bytes": 231,
+   "git_blob": "f72730dee4eebb7968a441140ff6855b0654ca55",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-pg16-c63d398.log.gz",
+   "sha256": "1f30c5b50dac49192d2a6482c725ac52ecc73ff21840cd8d142003520502d758",
+   "bytes": 11356,
+   "git_blob": "77949b75c275042420d24282ea9d7d872f38640e",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-pg16-e81b51d-worktree.log.gz",
+   "sha256": "b521f7f7313f5fd2fa02f16b7cd9f28d06f0d316ca0465f5db481d8e19e01e41",
+   "bytes": 11129,
+   "git_blob": "9ef52291a7eb21efcfa9e575542fe6ea7cbb3415",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-sqlite-c63d398.log.gz",
+   "sha256": "32ef2e97a247041067b564fbf11951b78121a2824b145cd86b4f1e4e1046ba8d",
+   "bytes": 11411,
+   "git_blob": "3e0b63f76c657f903e014491c7143d84bef8ee4f",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-sqlite-e81b51d-solo.log.gz",
+   "sha256": "50fd7432c178d9ca9a22fd906dd3bf8b22a8ebb2e96f0f62943c6ff7109608ff",
+   "bytes": 11031,
+   "git_blob": "1f0aac5d5871d94509578155bcc07b9d47cf560c",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/sweep-pg16-2976b4e.json.gz",
+   "sha256": "9aab90d07fdeb7344e0b5cfdfe48a3ee14583798e1289a12d94f0b8b60e012e9",
+   "bytes": 70631,
+   "git_blob": "14a4236679389013ce562b07a1e65f06334aa707",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/sweep-sqlite-2976b4e.json.gz",
+   "sha256": "843fa02bc244430ba0270f2ab282c8c88eba7acd4aeed4fa6a776dd89e2208bb",
+   "bytes": 70464,
+   "git_blob": "16faa2157c98e27fe61ef6fda7b1cdc742c649f5",
+   "last_commit_at_or_before_sha": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run1.txt",
+   "sha256": "9a3359f16a2d40555fa4f007f0783982f066c9246c163a9ea28d2ca3382e1acd",
+   "bytes": 534,
+   "git_blob": "16c401a9b5629114484dcd66e4a1aa2a06fc4863",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run2.txt",
+   "sha256": "d69c01d7bd7d40508e92452b48ab7ef2a61cbd322c0bdb77cecd11cf555cf810",
+   "bytes": 534,
+   "git_blob": "382914b1c5dc775a98ce42e41efa83fe86fe0668",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-env.txt",
+   "sha256": "7197420810e5d6e37f06d8d526e308cd53ea8a5627ed45ed787d68199381398d",
+   "bytes": 382,
+   "git_blob": "8dc69a2a584f21c5af6b61d88ef09c8ae3d24adf",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-junit.xml.gz",
+   "sha256": "194b461a01cb1c42b1348a165f56da87bdca14db303d180bc7233be48307af5c",
+   "bytes": 123781,
+   "git_blob": "1b112582e9a1b119cc8e3e3d7401d1a1d5483df2",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-pytest.log.gz",
+   "sha256": "826df2e9cfb7fe7ee3b0b0fa7ed062e40e9cda8d3b555ff441cb2084b18e7957",
+   "bytes": 11306,
+   "git_blob": "e100192777172e0b92ed293c8419e09f944a375e",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-env.txt",
+   "sha256": "c9086f31e2b8619e59f722fb70bc8bc74568e340b93fd7a5fc2dafdb267c7834",
+   "bytes": 111,
+   "git_blob": "068b735e05932acce64e0b4fc7a0cc954aaac447",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-junit.xml.gz",
+   "sha256": "f43d647cfd7f87034c542343cb0a1837f0cacfc417d35c3ccb866438d0e31f6a",
+   "bytes": 122112,
+   "git_blob": "5d4d9028657d12524d1a0265fab6a3e2c38aa462",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-pytest.log.gz",
+   "sha256": "02bc943ce71179bbb11d4d60bc0c89051fd394402b6643e34c9fd5574e7b16a0",
+   "bytes": 11368,
+   "git_blob": "861737e5c1733771fd120a344b19a64efdfbaf7b",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-pg16-summary.txt",
+   "sha256": "d63239499bfc4415fc783eafa20c9ec8f2f41ae1cab552598f8a4543dfd841d9",
+   "bytes": 277,
+   "git_blob": "39c68b2c0548b27e88b59e3009c49563b1700f65",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-pg16.json.gz",
+   "sha256": "1ae22f2d40d77b0af32bb07c5f39258b61cf81f9752b769e3bc70497c6c14a3d",
+   "bytes": 70612,
+   "git_blob": "2c542d4b6f49f1070f548278cdda0cc4aafa8322",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-sqlite-3fbbe65-summary.txt",
+   "sha256": "723325c945f55a829c3bbf3e61b614f382528b8b2488e84bc2a11ff49ec6e399",
+   "bytes": 277,
+   "git_blob": "d72810a4ad2420751a914e21c7a01da299423be5",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-sqlite-3fbbe65.json.gz",
+   "sha256": "d0a35ad33d9fa53aaaeb1556dbb9f940e17a872efa5c021f95fd73e0bce98e22",
+   "bytes": 70449,
+   "git_blob": "5cf78a3e947560e65b5fd00247cd2714c6bbdc71",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/b7gx_after_pg16.txt",
+   "sha256": "5007b028a22b7e1de4a21bd07e0fcbe206ac40ba7c8a54b680672a07f33d7588",
+   "bytes": 327,
+   "git_blob": "62b4ae541bc84f3586925918d5b81ecf8ae8b370",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/b7gx_before_runxfail.txt",
+   "sha256": "237d0e1091a6e49de78e51c6f62dd636dd21c4a7753cb1db1c255706d29bb23d",
+   "bytes": 965,
+   "git_blob": "de6e4968e45589ce4740eadb8347ff8145b79430",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/b7gx_before_runxfail_pg16.txt",
+   "sha256": "31ea4ab2cbbfc191ce2a14bf646d9676f837352ffe2b2c0999480498e1c9eabc",
+   "bytes": 334,
+   "git_blob": "834aeeba18a81eac6e9833703bd83f878ac9eaaa",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_after_pg16.json",
+   "sha256": "80b42d5cd9477210ea9fc4701c91596aff412882628240dabfbe94d17ebb43e5",
+   "bytes": 2603,
+   "git_blob": "f7c9ad4307d781e2d7a683d8a8ef813f8fccb058",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_after_sqlite.json",
+   "sha256": "5ca489e73079c423634a3583dafa59b93db970372db00bce569579500243d4d7",
+   "bytes": 2597,
+   "git_blob": "98a00950adbb4d7095638bf1ebe1efeaf5d43bb4",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_before_pg16.json",
+   "sha256": "323bf31fac47164aae9f42b8e47533c74519b50a3fc02e95f18af71e01f6d8ea",
+   "bytes": 5311,
+   "git_blob": "35fca4e27a327f0b69203c8dc3cac0e0f7655a51",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_before_sqlite.json",
+   "sha256": "9c6cc2daf3b1d1181c89d500fcfb5d321fce09f5e36c46d86f9e96573d00bae3",
+   "bytes": 5287,
+   "git_blob": "ae671f97a610723d05310579b03bb4f9cebe30e4",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-postgres.json",
+   "sha256": "4687afc72be8a5ccc8bf0e8285a12961fa1a47a8199200e146c06139fffd6c8b",
+   "bytes": 41083,
+   "git_blob": "3ac27719ca2033458a9f1c9c177c180d0dd67be9",
+   "last_commit_at_or_before_sha": "643a8e5 2026-11-20T03:17:55+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-sqlite.json",
+   "sha256": "36ae05eb9bf56e530f96cedd4b2a7e5da0c0ca828343444e4007ffe692bd308e",
+   "bytes": 40857,
+   "git_blob": "01f191abbd30072064a7684ad21758ebd5248555",
+   "last_commit_at_or_before_sha": "643a8e5 2026-11-20T03:17:55+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/manifest.json",
+   "sha256": "aca11cbdb8d827a9143d7a8c97218b4f49302903118f840a26f428a1ba9f6175",
+   "bytes": 96248,
+   "git_blob": "82b9815dd24b22e9f70e10b50d7b6575b006a04b",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/records.json",
+   "sha256": "0d6e0a38bd39bb61fc2d43e5d49df6fbb597451e26c8f8ce8b8f94cdcb4687d1",
+   "bytes": 45352,
+   "git_blob": "fbfaa005694269f54f368deb5fb5e105a065870a",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-after/repro_fix_pg16.json",
+   "sha256": "cc5f62c58f9aed3e7c2291c527d14d710e818729d91eb6a3143f573d17473011",
+   "bytes": 1263,
+   "git_blob": "86676cd5397e668860e0a52e555ae153d5451157",
+   "last_commit_at_or_before_sha": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-after/repro_fix_sqlite.json",
+   "sha256": "589dc915aa228c295310ecbcc25f23e753a5bcc8654a5d1c967da570f25abe12",
+   "bytes": 1263,
+   "git_blob": "93c857a91d95a9676c409007007fecea1227f928",
+   "last_commit_at_or_before_sha": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/repro_83dbf70_pg16.json",
+   "sha256": "11521bfd0fc567d170afa7a2ad5289dda9c98601fd82562a440b5b218cc1ae56",
+   "bytes": 1331,
+   "git_blob": "1eeb789ba407a9dc0f1aba6ce9667bd0ce52b2c5",
+   "last_commit_at_or_before_sha": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/repro_83dbf70_sqlite.json",
+   "sha256": "038e6b4234547d2352493e6bdf7070b4e4cad823fa8b9d0ead275493a699faf7",
+   "bytes": 1331,
+   "git_blob": "cc460d69c1a9f01b3652884aca2f552db865c045",
+   "last_commit_at_or_before_sha": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/tests_83dbf70_pg16.txt",
+   "sha256": "dac67189dcedace6e99f26f2fd50c1bf50ad1cac6aec17fc197b16067724fd68",
+   "bytes": 1519,
+   "git_blob": "af933f52ca7ce419edf4376833fc4609bf77c759",
+   "last_commit_at_or_before_sha": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/tests_83dbf70_sqlite.txt",
+   "sha256": "18ad46f5c8b2fe196da990b5a1ace0dbffbb0f02208e92977ef68f2d570512d3",
+   "bytes": 1620,
+   "git_blob": "62293abe873a6e7e74dbd4b27bc72877f5502b82",
+   "last_commit_at_or_before_sha": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run1.txt",
+   "sha256": "0a1065dc30d07960907aadeedb6881f142ca834b46acfec173ef52d9f8ba3259",
+   "bytes": 506,
+   "git_blob": "458c83d835a552008320e5f8ad14ee4110850b2d",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run2.txt",
+   "sha256": "dee18e0951d03bd7e6bb5b2f78bb89e8371c3c1ae902d26b57d0b800ffc9d5ad",
+   "bytes": 506,
+   "git_blob": "1aae270ed376ebe9ac803534dd9241ec4d415441",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-env.txt",
+   "sha256": "f0b4bd7d6d261f65b1741ce8eb788e9b0121e44b7b3d20afd16e1a26d4ff3ef9",
+   "bytes": 381,
+   "git_blob": "62ad57d0983f5008a06360e6d8d36642deb98949",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-junit.xml.gz",
+   "sha256": "76e81f35ae64051b9ca11cfe1a463d42cbb98ed45584d0e0458c8c0bfaf34aca",
+   "bytes": 125507,
+   "git_blob": "0a5bb5fabcca9caef7611fe1ffe1f5fea7a6e777",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-pytest.log.gz",
+   "sha256": "be220db18dde602c122a29c1ecbd93a793d3d03ae16b9f33ccf42d26c51e17ef",
+   "bytes": 11461,
+   "git_blob": "7d6158f08338eb5f07f2d62944a2f86de879f91f",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-env.txt",
+   "sha256": "564666322751a35a879ffe7e23486ec9b283123cb6dbff335ba6d99bd8263a09",
+   "bytes": 111,
+   "git_blob": "3281d02190e625494b64152a756b95d6b4d9f34d",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-junit.xml.gz",
+   "sha256": "067ceb4c0839b9c0b74c1b2a8ae9d097577726ec1a3e0737640f9c6d873eb9c8",
+   "bytes": 123488,
+   "git_blob": "7977e4c6a211f5eb4c6c1c65919a817854d327f5",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-pytest.log.gz",
+   "sha256": "0edcb0653d830fec2c9162ebca38cd86f4ae572934a17345b7c364730ef21291",
+   "bytes": 11521,
+   "git_blob": "394c5f4bd56674f9b1a34e1c801e58da53247514",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-pg16-summary.txt",
+   "sha256": "8d9021edc172c836aebe5e8288f0e0757ce34a04ce6e6c8bfda8dc522938be13",
+   "bytes": 277,
+   "git_blob": "5ce67366a579c5493d7367c50dc80b167b944e32",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-pg16.json.gz",
+   "sha256": "7566a372c9faa130c9077026b81f51feea596e767c7f5f0eb946c5447749d999",
+   "bytes": 70611,
+   "git_blob": "080c840f92c7a335e8bcd91b385801806843ad98",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-sqlite-summary.txt",
+   "sha256": "1958d8c088eb811c6552ec0718cb059f5716a83e2e065da0624e98a000befc2a",
+   "bytes": 277,
+   "git_blob": "33bed4c4bcf52bbbc80d94bc84c493bf9b32e77e",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-sqlite.json.gz",
+   "sha256": "e799474a673ffec15a419d2d05aa3ebd4e8e725a68269a7588ef9b044a590e91",
+   "bytes": 70448,
+   "git_blob": "125d634e86d9c83c8ff7a09e1442dbd1dda57d47",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-postgres.json",
+   "sha256": "401028b28b834f0a52e46adf14bbeef769f3d742cf5376b3abdbe970032bce60",
+   "bytes": 51596,
+   "git_blob": "15c084ec26eb517642425449d6b79aed6922a052",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-sqlite.json",
+   "sha256": "1d674fc937445da5775272dfb53f979fafbee6916591e03555042f99d76bfea6",
+   "bytes": 51322,
+   "git_blob": "342679d2d24e7b9e84cd17eeba8a48a1b53b682a",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8_pg.log",
+   "sha256": "e91efd694ab14bdea2508ebe248eac0c7c7aad17ba7f05b3d9aa11dbf34b15ec",
+   "bytes": 2923,
+   "git_blob": "401d5c9ea486290d21cd754a6b30ba3395470f6b",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8_sqlite.log",
+   "sha256": "2b88499145aa628868d2cda2cd4a2ad43e487985a6f84ff82f854371f58b6ec0",
+   "bytes": 2925,
+   "git_blob": "d927495cc15f915105b2c9fe5f9ef2d719487669",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8pa_pg.log",
+   "sha256": "5a824b840c1fec0bb13843cdc8096cb953cc36fd6e9f83b352c17062d2c5f48e",
+   "bytes": 796,
+   "git_blob": "8b1e0991cde5933549908b22b941368d3e71a980",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8pa_sqlite.log",
+   "sha256": "7f705aaa883c6d874220d16d42fbb4f87a3cbe66681ae72d4fa71c5ae6734c08",
+   "bytes": 798,
+   "git_blob": "b1a0fb36a273f56488a63233562683209495c0b2",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit_pg_aborted.log",
+   "sha256": "3b9e8d687cec0d97cbef6dac23e0184c939551712ce4543e074dc52046634e6e",
+   "bytes": 3432,
+   "git_blob": "9642ca80335f0ffa14670661ad1e93ccacdf2e51",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit_sqlite_aborted.log",
+   "sha256": "b63014da74ac5637d9dc018eeb1e7826ad3fec7e2447422af5c8c07e6ba237f1",
+   "bytes": 3726,
+   "git_blob": "7399826a26344c226a33fdc17df0dd1956130e9d",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/pa1/pa1_env_probe_c22a879.json",
+   "sha256": "ef651e801a374d04bafa318e07b0974cc7fa2ddb7ce23c15910bcd3fb7fd3bc4",
+   "bytes": 4377,
+   "git_blob": "1143552f445ec9f4050ca3a30ef6a716f14c4c41",
+   "last_commit_at_or_before_sha": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_gates_postgres.txt",
+   "sha256": "47c09fc4344e45381294c2a8eb65ecb9309b126e82758352f0f6a57b9900fa13",
+   "bytes": 29,
+   "git_blob": "cef687207f74a3c3fbbd74fc03e6a5ef3bb34131",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_gates_sqlite.txt",
+   "sha256": "7bf2c9cf78dad207fb4a1b488b16abe9bc7b9b2dd4b5e4b7d18696eb348c5791",
+   "bytes": 29,
+   "git_blob": "592ebf4865424f2f230a17c66773b6471fcb34e9",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_postgres.txt",
+   "sha256": "c409771e9ac5cc15724932d9341b1643387eaa71bd912656aeadce9336ba0919",
+   "bytes": 32,
+   "git_blob": "cd44da77f0b6bdb2ff6ddc7a239fae1ee0d23b1d",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_sqlite.txt",
+   "sha256": "aa6c8d172167465b9a778143de71d0387da666932cb5de9adceb374e002ec54c",
+   "bytes": 32,
+   "git_blob": "a91c62197c0b58a90ae0ea084a9ac8cf7a8a446a",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.json",
+   "sha256": "47a86ed34164ec4c07595567b1fc88d94b63c6667bec3626c8de18439b393de6",
+   "bytes": 5343,
+   "git_blob": "28cc2c04605f0a6e0e1b68efc480171db6205393",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_sqlite.json",
+   "sha256": "1b19dc46a0cf5fdf3964ac9d5669bea590474d78d2cda2d6766b59ce602674a5",
+   "bytes": 5305,
+   "git_blob": "b38be97d813df2e2d65eb75ba6d2d3d5afa860b8",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_sqlite.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_postgres.txt",
+   "sha256": "db6c9247acd660dc37d7cbf77c40dbbec8b5ba1127d6d336b5b6d4cc338bb47f",
+   "bytes": 526,
+   "git_blob": "489778ae9469da73c4f1877ba9da1b55be39cc43",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_sqlite.txt",
+   "sha256": "5d3c687915f77271019cccf3027d8076fa21c0cb22284410dc1573894ca6dc40",
+   "bytes": 1076,
+   "git_blob": "ffdb55237f31e419bcc67b4ceb3cf5a263351d45",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_strict_sqlite.txt",
+   "sha256": "4066938047f3fc713df0ddad58f1ad4de707f01483c56b29b9ca4ec3def67858",
+   "bytes": 902,
+   "git_blob": "4a5b01ed506cc3b428680f4fe9d6312ea631cd62",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_postgres.json",
+   "sha256": "1bf229e577f15663e25fa38cce0f98780ec6f3723058ef2235847d77f46e9ace",
+   "bytes": 4852,
+   "git_blob": "f618d67281f6f42e03b13465554527fa7390e46c",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_postgres.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_sqlite.json",
+   "sha256": "d78aa076b2fea549ff2e4761cb0b314dfb96490c58e1fd423965aa5abab82af8",
+   "bytes": 4814,
+   "git_blob": "2a7367de41a0be8b903b1727e1dc562ccf227551",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_sqlite.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit_at_or_before_sha": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run1.txt",
+   "sha256": "e749371ea79f8dc81723e5fb62b68834cb554d9631fa5231238dee769bc02781",
+   "bytes": 561,
+   "git_blob": "139b9b980a7086e9070bcfd39d805fb9074404e7",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run2.txt",
+   "sha256": "1a2d7c4d4dc57ac08fce893d8cbda7570954a0174b244c8dc21f86b64940d75a",
+   "bytes": 561,
+   "git_blob": "bf5e4a951063fcfe695c0b480eae1e67002775b9",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-build.txt",
+   "sha256": "f5ce31a6beee2885b833a6315be9992714ef1dbaea2567e07faf15260d8043eb",
+   "bytes": 190,
+   "git_blob": "e34ed7d3f227d4b896bf69739d4f75d59770eb1f",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
+   "sha256": "d51b7335097f0f5bf4b0f48114dfcb58420fb5bb806df842d194ed1c9e801ffe",
+   "bytes": 101,
+   "git_blob": "204dad9a3992c52021d0db279df652091a219fb1",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/driver.log",
+   "sha256": "f989f51f01bc310d5717d642e286dfc23e1aabc80e811b7c7338b15e377721f5",
+   "bytes": 63,
+   "git_blob": "90917d02a5b6005b09d6fec7026b304a26eaaad5",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/env.txt",
+   "sha256": "5633f00ed004ce126d60cfb7e61f8172a82a8eda630ba13e2c609e5ae8db1ec6",
+   "bytes": 389,
+   "git_blob": "3a0d8424d0d59ba50e88c3615bad1e6e3772bdaf",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/junit.xml.gz",
+   "sha256": "85b877917423ae7c932dfc722f40dcf0be588656118bc0445473e1ac78db673b",
+   "bytes": 133677,
+   "git_blob": "ecda93b1c47a5b25c58bb1ddf677c6d3f402276c",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/pytest.log.gz",
+   "sha256": "b4a44e215617c7e62db09684f2fc3595a9470036f55cc2d881e6563f14302460",
+   "bytes": 11091,
+   "git_blob": "95aabe0f63d1635f50f744b01c38ab9c45fa18e8",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/register-isolation.txt",
+   "sha256": "4e225d1b5d8aa9574dcda060ff6f8ab137edb51147781a6b6c3c648b874aa392",
+   "bytes": 43,
+   "git_blob": "3bac33201ee995406f02d5c74702bcd54aed6c9c",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/junit.xml.gz",
+   "sha256": "be76c909ca7c9160886f9fb5e33bb35713a9ebe7602aa76a7d9357f1b43bb3ce",
+   "bytes": 130532,
+   "git_blob": "45c8cbafbeb8e1ad935bb730dca2f38d93600b10",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/pytest.log.gz",
+   "sha256": "06da50271c248d7a9690bd848357dea0719b735b71131216ee312e10d3861180",
+   "bytes": 11154,
+   "git_blob": "5d5afcc4545293c91690ccc2bebb8ca6d9a9cb57",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16-summary.txt",
+   "sha256": "380a8a97f8564acc523c7ed2e17035d25d3922522087e510d72050aa541fa9e8",
+   "bytes": 277,
+   "git_blob": "8c2f2fa943ff5c829185b10469e8d63c7562604e",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16.json.gz",
+   "sha256": "f566a6f5b7b6f099b2cca691c1952d6188d2bbc21890c3331255c69b73e1b09c",
+   "bytes": 75570,
+   "git_blob": "f53c4009babf19dc8917d80de3f5429ff2a84bfd",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite-summary.txt",
+   "sha256": "f3cee8dd90ffff19a4ab7821a599156ffec04f21f77ae34532d4d88e5ced2fdc",
+   "bytes": 277,
+   "git_blob": "495aa9f6d922e005e11702ebd5e412afc7ec862d",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite.json.gz",
+   "sha256": "15fdf3838706daccfc4aa948960e08f313bd5f26f24cece2ac8d4b73c718b644",
+   "bytes": 75363,
+   "git_blob": "49e24dc209ce00adbb5ca5e6f1a618d180283a6e",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/kit_postgres.log",
+   "sha256": "9cc5f10fa37ede58674237897b62e8809e828a24dc111730ef284931c027ed64",
+   "bytes": 1553,
+   "git_blob": "521cfdf0cfea320a250991b0926cb4fe2a3dce87",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/kit_sqlite.log",
+   "sha256": "1202a16b9ade9c65465a788968943c07aeeef8c8f28a89ebb8d01e431d14e8a5",
+   "bytes": 1549,
+   "git_blob": "820a81d0c5e4366678d6db6f634b23c4ca2cd834",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/postgres/kit-results-postgres.json",
+   "sha256": "2097d9b9349c3e0275d216e178c309bae17652b69a2830c9efd4c6f2ddf21bd5",
+   "bytes": 4700,
+   "git_blob": "a065cbd09298fa08ac07522a7b650a46f66dbbb0",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/sqlite/kit-results-sqlite.json",
+   "sha256": "b960e6406ac69ab713f23566771d94d7a81299204c70ed684af6c8fe10942819",
+   "bytes": 4677,
+   "git_blob": "261626cdc3b56a556a606ef31ef6737f9975a993",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v1.md",
+   "sha256": "dfc83f2d4fe62cb70955604488279a2feb8ba2ddd5bddeb73144c67a27ab40ae",
+   "bytes": 4648,
+   "git_blob": "063d029dc7becfff08ad416d02918beab4609bbb",
+   "last_commit_at_or_before_sha": "33f1ed5 2026-11-19T01:06:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v2.md",
+   "sha256": "d82d769387db9f60ba86eaee80a42e280e8dcd53cd5e39f1cdbb08c1cf60e43f",
+   "bytes": 2856,
+   "git_blob": "5d19fe4c68716b09a2be2f19d1e01d0b7a0fb5dc",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v3.md",
+   "sha256": "b5c6511ed17eed4cbc8e0660ba27d38d2a69e7c7a6280b727fa241311e05f6be",
+   "bytes": 2398,
+   "git_blob": "09136cba022f5cbbadb87fbf8845b446eaaceaf4",
+   "last_commit_at_or_before_sha": "7605885 2026-11-19T19:44:07+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v4.md",
+   "sha256": "b30cef5d0940f144f56a769393e7ab7b7915df5369be749538a3871dee753111",
+   "bytes": 2776,
+   "git_blob": "2d59cd29e65bfaf3c58015fec6b377c7740330c5",
+   "last_commit_at_or_before_sha": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v5.md",
+   "sha256": "de86b9862a0975ed6438d7385e4d3d27ee25f473e86298572e3d455328e295fa",
+   "bytes": 2340,
+   "git_blob": "82451332ddd2b626b77dc3c82dc1564eff3d3448",
+   "last_commit_at_or_before_sha": "bc0cb94 2026-11-19T23:47:10+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v6.md",
+   "sha256": "a528b28dff59287150226d502540f54314a2649d92a848a0f4bdfc152d8fce02",
+   "bytes": 2801,
+   "git_blob": "012669152608915161e5641b8674551c1c4b8e35",
+   "last_commit_at_or_before_sha": "4667ab8 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v7.md",
+   "sha256": "2edc97ff870c1dfc9adad062e298bb340e7c1bb4a1a2969310b5429b71e59f52",
+   "bytes": 3301,
+   "git_blob": "f1e65e3254c3afd3ef3475befd199938b3b934d2",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v8.md",
+   "sha256": "e9563fb89d360b217a1fa1a48fa8abb316cb699fef337e089855d08ebb905a15",
+   "bytes": 4048,
+   "git_blob": "7b05dffbe709eedeaea33861d0c597be12bc6f3f",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd3-clinical-workflow-approval-checklist-v1.md",
+   "sha256": "95a559251b4f06adbcabd15db516a499e451238d3b2e45d9594da129d4923843",
+   "bytes": 5583,
+   "git_blob": "a3c889c27093dff8eb5b27b4769a36f1c06cfb5b",
+   "last_commit_at_or_before_sha": "33f1ed5 2026-11-19T01:06:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd3-clinical-workflow-approval-checklist-v2.md",
+   "sha256": "cfc37d54000b05ac894e013152d522e4eaf25e0a0c2ce9b8e871f57ad671aec1",
+   "bytes": 3434,
+   "git_blob": "fc3c9b5a5efeb81afaee80c69f0e62db1a593ce5",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd3-independent-security-assessment-v1.md",
+   "sha256": "7639f4ac3a845276d098458f37a32798d7f81656ffb212bccacc7a8d393a3a12",
+   "bytes": 7088,
+   "git_blob": "d2d124d84a16ac5b0b70d8171e1d83fed26dddb9",
+   "last_commit_at_or_before_sha": "33f1ed5 2026-11-19T01:06:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd3-quarantine-impact-and-attribution-proposal.md",
+   "sha256": "a3d15e8be1f3b0a60d70077871ea62bd042ff5ee4fc3636df4bc45eb359bc8a1",
+   "bytes": 8391,
+   "git_blob": "d1a4be5785d4079829de41dc0fac3e62119464dd",
+   "last_commit_at_or_before_sha": "1ff863d 2026-11-19T00:43:48+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd3-vendor-baseline-architecture-decision.md",
+   "sha256": "3aa8942ee6d9af71ecefc23e7761982dcfd6c1666b8f42223efdc81fcb7085ed",
+   "bytes": 14290,
+   "git_blob": "5f7f211393dfa77c2b51f44f523df55176c95a5b",
+   "last_commit_at_or_before_sha": "c9a0f73 2026-11-19T00:27:27+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd3-vendor-baseline-independent-review-request.md",
+   "sha256": "31e9c544365a329c5293df6cd4c0eae265f5d0a53ee169fad3ccc0aa80487888",
+   "bytes": 7687,
+   "git_blob": "3c27aacb57ee8db04622bb3d286a038bea773f81",
+   "last_commit_at_or_before_sha": "1ff863d 2026-11-19T00:43:48+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.csv",
+   "sha256": "b379dccc56955eb383ac7bc02f632bfe63181b9883ffde742bc84acf5b07357a",
+   "bytes": 667948,
+   "git_blob": "e845ac7bc3595d935827081ab20e63e0ec996157",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.md",
+   "sha256": "7e8317873f3f71452429c046b1ce9e02b613e57562a15bf1c1dc37901c93d7c7",
+   "bytes": 468595,
+   "git_blob": "ea9ba35061faf570adcbe8a1c7f3dd36f022c1a9",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-b52-manufacturer-iam-lifecycle-v1.md",
+   "sha256": "586046668bcf22e4ce985be44eb81c0c5dc124f7805ea619d914519d2e97d7a4",
+   "bytes": 4306,
+   "git_blob": "c7d7910f865955f3612fa87a05dd6e83d6714644",
+   "last_commit_at_or_before_sha": "de80b7b 2026-11-19T22:53:01+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-b53-gd6-decision-packet-v1.md",
+   "sha256": "b431541b7811aa220a1bc8f559dca5bc115bf9e6e073792af6e565324279c041",
+   "bytes": 4191,
+   "git_blob": "8c3d2babdf662d7c9a231e81a6d7702405cb5e40",
+   "last_commit_at_or_before_sha": "c677590 2026-11-19T22:55:30+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-b54-guardianx-ledger-adr-v1.md",
+   "sha256": "66b608eba303a8a4f2a40cc0cb5023d0b471c1e5d587ffcebf3efade608d5adc",
+   "bytes": 5386,
+   "git_blob": "9565f00db7c4b5256071ec282ac8df0e1bbbd7c5",
+   "last_commit_at_or_before_sha": "3c8d347 2026-11-19T22:59:31+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-b55-postgres-auth-defect-report-v1.md",
+   "sha256": "7ab0789afd8dbb701dfd1a06e67c7788d5c80ff95a949978cdd80af9e823d93e",
+   "bytes": 3408,
+   "git_blob": "03a0727c9d59d211d46884d55da9d76924e8407e",
+   "last_commit_at_or_before_sha": "e226ee2 2026-11-19T22:48:02+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-b61-genesis-fail-closed-v1.md",
+   "sha256": "323d7a7bf1abea87e7786a8cecf3b8a7643a58679b682ff58f8caa6eb4a1636b",
+   "bytes": 3161,
+   "git_blob": "541eb2eb6e73a3edd7f846e46b635555f0248cd8",
+   "last_commit_at_or_before_sha": "e2173c2 2026-11-19T23:38:29+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-b62-guardianx-read-gate-v1.md",
+   "sha256": "6d3dbe6f68d2f0904f1e53fb6d8c784b65d593be607fda91a58efd597a2f009d",
+   "bytes": 3348,
+   "git_blob": "d1cdaca330281b8828c012760ef5e472b01d1ef0",
+   "last_commit_at_or_before_sha": "00aec32 2026-11-19T23:46:18+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch1-remediation-review.md",
+   "sha256": "46ac1880b05f84056445beaa3cf0de0e4cab90cf4748f51117915cbaba4c8b08",
+   "bytes": 48553,
+   "git_blob": "b8a42eb216bb517cf8bf813db0a512cc9186d868",
+   "last_commit_at_or_before_sha": "48ef45f 2026-11-18T19:36:28+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch2-independent-review-matrix-v1.md",
+   "sha256": "80aab6cbcde8584636c03dd6f374825ec0f4c176997637b125dcee59d855d72e",
+   "bytes": 6295,
+   "git_blob": "cc1a15922c05926f82a8c77bc707528b9368ad1e",
+   "last_commit_at_or_before_sha": "33f1ed5 2026-11-19T01:06:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch2-independent-review-request.md",
+   "sha256": "2e8666d66ff4431fe8c82735ee8a3fe4d7bf88cefc8fcb5f1b976ee80d5e0ccf",
+   "bytes": 7681,
+   "git_blob": "8630f9588157cce027fb2f1c2fc8a8ffcc09f73c",
+   "last_commit_at_or_before_sha": "5d3ec59 2026-11-19T00:00:11+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch2-remediation-review.md",
+   "sha256": "15dbcfcc1208e86d2f34fa4349fa2471538d952bff1f59dde0f02d05e10736b7",
+   "bytes": 32534,
+   "git_blob": "a45aca91bb33ca0f905d5c3f78edc6dd9c9bdb89",
+   "last_commit_at_or_before_sha": "728b587 2026-11-18T21:57:49+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch3-authorization-matrix-v1.md",
+   "sha256": "f9528719d335291a672f127c09e4ac567db27559de85fa9c575af76a469ad6b3",
+   "bytes": 3193,
+   "git_blob": "d7e1fca5a9b0d53c8a2658096dc9ed642342f787",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch3-remediation-review-v1.md",
+   "sha256": "4b38799f5d5423089100695855241507497a0aae9efeae2a65c36f2848c13cbc",
+   "bytes": 7436,
+   "git_blob": "94f26dfe363f1f3815e96d5c31a01eff378e8f5c",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch4-authorization-matrix-v1.md",
+   "sha256": "b82fe0b02eb3eeb934b954cddc64087907959bbe1d4a149add1d9278ba06b993",
+   "bytes": 3077,
+   "git_blob": "1bdb0496cbbad2d8eda27f07bd56d873d1c12683",
+   "last_commit_at_or_before_sha": "7605885 2026-11-19T19:44:07+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch4-remediation-review-v1.md",
+   "sha256": "d8c2ea3e00bc533c534ea40f22278774131e93ddbee2fa19ae5696e6f245090e",
+   "bytes": 9150,
+   "git_blob": "7daef24319f6897895f55c0c65f9a855644999a8",
+   "last_commit_at_or_before_sha": "7cead8a 2026-11-19T20:45:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch5-evidence-freeze-v1.md",
+   "sha256": "413f3b2fbe21722eb9b1ada7bb834f9c9da21536b3c23c84d7812fd3236678a3",
+   "bytes": 2467,
+   "git_blob": "bea4d74f2ddacf6c7a53a7ea00787b8767cdae7b",
+   "last_commit_at_or_before_sha": "6247d6f 2026-11-19T22:28:07+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch5-independent-review-packages-v1.md",
+   "sha256": "41d86151c159aa25193057c6ea2909d184d0cca61ab20ac11a1e6615e38f18ed",
+   "bytes": 7174,
+   "git_blob": "a9e11c1675c88b347b9c055e0f74eba108677605",
+   "last_commit_at_or_before_sha": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch6-independent-review-packages-v2.md",
+   "sha256": "03541de3f9d74f080f881b6e969204a8f86876ce5dc68f6504f5ca69ca2ef757",
+   "bytes": 2810,
+   "git_blob": "d4eb59b38671a0fb747433ac6d6de8071506c6bf",
+   "last_commit_at_or_before_sha": "bc0cb94 2026-11-19T23:47:10+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-clinical-data-governance-packet-v1.md",
+   "sha256": "0728d7b586e8fa359514b03921b5c3b79ee2efe8a48fe94fd1e1fac94cc25b88",
+   "bytes": 9046,
+   "git_blob": "22e7c008e319981ea1eac874800187444f5ad9dc",
+   "last_commit_at_or_before_sha": "4667ab8 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-gd7-05-write-side-authorization-v1.md",
+   "sha256": "6e83e792efecc059d839d8a8428a8b29ffc70744f49a5c9432003f0d74ea57ce",
+   "bytes": 10127,
+   "git_blob": "5ff7c5b7f57c4e77f784fbbe345282d62724306d",
+   "last_commit_at_or_before_sha": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-governance-decision-packets-v1.md",
+   "sha256": "1dd88cb750bc8fc1b7c5939910d95e59f8871393427eeade8c38dde5da7a2942",
+   "bytes": 19097,
+   "git_blob": "7fd9de55a57b2414bcf2e8612e58dc959e9fb0d7",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-pg16-ci-anomaly-report-v1.md",
+   "sha256": "d52ec30841a9f4c3c0f1f6b1f1723013592f9a09e9852e413f8bc84bf3dbeb76",
+   "bytes": 5791,
+   "git_blob": "08544ab1b443de1028b3bd2d5f8ebbb2d394cd20",
+   "last_commit_at_or_before_sha": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-pg16-ci-anomaly-report-v2.md",
+   "sha256": "cd0375807da03605e49543c2984b102d7d089ad53696c3e333505344ad8b44b2",
+   "bytes": 7662,
+   "git_blob": "748c87c06d4364bb0700ed5015bba8cf589ebe48",
+   "last_commit_at_or_before_sha": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-tripwire-disposition-ledger-v1.md",
+   "sha256": "f066c777b910cb747141b3e69a6ff04d7402303e4e4392405cd4e56c569e0c0e",
+   "bytes": 4445,
+   "git_blob": "a1a888f3670487d30de0f2d17ecf8b7ded12b67c",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-generated-v1.md",
+   "sha256": "1ea31098fce5e65f8a98a333fa0a55b23238bd80c51593ba45c4b0ac9904d8b0",
+   "bytes": 64990,
+   "git_blob": "956aa70399427581012e775a6ad82ff157c41227",
+   "last_commit_at_or_before_sha": "643a8e5 2026-11-20T03:17:55+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-v1.md",
+   "sha256": "80e2609977f8bfc60a1e32b455dfc60edf4dcc8d7a95c24ea6af14b3ba61e28a",
+   "bytes": 8754,
+   "git_blob": "12d05e1467352aa9466b8d0453f521b1145eeefd",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-governance-and-forensic-workflows-v1.md",
+   "sha256": "0c799aad49edc8bd6eab8d4070523723f0172a64e1bf12423de47b1c31988dba",
+   "bytes": 9116,
+   "git_blob": "64d9ee55386fc46c489cd1e6e74e4933ea1134af",
+   "last_commit_at_or_before_sha": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-guardianx-explanation-ownership-v1.md",
+   "sha256": "3c38475dfa8a8cb9101afc21540b5508ff6175dd6f1178a556cc453e4d08ed50",
+   "bytes": 8674,
+   "git_blob": "7032ba36ddc43a39a6a67e767f9532e5c2940004",
+   "last_commit_at_or_before_sha": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v1.md",
+   "sha256": "25ac86d743db91660b4050ba9ddd3b5946675f53cc3062c9058cba984f222702",
+   "bytes": 6990,
+   "git_blob": "4fac2bde988322a6c1dbc9beb368609363369376",
+   "last_commit_at_or_before_sha": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v2.md",
+   "sha256": "09824ccb72d451644f9f405aa89ddb8239d03f11239e8056043021f303120402",
+   "bytes": 11508,
+   "git_blob": "0450e708f7076a705bd30d2544074024e9066dfc",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v2.md",
+   "sha256": "306780565f06e53de5ada655ca1ec4296e649c0deb3a2713ac62fee28d6976e5",
+   "bytes": 5913,
+   "git_blob": "13db1c94e042aaabb0cf9fc9c4d4764b84fa64a8",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v3.md",
+   "sha256": "a0b0ef934967d2b46c3acecdda165ac8fa279ca0794a69d18b6f607fdd24405d",
+   "bytes": 6403,
+   "git_blob": "6808cbaec6ab943ccc73502718f9a59fa66f618b",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-review-packets-generated-v1.md",
+   "sha256": "ff114427a0286a50fea8d22d6f0268ab7f0a712ee162592469e07fe2b823c7a8",
+   "bytes": 78290,
+   "git_blob": "d9936fc5df812022e3eaaff3a280d3b81efc1667",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-cross-tenant-authorization-review.md",
+   "sha256": "070134365cc6f651a645ac3a59df329126206ff683cd71d1ddffc588d0cee0e9",
+   "bytes": 13732,
+   "git_blob": "d668bdec1f92e2e02e34fd8362c6973fd85c6943",
+   "last_commit_at_or_before_sha": "6c3072c 2026-11-18T06:18:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-day3-adversarial-remediation-report-v1.md",
+   "sha256": "a1f5c558dde128168320e894937bc88b67fc96416a0cfb390f6d0a1147d023b9",
+   "bytes": 12325,
+   "git_blob": "5856edde2894e7fd3c556b8596ae5748f2fb5ebf",
+   "last_commit_at_or_before_sha": "d653b1f 2026-11-19T05:31:50+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-day3-authorization-coverage-matrix-v1.md",
+   "sha256": "f015d7b380a0123ce0702d8565a27ca1294598f83241859ff3b1c64ed2bbec61",
+   "bytes": 3726,
+   "git_blob": "907e624c0ab259e1ed019ef8dbd3b45a63f63840",
+   "last_commit_at_or_before_sha": "d653b1f 2026-11-19T05:31:50+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-day3-governance-dependency-register-v1.md",
+   "sha256": "b576ce887f10a4ba1ed83fc87f50e2945d4c4bd589bbbf4963ff5e2dafd8d799",
+   "bytes": 4695,
+   "git_blob": "b0450ce6df8647e0df3014baf653a611762cb7de",
+   "last_commit_at_or_before_sha": "d653b1f 2026-11-19T05:31:50+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-day3-regression-evidence-index-v1.md",
+   "sha256": "aa8cb3e67b96c20ce181996406ee325d407a9baa51e5cb278b24a4cc69b854a5",
+   "bytes": 5384,
+   "git_blob": "a71a6c6f4e34243cd8a926e427852564876b0a86",
+   "last_commit_at_or_before_sha": "d653b1f 2026-11-19T05:31:50+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-historical-access-investigation-plan.md",
+   "sha256": "bb0463469f7a7286d218a6788fe40608dc4ef8a467a90269272fff21496db82c",
+   "bytes": 15659,
+   "git_blob": "8e7021f74b4872a48e8f1542411b2d1e9bfdf973",
+   "last_commit_at_or_before_sha": "728b587 2026-11-18T21:57:49+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-independent-assurance-review-v1.md",
+   "sha256": "4c1be76ea8e0f8697bfed976036bf0211a3f876a82107d8f05be64434eb6f434",
+   "bytes": 5348,
+   "git_blob": "d4c8492f322a63dc3326e7b1ae060e0d93b96933",
+   "last_commit_at_or_before_sha": "4ee1674 2026-11-19T01:21:38+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-independent-review-routing-v1.md",
+   "sha256": "8f22e5838da8cd803321882f908ec7f3c4d471faa524bc721763b88fe251e613",
+   "bytes": 2924,
+   "git_blob": "da612a574514c4b10b367a72136fd82d2e6941fd",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-independent-review-routing-v2.md",
+   "sha256": "f5993905234a1fc37dd91ecb346432326d9eb987aba5aa316fa86200fc43f6a1",
+   "bytes": 5170,
+   "git_blob": "734d462f2f97bab7733d08a8f7afad30ae06ddc1",
+   "last_commit_at_or_before_sha": "7cead8a 2026-11-19T20:45:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-independent-review-routing-v3.md",
+   "sha256": "72d39b9065388b9c4c496c4f80392c053e57b4b8b001926b7c7fec4e7a2a88dc",
+   "bytes": 2501,
+   "git_blob": "a64587a33c5136009ea779f3c9bd141ecace2baa",
+   "last_commit_at_or_before_sha": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-pa1-remediation-assertion-change-log-v1.md",
+   "sha256": "9995ca7c994c2db2eb9203ae3fd8133ee485cffae5a34d5e9a708a85255f734f",
+   "bytes": 7864,
+   "git_blob": "03babe5c1f4394288a3dc0b2cf12a9dff2dec31e",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-pa1-remediation-review-packets-v1.md",
+   "sha256": "bff7c23cfde4048e205af9ec22187aa0dd34e4dfc5d27bb7f786f85302dee461",
+   "bytes": 9264,
+   "git_blob": "4ace39e9c251cafd892ff2910758c5e78a4f8dee",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v6.md",
+   "sha256": "b30cd45a8bbfd9ffc8efbd88613d0ddfd56caf51774f15c80dadccf41ff24d64",
+   "bytes": 12882,
+   "git_blob": "4f390618b8cfe2a2ffd6bd749126c2a398937fef",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v7.md",
+   "sha256": "4658477a89244288fa3038f11a6faa291b9900906b8a7ba0b9e65deb99276eb9",
+   "bytes": 10104,
+   "git_blob": "f63a28ea45c0cefa366d94784c144e8b162df386",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v8.md",
+   "sha256": "0dd701a3cc30e18922dfa64d037a2a57cc251d9b35ab82bb2c2919fe90d8b272",
+   "bytes": 12431,
+   "git_blob": "9005bded0b03886040b8657f8ca4e46461019b0c",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-evidence-index-v1.md",
+   "sha256": "0d504e108a4f8f8f1c2ada7f1c5027b417a654016555a21eea165205f7115c6a",
+   "bytes": 5417,
+   "git_blob": "3ad7966a03420d614caec4335657ea7da6be7011",
+   "last_commit_at_or_before_sha": "4ee1674 2026-11-19T01:21:38+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-evidence-index-v2.md",
+   "sha256": "a49c317dfa05ec280037600dd181563bedc670dbc7df4c8d22324441ac28f92c",
+   "bytes": 2613,
+   "git_blob": "5aebfbfbacf7f8bbcc96d6c5f3455f2defee20e0",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-evidence-index-v3.md",
+   "sha256": "983a01794b792719b95c4e172f075d1dd15f8db969e6df9eb7122739806005fe",
+   "bytes": 5980,
+   "git_blob": "3a615b812fae0fb2fef830a987769895849f9950",
+   "last_commit_at_or_before_sha": "7cead8a 2026-11-19T20:45:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-evidence-index-v4.md",
+   "sha256": "f8b245465a097f6ebfac019dd3fa10037d43a45d3be6e5de344db0631cf3d4be",
+   "bytes": 4257,
+   "git_blob": "e498254687aa130f626eeade16e4c39b03fbb217",
+   "last_commit_at_or_before_sha": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-evidence-index-v5.md",
+   "sha256": "3844b4897154d9c9871940f2ecf5a3f82504e2bc51a9a19fb7e9390ef17f3d3f",
+   "bytes": 7803,
+   "git_blob": "c4c83a0e9470b9b9f6e56a5d70e0b850211aeaaa",
+   "last_commit_at_or_before_sha": "c6ba66c 2026-11-20T01:19:16+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v1.md",
+   "sha256": "9ccf4ea91b90be17f9f1262ba8fc968de8be16faa09a85d8c03be48d883d7e66",
+   "bytes": 6909,
+   "git_blob": "111abf6e6f126a7bb1fc3ff07cb6e7eff5a1114d",
+   "last_commit_at_or_before_sha": "33f1ed5 2026-11-19T01:06:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v2.md",
+   "sha256": "de70326f4a7c825ea4793b7a8df61fd06fb6f63c1eb4b15f973dcd931a433744",
+   "bytes": 2581,
+   "git_blob": "81cecf0fbf3c7f0aa4574de6cfce82b7e39e58e8",
+   "last_commit_at_or_before_sha": "1625fda 2026-11-19T17:05:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v3.md",
+   "sha256": "8bc37511e0f3daf8a55316b8759d2911a7c47761d4b54501292cf120100dc75a",
+   "bytes": 4480,
+   "git_blob": "58f5de2b14f4d01f623d7fcd69482a26386acb0c",
+   "last_commit_at_or_before_sha": "7cead8a 2026-11-19T20:45:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v4.md",
+   "sha256": "cf8394e6a97205906c35143d814c7e22688b08e5054444370c55687c68dc1268",
+   "bytes": 2599,
+   "git_blob": "dd2efd702d5972ea1b877b7dc2c8160467b73268",
+   "last_commit_at_or_before_sha": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v5.md",
+   "sha256": "56f9448c5a50d03f8b9d3f5c62f0ad692e523d46765dd950f0ee9f4b443393b4",
+   "bytes": 2912,
+   "git_blob": "23d1905ddc55d7371cac5a9b3ec52292149fcb5a",
+   "last_commit_at_or_before_sha": "c6ba66c 2026-11-20T01:19:16+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v6.md",
+   "sha256": "fa9e2c0fcb61f64330403157dadeacce3e2558746a693de9be339d3dfafd0c14",
+   "bytes": 6616,
+   "git_blob": "47f1a5aa2ff1a47c246c591e3450e018c5f46ab7",
+   "last_commit_at_or_before_sha": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v7.md",
+   "sha256": "d5f717078f0d923369cb610e9e7ee33ad9f25309d4ab46cba077d1b3beeb9bb2",
+   "bytes": 9008,
+   "git_blob": "ebca6c11050677d18b413c80123ac266d5f95956",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v8.md",
+   "sha256": "c482668479200aeeb9272c83159c71638a56931731533ec461177b862fc116a0",
+   "bytes": 11818,
+   "git_blob": "c8b820358d3836810569a76db40a5d126045d26d",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-governance-decisions.md",
+   "sha256": "3771404b083e89d3fb14b8b863df1b271a417d5faacc3d64345ff446e75aaa0a",
+   "bytes": 18716,
+   "git_blob": "df381aa3d8a983ca520ac6317e16a222ce0ee441",
+   "last_commit_at_or_before_sha": "1ff863d 2026-11-19T00:43:48+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v1.md",
+   "sha256": "3cad7c2e144b7e2db7b855d37682f2e567a40551e412e018594858aae4108fec",
+   "bytes": 4627,
+   "git_blob": "8e5797a034761ac0a9b47b50550d702107fa81d7",
+   "last_commit_at_or_before_sha": "7cead8a 2026-11-19T20:45:34+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v2.md",
+   "sha256": "8caf9c26f4577327d232a88e956a45324b646d3c785b39b6af7981f792215d07",
+   "bytes": 1940,
+   "git_blob": "d358ab0b507a0fd50d3081a4f2e557101492c7dc",
+   "last_commit_at_or_before_sha": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v3.md",
+   "sha256": "5cb310832419afff0d8ff1917f62db016d8eed5db03eecb6ee5689d0b41c93a7",
+   "bytes": 2155,
+   "git_blob": "877727483d689894c4969febcf06bdd5e623c754",
+   "last_commit_at_or_before_sha": "bc0cb94 2026-11-19T23:47:10+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v4.md",
+   "sha256": "2508aec7363cea795a79f08af0f503285c6a6a5532bc650215841690db2ebd06",
+   "bytes": 3569,
+   "git_blob": "912d986f3b77583b9986b655dd77089f4c928306",
+   "last_commit_at_or_before_sha": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v5.md",
+   "sha256": "0d430e9bc66735e7ea41491050a830a762faf5964d75218d11a2f6d9781bcd74",
+   "bytes": 4824,
+   "git_blob": "a7adfa43e9bdb2c092c31091a8b2c0228d06d2ee",
+   "last_commit_at_or_before_sha": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v6.md",
+   "sha256": "3ba25216e2547498f8964b02b375a8b18c03d1d2bb9e45466ffbb5ac5e9cac6c",
+   "bytes": 5446,
+   "git_blob": "dddd98b21986cde1a9c7ad058fe753fc8b18ca55",
+   "last_commit_at_or_before_sha": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-tenant-context-adr-v1.md",
+   "sha256": "8e3c089ec3bdba3d0db06a93e473a366e4c2d697c0477651438ad417cfa7a64b",
+   "bytes": 4843,
+   "git_blob": "dc81178dbd43bf9fb491faa33ee486f38a6b909c",
+   "last_commit_at_or_before_sha": "189094d 2026-11-19T22:43:42+00:00"
+  },
+  {
+   "path": "render.yaml",
+   "sha256": "54f70ab08e954d7e40a7a1947fde7d4c5eec96f1a235c00ea973795d29396afe",
+   "bytes": 8072,
+   "git_blob": "5c98e2e58969dd2baf23354df9a198490e86c53b",
+   "last_commit_at_or_before_sha": "829f36a 2026-11-20T23:09:02+00:00"
+  }
+ ],
+ "file_count": 230,
+ "self_digest": "cf61ae4239c3f898b0e277f3f32a1fc38e9ced0bf7f0520f70f27bd8f0cd1878"
+}

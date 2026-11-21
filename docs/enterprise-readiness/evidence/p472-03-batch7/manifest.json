@@ -1,11 +1,11 @@
 {
- "generated_at": "2026-11-20T23:55:52+00:00",
- "head": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+ "generated_at": "2026-11-21T03:11:08+00:00",
+ "head": "bed42c86f982efc845130ec65d3b46bdc2d06899",
  "branch": "engineering/render-local-inference-p47",
  "note": "Manifest of the tree at 'head' plus any uncommitted evidence it names; the commit that adds this file is recorded in the release-gate index.",
  "classes": {
-  "CI": 30,
-  "LOCAL-AUTHOR": 55,
+  "CI": 32,
+  "LOCAL-AUTHOR": 58,
   "INDEPENDENT": 0,
   "GOVERNANCE": 0
  },
@@ -1336,6 +1336,85 @@
    "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
    "notes": "frontend unchanged",
    "artifact_sha256": "d51b7335097f0f5bf4b0f48114dfcb58420fb5bb806df842d194ed1c9e801ffe"
+  },
+  {
+   "id": "CI-bed42c8-sqlite",
+   "class": "CI",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947604",
+   "command": "pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "Milestone 9 frozen baseline"
+  },
+  {
+   "id": "CI-bed42c8-pg16",
+   "class": "CI",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947540",
+   "command": "alembic chain + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "Milestone 9 frozen baseline"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-freeze",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "git objects at bed42c8",
+   "command": "backend/scripts/m9_evidence_freeze.py freeze/verify",
+   "status": "pass",
+   "result": {
+    "files": 230,
+    "integrity_failures": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/freeze-bed42c8.json",
+   "notes": "custody record, not a review",
+   "artifact_sha256": "69d6a492442bdd269555d9c402840285ef02d5773c318af60774a3a18f0a459f"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-kit-rehearsal",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "kit --ids RB-T24..RB-T37 --after bed42c8, SQLite + PG16.15",
+   "command": "p472_03_tripwire_review_kit.py run",
+   "status": "pass",
+   "result": {
+    "variants_per_db": 48,
+    "matched_expectation_sqlite": 48,
+    "matched_expectation_pg16": 48
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/postgres/kit-results-postgres.json",
+   "notes": "rehearsal of handbook commands; not independent",
+   "artifact_sha256": "45de5ffcdb7a671d4e06844355b99e33f2d9f9b78610ca1a3df8ecde97de5bf3"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-a1-mutation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "6 single-gate mutations, SQLite + PG16.15",
+   "command": "backend/scripts/m9_a1_mutation_check.py",
+   "status": "pass",
+   "result": {
+    "mutations": 6,
+    "matched_sqlite": 6,
+    "matched_pg16": 6
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-postgres.json",
+   "notes": "first SQLite run had an incomplete author expectation for M5 (unset-AUTH_MODE control); corrected and rerun; first output preserved",
+   "artifact_sha256": "f10d1e5bbb6d5f8a15ca176d99cd6d882a1c0b283ebc8a0ea7aafae547174ef1"
   }
  ],
  "files": [
@@ -1343,8 +1422,8 @@
    "path": "backend/tests/p472_03_findings_register.json",
    "sha256": "804773a6aeddece27bf054159c6a29f7323ffb220cec0d95889fbd6d551384fa",
    "bytes": 1216,
-   "git_blob_at_HEAD": "35b152a13725a4324e996ef56fca7e30d27c6f43",
-   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+   "git_blob_at_HEAD": "ecf270e7acbcb7b2fb442c98a8a961f7f8fc3d41",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.md",
@@ -1427,15 +1506,15 @@
    "path": "backend/scripts/p472_03_tripwire_review_kit.py",
    "sha256": "ed6bb9b7c0af81c383bbd61dc62272cfc587a84ba4aa831c4313a17c9eb9e802",
    "bytes": 30533,
-   "git_blob_at_HEAD": "2635d0800f1645c408ff48b1abac77bf37945ff0",
-   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+   "git_blob_at_HEAD": "550950dec533947ce56b6bd167391a2301e40e84",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "backend/scripts/p472_03_evidence_manifest.py",
-   "sha256": "2bed0578f411eb7e6634ebdb3edcf1c389bc89cd60537f35424921843308f9b5",
-   "bytes": 6221,
-   "git_blob_at_HEAD": "6c3c69425ff5c88ab724e20f4ac74eb2645da1b3",
-   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+   "sha256": "b483185730a41806cbb19e0c215583264ed72b05c82794dd39ccac3f6d8188c1",
+   "bytes": 6290,
+   "git_blob_at_HEAD": "202111676aad13343d8c55d1671c70a8fe11dd6b",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": ".github/workflows/pilot-zero-gate.yml",
@@ -1644,57 +1723,57 @@
    "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v8.md",
    "sha256": "0dd701a3cc30e18922dfa64d037a2a57cc251d9b35ab82bb2c2919fe90d8b272",
    "bytes": 12431,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "9005bded0b03886040b8657f8ca4e46461019b0c",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v8.md",
    "sha256": "c482668479200aeeb9272c83159c71638a56931731533ec461177b862fc116a0",
    "bytes": 11818,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "c8b820358d3836810569a76db40a5d126045d26d",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v6.md",
    "sha256": "3ba25216e2547498f8964b02b375a8b18c03d1d2bb9e45466ffbb5ac5e9cac6c",
    "bytes": 5446,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "dddd98b21986cde1a9c7ad058fe753fc8b18ca55",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v3.md",
    "sha256": "a0b0ef934967d2b46c3acecdda165ac8fa279ca0794a69d18b6f607fdd24405d",
    "bytes": 6403,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "6808cbaec6ab943ccc73502718f9a59fa66f618b",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v8.md",
    "sha256": "e9563fb89d360b217a1fa1a48fa8abb316cb699fef337e089855d08ebb905a15",
    "bytes": 4048,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "7b05dffbe709eedeaea33861d0c597be12bc6f3f",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v2.md",
    "sha256": "09824ccb72d451644f9f405aa89ddb8239d03f11239e8056043021f303120402",
    "bytes": 11508,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "0450e708f7076a705bd30d2544074024e9066dfc",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-pa1-remediation-assertion-change-log-v1.md",
    "sha256": "9995ca7c994c2db2eb9203ae3fd8133ee485cffae5a34d5e9a708a85255f734f",
    "bytes": 7864,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "03babe5c1f4394288a3dc0b2cf12a9dff2dec31e",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/p472-03-pa1-remediation-review-packets-v1.md",
    "sha256": "bff7c23cfde4048e205af9ec22187aa0dd34e4dfc5d27bb7f786f85302dee461",
    "bytes": 9264,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "4ace39e9c251cafd892ff2910758c5e78a4f8dee",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "backend/app/core/environment.py",
@@ -1716,6 +1795,76 @@
    "bytes": 8354,
    "git_blob_at_HEAD": "82256e1c61fae4a6a9aafbe5517fd009f5cddbcf",
    "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-independent-reviewer-handbook-v1.md",
+   "sha256": "08851e8f44e9b20a5636bdab2a5c879e3ec184622a88ab12d366c5ec80509cda",
+   "bytes": 14218,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-forty-tripwire-review-and-disposition-ledger-v1.md",
+   "sha256": "423067734734dfc45140859157a4e44710d3f55686bdcac1d67771ff94b0fcf9",
+   "bytes": 42139,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-pa1-architecture-assurance-packet-v1.md",
+   "sha256": "00d020d4b892de61de238cd6baf8f99783386f70130ffdc307dbf123d90a0229",
+   "bytes": 12181,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-governance-approval-matrix-v1.md",
+   "sha256": "6c0d80065527f29b962e427e42a061e1c584017241ca36e22215dd4aac1576f8",
+   "bytes": 12812,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-historical-access-authorization-package-v1.md",
+   "sha256": "6e1914ffa7c965217606735623711cd5480d0894579872e82f164ce9de1f33dd",
+   "bytes": 9521,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-enterprise-release-readiness-assessment-v1.md",
+   "sha256": "347169218e051a4b27bb7c018326ca32eab7788a30337b1f085748885317ca92",
+   "bytes": 9328,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v9.md",
+   "sha256": "ea0f470dae98cdac87af410e108921e8d73c64b57f2e8424ec75fc6a357300e4",
+   "bytes": 13745,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "backend/scripts/m9_evidence_freeze.py",
+   "sha256": "56e590bdb911def47b027e1d7d66a232000486201b2db02b13fac8515637fb10",
+   "bytes": 7751,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "backend/scripts/m9_a1_mutation_check.py",
+   "sha256": "34d6c9b7a3a55da695c160639708424c6329cd9b63732e1798ddf8261192c6b5",
+   "bytes": 7472,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "backend/scripts/m9_tripwire_ledger.py",
+   "sha256": "5f3cf27c07aa3baf9135bbace3c1340955ae58c7fa673bb9d61a58424463f2bb",
+   "bytes": 9478,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_deterministic_repro.txt",
@@ -2204,57 +2353,57 @@
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_gates_postgres.txt",
    "sha256": "47c09fc4344e45381294c2a8eb65ecb9309b126e82758352f0f6a57b9900fa13",
    "bytes": 29,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "cef687207f74a3c3fbbd74fc03e6a5ef3bb34131",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_gates_sqlite.txt",
    "sha256": "7bf2c9cf78dad207fb4a1b488b16abe9bc7b9b2dd4b5e4b7d18696eb348c5791",
    "bytes": 29,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "592ebf4865424f2f230a17c66773b6471fcb34e9",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_postgres.txt",
    "sha256": "c409771e9ac5cc15724932d9341b1643387eaa71bd912656aeadce9336ba0919",
    "bytes": 32,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "cd44da77f0b6bdb2ff6ddc7a239fae1ee0d23b1d",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_sqlite.txt",
    "sha256": "aa6c8d172167465b9a778143de71d0387da666932cb5de9adceb374e002ec54c",
    "bytes": 32,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "a91c62197c0b58a90ae0ea084a9ac8cf7a8a446a",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.json",
    "sha256": "47a86ed34164ec4c07595567b1fc88d94b63c6667bec3626c8de18439b393de6",
    "bytes": 5343,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "28cc2c04605f0a6e0e1b68efc480171db6205393",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.stderr",
    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "bytes": 0,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_sqlite.json",
    "sha256": "1b19dc46a0cf5fdf3964ac9d5669bea590474d78d2cda2d6766b59ce602674a5",
    "bytes": 5305,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "b38be97d813df2e2d65eb75ba6d2d3d5afa860b8",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_sqlite.stderr",
    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "bytes": 0,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_postgres.txt",
@@ -2309,139 +2458,195 @@
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run1.txt",
    "sha256": "e749371ea79f8dc81723e5fb62b68834cb554d9631fa5231238dee769bc02781",
    "bytes": 561,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "139b9b980a7086e9070bcfd39d805fb9074404e7",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run2.txt",
    "sha256": "1a2d7c4d4dc57ac08fce893d8cbda7570954a0174b244c8dc21f86b64940d75a",
    "bytes": 561,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "bf5e4a951063fcfe695c0b480eae1e67002775b9",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-build.txt",
    "sha256": "f5ce31a6beee2885b833a6315be9992714ef1dbaea2567e07faf15260d8043eb",
    "bytes": 190,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "e34ed7d3f227d4b896bf69739d4f75d59770eb1f",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
    "sha256": "d51b7335097f0f5bf4b0f48114dfcb58420fb5bb806df842d194ed1c9e801ffe",
    "bytes": 101,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "204dad9a3992c52021d0db279df652091a219fb1",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/alembic.log",
    "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
    "bytes": 3279,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/driver.log",
    "sha256": "f989f51f01bc310d5717d642e286dfc23e1aabc80e811b7c7338b15e377721f5",
    "bytes": 63,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "90917d02a5b6005b09d6fec7026b304a26eaaad5",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/env.txt",
    "sha256": "5633f00ed004ce126d60cfb7e61f8172a82a8eda630ba13e2c609e5ae8db1ec6",
    "bytes": 389,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "3a0d8424d0d59ba50e88c3615bad1e6e3772bdaf",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/junit.xml.gz",
    "sha256": "85b877917423ae7c932dfc722f40dcf0be588656118bc0445473e1ac78db673b",
    "bytes": 133677,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "ecda93b1c47a5b25c58bb1ddf677c6d3f402276c",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/pytest.log.gz",
    "sha256": "b4a44e215617c7e62db09684f2fc3595a9470036f55cc2d881e6563f14302460",
    "bytes": 11091,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "95aabe0f63d1635f50f744b01c38ab9c45fa18e8",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/register-isolation.txt",
    "sha256": "4e225d1b5d8aa9574dcda060ff6f8ab137edb51147781a6b6c3c648b874aa392",
    "bytes": 43,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "3bac33201ee995406f02d5c74702bcd54aed6c9c",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/junit.xml.gz",
    "sha256": "be76c909ca7c9160886f9fb5e33bb35713a9ebe7602aa76a7d9357f1b43bb3ce",
    "bytes": 130532,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "45c8cbafbeb8e1ad935bb730dca2f38d93600b10",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/pytest.log.gz",
    "sha256": "06da50271c248d7a9690bd848357dea0719b735b71131216ee312e10d3861180",
    "bytes": 11154,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "5d5afcc4545293c91690ccc2bebb8ca6d9a9cb57",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16-summary.txt",
    "sha256": "380a8a97f8564acc523c7ed2e17035d25d3922522087e510d72050aa541fa9e8",
    "bytes": 277,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "8c2f2fa943ff5c829185b10469e8d63c7562604e",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16.json.gz",
    "sha256": "f566a6f5b7b6f099b2cca691c1952d6188d2bbc21890c3331255c69b73e1b09c",
    "bytes": 75570,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "f53c4009babf19dc8917d80de3f5429ff2a84bfd",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite-summary.txt",
    "sha256": "f3cee8dd90ffff19a4ab7821a599156ffec04f21f77ae34532d4d88e5ced2fdc",
    "bytes": 277,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "495aa9f6d922e005e11702ebd5e412afc7ec862d",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite.json.gz",
    "sha256": "15fdf3838706daccfc4aa948960e08f313bd5f26f24cece2ac8d4b73c718b644",
    "bytes": 75363,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "49e24dc209ce00adbb5ca5e6f1a618d180283a6e",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/kit_postgres.log",
    "sha256": "9cc5f10fa37ede58674237897b62e8809e828a24dc111730ef284931c027ed64",
    "bytes": 1553,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "521cfdf0cfea320a250991b0926cb4fe2a3dce87",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/kit_sqlite.log",
    "sha256": "1202a16b9ade9c65465a788968943c07aeeef8c8f28a89ebb8d01e431d14e8a5",
    "bytes": 1549,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "820a81d0c5e4366678d6db6f634b23c4ca2cd834",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/postgres/kit-results-postgres.json",
    "sha256": "2097d9b9349c3e0275d216e178c309bae17652b69a2830c9efd4c6f2ddf21bd5",
    "bytes": 4700,
-   "git_blob_at_HEAD": "not committed",
-   "last_commit": "not committed"
+   "git_blob_at_HEAD": "a065cbd09298fa08ac07522a7b650a46f66dbbb0",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
   },
   {
    "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/sqlite/kit-results-sqlite.json",
    "sha256": "b960e6406ac69ab713f23566771d94d7a81299204c70ed684af6c8fe10942819",
    "bytes": 4677,
+   "git_blob_at_HEAD": "261626cdc3b56a556a606ef31ef6737f9975a993",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-postgres.json",
+   "sha256": "f10d1e5bbb6d5f8a15ca176d99cd6d882a1c0b283ebc8a0ea7aafae547174ef1",
+   "bytes": 3494,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-sqlite-run1-expectation-incomplete.json",
+   "sha256": "1e4bc6a6048622f543603a6da34b8de118cbbcc50bc7773ca0853bb0f9d4c17b",
+   "bytes": 3492,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-sqlite.json",
+   "sha256": "af0ae59b599faf0dee35580541050c567b25df9e11eb93650aca84d519a9f81f",
+   "bytes": 3490,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/freeze-bed42c8.json",
+   "sha256": "69d6a492442bdd269555d9c402840285ef02d5773c318af60774a3a18f0a459f",
+   "bytes": 91453,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/kit_postgres.log",
+   "sha256": "93ef9a6576cb60931304f9fc52fd268177767aebdd6c795b6369a86c00860288",
+   "bytes": 4342,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/kit_sqlite.log",
+   "sha256": "869bc0a2d64052fee00baf6da71a34f635f79403a5a975104c6e895a4e1997a2",
+   "bytes": 4338,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/postgres/kit-results-postgres.json",
+   "sha256": "45de5ffcdb7a671d4e06844355b99e33f2d9f9b78610ca1a3df8ecde97de5bf3",
+   "bytes": 15793,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/sqlite/kit-results-sqlite.json",
+   "sha256": "435ccdf76d00cc446240b7acbdf70273de01bc3364a08434ab192e1ecef17ac1",
+   "bytes": 15695,
    "git_blob_at_HEAD": "not committed",
    "last_commit": "not committed"
   }

@@ -1,0 +1,635 @@
+{
+ "meta": {
+  "after": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+  "db": "sqlite",
+  "python": "3.11.18",
+  "note": "author-generated reproduction; NOT an independent review"
+ },
+ "results": [
+  {
+   "id": "RB-T24",
+   "variant": "before/final",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: assert 200 == 404",
+   "seconds": 24.5,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T24",
+   "variant": "before/original",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: assert 200 == 404",
+   "seconds": 14.2,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T24",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 14.9,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T24",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.6,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T25",
+   "variant": "before/final",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: assert [{'id': 1, 's...ing-2'], ...}] == []",
+   "seconds": 13.2,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T25",
+   "variant": "before/original",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: assert [{'id': 1, 's...ing-2'], ...}] == []",
+   "seconds": 13.5,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T25",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 14.5,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T25",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 14.2,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T26",
+   "variant": "before/final",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: assert 200 == 404",
+   "seconds": 14.6,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T26",
+   "variant": "before/original",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: assert 200 == 404",
+   "seconds": 14.3,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T26",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 15.3,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T26",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 14.5,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T27",
+   "variant": "before/final",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 'b54-user-a-...@example.com' not in '{\"id\":1,\"so...:08.738516\"}'",
+   "seconds": 14.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T27",
+   "variant": "before/original",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 'b54-user-a-...@example.com' not in '{\"id\":1,\"so...:23.722507\"}'",
+   "seconds": 14.8,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T27",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.9,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T27",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.9,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T28",
+   "variant": "before/final",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert False",
+   "seconds": 14.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T28",
+   "variant": "before/original",
+   "code_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert False",
+   "seconds": 14.2,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T28",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 15.4,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T28",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "e2173c2832e3611363bf3377c8c4ee9ed983121e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: {\"detail\":\"Recording evidence for this source is not permitted.\"}",
+   "seconds": 14.2,
+   "extra": {
+    "expected": "failed (original set-up's foreign write is now refused, Batch 7)"
+   }
+  },
+  {
+   "id": "RB-T29",
+   "variant": "before/final",
+   "code_sha": "4667ab8d5ffe857225ddb41baa19179a0755fb85",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 201 == 404",
+   "seconds": 15.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T29",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.5,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T30",
+   "variant": "before/final",
+   "code_sha": "4667ab8d5ffe857225ddb41baa19179a0755fb85",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 201 == 403",
+   "seconds": 14.0,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T30",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 14.3,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T31",
+   "variant": "before/final",
+   "code_sha": "4667ab8d5ffe857225ddb41baa19179a0755fb85",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 201 == 404",
+   "seconds": 13.5,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T31",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.5,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T33",
+   "variant": "before/final",
+   "code_sha": "4667ab8d5ffe857225ddb41baa19179a0755fb85",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 201 == 403",
+   "seconds": 13.1,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T33",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 14.3,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T32",
+   "variant": "before/final",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: /api/guardianx/explainability",
+   "seconds": 14.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T32",
+   "variant": "before/original",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "6a661bb0749cf4d3742d78d192716e2350097e8d",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "AssertionError: /api/guardianx/explainability",
+   "seconds": 14.0,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T32",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.5,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T32",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "6a661bb0749cf4d3742d78d192716e2350097e8d",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.1,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T34",
+   "variant": "before/final",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 200 == 404",
+   "seconds": 13.7,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T34",
+   "variant": "before/original",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 200 == 404",
+   "seconds": 13.3,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T34",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.5,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T34",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.0,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T35",
+   "variant": "before/final",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 201 == 403",
+   "seconds": 12.5,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T35",
+   "variant": "before/original",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 201 == 403",
+   "seconds": 13.3,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T35",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.4,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T35",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.3,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T36",
+   "variant": "before/final",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 'legacy-a2bc02aa' not in '{\"id\":1,\"so...:37.803139\"}'",
+   "seconds": 13.6,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T36",
+   "variant": "before/original",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 'legacy-f9e63394' not in '{\"id\":1,\"so...:51.306225\"}'",
+   "seconds": 13.6,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T36",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.8,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T36",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 12.6,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T37",
+   "variant": "before/final",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 1 == 0",
+   "seconds": 13.1,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T37",
+   "variant": "before/original",
+   "code_sha": "83dbf70e962fb99ab963f7f3ca538c667de82a0e",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "failed",
+   "message": "assert 1 == 0",
+   "seconds": 14.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T37",
+   "variant": "after/final",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.2,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T37",
+   "variant": "after/original",
+   "code_sha": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+   "tests_sha": "eec3bc8e70dcabf529a744e093d9622f0f0da90e",
+   "db": "sqlite",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 13.3,
+   "extra": {
+    "expected": "passed"
+   }
+  }
+ ],
+ "controls": {}
+}
