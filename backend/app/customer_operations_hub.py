@@ -188,5 +188,6 @@ def run_renewal_risk_action(db: Session, tenant_id: str, tenant_name: str) -> di
     return run_renewal_risk(db, tenant_id, tenant_name)
 
 
-def run_sla_scan_action() -> dict:
-    return run_scanner_once()
+def run_sla_scan_action(tenant_id: str, tenant_name: str) -> dict:
+    """The calling tenant's SLA scan (never every tenant; P472-03 AW-12)."""
+    return run_scanner_once(tenant_id, tenant_name)

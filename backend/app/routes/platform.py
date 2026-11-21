@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.nexus_integration import EVENT_MODULE_LICENSE_CHANGED, EVENT_PLUGIN_REGISTERED
 from app.models.platform_core import MODULE_KEYS
 from app.services import (
@@ -63,7 +63,7 @@ _ADMIN_ROLES = ("admin",)
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def _actor(current_user) -> str:

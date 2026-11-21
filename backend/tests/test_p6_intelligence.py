@@ -12,11 +12,17 @@ Covers:
 """
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
+
+from tenant_header_client import TenantHeaderClient
 
 from app.main import app
 
-client = TestClient(app)
+# P472-03: these routes take the tenant from the verified auth context. The shared
+# development token used here reads it from X-Tenant-Id, so the client states the
+# tenant each request already names in that header too (see tenant_header_client).
+client = TenantHeaderClient(TestClient(app))
 
 AUTH = {"Authorization": "Bearer dev-token", "X-LumenAI-Role": "operator"}
 TENANT = "test-tenant-p6"
@@ -255,11 +261,11 @@ class TestIntelligenceAPI:
         assert len(r.json()["trends"]) == 4
 
     def test_recalls_status_ok(self):
-        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.status_code == 200
 
     def test_recalls_has_recalls(self):
-        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()
         assert "recalls" in data
 
@@ -268,70 +274,70 @@ class TestIntelligenceAPI:
         assert r.status_code in (401, 403)
 
     def test_recall_detail_status_ok(self):
-        r = client.get("/api/intelligence/recalls/1", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls/1", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.status_code == 200
 
     def test_recall_detail_has_recall(self):
-        r = client.get("/api/intelligence/recalls/1", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls/1", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert "recall" in r.json()
 
     def test_recall_detail_severity_valid(self):
-        r = client.get("/api/intelligence/recalls/1", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls/1", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         severity = r.json()["recall"]["severity"]
         assert severity in ("class_i", "class_ii", "class_iii", "advisory")
 
     def test_capa_effectiveness_status_ok(self):
-        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.status_code == 200
 
     def test_capa_effectiveness_has_score(self):
-        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["capa_effectiveness"]
         assert "effectiveness_score" in data
         assert 0 <= data["effectiveness_score"] <= 100
 
     def test_capa_effectiveness_closure_rate(self):
-        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["capa_effectiveness"]
         assert 0 <= data["closure_rate_pct"] <= 100
 
     def test_capa_effectiveness_totals_consistent(self):
-        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/capa-effectiveness", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["capa_effectiveness"]
         assert data["open_capas"] + data["closed_capas"] == data["total_capas"]
 
     def test_dashboard_status_ok(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.status_code == 200
 
     def test_dashboard_returns_success(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.json()["status"] == "success"
 
     def test_dashboard_has_vendors(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["dashboard"]
         assert "vendor_scorecards" in data
         assert len(data["vendor_scorecards"]) > 0
 
     def test_dashboard_has_manufacturers(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["dashboard"]
         assert "manufacturer_scorecards" in data
         assert len(data["manufacturer_scorecards"]) > 0
 
     def test_dashboard_has_signals(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["dashboard"]
         assert "shared_defect_signals" in data
 
     def test_dashboard_has_recalls(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["dashboard"]
         assert "recall_events" in data
 
     def test_dashboard_has_capa_effectiveness(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["dashboard"]
         assert "capa_effectiveness" in data
 
@@ -340,7 +346,7 @@ class TestIntelligenceAPI:
         assert r.status_code in (401, 403)
 
     def test_dashboard_avg_score_range(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()["dashboard"]
         assert 0 <= data["avg_vendor_composite_score"] <= 100
         assert 0 <= data["avg_manufacturer_composite_score"] <= 100
@@ -440,12 +446,12 @@ class TestTenantIsolation:
         assert r_b.json()["manufacturer"]["tenant_id"] == TENANT_B
 
     def test_recalls_scoped_to_tenant(self):
-        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         for recall in r.json()["recalls"]:
             assert recall["tenant_id"] == TENANT
 
     def test_dashboard_scoped_to_tenant(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.json()["dashboard"]["tenant_id"] == TENANT
 
 
@@ -594,7 +600,7 @@ class TestRecallIntelligence:
         assert isinstance(result.affected_instrument_categories, list)
 
     def test_recalls_api_returns_correct_tenant(self):
-        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()
         assert data["tenant_id"] == TENANT
 
@@ -725,14 +731,42 @@ class TestIntelligenceConsent:
 # TestManufacturerPortal
 # ────────────────────────────────────────────────────────────────────────────────
 
+# P472-03 AW-07: manufacturer portals require a verified manufacturer membership.
+MFR_USER = "p6-mfr-user@example.com"
 MFR_AUTH = {
     "Authorization": "Bearer dev-token",
     "X-LumenAI-Role": "manufacturer",
+    "x-lumenai-actor": MFR_USER,
     "X-Manufacturer-ID": "mfr-stryker",
 }
 
 
+def _grant_manufacturer(manufacturer_id: str, user: str = MFR_USER) -> None:
+    from app.db.session import SessionLocal
+    from app.db.models import ManufacturerMembership
+
+    db = SessionLocal()
+    try:
+        if not (
+            db.query(ManufacturerMembership)
+            .filter(
+                ManufacturerMembership.user_email == user,
+                ManufacturerMembership.manufacturer_id == manufacturer_id,
+            )
+            .first()
+        ):
+            db.add(ManufacturerMembership(
+                manufacturer_id=manufacturer_id, user_email=user,
+                role="manufacturer_admin", is_enabled=True))
+            db.commit()
+    finally:
+        db.close()
+
+
 class TestManufacturerPortal:
+    @pytest.fixture(autouse=True)
+    def _seed_manufacturer_membership(self):
+        _grant_manufacturer("mfr-stryker")
     def test_my_scorecard_requires_manufacturer_header(self):
         r = client.get(
             "/api/manufacturer-portal/my-scorecard",
@@ -863,11 +897,11 @@ class TestDataTierEnforcement:
     def test_recalls_blocked_on_standard_tier(self):
         # standard tier (default) should get 402 on recalls
         # Note: if tenant defaults to standard, this should return 402
-        r = client.get("/api/intelligence/recalls", params={"tenant_id": "standard-tier-tenant"}, headers=AUTH)
+        r = client.get("/api/intelligence/recalls", params={"tenant_id": "standard-tier-tenant"}, headers={**AUTH, "X-Tenant-Id": "standard-tier-tenant"})
         assert r.status_code in (200, 402)  # 402 if tier enforcement active
 
     def test_dashboard_blocked_on_standard_tier(self):
-        r = client.get("/api/intelligence/dashboard", params={"tenant_id": "standard-tier-tenant", "period_label": "2026-06"}, headers=AUTH)
+        r = client.get("/api/intelligence/dashboard", params={"tenant_id": "standard-tier-tenant", "period_label": "2026-06"}, headers={**AUTH, "X-Tenant-Id": "standard-tier-tenant"})
         assert r.status_code in (200, 402)
 
     def test_tier_guard_get_tenant_tier_default(self):
@@ -917,17 +951,17 @@ class TestFDARecallSyncExtended:
 
 class TestBillingAPI:
     def test_billing_status_ok(self):
-        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert r.status_code == 200
 
     def test_billing_status_has_tier(self):
-        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         data = r.json()
         assert "current_tier" in data
         assert data["current_tier"] in ("standard", "professional", "enterprise")
 
     def test_billing_status_has_features(self):
-        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers=AUTH)
+        r = client.get("/api/billing/status", params={"tenant_id": TENANT}, headers={**AUTH, "X-Tenant-Id": TENANT})
         assert "features_included" in r.json()
 
     def test_billing_checkout_sandbox_without_stripe_key(self):

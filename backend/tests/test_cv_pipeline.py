@@ -9,6 +9,7 @@ Covers:
 """
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.cv.mock_provider import MockCVProvider
@@ -20,6 +21,14 @@ from app.schemas.cv import (
     BoundingBox,
     CVAnalysisRequest,
 )
+
+# P4.7.1: this module tests the mock CV provider, which is a SIMULATION (its
+# findings are seeded from the image URL, not derived from pixels). It is no
+# longer the default anywhere — it is selectable only where simulation is
+# explicitly permitted (explicit dev/test APP_ENV + AI_ALLOW_DEMO_SCORING). The
+# whole module therefore opts in to the segregated simulation. The fail-closed
+# production/research behaviour is covered by tests/test_p471_fail_closed_inference.py.
+pytestmark = pytest.mark.usefixtures("enable_demo_scoring")
 
 client = TestClient(app)
 AUTH = {"Authorization": "Bearer dev-token", "X-LumenAI-Role": "operator"}

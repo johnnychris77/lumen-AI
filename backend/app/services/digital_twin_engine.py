@@ -161,9 +161,14 @@ def get_twin_state(tenant_id: str, facility_id: str, db: Session) -> TwinStateRe
 
         try:
             from app.models.cv_inference import CVInferenceRecord  # type: ignore
-            cv_count = db.query(CVInferenceRecord).filter(
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
+            # P4.7.1/P4.7.2: verified model inference only (trusted provenance). At
+            # most 30 are needed (see the cap below), so 30 rows are loaded and each
+            # one's provenance seal is verified rather than trusting a SQL count.
+            cv_count = len(integrity_verified(db, db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
-            ).count()
+                *operational_sql_criteria(CVInferenceRecord),
+            ).order_by(CVInferenceRecord.id.desc()).limit(30).all()))
             if cv_count > 0 and throughput == 0:
                 # Use CV records as proxy for throughput
                 throughput = min(cv_count, 30)

@@ -1,0 +1,167 @@
+{
+ "meta": {
+  "after": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+  "db": "postgres",
+  "python": "3.11.18",
+  "note": "author-generated reproduction; NOT an independent review"
+ },
+ "results": [
+  {
+   "id": "RB-T38",
+   "variant": "before/final",
+   "code_sha": "c2014ffaf453ac4adc2e6422bcdd4badfc17a08c",
+   "tests_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "assert True is False",
+   "seconds": 17.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T38",
+   "variant": "before/original",
+   "code_sha": "c2014ffaf453ac4adc2e6422bcdd4badfc17a08c",
+   "tests_sha": "6b2a8d60647038b76fbd8be053c176bbe849c02a",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "assert True is False",
+   "seconds": 16.5,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T38",
+   "variant": "after/final",
+   "code_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "tests_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "db": "postgres",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 8.9,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T38",
+   "variant": "after/original",
+   "code_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "tests_sha": "6b2a8d60647038b76fbd8be053c176bbe849c02a",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "AssertionError: FATAL: refusing to start (production configuration check): ENABLE_DEV_AUTH is enabled in a production environment; development tokens must never authenticate in production. Set ENABLE_DEV_AUTH=false.",
+   "seconds": 9.2,
+   "extra": {
+    "expected": "failed (original probe requires app.main to start; startup is now refused, PA-1 A-1)"
+   }
+  },
+  {
+   "id": "RB-T39",
+   "variant": "before/final",
+   "code_sha": "c2014ffaf453ac4adc2e6422bcdd4badfc17a08c",
+   "tests_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "assert 200 in (401, 403, 404)",
+   "seconds": 15.9,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T39",
+   "variant": "before/original",
+   "code_sha": "c2014ffaf453ac4adc2e6422bcdd4badfc17a08c",
+   "tests_sha": "6b2a8d60647038b76fbd8be053c176bbe849c02a",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "assert 200 in (401, 403, 404)",
+   "seconds": 16.8,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T39",
+   "variant": "after/final",
+   "code_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "tests_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "db": "postgres",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 9.3,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T39",
+   "variant": "after/original",
+   "code_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "tests_sha": "6b2a8d60647038b76fbd8be053c176bbe849c02a",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "AssertionError: FATAL: refusing to start (production configuration check): DEMO_MODE is enabled in a production environment; the demo routes (including the data-deleting /api/demo/reset) accept public literal tokens. Unset DEMO_MODE.",
+   "seconds": 9.6,
+   "extra": {
+    "expected": "failed (original probe requires app.main to start; startup is now refused, PA-1 A-1)"
+   }
+  },
+  {
+   "id": "RB-T40",
+   "variant": "before/final",
+   "code_sha": "c2014ffaf453ac4adc2e6422bcdd4badfc17a08c",
+   "tests_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}",
+   "seconds": 16.9,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T40",
+   "variant": "before/original",
+   "code_sha": "c2014ffaf453ac4adc2e6422bcdd4badfc17a08c",
+   "tests_sha": "6b2a8d60647038b76fbd8be053c176bbe849c02a",
+   "db": "postgres",
+   "outcome": "failed",
+   "message": "AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}",
+   "seconds": 16.4,
+   "extra": {
+    "expected": "failed"
+   }
+  },
+  {
+   "id": "RB-T40",
+   "variant": "after/final",
+   "code_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "tests_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "db": "postgres",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 26.1,
+   "extra": {
+    "expected": "passed"
+   }
+  },
+  {
+   "id": "RB-T40",
+   "variant": "after/original",
+   "code_sha": "829f36a230dab3fe6c4a5f4f61a42605069e2c32",
+   "tests_sha": "6b2a8d60647038b76fbd8be053c176bbe849c02a",
+   "db": "postgres",
+   "outcome": "passed",
+   "message": "",
+   "seconds": 26.0,
+   "extra": {
+    "expected": "passed"
+   }
+  }
+ ],
+ "controls": {}
+}

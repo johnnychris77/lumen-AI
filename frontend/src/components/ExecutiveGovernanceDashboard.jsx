@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, onProtectedLinkClick } from "@/lib/api";
 
 const FRONTEND_BASE = "https://lumen-ai-1.onrender.com";
 
@@ -450,6 +450,13 @@ function ExecutiveCard({ title, description, links }) {
             href={href}
             target="_blank"
             rel="noreferrer"
+            // CAPA and vendor-governance data are authenticated and tenant-scoped;
+            // a plain navigation cannot send the session token.
+            onClick={
+              /\/api\/(capa\/|enterprise\/vendor-governance\/(?!health))/.test(href)
+                ? (event) => onProtectedLinkClick(event, href)
+                : undefined
+            }
             style={{
               borderRadius: "999px",
               border: "1px solid #ddd6fe",

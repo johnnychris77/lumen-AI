@@ -6,11 +6,12 @@ orchestrated run, and explainable trace for a real inspection.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import run_pipeline
 from app.agents.registry import get_registry
+from app.auth.tenant_scope import principal_tenant
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
@@ -50,24 +51,26 @@ def _get_inspection(db: Session, inspection_id: int, tenant_id: str):
 
 @router.get("/run/{inspection_id}")
 def run_agent_pipeline(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 13 — run the full agent pipeline for one real inspection."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = _get_inspection(db, inspection_id, tenant_id)
     return run_pipeline(db, insp, tenant_id)
 
 
 @router.get("/trace/{inspection_id}")
 def get_agent_trace(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 14 — Explainable Agent Trace: which agent produced which decision."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = _get_inspection(db, inspection_id, tenant_id)
     result = run_pipeline(db, insp, tenant_id)
     return {

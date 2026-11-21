@@ -566,18 +566,20 @@ class TestDashboard:
 
 
 class TestPlatformStats:
-    def test_returns_200_no_auth(self):
-        r = client.get("/api/infrastructure/platform-stats")
+    def test_requires_authentication(self):
+        # P472-03 governance decision GD-1: the counter is no longer public.
+        assert client.get("/api/infrastructure/platform-stats").status_code == 401
+        r = client.get("/api/infrastructure/platform-stats", headers=HEADERS)
         assert r.status_code == 200
 
     def test_has_registered_instruments(self):
-        r = client.get("/api/infrastructure/platform-stats")
+        r = client.get("/api/infrastructure/platform-stats", headers=HEADERS)
         body = r.json()
         assert "registered_instruments" in body
         assert isinstance(body["registered_instruments"], int)
 
     def test_has_disclaimer(self):
-        r = client.get("/api/infrastructure/platform-stats")
+        r = client.get("/api/infrastructure/platform-stats", headers=HEADERS)
         assert "disclaimer" in r.json()
 
 

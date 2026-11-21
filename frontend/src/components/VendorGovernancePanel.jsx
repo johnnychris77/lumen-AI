@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, openProtectedFile } from "@/lib/api";
 
 export default function VendorGovernancePanel() {
   const [summary, setSummary] = useState(null);
@@ -47,10 +47,10 @@ export default function VendorGovernancePanel() {
 
 
   function downloadVendorPowerBiCsv() {
-    window.open(
+    openProtectedFile(
       `${API_BASE}/api/enterprise/vendor-governance/powerbi-csv?limit=500`,
-      "_blank"
-    );
+      "lumenai-vendor-governance-powerbi.csv"
+    ).catch((error) => setErrorMessage(error.message || "Unable to export vendor governance data."));
   }
 
   async function createCapaFromVendorEvent(eventId) {

@@ -43,12 +43,10 @@ from app.routes.agent import router as agent_router
 from app.routes.qa_review import router as qa_review_router
 from app.routes.review_analytics import router as review_analytics_router
 from app.routes.model_performance import router as model_performance_router
-from app.routes.stream import router as stream_router
 from app.routes.vendor_analytics import router as vendor_analytics_router
 from app.routes.alerts import router as alerts_router
 from app.routes.capa import router as capa_router
 from app.routes.vendor_governance import router as vendor_governance_router
-from app.services.capa_service import capa_summary as persistent_capa_summary
 from app.db import Base, engine
 from app.routes.governance_intelligence import router as governance_intelligence_router
 from app.routes.capa_predictive_risk import router as capa_predictive_risk_router
@@ -301,50 +299,26 @@ async def lifespan(_app: FastAPI):
         _logging.getLogger(__name__).warning("Scheduler shutdown/release skipped: %s", _se)
 
 
-_IS_PRODUCTION = os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod"}
+# --- Production safety guards (P472-03 PA-1 remediation) ---
+# One canonical production determination for every gate (app.core.environment):
+# production when EITHER APP_ENV or ENVIRONMENT names production (case-insensitive).
+# Previously this module read APP_ENV or ENVIRONMENT, app.deps read APP_ENV only,
+# enterprise_auth read ENVIRONMENT == "production" exactly and the demo routes read
+# DEMO_MODE only (RB-T38…RB-T40). The process now refuses to start, fail closed, when
+#   * APP_ENV and ENVIRONMENT conflict (one production, the other not),
+#   * SECRET_KEY is unset or known-weak (SEC-H-01/02, unchanged),
+#   * AUTH_MODE is unset or not "oidc" (AUTH_MODE=dev is refused in production; the
+#     former ALLOW_DEV_AUTH_IN_PROD acknowledgment is no longer honoured),
+#   * ENABLE_DEV_AUTH is enabled, or
+#   * DEMO_MODE is enabled (public literal tokens on the data-deleting demo reset).
+from app.core.environment import determine_environment, startup_refusal_message  # noqa: E402
 
-# --- Production safety guard: crash on default SECRET_KEY ---
-# NOTE: production is signalled by EITHER APP_ENV (used by render.yaml) or
-# ENVIRONMENT (used by docker-compose). Checking only ENVIRONMENT let the
-# Render deploy (APP_ENV=production, ENVIRONMENT unset) skip this guard.
-_ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
-_ANY_PRODUCTION = _IS_PRODUCTION or _ENV in {"production", "prod"}
-_SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
-
-# SEC-H-01/02 — reject ALL known-weak signing secrets (unset, "dev-secret", and
-# "dev-secret-change-in-production"), not just the one string. `core/config.py`
-# historically fell back to a different weak default that this guard missed.
-from app.config import KNOWN_WEAK_SECRET_KEYS  # noqa: E402
-
-if _ANY_PRODUCTION and _SECRET_KEY in KNOWN_WEAK_SECRET_KEYS:
-    sys.exit(
-        "FATAL: SECRET_KEY is unset or a known-weak default value in a production "
-        "environment. Set a strong, non-default SECRET_KEY before starting."
-    )
-
-# --- Production safety guard: AUTH_MODE must be an explicit decision ---
-# enterprise_auth defaults AUTH_MODE to "dev" when unset, which accepts the
-# static DEV_AUTH_TOKEN bearer and reads actor/tenant from client headers.
-# In production that default is never acceptable silently:
-#   * AUTH_MODE must be set explicitly (no fallback), and
-#   * AUTH_MODE=dev additionally requires ALLOW_DEV_AUTH_IN_PROD=true as a
-#     deliberate, auditable acknowledgment (e.g. a controlled pilot demo).
-if _ANY_PRODUCTION:
-    _AUTH_MODE_RAW = os.getenv("AUTH_MODE", "").strip().lower()
-    if not _AUTH_MODE_RAW:
-        sys.exit(
-            "FATAL: AUTH_MODE is not set in a production environment. "
-            "Set AUTH_MODE=oidc (recommended) or AUTH_MODE=dev with "
-            "ALLOW_DEV_AUTH_IN_PROD=true for a controlled pilot."
-        )
-    if _AUTH_MODE_RAW == "dev" and os.getenv(
-        "ALLOW_DEV_AUTH_IN_PROD", ""
-    ).strip().lower() != "true":
-        sys.exit(
-            "FATAL: AUTH_MODE=dev in production requires "
-            "ALLOW_DEV_AUTH_IN_PROD=true as an explicit acknowledgment. "
-            "Prefer AUTH_MODE=oidc with OIDC_ISSUER_URL and OIDC_AUDIENCE."
-        )
+_ENVIRONMENT_DETERMINATION = determine_environment()
+_IS_PRODUCTION = _ENVIRONMENT_DETERMINATION.is_production
+_ANY_PRODUCTION = _IS_PRODUCTION  # kept for existing readers; same canonical answer
+_STARTUP_REFUSAL = startup_refusal_message()
+if _STARTUP_REFUSAL:
+    sys.exit(_STARTUP_REFUSAL)
 
 app = FastAPI(title="LumenAI API", lifespan=lifespan)
 
@@ -637,7 +611,10 @@ def direct_capa_health():
             "audit_signal_to_capa": "ready",
             "governance_summary": "ready"
         },
-        "summary": persistent_capa_summary(),
+        # P472-03 AW-11: this probe is public, so it carries no CAPA figures. It used
+        # to return CAPA counts for every tenant and the register's file path to
+        # anonymous callers. Per-tenant figures: GET /api/capa (authenticated).
+        "summary": {},
         "message": "CAPA workflow backend module is deployed and healthy with persistent database storage."
     }
 
@@ -877,7 +854,10 @@ app.include_router(advisory_pilot_router, prefix=settings.API_PREFIX)
 
 app.include_router(agent_router, prefix=settings.API_PREFIX)
 
-app.include_router(stream_router, prefix=settings.API_PREFIX)
+# P4.7.1: app.routes.stream registered a SECOND handler for POST /stream/frame
+# that was shadowed by app.routes.inspect (registered above) and resolved its
+# tenant without verification. It is no longer mounted — exactly one handler
+# serves that path.
 
 app.include_router(vendor_analytics_router, prefix=settings.API_PREFIX)
 
@@ -1412,7 +1392,6 @@ def custom_openapi():
     return app.openapi_schema
 
 
-_app_env = os.getenv("APP_ENV", "development").strip().lower()
-if _app_env not in {"production", "prod"}:
+if not _IS_PRODUCTION:
     app.openapi_schema = None
     app.openapi = custom_openapi

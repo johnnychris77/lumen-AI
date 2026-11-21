@@ -17,6 +17,7 @@ from app.auth.jwt_validator import (
     validate_jwt_claims,
 )
 from app.auth.tenant_membership import require_enabled_tenant_membership
+from app.core.environment import is_production
 
 
 DEFAULT_DEV_TOKEN = "dev-token"
@@ -24,7 +25,8 @@ DEMO_TOKEN = "demo-token"
 
 
 def is_demo_mode() -> bool:
-    return os.getenv("DEMO_MODE", "0").strip() == "1"
+    # PA-1: demo credentials never apply in production (canonical determination).
+    return os.getenv("DEMO_MODE", "0").strip() == "1" and not is_production()
 
 
 def get_auth_mode() -> str:
@@ -72,6 +74,35 @@ def get_request_tenant_name(request: Request) -> str:
     )
 
 
+def _verified_user_tenant(request: Request, db: Session, username: str) -> str:
+    """The tenant a signed per-user JWT acts in. Fails closed (P472-03 AW-03/AW-06M).
+
+    A tenant named in EITHER request header (``X-Tenant-Id`` or
+    ``X-LumenAI-Tenant-Id``) is the caller's explicit selection and is honoured
+    only when the user is an enabled member of it; two headers that disagree are
+    refused. Previously only ``X-Tenant-Id`` counted as a selection, so a tenant
+    named in ``X-LumenAI-Tenant-Id`` was never verified here, yet handlers later
+    re-read that header and acted in it.
+
+    With no tenant named, the user acts in their sole enabled membership. A user
+    with no membership, or several and none selected, is refused: nothing is
+    served from a header alone or from a shared ``default-tenant``. (Previously a
+    multi-member user who sent no header passed a ``default-tenant`` membership
+    check and was handed ``tenant_id=None``.)
+    """
+    from app.auth.tenant_membership import resolve_effective_tenant
+    from app.auth.tenant_scope import NO_VERIFIED_TENANT_DETAIL, named_tenant
+
+    explicit = named_tenant(request)
+    if explicit:
+        require_enabled_tenant_membership(db, tenant_id=explicit, user_email=username)
+        return explicit
+    effective = resolve_effective_tenant(db, user_email=username, requested_tenant_id=None)
+    if not effective:
+        raise HTTPException(status_code=403, detail=NO_VERIFIED_TENANT_DETAIL)
+    return effective
+
+
 def _extract_bearer_token(request: Request) -> str:
     authorization = request.headers.get("authorization", "")
 
@@ -112,7 +143,12 @@ def _require_dev_auth_context(
     authorization = request.headers.get("authorization", "")
     expected = f"Bearer {get_dev_token()}"
 
-    if authorization == expected:
+    # PA-1 (defence in depth): the static development token trusts client-supplied
+    # actor / role / tenant headers. A production process refuses to start with
+    # AUTH_MODE=dev (app.core.environment); if this path is reached in production
+    # anyway (a worker or script that skipped app.main), the static token and the
+    # demo token are never honoured. A signed per-user JWT (below) still is.
+    if authorization == expected and not is_production():
         return build_dev_auth_context(
             actor=get_request_actor(request),
             role=get_request_role(request),
@@ -151,36 +187,8 @@ def _require_dev_auth_context(
                 pass
 
             tenant_id = get_request_tenant_id(request)
-
-            # The tenant_id above may come from a client-supplied header and must
-            # never be trusted on its own. Two cases, both fail-closed:
-            #  * An EXPLICIT X-Tenant-Id is honored only when the user is a
-            #    verified member — a spoofed tenant is rejected (403), never
-            #    silently redirected. (Preserves cross-tenant isolation.)
-            #  * NO explicit tenant header → resolve the user's OWN verified
-            #    tenant from their membership, so a correct request works without
-            #    the client having to know/transmit its tenant id (this is the
-            #    hardcoded-tenant client bug's real fix).
             if db is not None:
-                from app.auth.tenant_membership import resolve_effective_tenant
-
-                explicit_header = (
-                    request.headers.get("x-tenant-id")
-                    or request.headers.get("X-Tenant-Id")
-                )
-                if explicit_header:
-                    require_enabled_tenant_membership(
-                        db, tenant_id=tenant_id, user_email=username,
-                    )
-                else:
-                    effective = resolve_effective_tenant(
-                        db, user_email=username, requested_tenant_id=None
-                    )
-                    if not effective:
-                        require_enabled_tenant_membership(
-                            db, tenant_id=tenant_id, user_email=username,
-                        )
-                    tenant_id = effective
+                tenant_id = _verified_user_tenant(request, db, username)
 
             return build_dev_auth_context(
                 actor=username,
@@ -264,13 +272,8 @@ def _require_oidc_auth_context(
             pass
 
         tenant_id = get_request_tenant_id(request)
-
         if db is not None:
-            require_enabled_tenant_membership(
-                db,
-                tenant_id=tenant_id,
-                user_email=username,
-            )
+            tenant_id = _verified_user_tenant(request, db, username)
 
         return build_dev_auth_context(
             actor=username,
@@ -309,7 +312,11 @@ def get_auth_context(
     )
 
 
-_AUTH_ENV = os.getenv("ENVIRONMENT", "development")
+# PA-1 (RB-T40): the JWT-shape check follows the canonical production
+# determination (APP_ENV or ENVIRONMENT, case-insensitive), not
+# ENVIRONMENT == "production" exactly. ``_AUTH_ENV`` is kept for existing readers.
+_AUTH_ENV = "production" if is_production() else (os.getenv("ENVIRONMENT", "development").strip().lower()
+                                                 or "development")
 
 
 def require_enterprise_auth(
@@ -317,7 +324,7 @@ def require_enterprise_auth(
     db: Session | None = None,
 ) -> AuthContext:
     # In production, reject non-JWT tokens (dev shortcuts like dev-token/test-token)
-    if _AUTH_ENV == "production":
+    if _AUTH_ENV == "production" or is_production():
         auth_header = request.headers.get("Authorization", "")
         token = auth_header.removeprefix("Bearer ").strip()
         parts = token.split(".")
@@ -460,23 +467,86 @@ def require_vendor_baseline_library_read(request: Request) -> AuthContext:
     )
 
 
-def require_manufacturer_auth(request: Request) -> str:
-    """
-    Auth helper for manufacturer portal endpoints.
-    Validates Bearer token (same as require_enterprise_auth) then requires
-    X-Manufacturer-ID header.  Returns the manufacturer_id string.
-    Does NOT require enterprise role — manufacturer role is separate.
-    """
-    # Validate the bearer token using the existing auth mechanism
-    require_enterprise_auth(request)
+MANUFACTURER_DENIED_DETAIL = "Access to the requested manufacturer is not permitted."
+NO_MANUFACTURER_MEMBERSHIP_DETAIL = "No verified manufacturer membership for this request."
 
-    manufacturer_id = request.headers.get("X-Manufacturer-ID", "").strip()
-    if not manufacturer_id:
-        raise HTTPException(
-            status_code=403,
-            detail="X-Manufacturer-ID header required for manufacturer portal access.",
+
+def _enabled_manufacturer_ids(user_email: str) -> set[str]:
+    """The manufacturer / repair-partner organizations the user is an ENABLED,
+    verified member of (P472-03 AW-07). Empty when the user has no membership."""
+    user = (user_email or "").strip()
+    if not user:
+        return set()
+    from app.db import SessionLocal
+    from app.db.models import ManufacturerMembership
+
+    from datetime import datetime, timezone
+
+    from sqlalchemy import or_
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ManufacturerMembership.manufacturer_id, ManufacturerMembership.expires_at)
+            .filter(
+                ManufacturerMembership.user_email == user,
+                ManufacturerMembership.is_enabled.is_(True),
+                # B5.2: an expired membership is no membership (fail closed).
+                or_(ManufacturerMembership.expires_at.is_(None),
+                    ManufacturerMembership.expires_at > datetime.now(timezone.utc)),
+            )
+            .all()
         )
-    return manufacturer_id
+        now = datetime.now(timezone.utc)
+        live = set()
+        for manufacturer_id, expires_at in rows:
+            if not manufacturer_id:
+                continue
+            # Re-check in Python: SQLite returns naive datetimes and compares them as text.
+            if expires_at is not None:
+                aware = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+                if aware <= now:
+                    continue
+            live.add(manufacturer_id)
+        return live
+    finally:
+        db.close()
+
+
+def require_manufacturer_auth(request: Request) -> str:
+    """Auth for manufacturer / repair-partner portal endpoints (P472-03 AW-07).
+
+    The manufacturer identity a request acts under is ALWAYS one the authenticated
+    user is a verified, enabled member of — exactly as ``principal_tenant`` governs
+    the tenant identity:
+
+    * an ``X-Manufacturer-ID`` header is honoured only when the user is an enabled
+      member of that organization; any other claimed organization is refused (403),
+      never served from a different one;
+    * with no header, the user acts in their sole manufacturer membership;
+    * a user with no manufacturer membership, or several with none selected, is
+      refused. The header is never trusted on its own, so a hospital user (or any
+      user without a manufacturer relationship) can no longer assume a manufacturer
+      identity by sending the header.
+
+    Fails closed (403) for a missing, revoked or disabled membership — a disabled
+    membership is no membership, since the query filters on ``is_enabled``.
+    """
+    # Authenticate the bearer token (401 on an invalid/missing token). This also
+    # runs the tenant-membership check for the user's hospital identity.
+    ctx = require_enterprise_auth(request)
+    user = (getattr(ctx, "actor", "") or "").strip()
+
+    claimed = request.headers.get("X-Manufacturer-ID", "").strip()
+    memberships = _enabled_manufacturer_ids(user)
+
+    if claimed:
+        if claimed not in memberships:
+            raise HTTPException(status_code=403, detail=MANUFACTURER_DENIED_DETAIL)
+        return claimed
+    if len(memberships) == 1:
+        return next(iter(memberships))
+    raise HTTPException(status_code=403, detail=NO_MANUFACTURER_MEMBERSHIP_DETAIL)
 
 
 def require_audit_chain_verify(request: Request) -> AuthContext:

@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.digital_quality_twin import ScenarioSimulation
 from app.services.digital_quality_twin_service import (
     DISCLAIMER,
@@ -26,9 +27,6 @@ router = APIRouter(tags=["digital_quality_twin"])
 
 _DISCLAIMER = DISCLAIMER
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -87,8 +85,7 @@ def twin_state(
     db: Session = Depends(get_db),
 ):
     """Current quality twin state snapshot."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     state = get_twin_state(db, tenant_id, facility_id=facility_id)
 
@@ -123,8 +120,7 @@ def forecasts(
     db: Session = Depends(get_db),
 ):
     """30/60/90-day quality risk forecasts."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     items = get_forecasts(db, tenant_id)
 
@@ -161,8 +157,7 @@ def simulate(
     db: Session = Depends(get_db),
 ):
     """Run a what-if scenario simulation."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = run_scenario(
         db,
@@ -206,8 +201,7 @@ def list_interventions(
     db: Session = Depends(get_db),
 ):
     """List advisory intervention models."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     items = get_intervention_models(db, tenant_id)
 
@@ -239,8 +233,7 @@ def create_intervention(
     db: Session = Depends(get_db),
 ):
     """Create an intervention model record."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     from app.models.digital_quality_twin import InterventionModel
 
@@ -291,8 +284,7 @@ def executive_brief(
     db: Session = Depends(get_db),
 ):
     """Role-specific executive decision brief."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     brief = get_executive_brief(db, tenant_id, role=role)
 
@@ -328,8 +320,7 @@ def synthesize(
     db: Session = Depends(get_db),
 ):
     """Trigger full twin synthesis from all 9 data sources."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = synthesize_twin(db, tenant_id, facility_id=body.facility_id)
 
@@ -365,8 +356,7 @@ def dashboard(
     db: Session = Depends(get_db),
 ):
     """Consolidated quality twin KPI dashboard."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     state = get_twin_state(db, tenant_id)
     forecasts_list = get_forecasts(db, tenant_id)
@@ -418,8 +408,7 @@ def list_scenarios(
     db: Session = Depends(get_db),
 ):
     """List saved scenario simulations."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     rows = (
         db.query(ScenarioSimulation)
@@ -464,8 +453,7 @@ def approve_scenario(
     db: Session = Depends(get_db),
 ):
     """Human-approve a scenario simulation."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     scenario = (
         db.query(ScenarioSimulation)

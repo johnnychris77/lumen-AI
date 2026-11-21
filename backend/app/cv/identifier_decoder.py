@@ -103,14 +103,16 @@ def decode_from_image_bytes(image_bytes: bytes) -> DecodedIdentifiers:
 def decode_from_url(image_url: str) -> DecodedIdentifiers:
     """Fetch image from URL and decode identifiers.
 
-    Only used when pyzbar is available; returns empty result otherwise.
+    P4.7.1 (SEC-R2-02): the image is retrieved ONLY through the SSRF-safe,
+    allow-listed fetcher. A prohibited, non-allow-listed or failed fetch yields
+    an empty result — no request is made to an unvalidated destination.
     """
-    result = DecodedIdentifiers()
+    from app.cv.safe_fetch import try_fetch_image_bytes
+
+    raw = try_fetch_image_bytes(image_url)
+    if raw is None:
+        return DecodedIdentifiers()
     try:
-        import httpx  # type: ignore[import-untyped]
-        resp = httpx.get(image_url, timeout=5.0, follow_redirects=True)
-        if resp.status_code == 200:
-            result = decode_from_image_bytes(resp.content)
+        return decode_from_image_bytes(raw)
     except Exception:
-        pass
-    return result
+        return DecodedIdentifiers()

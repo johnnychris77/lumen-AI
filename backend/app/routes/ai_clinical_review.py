@@ -18,7 +18,7 @@ from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
 from app.cios.decision_ledger import record_decision
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.supervisor_review import SupervisorReview
 from app.services.ml.ground_truth import classify_ground_truth, derive_flags_from_review
 
@@ -88,7 +88,7 @@ def submit_supervisor_review(
             detail="A rationale comment is required for partial agreement, disagreement, or override.",
         )
 
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     inspection = (
         db.query(models.Inspection)
         .filter(models.Inspection.id == inspection_id)
@@ -229,7 +229,7 @@ def ai_performance_summary(
     Computed only from actual reviews/inspections — no fabricated production
     numbers. Fields are zero/None until real reviews exist.
     """
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
 
     inspections = db.query(models.Inspection).filter(models.Inspection.tenant_id == tenant_id)
     total_predictions = inspections.filter(models.Inspection.has_image.is_(True)).count()

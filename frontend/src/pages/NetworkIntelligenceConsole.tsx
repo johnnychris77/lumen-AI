@@ -3,31 +3,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiFetch } from "@/lib/api";
+import { api } from "@/lib/api";
+import { RequireTenant, TenantSwitcher } from "@/lib/tenant";
 
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function fetchJSON(path: string) {
-  const res = await apiFetch(`${path}`, { raw: true, headers: authHeaders() });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-async function postJSON(path: string, body: object = {}) {
-  const res = await apiFetch(`${path}`, { raw: true,
-    method: "POST",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `${res.status} ${res.statusText}`);
-  }
-  return res.json();
-}
+// P472-03 B5.1: the tenant is the signed-in user's verified selection (sent as
+// X-Tenant-Id by apiFetch); a required `tenant_id` parameter repeats it.
+const fetchJSON = <T = any>(path: string) => api.get<T>(path);
+const postJSON = <T = any>(path: string, body: object = {}) => api.post<T>(path, body);
 
 const WARNING_VARIANT: Record<string, "destructive" | "warning" | "secondary"> = {
   alert: "destructive",
@@ -77,8 +59,11 @@ interface ExecSnapshot {
 type Tab = "overview" | "lifecycle" | "recall" | "research" | "executive";
 
 export default function NetworkIntelligenceConsole() {
+  return <RequireTenant>{(tenantId) => <NetworkIntelligenceWorkspace key={tenantId} tenantId={tenantId} />}</RequireTenant>;
+}
+
+function NetworkIntelligenceWorkspace({ tenantId }: { tenantId: string }) {
   const [tab, setTab] = useState<Tab>("overview");
-  const [tenantId, setTenantId] = useState(localStorage.getItem("tenant_id") || "default-tenant");
   const [summary, setSummary] = useState<NetworkSummary | null>(null);
   const [warnings, setWarnings] = useState<EarlyWarning[]>([]);
   const [snapshots, setSnapshots] = useState<ExecSnapshot[]>([]);
@@ -155,8 +140,7 @@ export default function NetworkIntelligenceConsole() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-slate-800">Network Intelligence Platform</h1>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-500">Tenant</label>
-          <Input value={tenantId} onChange={e => setTenantId(e.target.value)} className="w-44 h-8 text-sm" />
+          <TenantSwitcher />
         </div>
       </div>
 

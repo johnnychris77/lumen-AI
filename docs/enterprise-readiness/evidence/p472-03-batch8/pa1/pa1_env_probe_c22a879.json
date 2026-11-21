@@ -1,0 +1,93 @@
+{
+ "1 render.yaml (APP_ENV=ENVIRONMENT=production, AUTH_MODE=oidc, ENABLE_DEV_AUTH=false)": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": true,
+  "config.validate issues (logged, not fatal)": [
+   "PUBLIC_BASE_URL should not point to localhost in production."
+  ],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": true,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": false,
+  "enterprise_auth AUTH_MODE": "oidc",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": true,
+  "deps accepts DEV_AUTH_TOKEN as admin": false,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 403
+ },
+ "2 APP_ENV=production only, AUTH_MODE=oidc": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": true,
+  "config.validate issues (logged, not fatal)": [
+   "PUBLIC_BASE_URL should not point to localhost in production."
+  ],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": true,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": false,
+  "enterprise_auth AUTH_MODE": "oidc",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": false,
+  "deps accepts DEV_AUTH_TOKEN as admin": false,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 403
+ },
+ "3 ENVIRONMENT=production only, AUTH_MODE=oidc, ENABLE_DEV_AUTH=true": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": false,
+  "config.validate issues (logged, not fatal)": [],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": true,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": true,
+  "enterprise_auth AUTH_MODE": "oidc",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": true,
+  "deps accepts DEV_AUTH_TOKEN as admin": true,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 403
+ },
+ "4 APP_ENV=prod (alias), AUTH_MODE unset": {
+  "startup": "refused",
+  "reason": "FATAL: AUTH_MODE is not set in a production environment. Set AUTH_MODE=oidc (recommended) or AUTH_MODE=dev with ALLOW_DEV_AUTH_IN_PROD=true for a controlled pil"
+ },
+ "5 APP_ENV=production, AUTH_MODE=dev, ALLOW_DEV_AUTH_IN_PROD=true": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": true,
+  "config.validate issues (logged, not fatal)": [
+   "PUBLIC_BASE_URL should not point to localhost in production."
+  ],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": true,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": false,
+  "enterprise_auth AUTH_MODE": "dev",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": false,
+  "deps accepts DEV_AUTH_TOKEN as admin": false,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 403
+ },
+ "6 APP_ENV=production, AUTH_MODE=oidc, DEMO_MODE=1": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": true,
+  "config.validate issues (logged, not fatal)": [
+   "PUBLIC_BASE_URL should not point to localhost in production."
+  ],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": true,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": false,
+  "enterprise_auth AUTH_MODE": "oidc",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": true,
+  "deps accepts DEV_AUTH_TOKEN as admin": false,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 200
+ },
+ "7 APP_ENV=Production (capitalised), ENVIRONMENT=Production, AUTH_MODE=oidc": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": true,
+  "config.validate issues (logged, not fatal)": [
+   "PUBLIC_BASE_URL should not point to localhost in production."
+  ],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": true,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": false,
+  "enterprise_auth AUTH_MODE": "oidc",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": false,
+  "deps accepts DEV_AUTH_TOKEN as admin": false,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 403
+ },
+ "8 development defaults (APP_ENV unset, ENABLE_DEV_AUTH=true)": {
+  "startup": "started",
+  "config.is_production(APP_ENV only)": false,
+  "config.validate issues (logged, not fatal)": [],
+  "main._ANY_PRODUCTION(APP_ENV or ENVIRONMENT)": false,
+  "deps._DEV_AUTH_ACTIVE(ENABLE_DEV_AUTH and APP_ENV)": true,
+  "enterprise_auth AUTH_MODE": "dev",
+  "enterprise_auth JWT-shape check (ENVIRONMENT=='production' only)": false,
+  "deps accepts DEV_AUTH_TOKEN as admin": true,
+  "GET /api/demo/reset with literal 'Bearer dev-token'": 403
+ }
+}

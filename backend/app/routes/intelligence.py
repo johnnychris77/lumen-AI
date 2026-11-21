@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.auth.tenant_scope import request_tenant
 from app.enterprise_auth import require_enterprise_auth
 from app.tier_guard import require_tier
 from app.services.vendor_intelligence_engine import (
@@ -85,7 +86,8 @@ def active_recalls(
     db: Session = Depends(get_db),
 ):
     """Return active recall events for a tenant."""
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the verified tenant.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     require_tier(tenant_id, "recalls", db)
     recalls = get_active_recalls(tenant_id, db)
     return {
@@ -103,7 +105,8 @@ def recall_detail(
     db: Session = Depends(get_db),
 ):
     """Return detail for a single recall event."""
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the verified tenant.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     require_tier(tenant_id, "recalls", db)
     recall = get_recall_by_id(tenant_id, recall_id, db)
     if recall is None:
@@ -120,7 +123,8 @@ def capa_effectiveness(
     db: Session = Depends(get_db),
 ):
     """Return CAPA effectiveness metrics for a tenant."""
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the verified tenant.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     require_tier(tenant_id, "capa", db)
     label = period_label or _current_period_label(period_type)
     result = compute_capa_effectiveness(tenant_id, label, db)
@@ -144,7 +148,8 @@ def intelligence_dashboard(
     enterprise: + full dashboard, cross-hospital trends
     Currently all tiers return full data; tier enforcement added in billing milestone.
     """
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the verified tenant.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     require_tier(tenant_id, "dashboard", db)
     label = period_label or _current_period_label(period_type)
     import logging

@@ -210,16 +210,20 @@ def start_inspection_session(
     # Assess historical risk
     try:
         from app.models.cv_inference import CVInferenceRecord
-        historical = (
+        from app.cv.evidence import integrity_verified, operational_sql_criteria
+        historical = integrity_verified(db, (
             db.query(CVInferenceRecord)
             .filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name == instrument_name,
             )
             .order_by(CVInferenceRecord.created_at.desc())
             .limit(10)
             .all()
-        )
+        ))
     except Exception:
         historical = []
 

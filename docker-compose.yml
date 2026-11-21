@@ -11,7 +11,9 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./lumenai.db}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-change-in-production}
       - ENVIRONMENT=${ENVIRONMENT:-development}
-      - APP_ENV=${APP_ENV:-development}
+      # APP_ENV follows ENVIRONMENT unless set: the app refuses to start when the
+      # two disagree (one production, the other not) — PA-1 remediation.
+      - APP_ENV=${APP_ENV:-${ENVIRONMENT:-development}}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}

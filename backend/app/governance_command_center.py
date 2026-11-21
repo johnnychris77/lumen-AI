@@ -129,5 +129,6 @@ def resolve_sla_event(db: Session, tenant_id: str, event_id: int, notes: str) ->
     }
 
 
-def run_command_center_scan() -> dict:
-    return run_scanner_once()
+def run_command_center_scan(tenant_id: str, tenant_name: str) -> dict:
+    """The calling tenant's SLA scan (never every tenant; P472-03 AW-12)."""
+    return run_scanner_once(tenant_id, tenant_name)

@@ -1,0 +1,6 @@
+tests/test_p472_03_batch8_pa1_env_gates.py:120: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_p472_03_batch8_pa1_env_gates.py::test_dev_tokens_are_inactive_whenever_any_production_signal_is_set
+FAILED tests/test_p472_03_batch8_pa1_env_gates.py::test_demo_reset_is_not_reachable_with_the_public_token_in_production
+FAILED tests/test_p472_03_batch8_pa1_env_gates.py::test_enterprise_jwt_shape_check_follows_every_production_signal
+3 failed, 2 passed in 37.43s

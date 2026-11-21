@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
@@ -15,6 +16,34 @@ AUTH_ADMIN = {"Authorization": "Bearer dev-token"}
 AUTH_MGR = {"Authorization": "Bearer manager-token"}
 AUTH_OPERATOR = {"Authorization": "Bearer operator-token"}
 AUTH_VIEWER = {"Authorization": "Bearer viewer-token"}
+
+# P472-03 AW-07: the vendor portal requires a verified membership in the vendor
+# organization named by X-Manufacturer-ID. These tests act as a stable vendor user
+# who is a member of "AcmeSurgical"; object-level checks (another vendor's tray)
+# still refuse (403), and a request with no X-Manufacturer-ID is still refused.
+VENDOR_USER = "or-connect-vendor@example.com"
+VENDOR_AUTH = {**AUTH_ADMIN, "x-lumenai-actor": VENDOR_USER}
+
+
+def _grant_manufacturer(manufacturer_id: str, user: str = VENDOR_USER) -> None:
+    from app.db.models import ManufacturerMembership
+
+    db = SessionLocal()
+    try:
+        if not (
+            db.query(ManufacturerMembership)
+            .filter(
+                ManufacturerMembership.user_email == user,
+                ManufacturerMembership.manufacturer_id == manufacturer_id,
+            )
+            .first()
+        ):
+            db.add(ManufacturerMembership(
+                manufacturer_id=manufacturer_id, user_email=user,
+                role="manufacturer_admin", is_enabled=True))
+            db.commit()
+    finally:
+        db.close()
 SHA = "0rc0nnec" + "0" * 56
 TENANT = "default-tenant"
 
@@ -226,6 +255,10 @@ class TestStakeholderNotifications:
 
 
 class TestVendorAccessControls:
+    @pytest.fixture(autouse=True)
+    def _seed_vendor_membership(self):
+        _grant_manufacturer("AcmeSurgical")
+
     def test_vendor_sees_only_own_trays(self):
         case = _create_case(vendor_name="AcmeSurgical")
         client.post(
@@ -238,7 +271,7 @@ class TestVendorAccessControls:
         )
 
         r = client.get(
-            "/api/or-connect/vendor-portal", headers={**AUTH_ADMIN, "X-Manufacturer-ID": "AcmeSurgical"},
+            "/api/or-connect/vendor-portal", headers={**VENDOR_AUTH, "X-Manufacturer-ID": "AcmeSurgical"},
         )
         assert r.status_code == 200
         tray_names = [t["tray_name"] for t in r.json()["requested_trays"]]
@@ -255,7 +288,7 @@ class TestVendorAccessControls:
         r = client.post(
             f"/api/or-connect/vendor-portal/trays/{tray['id']}/confirm-delivery",
             json={"confirmed_by": "Someone"},
-            headers={**AUTH_ADMIN, "X-Manufacturer-ID": "AcmeSurgical"},
+            headers={**VENDOR_AUTH, "X-Manufacturer-ID": "AcmeSurgical"},
         )
         assert r.status_code == 403
 
@@ -269,7 +302,7 @@ class TestVendorAccessControls:
         r = client.post(
             f"/api/or-connect/vendor-portal/trays/{tray['id']}/confirm-delivery",
             json={"confirmed_by": "Driver Joe"},
-            headers={**AUTH_ADMIN, "X-Manufacturer-ID": "AcmeSurgical"},
+            headers={**VENDOR_AUTH, "X-Manufacturer-ID": "AcmeSurgical"},
         )
         assert r.status_code == 200
         assert r.json()["delivery_confirmed_by"] == "Driver Joe"
@@ -288,7 +321,7 @@ class TestVendorAccessControls:
         r = client.post(
             f"/api/or-connect/vendor-portal/trays/{tray['id']}/request-replacement",
             json={"notes": "Damaged in transit"},
-            headers={**AUTH_ADMIN, "X-Manufacturer-ID": "AcmeSurgical"},
+            headers={**VENDOR_AUTH, "X-Manufacturer-ID": "AcmeSurgical"},
         )
         assert r.status_code == 200
         assert r.json()["replacement_requested"] is True

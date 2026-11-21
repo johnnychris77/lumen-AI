@@ -1,0 +1,9 @@
+# tests/test_p472_03_batch8_guardianx_explanations.py against application code 83dbf70 (SQLite), before any Batch 8 app change
+XFAIL tests/test_p472_03_batch8_guardianx_explanations.py::TestOpenFindings::test_another_tenant_cannot_override_an_explanation - OPEN FINDING GX-11 / RB-T34: another tenant can append a human override to an explanation by id
+XFAIL tests/test_p472_03_batch8_guardianx_explanations.py::TestOpenFindings::test_another_tenant_cannot_write_an_explanation_into_a_key_in_use - OPEN FINDING GX-12 / RB-T35: another tenant's explanation written into an ownerless key in use surfaces in the owner's view
+XFAIL tests/test_p472_03_batch8_guardianx_explanations.py::TestOpenFindings::test_an_unattributable_explanation_is_served_to_no_tenant - OPEN FINDING GX-13 / RB-T36: an explanation with no provable owner (legacy row) is served to every tenant
+XFAIL tests/test_p472_03_batch8_guardianx_explanations.py::TestOpenFindings::test_replay_does_not_report_another_tenants_audit_chain - OPEN FINDING GX-14 / RB-T37: the generic replay verifies the audit chain of any named resource without the GD-2 tenant scope
+FAILED tests/test_p472_03_batch8_guardianx_explanations.py::TestNegative::test_multi_member_sees_an_explanation_only_while_selecting_its_tenant
+FAILED tests/test_p472_03_batch8_guardianx_explanations.py::TestNegative::test_concurrent_first_writes_to_a_fresh_key_never_disclose_across_tenants
+FAILED tests/test_p472_03_batch8_guardianx_explanations.py::TestNegative::test_a_ledger_write_into_a_key_holding_another_tenants_explanation_is_refused
+3 failed, 7 passed, 4 xfailed, 2 warnings in 8.60s

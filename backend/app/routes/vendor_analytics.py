@@ -12,8 +12,20 @@ from app.deps import get_db
 from app.db import models
 from app.reports.vendor_scorecard import generate_vendor_scorecard_pdf
 from app.authz import require_roles
+from app.tenant import resolve_tenant
 
 router = APIRouter(tags=["vendor-analytics"])
+
+
+def _tenant_inspections(db: Session, tenant_id: str):
+    """Inspections of the caller's verified tenant only (P472-03 AW-08b).
+
+    Vendor analytics previously aggregated ``db.query(Inspection).all()`` behind a
+    global role, so any user in any tenant saw every tenant's inspection data.
+    All vendor-analytics reads now go through this one helper so the tenant
+    predicate cannot diverge between endpoints.
+    """
+    return db.query(models.Inspection).filter(models.Inspection.tenant_id == tenant_id).all()
 
 
 def build_vendor_items(rows):
@@ -153,21 +165,21 @@ def vendor_xlsx_bytes(items):
 
 
 @router.get("/analytics/vendors")
-def vendor_analytics(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer"))):
-    rows = db.query(models.Inspection).all()
+def vendor_analytics(tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user", "viewer"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     return {"items": build_vendor_items(rows)}
 
 
 @router.get("/analytics/vendors/export.json")
-def vendor_analytics_export_json(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
-    rows = db.query(models.Inspection).all()
+def vendor_analytics_export_json(tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     items = build_vendor_items(rows)
     return JSONResponse({"items": items})
 
 
 @router.get("/analytics/vendors/export.csv")
-def vendor_analytics_export_csv(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
-    rows = db.query(models.Inspection).all()
+def vendor_analytics_export_csv(tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     items = build_vendor_items(rows)
     text = vendor_csv_text(items)
     return StreamingResponse(
@@ -178,8 +190,8 @@ def vendor_analytics_export_csv(db: Session = Depends(get_db), current_user=Depe
 
 
 @router.get("/analytics/vendors/export.xlsx")
-def vendor_analytics_export_xlsx(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
-    rows = db.query(models.Inspection).all()
+def vendor_analytics_export_xlsx(tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     items = build_vendor_items(rows)
     content = vendor_xlsx_bytes(items)
     return StreamingResponse(
@@ -190,8 +202,8 @@ def vendor_analytics_export_xlsx(db: Session = Depends(get_db), current_user=Dep
 
 
 @router.get("/analytics/vendors/export.bundle.zip")
-def vendor_analytics_export_bundle(db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
-    rows = db.query(models.Inspection).all()
+def vendor_analytics_export_bundle(tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     items = build_vendor_items(rows)
 
     csv_content = vendor_csv_text(items)
@@ -213,8 +225,8 @@ def vendor_analytics_export_bundle(db: Session = Depends(get_db), current_user=D
 
 
 @router.get("/analytics/vendors/{vendor_name}/scorecard.json")
-def vendor_scorecard_json(vendor_name: str, db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
-    rows = db.query(models.Inspection).all()
+def vendor_scorecard_json(vendor_name: str, tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     items = build_vendor_items(rows)
     scorecard = find_vendor_scorecard(items, vendor_name)
     if not scorecard:
@@ -223,8 +235,8 @@ def vendor_scorecard_json(vendor_name: str, db: Session = Depends(get_db), curre
 
 
 @router.get("/analytics/vendors/{vendor_name}/scorecard.pdf")
-def vendor_scorecard_pdf(vendor_name: str, db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
-    rows = db.query(models.Inspection).all()
+def vendor_scorecard_pdf(vendor_name: str, tenant: dict = Depends(resolve_tenant), db: Session = Depends(get_db), current_user=Depends(require_roles("admin", "spd_manager", "vendor_user"))):
+    rows = _tenant_inspections(db, tenant["tenant_id"])
     items = build_vendor_items(rows)
     scorecard = find_vendor_scorecard(items, vendor_name)
     if not scorecard:

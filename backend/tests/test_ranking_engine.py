@@ -402,7 +402,7 @@ class TestScoringProfiles:
                 "compound_escalation_threshold": 1,
                 "created_by": "test-admin",
             },
-            headers=ADMIN_AUTH,
+            headers={**ADMIN_AUTH, "X-Tenant-Id": "test-tenant"},
         )
         assert res.status_code == 200
 
@@ -411,7 +411,7 @@ class TestScoringProfiles:
             "/api/enterprise/ranking/profiles",
             params={"tenant_id": "test-tenant-2"},
             json={"profile_name": "ASC Profile"},
-            headers=ADMIN_AUTH,
+            headers={**ADMIN_AUTH, "X-Tenant-Id": "test-tenant-2"},
         )
         data = res.json()
         assert "id" in data
@@ -420,7 +420,7 @@ class TestScoringProfiles:
     def test_get_active_profile_no_profile_returns_null(self):
         res = client.get(
             "/api/enterprise/ranking/profiles/nonexistent-tenant",
-            headers=ADMIN_AUTH,
+            headers={**ADMIN_AUTH, "X-Tenant-Id": "nonexistent-tenant"},
         )
         assert res.status_code == 200
         assert res.json() is None
@@ -430,11 +430,11 @@ class TestScoringProfiles:
             "/api/enterprise/ranking/profiles",
             params={"tenant_id": "profile-test-tenant"},
             json={"profile_name": "My Profile", "compound_escalation_threshold": 3},
-            headers=ADMIN_AUTH,
+            headers={**ADMIN_AUTH, "X-Tenant-Id": "profile-test-tenant"},
         )
         res = client.get(
             "/api/enterprise/ranking/profiles/profile-test-tenant",
-            headers=ADMIN_AUTH,
+            headers={**ADMIN_AUTH, "X-Tenant-Id": "profile-test-tenant"},
         )
         data = res.json()
         assert data is not None

@@ -266,7 +266,9 @@ def test_replay_inspection():
     db = SessionLocal()
     try:
         _seed_membership(db, tenant_id)
-        inspection = Inspection(file_name="scope-01.png")
+        # P472-03 AW-08c: the replay is scoped to the caller's verified tenant, so
+        # the inspection must belong to that tenant (its legitimate owner).
+        inspection = Inspection(file_name="scope-01.png", tenant_id=tenant_id)
         db.add(inspection)
         db.commit()
         db.refresh(inspection)
@@ -290,7 +292,9 @@ def test_replay_workflow_execution_includes_model_version():
         db.commit()
         db.refresh(workflow)
 
-        execution = WorkflowExecution(workflow_id=workflow.id)
+        # P472-03 B6.2: replay is tenant-scoped; the execution must belong to the
+        # replaying tenant (set-up corrected; assertions unchanged).
+        execution = WorkflowExecution(workflow_id=workflow.id, tenant_id=tenant_id)
         db.add(execution)
         db.commit()
         db.refresh(execution)

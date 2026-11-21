@@ -4,11 +4,16 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from tenant_header_client import TenantHeaderClient
+
 from app.main import app
 
 # ── Module-level client ───────────────────────────────────────────────────────
 
-client = TestClient(app)
+# P472-03: these routes take the tenant from the verified auth context. The shared
+# development token used here reads it from X-Tenant-Id, so the client states the
+# tenant each request already names in that header too (see tenant_header_client).
+client = TenantHeaderClient(TestClient(app), default_tenant="demo-tenant")
 AUTH_HEADERS = {"Authorization": "Bearer dev-token", "X-LumenAI-Role": "operator"}
 
 

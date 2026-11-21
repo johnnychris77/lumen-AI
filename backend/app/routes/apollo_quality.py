@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.apollo_quality import COMPLAINT_STATUSES, POLICY_STATUSES
 from app.services import (
     apollo_audit_center_service,
@@ -54,7 +54,7 @@ _LEADERSHIP_ROLES = ("admin", "spd_manager")
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def _actor(current_user) -> str:
@@ -88,7 +88,9 @@ def post_create_capa_from_suggestion(
     suggestion = payload.get("suggestion")
     if not suggestion:
         raise HTTPException(status_code=422, detail="payload must include 'suggestion'.")
-    result = apollo_capa_engine_service.create_capa_from_suggestion_reviewed(suggestion, owner=payload.get("owner", actor))
+    result = apollo_capa_engine_service.create_capa_from_suggestion_reviewed(
+        suggestion, owner=payload.get("owner", actor), tenant_id=tenant_id,
+    )
     _audit(db, tenant_id, actor, "apollo.capa_created_from_suggestion", "capas", str(result.get("id")), {"trigger": suggestion.get("trigger")})
     return result
 

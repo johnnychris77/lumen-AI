@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.services.instrument_intelligence import instrument_timeline
 
 router = APIRouter(tags=["instrument-intelligence"])
@@ -21,5 +21,5 @@ def get_instrument_timeline(
 ):
     """Inspection timeline + deterministic risk-trend prediction for an
     instrument identifier (barcode or UDI)."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     return instrument_timeline(db, identifier, tenant_id)

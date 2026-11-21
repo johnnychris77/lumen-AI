@@ -196,6 +196,44 @@ class TenantMembership(Base):
     tenant_region = Column(String(50), nullable=True, default="north_america")
 
 
+class ManufacturerMembership(Base):
+    """Binds an authenticated user to an external manufacturer / repair-partner
+    organization, for the portals authenticated by ``X-Manufacturer-ID``
+    (P472-03 AW-07).
+
+    Before this model, ``require_manufacturer_auth`` returned whatever
+    ``X-Manufacturer-ID`` header the caller sent, so any authenticated enterprise
+    (hospital) user could assume any manufacturer or repair-partner identity. The
+    manufacturer identity a request may act under is now ALWAYS one the user is a
+    verified, enabled member of — exactly as ``TenantMembership`` governs the
+    tenant identity. ``manufacturer_id`` is the organization identifier carried in
+    the header (a manufacturer id or a repair-partner / vendor org id).
+    """
+    __tablename__ = "manufacturer_memberships"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_email", "manufacturer_id", name="uq_manufacturer_membership_user_org"
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    manufacturer_id = Column(String(255), index=True, nullable=False)
+    user_email = Column(String(255), index=True, nullable=False)
+    role = Column(String(100), nullable=False, default="manufacturer_viewer")
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Lifecycle (P472-03 Batch 5 B5.2; migration b5a2c7e19d40). All nullable, no
+    # backfill: NULL keeps the Batch 3 behaviour. ``expires_at`` in the past makes
+    # the membership count as none (fail closed). Revocation and grant provenance
+    # are written only by app.services.manufacturer_membership_service.
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by = Column(String(255), nullable=True)
+    revocation_reason = Column(String(500), nullable=True)
+    granted_by = Column(String(255), nullable=True)
+    grant_reference = Column(String(255), nullable=True)
+
+
 __all__ = [
     "AuditLog",
     "Inspection",
@@ -203,4 +241,5 @@ __all__ = [
     "Review",
     "AlertEvent",
     "TenantMembership",
+    "ManufacturerMembership",
 ]

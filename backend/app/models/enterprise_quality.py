@@ -214,6 +214,12 @@ class EnterpriseVendorBaselineSubscription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    # GD-3: vendor baselines are tenant-private. Set from the verified tenant of
+    # the submitting request, never from the request body. Nullable so that rows
+    # created before GD-3 stay unattributed; an unattributed row (tenant_id IS
+    # NULL) is visible to no tenant until it is attributed (fail-closed).
+    tenant_id = Column(String, nullable=True, index=True)
+
     vendor_name = Column(String, nullable=True)
     instrument_name = Column(String, nullable=True)
     instrument_category = Column(String, nullable=True)

@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.quality_intelligence import (
     PreventiveActionRecommendation,
     QualityInvestigationP21,
@@ -29,9 +30,6 @@ router = APIRouter(tags=["quality_intelligence"])
 
 _DISCLAIMER = DISCLAIMER
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -91,8 +89,7 @@ def list_signals(
     db: Session = Depends(get_db),
 ):
     """List emerging risk signals for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     signals = get_emerging_risk_signals(db, tenant_id)
 
@@ -123,8 +120,7 @@ def list_emerging_risks(
     db: Session = Depends(get_db),
 ):
     """Alias for /signals — list emerging risk signals for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     signals = get_emerging_risk_signals(db, tenant_id)
 
@@ -161,8 +157,7 @@ def list_investigations(
     db: Session = Depends(get_db),
 ):
     """List quality investigations for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     items = get_investigations(db, tenant_id, status=status)
 
@@ -194,8 +189,7 @@ def create_investigation(
     db: Session = Depends(get_db),
 ):
     """Create a new quality investigation."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     inv = QualityInvestigationP21(
         tenant_id=tenant_id,
@@ -239,8 +233,7 @@ def update_investigation(
     db: Session = Depends(get_db),
 ):
     """Update investigation status or fields."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     inv = (
         db.query(QualityInvestigationP21)
@@ -297,8 +290,7 @@ def list_recommendations(
     db: Session = Depends(get_db),
 ):
     """List preventive action recommendations for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     items = get_recommendations(db, tenant_id)
 
@@ -331,8 +323,7 @@ def review_recommendation(
     db: Session = Depends(get_db),
 ):
     """Accept or reject a preventive action recommendation."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     if body.action not in ("accepted", "rejected"):
         raise HTTPException(
@@ -391,8 +382,7 @@ def executive_summary(
     db: Session = Depends(get_db),
 ):
     """Executive intelligence summary for role."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     summary = get_executive_summary(db, tenant_id, role=role)
 
@@ -423,8 +413,7 @@ def trigger_analysis(
     db: Session = Depends(get_db),
 ):
     """Trigger an emerging risk analysis run."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = run_risk_analysis(db, tenant_id, facility_id=body.facility_id)
 
@@ -458,8 +447,7 @@ def risk_graph(
     db: Session = Depends(get_db),
 ):
     """Enterprise risk graph nodes and edges."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     graph = get_risk_graph(db, tenant_id)
 
@@ -488,8 +476,7 @@ def dashboard(
     db: Session = Depends(get_db),
 ):
     """Consolidated quality intelligence dashboard KPIs (P21)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     rollup = get_dashboard_rollup(db, tenant_id)
 

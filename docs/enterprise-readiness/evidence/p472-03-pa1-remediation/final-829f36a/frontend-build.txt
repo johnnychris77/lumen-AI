@@ -1,0 +1,4 @@
+dist/assets/index-BkHpsqot.js                          107.71 kB │ gzip:  32.10 kB
+dist/assets/vendor-charts-DgT4y46A.js                  448.03 kB │ gzip: 136.16 kB
+
+✓ built in 1.69s

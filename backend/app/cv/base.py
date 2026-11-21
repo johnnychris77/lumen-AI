@@ -31,6 +31,14 @@ class BaseCVProvider(ABC):
     @abstractmethod
     def model_versions(self) -> dict[str, str]: ...
 
+    def verified_artifacts(self) -> dict[str, str]:
+        """P4.7.2: ``{artifact name: SHA-256}`` for every model artifact this provider
+        verified against its pin BEFORE loading it. Empty when the provider has no
+        integrity-verified artifact — which makes its output unsealable, so it can
+        never count as verified model inference. This is server-side provider state;
+        it is not read from, and cannot be set by, an inference result."""
+        return {}
+
     @abstractmethod
     def analyze(self, req: CVAnalysisRequest) -> CVInferenceResult:
         """Run full CV pipeline on the supplied image."""

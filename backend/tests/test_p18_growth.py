@@ -80,7 +80,7 @@ class TestReferenceCustomers:
         tid = f"ref-{TS}"
         r = client.post("/api/growth/reference-customers",
                         json={"tenant_id": tid, "display_name": "Mercy Hospital",
-                              "conversion_stage": "enterprise"}, headers=AUTH)
+                              "conversion_stage": "enterprise"}, headers={**AUTH, "X-Tenant-Id": tid})
         assert r.status_code == 201
         rid = r.json()["id"]
 
@@ -95,7 +95,7 @@ class TestReferenceCustomers:
         tid = f"ref2-{TS}"
         r = client.post("/api/growth/reference-customers",
                         json={"tenant_id": tid, "display_name": "St. Luke",
-                              "conversion_stage": "reference"}, headers=AUTH)
+                              "conversion_stage": "reference"}, headers={**AUTH, "X-Tenant-Id": tid})
         rid = r.json()["id"]
         c = client.post(f"/api/growth/reference-customers/{rid}/consent?consent=true", headers=AUTH)
         assert c.status_code == 200
@@ -120,7 +120,7 @@ class TestReferenceCustomers:
         tid = f"roi-{TS}"
         r = client.post("/api/growth/reference-customers",
                         json={"tenant_id": tid, "display_name": "ROI Health",
-                              "conversion_stage": "enterprise"}, headers=AUTH)
+                              "conversion_stage": "enterprise"}, headers={**AUTH, "X-Tenant-Id": tid})
         rid = r.json()["id"]
         roi = client.post(f"/api/growth/reference-customers/{rid}/roi",
                           json={"modeled_annual_savings_usd": 250000, "roi_payback_months": 8},

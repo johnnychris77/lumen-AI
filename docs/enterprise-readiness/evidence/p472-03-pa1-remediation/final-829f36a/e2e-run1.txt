@@ -1,0 +1,10 @@
+# browser E2E run 1 (LOCAL-AUTHOR; Chromium; real login; app code 829f36a; backend APP_ENV=development, CORS_ORIGINS=http://127.0.0.1:5173)
+ok - single-tenant user: console loads in the verified tenant, no 403
+ok - forged stored tenant is ignored for a single-tenant user
+ok - multi-tenant user must choose; requests follow the choice
+ok - forged stored tenant for a multi-tenant user forces a fresh choice
+ok - user with no membership is told so; nothing tenant-scoped is requested
+ok - another tenant does not see the seeded items
+# tests 6
+# pass 6
+# fail 0

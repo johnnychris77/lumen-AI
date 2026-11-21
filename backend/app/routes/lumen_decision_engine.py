@@ -21,10 +21,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import principal_tenant
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
@@ -36,17 +37,18 @@ from app.services import policy_simulation_service, unknown_finding_service
 router = APIRouter(tags=["lumen-decision-engine"])
 
 
-def _tenant_of(current_user) -> str:
-    return getattr(current_user, "tenant_id", None) or "default-tenant"
+def _tenant_of(current_user, request: Request) -> str:
+    return principal_tenant(current_user, request)
 
 
 @router.get("/inspections/{inspection_id}/decision")
 async def get_inspection_decision(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     row = db.query(models.Inspection).filter(models.Inspection.id == inspection_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Inspection not found")
@@ -134,11 +136,12 @@ def _actor_of(current_user) -> str:
 
 @router.post("/decision-policies", status_code=201)
 async def create_policy(
+    request: Request,
     body: PolicyCreate,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     try:
         policy = policy_service.create_draft_policy(
             db, tenant_id=tenant_id, actor=_actor_of(current_user),
@@ -172,15 +175,16 @@ def _policy_dict(policy: BaselineDecisionPolicy) -> dict:
 
 @router.get("/decision-policies")
 async def list_policies(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager", "operator", "viewer")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     return [_policy_dict(p) for p in policy_service.list_policies(db, tenant_id=tenant_id)]
 
 
-def _get_owned_policy(db: Session, policy_id: int, current_user) -> BaselineDecisionPolicy:
-    tenant_id = _tenant_of(current_user)
+def _get_owned_policy(db: Session, policy_id: int, current_user, request: Request) -> BaselineDecisionPolicy:
+    tenant_id = _tenant_of(current_user, request)
     policy = db.query(BaselineDecisionPolicy).filter(BaselineDecisionPolicy.id == policy_id).first()
     if not policy or (getattr(current_user, "role", "") != "admin" and policy.organization_id != tenant_id):
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -189,10 +193,11 @@ def _get_owned_policy(db: Session, policy_id: int, current_user) -> BaselineDeci
 
 @router.post("/decision-policies/{policy_id}/submit")
 async def submit_policy(
+    request: Request,
     policy_id: int, db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    policy = _get_owned_policy(db, policy_id, current_user)
+    policy = _get_owned_policy(db, policy_id, current_user, request)
     try:
         policy = policy_service.submit_for_approval(db, policy, actor_role=getattr(current_user, "role", "viewer"))
     except policy_service.PolicyGovernanceError as e:
@@ -202,10 +207,11 @@ async def submit_policy(
 
 @router.post("/decision-policies/{policy_id}/approve")
 async def approve_policy_route(
+    request: Request,
     policy_id: int, db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    policy = _get_owned_policy(db, policy_id, current_user)
+    policy = _get_owned_policy(db, policy_id, current_user, request)
     try:
         policy = policy_service.approve_policy(
             db, policy, actor=_actor_of(current_user), actor_role=getattr(current_user, "role", "viewer"),
@@ -217,10 +223,11 @@ async def approve_policy_route(
 
 @router.post("/decision-policies/{policy_id}/activate")
 async def activate_policy_route(
+    request: Request,
     policy_id: int, db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    policy = _get_owned_policy(db, policy_id, current_user)
+    policy = _get_owned_policy(db, policy_id, current_user, request)
     try:
         policy = policy_service.activate_policy(db, policy, actor_role=getattr(current_user, "role", "viewer"))
     except policy_service.PolicyGovernanceError as e:
@@ -230,20 +237,22 @@ async def activate_policy_route(
 
 @router.post("/decision-policies/{policy_id}/archive")
 async def archive_policy_route(
+    request: Request,
     policy_id: int, db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    policy = _get_owned_policy(db, policy_id, current_user)
+    policy = _get_owned_policy(db, policy_id, current_user, request)
     policy = policy_service.archive_policy(db, policy, actor_role=getattr(current_user, "role", "viewer"))
     return _policy_dict(policy)
 
 
 @router.post("/decision-policies/{policy_id}/reject")
 async def reject_policy_route(
+    request: Request,
     policy_id: int, db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    policy = _get_owned_policy(db, policy_id, current_user)
+    policy = _get_owned_policy(db, policy_id, current_user, request)
     try:
         policy = policy_service.reject_policy(db, policy, actor_role=getattr(current_user, "role", "viewer"))
     except policy_service.PolicyGovernanceError as e:
@@ -263,11 +272,12 @@ class SimulationRequest(BaseModel):
 
 @router.post("/decision-policies/simulate")
 async def simulate_policy_route(
+    request: Request,
     body: SimulationRequest,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     return policy_simulation_service.simulate_policy(
         db, tenant_id=tenant_id, candidate=body.model_dump(),
         instrument_family=body.instrument_family, anatomy_zone=body.anatomy_zone, facility=body.facility,
@@ -278,11 +288,12 @@ async def simulate_policy_route(
 
 @router.get("/unknown-findings")
 async def list_unknown_findings(
+    request: Request,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     reviews = unknown_finding_service.list_reviews(db, tenant_id=tenant_id, status=status)
     return [_unknown_finding_dict(r) for r in reviews]
 
@@ -309,11 +320,12 @@ class UnknownFindingClassification(BaseModel):
 
 @router.post("/unknown-findings/{review_id}/classify")
 async def classify_unknown_finding(
+    request: Request,
     review_id: int, body: UnknownFindingClassification,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     review = db.query(UnknownFindingReview).filter(UnknownFindingReview.id == review_id).first()
     if not review or review.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Unknown-finding review not found")
@@ -335,11 +347,12 @@ class UnknownFindingSecondReview(BaseModel):
 
 @router.post("/unknown-findings/{review_id}/second-review")
 async def second_review_unknown_finding(
+    request: Request,
     review_id: int, body: UnknownFindingSecondReview,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = _tenant_of(current_user)
+    tenant_id = _tenant_of(current_user, request)
     review = db.query(UnknownFindingReview).filter(UnknownFindingReview.id == review_id).first()
     if not review or review.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Unknown-finding review not found")

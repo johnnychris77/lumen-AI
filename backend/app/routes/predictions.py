@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
+from app.auth.context import AuthContext
+from app.auth.tenant_scope import authorized_tenant
 from app.enterprise_auth import require_enterprise_auth
 from app.tier_guard import require_tier
 from app.services.prediction_engine import (
@@ -24,17 +26,20 @@ from app.schemas.predictions import PredictionOutcomeCreate, PredictionAccuracyR
 router = APIRouter(prefix="/api/predictions", tags=["predictions"])
 
 
-def _log_prediction_access(tenant_id: str, action: str, request: Request, db) -> None:
-    """Write prediction access event to audit log."""
+def _log_prediction_access(ctx: AuthContext, action: str, request: Request, db) -> None:
+    """Write prediction access event to audit log.
+
+    P472-03: tenant, actor and role come from the verified auth context — never
+    from a client header or a tenant named in the request."""
     try:
         from app.models.audit_log import AuditLog
-        role = request.headers.get("X-LumenAI-Role", "unknown")
         db.add(AuditLog(
-            tenant_id=tenant_id,
+            tenant_id=ctx.tenant_id,
+            actor_email=ctx.actor or "",
             action_type=action,
-            actor_role=role,
+            actor_role=ctx.role or "unknown",
             resource_type="prediction",
-            resource_id=tenant_id,
+            resource_id=ctx.tenant_id,
             request_method=request.method,
             request_path=str(request.url.path),
             client_ip=request.client.host if request.client else "",
@@ -47,16 +52,17 @@ def _log_prediction_access(tenant_id: str, action: str, request: Request, db) ->
 @router.get("/failures")
 def list_failure_predictions(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     horizon_days: int = Query(default=30, ge=1, le=365),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "failure_prediction_basic", db)
     predictions = predict_failures_for_tenant(tenant_id, facility_id, horizon_days, limit, db)
-    _log_prediction_access(tenant_id, "prediction:failures_list", request, db)
+    _log_prediction_access(ctx, "prediction:failures_list", request, db)
     return {
         "status": "success",
         "tenant_id": tenant_id,
@@ -69,31 +75,33 @@ def list_failure_predictions(
 def get_failure_prediction(
     instrument_id: str,
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     horizon_days: int = Query(default=30, ge=1, le=365),
     barcode_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "failure_prediction_full", db)
     prediction = predict_instrument_failure(tenant_id, instrument_id, facility_id, horizon_days, db)
-    _log_prediction_access(tenant_id, "prediction:failure_detail", request, db)
+    _log_prediction_access(ctx, "prediction:failure_detail", request, db)
     return {"status": "success", "prediction": prediction.model_dump()}
 
 
 @router.get("/contamination")
 def list_contamination_predictions(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "contamination_prediction", db)
     predictions = predict_contamination_for_tenant(tenant_id, facility_id, limit, db)
-    _log_prediction_access(tenant_id, "prediction:contamination_list", request, db)
+    _log_prediction_access(ctx, "prediction:contamination_list", request, db)
     return {
         "status": "success",
         "tenant_id": tenant_id,
@@ -105,29 +113,31 @@ def list_contamination_predictions(
 def get_contamination_prediction(
     instrument_id: str,
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "contamination_prediction", db)
     prediction = predict_contamination_recurrence(tenant_id, instrument_id, facility_id, db)
-    _log_prediction_access(tenant_id, "prediction:contamination_list", request, db)
+    _log_prediction_access(ctx, "prediction:contamination_list", request, db)
     return {"status": "success", "prediction": prediction.model_dump()}
 
 
 @router.get("/repairs")
 def list_repair_forecasts(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "repair_forecasting", db)
     forecasts = forecast_repairs_for_tenant(tenant_id, facility_id, limit, db)
-    _log_prediction_access(tenant_id, "prediction:repairs_list", request, db)
+    _log_prediction_access(ctx, "prediction:repairs_list", request, db)
     return {
         "status": "success",
         "tenant_id": tenant_id,
@@ -139,27 +149,29 @@ def list_repair_forecasts(
 def get_repair_forecast(
     instrument_id: str,
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "repair_forecasting", db)
     forecast = forecast_repair(tenant_id, instrument_id, facility_id, db)
-    _log_prediction_access(tenant_id, "prediction:repairs_list", request, db)
+    _log_prediction_access(ctx, "prediction:repairs_list", request, db)
     return {"status": "success", "forecast": forecast.model_dump()}
 
 
 @router.get("/recall-risk")
 def list_recall_risks(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "recall_risk", db)
     risks = assess_recall_risk_all_categories(tenant_id, db)
-    _log_prediction_access(tenant_id, "prediction:recall_risk", request, db)
+    _log_prediction_access(ctx, "prediction:recall_risk", request, db)
     return {
         "status": "success",
         "tenant_id": tenant_id,
@@ -171,42 +183,45 @@ def list_recall_risks(
 def get_recall_risk(
     instrument_category: str,
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "recall_risk", db)
     risk = assess_recall_risk(tenant_id, instrument_category, db)
-    _log_prediction_access(tenant_id, "prediction:recall_risk", request, db)
+    _log_prediction_access(ctx, "prediction:recall_risk", request, db)
     return {"status": "success", "recall_risk": risk.model_dump()}
 
 
 @router.get("/tray-risk")
 def get_tray_risk(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     tray_id: str = Query(default="default-tray"),
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "tray_risk", db)
     assessment = assess_tray_risk(tenant_id, tray_id, facility_id, db)
-    _log_prediction_access(tenant_id, "prediction:tray_risk", request, db)
+    _log_prediction_access(ctx, "prediction:tray_risk", request, db)
     return {"status": "success", "tray_risk": assessment.model_dump()}
 
 
 @router.get("/dashboard")
 def predictive_dashboard(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
+    ctx = require_enterprise_auth(request, db=db)
+    tenant_id = authorized_tenant(ctx, tenant_id)
     require_tier(tenant_id, "predictive_dashboard", db)
     dashboard = compute_predictive_dashboard(tenant_id, facility_id, db)
-    _log_prediction_access(tenant_id, "prediction:dashboard", request, db)
+    _log_prediction_access(ctx, "prediction:dashboard", request, db)
     return {"status": "success", "dashboard": dashboard.model_dump()}
 
 
@@ -217,11 +232,11 @@ def record_outcome(
     db: Session = Depends(get_db),
 ):
     """Record actual outcome against a prior prediction (for accuracy tracking)."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), body.tenant_id)
     from app.models.predictions import PredictionOutcome
     from datetime import datetime, timezone
     record = PredictionOutcome(
-        tenant_id=body.tenant_id,
+        tenant_id=tenant_id,
         instrument_name=body.instrument_name,
         instrument_id=body.instrument_id,
         facility_id=body.facility_id,
@@ -242,11 +257,11 @@ def record_outcome(
 @router.get("/accuracy")
 def prediction_accuracy(
     request: Request,
-    tenant_id: str = Query(...),
+    tenant_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """Return prediction accuracy metrics for a tenant (clinical validation story)."""
-    require_enterprise_auth(request)
+    tenant_id = authorized_tenant(require_enterprise_auth(request, db=db), tenant_id)
     from app.models.predictions import PredictionOutcome
     rows = db.query(PredictionOutcome).filter(
         PredictionOutcome.tenant_id == tenant_id,

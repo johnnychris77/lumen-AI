@@ -11,6 +11,7 @@ from app.governance_sla import run_sla_evaluation, sla_dashboard
 
 _scheduler: BackgroundScheduler | None = None
 _last_run: dict = {}
+_last_run_by_tenant: dict[str, dict] = {}
 
 
 def _truthy(v: str | None) -> bool:
@@ -43,9 +44,28 @@ def recommendation_for_event(event: models.GovernanceSlaEvent) -> str:
     return "Review the governance exception and document the corrective action."
 
 
-def run_scanner_once() -> dict:
+def run_scanner_once(tenant_id: str | None = None, tenant_name: str | None = None) -> dict:
+    """Evaluate SLA policies.
+
+    With a tenant: that tenant only. This is what a tenant administrator's "run
+    scan" action calls. With none: every tenant that has an enabled policy — the
+    scheduled platform job, and nothing reachable from a tenant's request.
+
+    (P472-03 AW-12: the tenant-triggered routes used to call this with no tenant,
+    so one tenant's administrator evaluated every tenant, wrote SLA events in each
+    of them, and received all of their results.)
+    """
     db = SessionLocal()
     try:
+        if tenant_id is not None:
+            run = {
+                "ran_at": _now(),
+                "tenant_count": 1,
+                "results": [run_sla_evaluation(db, tenant_id, tenant_name or tenant_id)],
+            }
+            _last_run_by_tenant[tenant_id] = run
+            return run
+
         results = []
         for tenant_id, tenant_name in _tenant_rows(db):
             result = run_sla_evaluation(db, tenant_id, tenant_name)
@@ -62,12 +82,27 @@ def run_scanner_once() -> dict:
         db.close()
 
 
-def scanner_status() -> dict:
+def _last_run_for(tenant_id: str) -> dict:
+    """The most recent run as far as ``tenant_id`` is concerned: its own manual run,
+    or its own part of the last scheduled run. Never another tenant's results."""
+    scheduled: dict = {}
+    if _last_run:
+        own = [r for r in _last_run.get("results", []) if r.get("tenant_id") == tenant_id]
+        scheduled = {"ran_at": _last_run.get("ran_at"), "tenant_count": len(own), "results": own}
+    manual = _last_run_by_tenant.get(tenant_id) or {}
+    if manual and (not scheduled or str(manual.get("ran_at")) >= str(scheduled.get("ran_at"))):
+        return manual
+    return scheduled
+
+
+def scanner_status(tenant_id: str | None = None) -> dict:
+    """Scanner configuration and the last run. Pass the caller's tenant for any
+    tenant-facing use; with none the last scheduled run is returned unfiltered."""
     return {
         "enabled": _truthy(os.getenv("LUMENAI_GOVERNANCE_SLA_SCANNER_ENABLED", "false")),
         "cron": os.getenv("LUMENAI_GOVERNANCE_SLA_SCANNER_CRON", "0 */6 * * *"),
         "scheduler_running": bool(_scheduler and _scheduler.running),
-        "last_run": _last_run,
+        "last_run": _last_run if tenant_id is None else _last_run_for(tenant_id),
     }
 
 

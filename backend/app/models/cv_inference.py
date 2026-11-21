@@ -3,7 +3,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 
 from app.db.base import Base
 
@@ -86,3 +96,58 @@ class CVInferenceRecord(Base):
 
     processing_ms = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CVInferenceProvenance(Base):
+    """P4.7.2 — server-issued provenance for ONE trusted inference run.
+
+    A ``CVInferenceRecord`` counts as verified model inference only while exactly
+    one row here refers to it, is in the ``trusted`` state, and carries a seal
+    that verifies against the server's provenance key AND against the record as
+    it is now. Nothing a client sends, and nothing stored in the record's own
+    ``result_json``, can stand in for this row.
+
+    Rows are written only by ``app.cv.provenance.issue_provenance`` from inside
+    the analysis pipeline. There is no API that creates or edits them.
+
+    The seal (``attestation``) is an HMAC over the run's identity — record id,
+    inference id, authenticated tenant, provider, execution status, model
+    versions, verified artifact digests — plus a digest of the record's
+    operational fields. A row inserted or altered by anything that does not hold
+    the server key therefore fails verification, and a record altered after
+    sealing no longer matches its row.
+    """
+    __tablename__ = "cv_inference_provenance"
+    __table_args__ = (
+        UniqueConstraint("record_id", name="uq_cv_inference_provenance_record"),
+        UniqueConstraint("inference_id", name="uq_cv_inference_provenance_inference"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(
+        Integer, ForeignKey("cv_inference_records.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    inference_id = Column(String(100), nullable=False, index=True)
+    # The AUTHENTICATED tenant the run was executed for (never a client claim).
+    tenant_id = Column(String(100), nullable=False, index=True)
+
+    provider = Column(String(50), nullable=False)
+    execution_status = Column(String(20), nullable=False)
+    # Canonical JSON. The artifact digests are the SHA-256 values the provider
+    # verified before loading, each of which was an approved pin at issuance.
+    model_versions_json = Column(Text, nullable=False, default="{}")
+    artifact_digests_json = Column(Text, nullable=False, default="{}")
+
+    # SHA-256 over the record's operational fields at the moment of sealing.
+    record_digest = Column(String(64), nullable=False)
+
+    # "trusted" or "revoked". Part of the sealed payload.
+    state = Column(String(20), nullable=False, default="trusted", index=True)
+    key_id = Column(String(64), nullable=False)
+    attestation = Column(String(64), nullable=False)
+    issued_at = Column(String(40), nullable=False)
+
+    revoked_at = Column(String(40), nullable=False, default="")
+    revoked_by = Column(String(255), nullable=False, default="")
+    revoked_reason = Column(String(255), nullable=False, default="")
+

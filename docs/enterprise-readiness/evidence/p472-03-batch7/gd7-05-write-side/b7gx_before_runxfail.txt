@@ -1,0 +1,16 @@
+FAILED TestOpenFindings::test_another_tenant_cannot_write_evidence_under_an_owned_inspection
+FAILED TestOpenFindings::test_another_tenant_cannot_write_evidence_under_an_owned_workflow_execution
+FAILED TestOpenFindings::test_evidence_for_a_missing_owned_source_is_refused_like_a_foreign_one
+FAILED TestOpenFindings::test_another_tenant_cannot_write_into_an_ownerless_key_in_use
+FAILED TestOpenFindings::test_another_tenant_cannot_attach_an_explanation_to_an_owned_inspection
+FAILED TestOpenFindings::test_explanations_are_not_disclosed_to_another_tenant
+FAILED TestOpenFindings::test_digital_twin_context_cannot_name_another_tenant
+7 failed, 7 passed, 2 warnings in 10.51s
+E       assert 201 == 404
+E       assert 201 == 404
+E       assert 201 == 404
+E       assert 201 == 403
+E       assert 201 == 404
+E           AssertionError: /api/guardianx/explainability
+E           assert 'private-capa-1d54e9cb' not in '{"explanati...4.392842"}]}'
+E       assert 201 == 403

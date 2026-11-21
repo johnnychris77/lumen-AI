@@ -14,27 +14,27 @@ class BenchmarkPeriod(BaseModel):
 
 
 class HospitalBenchmarkRequest(BaseModel):
-    tenant_id: str = "default-tenant"
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     hospital_ids: list[str] = Field(default_factory=list)   # empty = all hospitals
     period: BenchmarkPeriod = Field(default_factory=BenchmarkPeriod)
     force_recompute: bool = False
 
 
 class VendorBenchmarkRequest(BaseModel):
-    tenant_id: str = "default-tenant"
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     vendor_ids: list[str] = Field(default_factory=list)     # empty = all vendors
     period: BenchmarkPeriod = Field(default_factory=BenchmarkPeriod)
     force_recompute: bool = False
 
 
 class EnterpriseRollupRequest(BaseModel):
-    tenant_id: str = "default-tenant"
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     period: BenchmarkPeriod = Field(default_factory=BenchmarkPeriod)
     force_recompute: bool = False
 
 
 class BoardReportRequest(BaseModel):
-    tenant_id: str = "default-tenant"
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     report_type: Literal["monthly", "quarterly", "annual"] = "monthly"
     period_label: str = ""
     publish: bool = False

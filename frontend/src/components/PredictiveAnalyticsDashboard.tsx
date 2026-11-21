@@ -10,7 +10,8 @@ function getHeaders() {
   };
 }
 
-const TENANT_ID = "default-tenant";
+// P472-03: the server takes the tenant from the signed-in user's verified
+// membership; no tenant_id is sent. A hardcoded tenant would be refused (403).
 
 type EvidenceFactor = {
   factor: string;
@@ -166,12 +167,11 @@ export function PredictiveAnalyticsDashboard() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const params = `tenant_id=${TENANT_ID}`;
     Promise.all([
-      apiFetch(`/api/predictions/dashboard?${params}`, { raw: true, headers: getHeaders() }).then(r => r.json()),
-      apiFetch(`/api/predictions/repairs?${params}`, { raw: true, headers: getHeaders() }).then(r => r.json()),
-      apiFetch(`/api/predictions/recall-risk?${params}`, { raw: true, headers: getHeaders() }).then(r => r.json()),
-      apiFetch(`/api/predictions/tray-risk?${params}&tray_id=default-tray`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/dashboard`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/repairs`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/recall-risk`, { raw: true, headers: getHeaders() }).then(r => r.json()),
+      apiFetch(`/api/predictions/tray-risk?tray_id=default-tray`, { raw: true, headers: getHeaders() }).then(r => r.json()),
     ]).then(([d, r, rc, t]) => {
       if (d.dashboard) setDashboard(d.dashboard);
       if (r.forecasts) setRepairs(r.forecasts);

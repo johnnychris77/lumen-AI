@@ -45,6 +45,27 @@ def _row_to_dict(obj) -> dict:
     return result
 
 
+def _public(row, tenant_id: str = "") -> dict:
+    """An alert as a participant may see it.
+
+    The row records WHICH organisations were notified and which acknowledged, as
+    lists of tenant ids. Those lists are the identities of the network's
+    participants and are never returned: a caller gets the counts, and (when the
+    caller's own verified tenant is known) whether their own organisation is in
+    each list. (P472-03 AW-13: the raw lists used to be returned to every
+    authenticated user of every tenant.)
+    """
+    data = _row_to_dict(row)
+    notified = json.loads(data.pop("notified_tenant_ids_json", None) or "[]")
+    acknowledged = json.loads(data.pop("acknowledged_tenant_ids_json", None) or "[]")
+    data["notified_organization_count"] = len(notified)
+    data["acknowledged_organization_count"] = len(acknowledged)
+    if tenant_id:
+        data["notified"] = tenant_id in notified
+        data["acknowledged"] = tenant_id in acknowledged
+    return data
+
+
 def _already_monitoring(db: Session, trend_type: str, description: str) -> bool:
     return (
         db.query(EmergingTrendAlert.id)
@@ -189,10 +210,9 @@ def list_emerging_trends(db: Session, *, tenant_id: str = "", status: str = "") 
     if status:
         q = q.filter(EmergingTrendAlert.status == status)
     rows = q.order_by(EmergingTrendAlert.id.desc()).all()
-    results = [_row_to_dict(r) for r in rows]
     if tenant_id:
-        results = [r for r in results if tenant_id in json.loads(r["notified_tenant_ids_json"])]
-    return results
+        rows = [r for r in rows if tenant_id in json.loads(r.notified_tenant_ids_json or "[]")]
+    return [_public(r, tenant_id) for r in rows]
 
 
 def acknowledge_trend(db: Session, tenant_id: str, trend_id: int) -> dict | None:
@@ -204,4 +224,4 @@ def acknowledge_trend(db: Session, tenant_id: str, trend_id: int) -> dict | None
     row.acknowledged_tenant_ids_json = json.dumps(sorted(acknowledged))
     db.commit()
     db.refresh(row)
-    return _row_to_dict(row)
+    return _public(row, tenant_id)

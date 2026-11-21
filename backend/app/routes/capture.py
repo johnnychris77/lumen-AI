@@ -26,7 +26,7 @@ from app.authz import require_roles
 from app.cv.identifier_decoder import decode_from_image_bytes
 from app.db import models
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.capture_device import CaptureDevice
 from app.services.baseline_comparison_scoring_service import analyze_inspection
 from app.services.image_retention_service import retain_image
@@ -63,7 +63,7 @@ def register_device(
             status_code=422,
             detail=f"role must be one of {sorted(_ASSIGNABLE_DEVICE_ROLES)}",
         )
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
 
     raw_key = secrets.token_urlsafe(40)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
@@ -102,7 +102,7 @@ def list_devices(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     rows = (
         db.query(CaptureDevice)
         .filter(CaptureDevice.tenant_id == tenant_id)
@@ -130,7 +130,7 @@ def revoke_device(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "spd_manager")),
 ):
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     device = (
         db.query(CaptureDevice)
         .filter(CaptureDevice.id == device_id, CaptureDevice.tenant_id == tenant_id)

@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { RequireTenant } from "@/lib/tenant";
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("token") || "";
@@ -181,7 +182,13 @@ function ScoreBar({ value }: { value: number }) {
   );
 }
 
-export default function VendorIntelligenceDashboard({ tenantId = "default-tenant" }: { tenantId?: string }) {
+// P472-03 B5.1: the tenant is the signed-in user's verified selection (sent as
+// X-Tenant-Id by apiFetch); the route's required `tenant_id` repeats it.
+export default function VendorIntelligenceDashboard() {
+  return <RequireTenant>{(tenantId) => <VendorIntelligenceView key={tenantId} tenantId={tenantId} />}</RequireTenant>;
+}
+
+function VendorIntelligenceView({ tenantId }: { tenantId: string }) {
   const [dashboard, setDashboard] = useState<IntelligenceDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

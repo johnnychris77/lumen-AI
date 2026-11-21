@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { TenantSwitcher, useTenant } from "@/lib/tenant";
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("token");
@@ -260,16 +261,23 @@ function ExpansionBoard() {
   );
 }
 
+// P472-03 B5.1: the health score is for the signed-in user's verified tenant
+// (X-Tenant-Id, attached by apiFetch). The UI no longer offers a free-text
+// tenant or the "all tenants" platform-wide view: that view is limited to the
+// PA-1 privileged class and its existence is governance decision GD-8 (unsigned).
 function HealthScore() {
-  const [tenant, setTenant] = useState("");
+  const { tenantId } = useTenant();
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
     setErr(null);
+    if (!tenantId) {
+      setErr("Select a tenant to load its health score.");
+      return;
+    }
     try {
-      const q = tenant ? `?tenant_id=${encodeURIComponent(tenant)}` : "";
-      setData(await fetchJSON(`/api/commercial/customer-success/health-score${q}`));
+      setData(await fetchJSON(`/api/commercial/customer-success/health-score`));
     } catch (e: any) {
       setErr(e.message);
     }
@@ -278,21 +286,13 @@ function HealthScore() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tenantId]);
 
   return (
     <section className="border rounded-lg p-4 bg-white">
       <SectionHeader title="Customer Health Score" subtitle="Operational triage indicator, not a clinical measure." />
       <div className="flex gap-2 items-end mb-3">
-        <label className="text-sm">
-          Tenant ID (optional)
-          <input
-            value={tenant}
-            onChange={(e) => setTenant(e.target.value)}
-            className="block border rounded px-2 py-1"
-            placeholder="all tenants"
-          />
-        </label>
+        <TenantSwitcher />
         <button onClick={load} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">
           Load
         </button>

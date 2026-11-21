@@ -1,0 +1,7 @@
+RB-T38           before/final     failed        expected=failed     assert True is False
+RB-T38           after/final      failed        expected=failed (OPEN finding) assert True is False
+RB-T39           before/final     failed        expected=failed     assert 200 in (401, 403, 404)
+RB-T39           after/final      failed        expected=failed (OPEN finding) assert 200 in (401, 403, 404)
+RB-T40           before/final     failed        expected=failed     AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}
+RB-T40           after/final      failed        expected=failed (OPEN finding) AssertionError: {'APP_ENV': 'production', 'AUTH_MODE': 'oidc'}
+wrote /tmp/claude-0/-home-user-lumen-AI/9848bd96-e333-5e5f-906e-c172784b7394/scratchpad/b8/kit8pa_pg/kit-results-postgres.json

@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.patient_safety import (
     CAPAEffectivenessSignal,
     ExecutiveRiskSignal,
@@ -30,9 +31,6 @@ router = APIRouter(prefix="/api/patient-safety", tags=["patient-safety"])
 
 _NO_CAUSATION_DISCLAIMER = DISCLAIMER
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -82,8 +80,7 @@ def list_signals(
     db: Session = Depends(get_db),
 ):
     """List InstrumentQualitySignals for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(InstrumentQualitySignal).filter(
         InstrumentQualitySignal.tenant_id == tenant_id
@@ -125,8 +122,7 @@ def get_signal(
     db: Session = Depends(get_db),
 ):
     """Return a single InstrumentQualitySignal."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     sig = (
         db.query(InstrumentQualitySignal)
@@ -165,8 +161,7 @@ def correlate(
     db: Session = Depends(get_db),
 ):
     """Run the correlation engine for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = correlate_signals(
         db=db,
@@ -198,8 +193,7 @@ def list_near_misses(
     db: Session = Depends(get_db),
 ):
     """List NearMissCorrelations for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(NearMissCorrelation).filter(NearMissCorrelation.tenant_id == tenant_id)
     if facility_id:
@@ -236,8 +230,7 @@ def list_quality_investigations(
     db: Session = Depends(get_db),
 ):
     """List QualityInvestigations for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(QualityInvestigation).filter(QualityInvestigation.tenant_id == tenant_id)
     if status:
@@ -276,8 +269,7 @@ def list_executive_risk(
     db: Session = Depends(get_db),
 ):
     """List ExecutiveRiskSignals for this tenant (enterprise tier required)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     require_tier(tenant_id, "executive_risk", db)
 
     q = db.query(ExecutiveRiskSignal).filter(ExecutiveRiskSignal.tenant_id == tenant_id)
@@ -316,8 +308,7 @@ def import_events(
     db: Session = Depends(get_db),
 ):
     """Import external safety events and generate quality signals."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     # Tag each event with the source system
     for ev in body.events:
@@ -357,8 +348,7 @@ def dashboard(
     db: Session = Depends(get_db),
 ):
     """Patient safety KPI dashboard rollup."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     rollup = get_dashboard_rollup(
         db=db,
@@ -388,8 +378,7 @@ def list_infection_prevention(
     db: Session = Depends(get_db),
 ):
     """List InfectionPreventionSignals for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(InfectionPreventionSignal).filter(
         InfectionPreventionSignal.tenant_id == tenant_id
@@ -427,8 +416,7 @@ def list_capa_effectiveness(
     db: Session = Depends(get_db),
 ):
     """List CAPAEffectivenessSignals for this tenant."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(CAPAEffectivenessSignal).filter(
         CAPAEffectivenessSignal.tenant_id == tenant_id

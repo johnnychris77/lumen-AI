@@ -197,6 +197,11 @@ class TestSupervisorRoleReadAccess:
         try:
             db.add(AdminCredential(username=username, password_hash=bcrypt.hash("Password123"), role="admin"))
             db.add(UserRoleAssignment(username=username, role="supervisor", assigned_by="test"))
+            # P472-03 batch 4 (AW-06N): a signed-in user with no tenant membership is
+            # refused rather than served a shared default tenant; this test is about
+            # the supervisor ROLE, so the supervisor belongs to a tenant.
+            db.add(TenantMembership(tenant_id=f"tenant-{uuid.uuid4().hex[:8]}", user_email=username,
+                                    role="viewer", is_enabled=True))
             db.commit()
         finally:
             db.close()

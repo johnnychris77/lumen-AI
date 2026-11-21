@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, onProtectedLinkClick } from "@/lib/api";
 
 const AUTH_TOKEN = localStorage.getItem("token") || import.meta.env.VITE_AUTH_TOKEN || "";
 const EXECUTIVE_PDF_URL = `${API_BASE}/api/enterprise/executive-quality-review-dashboard.pdf`;
@@ -99,7 +99,7 @@ export default function ExecutiveQualityReviewPanel() {
           <button type="button" onClick={loadDashboard} disabled={loading} style={refreshButtonStyle}>
             {loading ? "Refreshing..." : "Refresh Dashboard"}
           </button>
-          <a href={EXECUTIVE_PDF_URL} target="_blank" rel="noreferrer" style={pdfButtonStyle}>
+          <a href={EXECUTIVE_PDF_URL} target="_blank" rel="noreferrer" style={pdfButtonStyle} onClick={(event) => onProtectedLinkClick(event, EXECUTIVE_PDF_URL)}>
             Download Executive PDF
           </a>
         </div>

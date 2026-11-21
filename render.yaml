@@ -29,10 +29,11 @@ services:
           property: connectionString
       - key: ENABLE_DEV_AUTH
         value: "false"
-      # Authentication mode. Production requires this to be set explicitly, or
-      # the app refuses to boot. Use "oidc" and fill in the issuer/audience
-      # below. (AUTH_MODE=dev in production also requires ALLOW_DEV_AUTH_IN_PROD
-      # =true as a deliberate, auditable exception — not set here on purpose.)
+      # Authentication mode. Production requires AUTH_MODE=oidc, or the app
+      # refuses to boot (PA-1 remediation: AUTH_MODE=dev is refused in
+      # production and ALLOW_DEV_AUTH_IN_PROD is no longer honoured). Fill in the
+      # issuer/audience below. ENABLE_DEV_AUTH=true or DEMO_MODE set in
+      # production, or APP_ENV/ENVIRONMENT disagreeing, also refuse to boot.
       - key: AUTH_MODE
         value: oidc
       - key: OIDC_ISSUER_URL

@@ -13,6 +13,12 @@ class VendorBaselineAuditEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     baseline_id = Column(Integer, index=True, nullable=False)
 
+    # GD-3: the tenant that owns the baseline this event concerns. Stamped from
+    # the verified tenant at write time (never from the request body). Nullable
+    # so pre-GD-3 rows stay unattributed; audit-trail reads are scoped to the
+    # caller's tenant, so an unattributed row is visible to no tenant.
+    tenant_id = Column(String, nullable=True, index=True)
+
     event_type = Column(String(100), nullable=False)
     actor = Column(String(255), nullable=True)
     actor_role = Column(String(100), nullable=True)

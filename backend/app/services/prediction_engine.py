@@ -71,13 +71,17 @@ def predict_instrument_failure(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name == instrument_name,
             )
             if facility_id:
                 q = q.filter(CVInferenceRecord.facility_id == facility_id)
-            records = q.order_by(CVInferenceRecord.id.desc()).limit(20).all()
+            records = integrity_verified(db, q.order_by(CVInferenceRecord.id.desc()).limit(20).all())
 
             if records:
                 return _compute_failure_from_records(
@@ -207,13 +211,17 @@ def predict_contamination_recurrence(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name == instrument_name,
             )
             if facility_id:
                 q = q.filter(CVInferenceRecord.facility_id == facility_id)
-            records = q.order_by(CVInferenceRecord.id.desc()).limit(20).all()
+            records = integrity_verified(db, q.order_by(CVInferenceRecord.id.desc()).limit(20).all())
 
             if records:
                 n = len(records)
@@ -492,12 +500,16 @@ def assess_tray_risk(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
             )
             if facility_id:
                 q = q.filter(CVInferenceRecord.facility_id == facility_id)
-            records = q.all()
+            records = integrity_verified(db, q.all())
 
             if records:
                 # Group by instrument_name as proxy for instruments in tray
@@ -642,10 +654,14 @@ def _get_instrument_by_id(tenant_id: str, instrument_id: str, db) -> list:
     if db is not None and instrument_id:
         try:
             from app.models.cv_inference import CVInferenceRecord
-            return db.query(CVInferenceRecord).filter(
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
+            return integrity_verified(db, db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.barcode_value == instrument_id,
-            ).order_by(CVInferenceRecord.id.desc()).limit(20).all()
+            ).order_by(CVInferenceRecord.id.desc()).limit(20).all())
         except Exception:
             pass
     return []
@@ -655,15 +671,26 @@ def _get_instrument_names(tenant_id: str, facility_id: str, limit: int, db) -> l
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
-            q = db.query(CVInferenceRecord.instrument_name).filter(
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
+            q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
                 CVInferenceRecord.instrument_name != "",
             )
             if facility_id:
                 q = q.filter(CVInferenceRecord.facility_id == facility_id)
-            rows = q.distinct().limit(limit).all()
-            if rows:
-                return [r[0] for r in rows]
+            # Whole rows are loaded so each one's provenance seal can be verified
+            # before its instrument name is used.
+            names: list[str] = []
+            for record in integrity_verified(db, q.order_by(CVInferenceRecord.id.desc()).limit(500).all()):
+                if record.instrument_name not in names:
+                    names.append(record.instrument_name)
+                if len(names) >= limit:
+                    break
+            if names:
+                return names
         except Exception:
             pass
     # Mock instrument list

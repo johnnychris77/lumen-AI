@@ -28,6 +28,7 @@ def verify_compliance_evidence_bundle_hash(
     db: Session,
     *,
     bundle_hash: str,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
     normalized_hash = (bundle_hash or "").strip()
 
@@ -41,8 +42,13 @@ def verify_compliance_evidence_bundle_hash(
             "message": "No compliance evidence bundle hash provided.",
         }
 
+    query = db.query(AuditLog)
+    if owner_tenant_id is not None:
+        # Governance decision GD-2: only the caller's own tenant's bundles.
+        query = query.filter(AuditLog.tenant_id == owner_tenant_id)
+
     event = (
-        db.query(AuditLog)
+        query
         .filter(
             AuditLog.action_type == "compliance_evidence_bundle_generated",
             AuditLog.resource_type == "compliance_evidence_bundle",

@@ -2,7 +2,9 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from app.security.principal import AuthenticatedPrincipal
 from app.authz import require_roles
+from app.deps import get_current_user
 
 router = APIRouter(tags=["system"])
 
@@ -140,6 +142,34 @@ async def login(request: Request):
         "access_token": _make_token(valid),
         "token_type": "bearer",
         "role": _user_role(valid),
+    }
+
+
+@router.get("/auth/tenants")
+def session_tenants(principal: AuthenticatedPrincipal = Depends(get_current_user)):
+    """The authenticated caller's own enabled tenant memberships (P472-03 B5.1).
+
+    The web client needs to know which tenant it may act in: since Batch 4 a
+    tenant the caller is not a member of is refused, so the client must select
+    one of its VERIFIED tenants and send it as ``X-Tenant-Id``. This endpoint
+    is the only source the client should use for that choice.
+
+    * Derived solely from the server-side principal (``get_current_user`` loads
+      enabled ``tenant_memberships`` from the database); no request header,
+      query or body can add a tenant to the list.
+    * Read-only; reveals only the caller's own memberships and their roles.
+    * ``active_tenant_id`` is set only when the caller has exactly one tenant;
+      with several, ``selection_required`` is true and the client must ask the
+      user. The selection stays advisory — every API request re-verifies it.
+    """
+    by_tenant: dict[str, str] = {}
+    for membership in principal.tenant_memberships:
+        by_tenant.setdefault(membership.tenant_id, membership.role_name)
+    memberships = [{"tenant_id": tenant, "role": by_tenant[tenant]} for tenant in sorted(by_tenant)]
+    return {
+        "memberships": memberships,
+        "active_tenant_id": principal.active_tenant_id,
+        "selection_required": principal.active_tenant_id is None and len(memberships) > 1,
     }
 
 

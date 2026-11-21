@@ -23,7 +23,7 @@ def get_scanner_status(
     return {
         "tenant_id": tenant["tenant_id"],
         "tenant_name": tenant["tenant_name"],
-        **scanner_status(),
+        **scanner_status(tenant["tenant_id"]),
     }
 
 
@@ -33,7 +33,7 @@ def run_scanner(
     tenant: dict = Depends(resolve_tenant),
     current_user=Depends(require_tenant_roles("tenant_admin", "site_admin")),
 ):
-    result = run_scanner_once()
+    result = run_scanner_once(tenant["tenant_id"], tenant["tenant_name"])
 
     db = SessionLocal()
     try:

@@ -24,6 +24,12 @@ def _get_protected_report_route(app) -> str:
 
 
 
+def _token(user_email: str) -> str:
+    from app.routers.auth_simple import _make_token
+
+    return _make_token(user_email)
+
+
 def _ensure_tenant_membership_table():
     from app.db.base import Base
     from app.db.session import engine
@@ -63,6 +69,10 @@ def test_protected_reports_route_denies_user_without_membership():
         response = client.get(
             _get_protected_report_route(app),
             headers={
+                # P472-03 batch 2: the tenant dependency authenticates the caller
+                # itself, so the request carries a real signed token for this user
+                # (the patch above only replaced one of the two identity lookups).
+                "Authorization": f"Bearer {_token(user_email)}",
                 "X-LumenAI-Tenant-ID": tenant_id,
                 "X-LumenAI-Actor": user_email,
             },
@@ -96,6 +106,10 @@ def test_protected_reports_route_denies_wrong_role():
         response = client.get(
             _get_protected_report_route(app),
             headers={
+                # P472-03 batch 2: the tenant dependency authenticates the caller
+                # itself, so the request carries a real signed token for this user
+                # (the patch above only replaced one of the two identity lookups).
+                "Authorization": f"Bearer {_token(user_email)}",
                 "X-LumenAI-Tenant-ID": tenant_id,
                 "X-LumenAI-Actor": user_email,
             },
@@ -130,6 +144,10 @@ def test_protected_reports_route_denies_cross_tenant_user():
         response = client.get(
             _get_protected_report_route(app),
             headers={
+                # P472-03 batch 2: the tenant dependency authenticates the caller
+                # itself, so the request carries a real signed token for this user
+                # (the patch above only replaced one of the two identity lookups).
+                "Authorization": f"Bearer {_token(user_email)}",
                 "X-LumenAI-Tenant-ID": blocked_tenant_id,
                 "X-LumenAI-Actor": user_email,
             },

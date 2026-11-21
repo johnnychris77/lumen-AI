@@ -20,6 +20,8 @@
  *   No component changes required.
  */
 
+import { isTenantDenial, isValidTenantId, TENANT_DENIED_EVENT, tenantHeaders } from "./tenantContext";
+
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://lumen-ai-53u4.onrender.com";
 
@@ -57,6 +59,20 @@ export function getActor(): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * The tenant the user selected from the server's list of their memberships
+ * (see lib/tenantContext.ts). Held in memory and set ONLY by the TenantProvider
+ * after the server confirmed it; sent as `X-Tenant-Id`. The server re-verifies
+ * it on every request — this is a selection, not authority.
+ */
+let selectedTenant: string | null = null;
+export function setSelectedTenant(tenantId: string | null) {
+  selectedTenant = tenantId && isValidTenantId(tenantId) ? tenantId : null;
+}
+export function getSelectedTenant(): string | null {
+  return selectedTenant;
 }
 
 /** Optional hook so the AuthProvider can react to a global 401 (e.g. sign out). */
@@ -153,6 +169,11 @@ export async function apiFetch<T = unknown>(
         finalHeaders.set("Authorization", `Bearer ${token}`);
       }
     }
+
+    // Verified tenant selection (B5.1). Never a hard-coded fallback.
+    for (const [name, value] of Object.entries(tenantHeaders(selectedTenant))) {
+      if (!finalHeaders.has(name)) finalHeaders.set(name, value);
+    }
   }
 
   const res = await fetch(buildUrl(path), {
@@ -194,6 +215,16 @@ export async function apiFetch<T = unknown>(
       /* fall through with the generic message */
     }
 
+    // A refused tenant (revoked membership, stale selection): let the
+    // TenantProvider re-read the user's memberships from the server.
+    if (auth && isTenantDenial(res.status, message) && typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent(TENANT_DENIED_EVENT));
+      } catch {
+        /* never let the notification mask the original error */
+      }
+    }
+
     // v1.9 — fire-and-forget role-permission-failure logging. Inlined
     // (rather than importing errorLog.ts) to avoid a circular import, and
     // skipped for the logging endpoint itself so a permission failure can
@@ -219,6 +250,40 @@ export async function apiFetch<T = unknown>(
   } catch {
     return text as unknown as T;
   }
+}
+
+/**
+ * Open a protected export (PDF, CSV, ZIP, JSON) in a new tab.
+ *
+ * A plain link or `window.open(url)` is a browser navigation: it cannot carry
+ * the bearer token, so every authenticated export answers 401 to it. This
+ * fetches the file through `apiFetch` (token attached) and opens the result as
+ * a blob URL instead. Falls back to a download when the pop-up is blocked.
+ */
+export async function openProtectedFile(url: string, filename?: string): Promise<void> {
+  const response = await apiFetch(url, { raw: true });
+  if (!response.ok) {
+    throw new ApiError(response.status, `Download failed (${response.status})`, null);
+  }
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename || url.split("/").pop()?.split("?")[0] || "download";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+/** `onClick` for an `<a href>` that points at a protected export. */
+export function onProtectedLinkClick(event: { preventDefault: () => void }, url: string): void {
+  event.preventDefault();
+  openProtectedFile(url).catch((error: unknown) => {
+    window.alert(error instanceof Error ? error.message : "Download failed.");
+  });
 }
 
 // Convenience verb helpers. These always parse JSON (type T). For a raw

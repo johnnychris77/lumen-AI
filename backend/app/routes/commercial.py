@@ -14,12 +14,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
+from app.auth.tenant_scope import principal_claim_tenant
 from app.authz import require_roles
 from app.deps import get_db
 from app.db import models
@@ -417,10 +418,11 @@ def _compute_health(db: Session, tenant_id: str | None,
 
 @router.get("/customer-success/health-score")
 def health_score(
+    request: Request,
     tenant_id: str | None = Query(default=None),
     onboarding_pct: float | None = Query(default=None, ge=0, le=100),
     training_pct: float | None = Query(default=None, ge=0, le=100),
-    _=Depends(require_roles("admin", "executive")),
+    current_user=Depends(require_roles("admin", "executive")),
     db: Session = Depends(get_db),
 ):
     """Composite customer health score (0–100) for renewal/expansion triage.
@@ -428,6 +430,9 @@ def health_score(
     onboarding_pct / training_pct precedence: explicit query params override;
     otherwise the latest persisted snapshot is used; otherwise default 100.
     """
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified
+    # tenant; the tenant-less platform-wide view is for the PA-1 privileged class only.
+    tenant_id = principal_claim_tenant(current_user, request, tenant_id, allow_platform_wide=True)
     snap = _latest_snapshot(db, tenant_id)
     o_pct = onboarding_pct if onboarding_pct is not None else (
         snap.onboarding_pct if snap else 100.0)
@@ -451,11 +456,14 @@ class SnapshotRequest(BaseModel):
 @router.post("/customer-success/snapshot", status_code=201)
 def create_snapshot(
     payload: SnapshotRequest,
+    request: Request,
     current_user=Depends(require_roles("admin", "executive")),
     db: Session = Depends(get_db),
 ):
     """Persist a customer-success snapshot so health scores are reproducible and
     trendable. Audit-logged."""
+    # P472-03 AW-04 (batch 4): the body tenant_id must name the caller's verified tenant.
+    principal_claim_tenant(current_user, request, payload.tenant_id)
     health = _compute_health(db, payload.tenant_id, payload.onboarding_pct, payload.training_pct)
     snap = models.CustomerSuccessSnapshot(
         tenant_id=payload.tenant_id,
@@ -499,12 +507,15 @@ def create_snapshot(
 
 @router.get("/customer-success/trend")
 def health_trend(
+    request: Request,
     tenant_id: str = Query(..., min_length=1),
     limit: int = Query(default=24, ge=1, le=200),
-    _=Depends(require_roles("admin", "executive")),
+    current_user=Depends(require_roles("admin", "executive")),
     db: Session = Depends(get_db),
 ):
     """Return persisted health-score snapshots over time for a tenant."""
+    # P472-03 AW-04 (batch 4): tenant_id must name the caller's verified tenant.
+    tenant_id = principal_claim_tenant(current_user, request, tenant_id)
     rows = (
         db.query(models.CustomerSuccessSnapshot)
         .filter(models.CustomerSuccessSnapshot.tenant_id == tenant_id)
@@ -705,12 +716,16 @@ def roi_calculate(
 
 @router.get("/business-case/executive-summary")
 def executive_business_case(
+    request: Request,
     tenant_id: str | None = Query(default=None),
     current_user=Depends(require_roles("admin", "executive")),
     db: Session = Depends(get_db),
 ):
     """Generate an executive business-case summary combining adoption, quality,
     and modeled ROI. Audit-logged as a commercial artifact access."""
+    # P472-03 AW-04 (batch 4): tenant_id is a claim that must name the caller's verified
+    # tenant; the tenant-less platform-wide view is for the PA-1 privileged class only.
+    tenant_id = principal_claim_tenant(current_user, request, tenant_id, allow_platform_wide=True)
     insp_30 = _inspection_count(db, tenant_id, 30)
     annualized = insp_30 * 12
 

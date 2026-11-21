@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.catalyst_copilot import DISCLAIMER, MESSAGE_ROLE_ASSISTANT, MESSAGE_ROLE_USER, MESSAGE_TYPE_DOCUMENT, MESSAGE_TYPE_IMAGE
 from app.services import (
     catalyst_action_engine,
@@ -44,7 +44,7 @@ _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def _actor(current_user) -> str:

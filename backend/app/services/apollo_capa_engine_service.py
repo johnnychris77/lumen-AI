@@ -44,11 +44,11 @@ def capa_engine_summary(db: Session, tenant_id: str) -> dict:
     }
 
 
-def create_capa_from_suggestion_reviewed(suggestion: dict, *, owner: str) -> dict:
+def create_capa_from_suggestion_reviewed(suggestion: dict, *, owner: str, tenant_id: str) -> dict:
     """Human-review materialization step — unchanged from the pre-existing
     `capa_suggestion_service.create_capa_from_suggestion`, exposed here so
     Apollo's routes have one CAPA Engine entry point."""
-    return create_capa_from_suggestion(suggestion, owner=owner)
+    return create_capa_from_suggestion(suggestion, owner=owner, tenant_id=tenant_id)
 
 
 # ── Customer complaint intake (Section 2 CAPA trigger source) ───────────────

@@ -10,8 +10,9 @@ from backend.app.services.security import hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-_APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
-_IS_PRODUCTION = _APP_ENV in {"production", "prod"}
+from backend.app.core.environment import is_production as _canonical_is_production  # noqa: E402
+
+_IS_PRODUCTION = _canonical_is_production()  # PA-1: APP_ENV or ENVIRONMENT
 
 
 def _get_seed_password() -> str:

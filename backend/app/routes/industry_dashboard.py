@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.network_benchmark import NetworkParticipant
 from app.services.network_benchmark_service import (
     METRICS,
@@ -87,8 +88,7 @@ def _log_dashboard(db: Session, tenant_id: str, dashboard_type: str) -> None:
 @router.get("/hospital")
 def hospital_dashboard(request: Request, db: Session = Depends(get_db)):
     """Hospital view: my metrics vs network percentiles."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _log_dashboard(db, tenant_id, "hospital")
     return _build_dashboard(db, tenant_id, "hospital")
 
@@ -96,8 +96,7 @@ def hospital_dashboard(request: Request, db: Session = Depends(get_db)):
 @router.get("/health-system")
 def health_system_dashboard(request: Request, db: Session = Depends(get_db)):
     """Health system view: multi-facility aggregate vs network."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _log_dashboard(db, tenant_id, "health_system")
     return _build_dashboard(db, tenant_id, "health_system")
 
@@ -105,8 +104,7 @@ def health_system_dashboard(request: Request, db: Session = Depends(get_db)):
 @router.get("/manufacturer")
 def manufacturer_dashboard(request: Request, db: Session = Depends(get_db)):
     """Manufacturer view: their instruments' network defect rates."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _log_dashboard(db, tenant_id, "manufacturer")
     result = _build_dashboard(db, tenant_id, "manufacturer")
     # Manufacturer-specific: add instrument defect summary (anonymized)
@@ -126,8 +124,7 @@ def manufacturer_dashboard(request: Request, db: Session = Depends(get_db)):
 @router.get("/vendor")
 def vendor_dashboard(request: Request, db: Session = Depends(get_db)):
     """Vendor view: scorecard vs network average."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _log_dashboard(db, tenant_id, "vendor")
     result = _build_dashboard(db, tenant_id, "vendor")
     rng = _seed(f"vendor_scorecard:{tenant_id}")
@@ -143,8 +140,7 @@ def vendor_dashboard(request: Request, db: Session = Depends(get_db)):
 @router.get("/quality-leader")
 def quality_leader_dashboard(request: Request, db: Session = Depends(get_db)):
     """Quality/IP view: contamination trends, recall signals, alerts."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _log_dashboard(db, tenant_id, "quality_leader")
     result = _build_dashboard(db, tenant_id, "quality_leader")
     rng = _seed(f"quality_trends:{tenant_id}")

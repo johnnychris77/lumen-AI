@@ -74,15 +74,16 @@ def infer_actor_and_role(headers: dict[str, str]) -> tuple[str, str]:
         return "unknown", "viewer"
 
     try:
-        from app.deps import _DEV_AUTH_ACTIVE, _DEV_ROLE_MAP, _decode_jwt
+        from app.core.environment import is_production
+        from app.deps import _decode_jwt, dev_token_role
     except Exception:
         return "unknown", "viewer"
 
-    if _DEV_AUTH_ACTIVE and token in _DEV_ROLE_MAP:
-        role = _DEV_ROLE_MAP[token]
+    role = dev_token_role(token)
+    if role is not None:
         return f"{role}@local.dev", role
 
-    if os.getenv("DEMO_MODE", "0").strip() == "1" and token == "demo-token":
+    if os.getenv("DEMO_MODE", "0").strip() == "1" and not is_production() and token == "demo-token":
         return "demo@lumenai.com", "viewer"
 
     payload = _decode_jwt(token)

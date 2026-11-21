@@ -17,7 +17,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db, get_current_user
 from app.db import models
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.analytics.risk_engine import calculate_risk
 from app.cv.identifier_decoder import decode_from_image_bytes
 from app.services.baseline_comparison_scoring_service import analyze_inspection
@@ -258,7 +258,7 @@ async def create_manufacturer_baseline(
     """
     from app.models.baseline_library import BaselineLibraryEntry
 
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     entry = BaselineLibraryEntry(
@@ -325,7 +325,7 @@ async def register_baseline_reference_image(
     """
     from app.services import baseline_image_registration_service as bir
 
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     content_type = image.content_type or ""
@@ -448,7 +448,7 @@ async def get_inspection(
     # without this fallback the tenant filter below was silently skipped,
     # allowing any authenticated non-admin caller to read any tenant's
     # inspection by ID.
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
 
     query = db.query(models.Inspection).filter(models.Inspection.id == inspection_id)
 
@@ -563,7 +563,7 @@ async def create_inspection(
     current_user=Depends(require_inspection_runner),
 ):
     """Submit a new inspection record. Enforces DQ-01..DQ-14 validation rules."""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     tenant_name = body.tenant_name or getattr(current_user, "tenant_name", "") or tenant_id
 
     conf_val = (body.confidence or 0.0) / 100.0 if body.confidence is not None else 0.0
@@ -1281,7 +1281,7 @@ async def upload_inspection_images(
     # mismatch (e.g. a JWT user whose membership tenant != the request header)
     # silently loses the processing bytes, so the baseline comparison reports
     # "no visual comparison performed" even though an ACTIVE reference exists.
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     actor = getattr(current_user, "email", None) or getattr(current_user, "username", "unknown")
 
     # Image-source provenance (borescope_capture / file_upload / mixed). Purely
@@ -1464,7 +1464,7 @@ async def upload_baseline_images(
     Manufacturer Baseline form works with a normal login — the previous
     enterprise-only auth rejected login tokens ("Authentication required").
     """
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
 
     results = []
     for img in images:

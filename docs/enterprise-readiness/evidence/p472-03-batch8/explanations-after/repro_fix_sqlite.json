@@ -1,0 +1,59 @@
+{
+ "tenant_a_writes": {
+  "ownerless_key": 201,
+  "own_inspection": 201
+ },
+ "audit_events_for_a_explanation": [
+  "gxe-a-455d0e83"
+ ],
+ "cross_tenant_reads": {
+  "B list by source": {
+   "status": 200,
+   "discloses_a_private_text": false
+  },
+  "B get by id": {
+   "status": 404,
+   "discloses_a_private_text": false
+  },
+  "B recommendation replay": {
+   "status": 200,
+   "discloses_a_private_text": false
+  },
+  "B audit-evidence package": {
+   "status": 200,
+   "discloses_a_private_text": false
+  },
+  "B get A's inspection explanation by id": {
+   "status": 404,
+   "discloses_a_private_text": false
+  }
+ },
+ "b_override_on_a_explanation": {
+  "status": 404,
+  "persisted_row": {
+   "created_by": "gxe-a-455d0e83@example.test",
+   "human_overrides": []
+  }
+ },
+ "b_explanation_into_a_key": {
+  "status": 403,
+  "visible_in_a_list": false
+ },
+ "b_reads_chain_of_a_inspection": {
+  "status": 200,
+  "audit_chain": {
+   "verified": true,
+   "resource_type": "inspection",
+   "resource_id": "1",
+   "event_count": 0,
+   "broken_event_id": null,
+   "message": "No audit events found for this resource."
+  }
+ },
+ "controls": {
+  "A list own key": true,
+  "A get own by id": 200,
+  "A override own": 200,
+  "A inspection replay shows own explanation": true
+ }
+}

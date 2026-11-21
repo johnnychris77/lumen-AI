@@ -24,7 +24,7 @@ from app.audit import log_audit_event
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.disposition_override import DISPOSITION_ACTIONS
 from app.services import workflow_state_service
 from app.services.disposition_evidence_service import get_evidence_panel
@@ -49,7 +49,7 @@ def _actor(user) -> str:
 
 
 def _tenant(current_user, request: Request) -> str:
-    return getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    return principal_tenant(current_user, request)
 
 
 def _get_inspection(db: Session, tenant_id: str, inspection_id: int):

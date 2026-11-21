@@ -1,0 +1,2741 @@
+{
+ "generated_at": "2026-11-21T03:11:08+00:00",
+ "head": "bed42c86f982efc845130ec65d3b46bdc2d06899",
+ "branch": "engineering/render-local-inference-p47",
+ "note": "Manifest of the tree at 'head' plus any uncommitted evidence it names; the commit that adds this file is recorded in the release-gate index.",
+ "classes": {
+  "CI": 32,
+  "LOCAL-AUTHOR": 58,
+  "INDEPENDENT": 0,
+  "GOVERNANCE": 0
+ },
+ "records": [
+  {
+   "id": "CI-3c8d347-sqlite",
+   "class": "CI",
+   "sha": "3c8d347",
+   "source": "run 44633695173 job 135946704078",
+   "command": "pytest tests -q (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9190,
+    "skipped": 3,
+    "xfailed": 15,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "15 strict security xfails = open findings at Batch 5; NOT a passing security gate"
+  },
+  {
+   "id": "CI-3c8d347-pg16",
+   "class": "CI",
+   "sha": "3c8d347",
+   "source": "job 135946704039",
+   "command": "alembic up/down/up + pytest (CI)",
+   "status": "pass",
+   "result": {
+    "counts": "n/a"
+   },
+   "notes": "success; counts not retrievable (log tail = service output)"
+  },
+  {
+   "id": "CI-3f479d9-sqlite",
+   "class": "CI",
+   "sha": "3f479d9",
+   "source": "job 135967500923",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9219,
+    "skipped": 3
+   },
+   "notes": "census pin 714 (fixed 2976b4e)"
+  },
+  {
+   "id": "CI-3f479d9-pg16",
+   "class": "CI",
+   "sha": "3f479d9",
+   "source": "job 135967501020",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9220,
+    "skipped": 2
+   },
+   "notes": "failing test test_the_route_table_is_the_mounted_application ({'dependency': 195, 'handler': 715}) = census pin; read from the CI log in Batch 7 (previously 'inferred')",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt",
+   "artifact_sha256": "96ae1a8b4d2b850b5fb91a56f88ca478428eeb4cbc9eafbd9dd91c286d468c2c"
+  },
+  {
+   "id": "CI-c63d398-sqlite",
+   "class": "CI",
+   "sha": "c63d398",
+   "source": "job 135969894965",
+   "status": "fail",
+   "result": {
+    "counts": "n/a"
+   },
+   "notes": "census pin (local reproduction identical)"
+  },
+  {
+   "id": "CI-c63d398-pg16",
+   "class": "CI",
+   "sha": "c63d398",
+   "source": "job 135969896426",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   },
+   "notes": "failing test test_the_route_table_is_the_mounted_application ({'dependency': 195, 'handler': 715}) = census pin; read from the CI log in Batch 7 (previously 'inferred')",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt",
+   "artifact_sha256": "96ae1a8b4d2b850b5fb91a56f88ca478428eeb4cbc9eafbd9dd91c286d468c2c"
+  },
+  {
+   "id": "CI-bc0cb94-sqlite",
+   "class": "CI",
+   "sha": "bc0cb94",
+   "source": "job 135970191755",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9222,
+    "skipped": 3
+   },
+   "notes": "census pin"
+  },
+  {
+   "id": "CI-bc0cb94-pg16",
+   "class": "CI",
+   "sha": "bc0cb94",
+   "source": "job 135970191686",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   },
+   "notes": "failing test test_the_route_table_is_the_mounted_application ({'dependency': 195, 'handler': 715}) = census pin; read from the CI log in Batch 7 (previously 'inferred')",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt",
+   "artifact_sha256": "96ae1a8b4d2b850b5fb91a56f88ca478428eeb4cbc9eafbd9dd91c286d468c2c"
+  },
+  {
+   "id": "CI-2976b4e-sqlite",
+   "class": "CI",
+   "sha": "2976b4e",
+   "source": "run 44642957981 job 135978365627",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite"
+  },
+  {
+   "id": "CI-2976b4e-pg16",
+   "class": "CI",
+   "sha": "2976b4e",
+   "source": "run 44642957981 job 135978365382",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   },
+   "notes": "failing case test_unverified_tenant_requests_are_refused_and_change_nothing[GET /api/pulse/command-center]: SQL-oracle contamination by the 00:30 UTC nightly intelligence scheduler job (route returned 403). Root cause identified in Batch 7 (author analysis; anomaly report v2); not an authorization defect",
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-job-135978365382-failure-extract.txt",
+   "artifact_sha256": "71d3d6ff2697a5cd25aacd281732a0a3cbbb1651bc3530f837045e4ef65e59d7"
+  },
+  {
+   "id": "CI-e81b51d-sqlite",
+   "class": "CI",
+   "sha": "e81b51d",
+   "source": "job 135983149174",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "application code identical to 2976b4e"
+  },
+  {
+   "id": "CI-e81b51d-pg16",
+   "class": "CI",
+   "sha": "e81b51d",
+   "source": "job 135983149197",
+   "status": "pass",
+   "result": {
+    "counts": "n/a"
+   },
+   "notes": "success"
+  },
+  {
+   "id": "CI-33a1a47-sqlite",
+   "class": "CI",
+   "sha": "33a1a47",
+   "source": "job 135988690139",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite"
+  },
+  {
+   "id": "CI-33a1a47-pg16",
+   "class": "CI",
+   "sha": "33a1a47",
+   "source": "job 135988689883",
+   "status": "pass",
+   "result": {
+    "counts": "n/a"
+   },
+   "notes": "success"
+  },
+  {
+   "id": "LOCAL-c63d398-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c63d398",
+   "command": "cd backend && python -m pytest tests/ -q -rsx -p no:cacheprovider",
+   "environment": "dev container, Python 3.11.18, SQLite",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9222,
+    "skipped": 3
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-sqlite-c63d398.log.gz",
+   "notes": "census pin",
+   "artifact_sha256": "32ef2e97a247041067b564fbf11951b78121a2824b145cd86b4f1e4e1046ba8d"
+  },
+  {
+   "id": "LOCAL-c63d398-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c63d398",
+   "command": "DATABASE_URL=<fresh PG16 db> pytest tests/ -q -rsx",
+   "environment": "PostgreSQL 16.15, fresh DB, NO alembic pre-step",
+   "status": "fail",
+   "result": {
+    "failed": 1,
+    "passed": 9223,
+    "skipped": 2
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-pg16-c63d398.log.gz",
+   "notes": "census pin only",
+   "artifact_sha256": "1f30c5b50dac49192d2a6482c725ac52ecc73ff21840cd8d142003520502d758"
+  },
+  {
+   "id": "LOCAL-e81b51d-sqlite-concurrent",
+   "class": "LOCAL-AUTHOR",
+   "sha": "e81b51d",
+   "status": "invalid",
+   "result": {
+    "failed": 78,
+    "passed": 9141,
+    "skipped": 2,
+    "errors": 5
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/INVALID-local-sqlite-e81b51d-concurrent.log.gz",
+   "notes": "run concurrently with a PG16 run in the same backend/ directory; cross-run interference; NOT evidence of either outcome",
+   "artifact_sha256": "1c724f46df2b5c45890e019bc82681115889c0ce66aea11953cb288d4e61cbe2"
+  },
+  {
+   "id": "LOCAL-e81b51d-sqlite-solo",
+   "class": "LOCAL-AUTHOR",
+   "sha": "e81b51d",
+   "command": "cd backend && python -m pytest tests/ -q -rsx -p no:cacheprovider",
+   "environment": "SQLite, run alone",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-sqlite-e81b51d-solo.log.gz",
+   "artifact_sha256": "50fd7432c178d9ca9a22fd906dd3bf8b22a8ebb2e96f0f62943c6ff7109608ff"
+  },
+  {
+   "id": "LOCAL-e81b51d-pg16-worktree",
+   "class": "LOCAL-AUTHOR",
+   "sha": "e81b51d",
+   "command": "isolated git worktree; DATABASE_URL=<fresh PG16 db> pytest tests/ -q -rsx",
+   "environment": "PostgreSQL 16.15, fresh DB, NO alembic pre-step",
+   "status": "pass",
+   "result": {
+    "passed": 9224,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-pg16-e81b51d-worktree.log.gz",
+   "artifact_sha256": "b521f7f7313f5fd2fa02f16b7cd9f28d06f0d316ca0465f5db481d8e19e01e41"
+  },
+  {
+   "id": "LOCAL-2976b4e-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "2976b4e",
+   "command": "scripts/tenant_isolation_matrix.py --sweep sqlite --workdir <fresh>",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/sweep-sqlite-2976b4e.json.gz",
+   "notes": "oracle sees only SQL that binds a foreign tenant; see blind-spot assessment",
+   "artifact_sha256": "843fa02bc244430ba0270f2ab282c8c88eba7acd4aeed4fa6a776dd89e2208bb"
+  },
+  {
+   "id": "LOCAL-2976b4e-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "2976b4e",
+   "command": "--sweep postgres --postgres-url <fresh>",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/sweep-pg16-2976b4e.json.gz",
+   "artifact_sha256": "9aab90d07fdeb7344e0b5cfdfe48a3ee14583798e1289a12d94f0b8b60e012e9"
+  },
+  {
+   "id": "LOCAL-e81b51d-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "e81b51d",
+   "command": "frontend/tests/e2e/tenantContext.e2e.mjs (Chromium, real login, local backend, no concurrent load)",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-e81b51d-run1.txt.gz",
+   "artifact_sha256": "cc0b15880f4cb34eb89d5799d1841ff7844e88569ba746cb637ac9f9e71d8e5a"
+  },
+  {
+   "id": "LOCAL-e81b51d-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "e81b51d",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-e81b51d-run2.txt.gz",
+   "artifact_sha256": "cc0b15880f4cb34eb89d5799d1841ff7844e88569ba746cb637ac9f9e71d8e5a"
+  },
+  {
+   "id": "LOCAL-7cead8a-e2e-baseline",
+   "class": "LOCAL-AUTHOR",
+   "sha": "7cead8a",
+   "status": "fail",
+   "result": {
+    "passed": 0,
+    "failed": 6
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-7cead8a-baseline.txt.gz",
+   "notes": "reproduction of the frontend defect before B5.1 (expected failure of the baseline)",
+   "artifact_sha256": "248986873d96bff849cb36188be3dbcd65d626e48d6bb1c556173b7abf28683e"
+  },
+  {
+   "id": "CI-4667ab8-sqlite",
+   "class": "CI",
+   "sha": "4667ab8",
+   "source": "run 44656944797 job 136025385538",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9223,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "artifact backend-tests-sqlite-1 uploaded (id 14593938669)"
+  },
+  {
+   "id": "CI-4667ab8-pg16",
+   "class": "CI",
+   "sha": "4667ab8",
+   "source": "run 44656944797 job 136025385909",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9224,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "first PG16 CI job whose counts are readable (health-check fix bd7af7c)"
+  },
+  {
+   "id": "CI-6a661bb-sqlite",
+   "class": "CI",
+   "sha": "6a661bb",
+   "source": "run 44658831395 job 136031688736",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 strict tripwire (OPEN finding GX-09, explanations disclosed cross-tenant); NOT a passing security gate"
+  },
+  {
+   "id": "CI-6a661bb-pg16",
+   "class": "CI",
+   "sha": "6a661bb",
+   "source": "run 44658831395 job 136031688345",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-3fbbe65-sqlite",
+   "class": "CI",
+   "sha": "3fbbe65",
+   "source": "run 44659812226 job 136034982462",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-3fbbe65-pg16",
+   "class": "CI",
+   "sha": "3fbbe65",
+   "source": "run 44659812226 job 136034982422",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-2976b4e-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "2976b4e",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh (alembic up/down/up + full suite, same fresh DB)",
+   "status": "pass",
+   "result": {
+    "passed": 9224,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-pytest.log.gz",
+   "notes": "did not reproduce CI job 135978365382 (time-of-day dependent cause)",
+   "artifact_sha256": "94df51759802c4db495131102cbb0d261b333a9535640a07c4e0e491cac331ce"
+  },
+  {
+   "id": "LOCAL-4667ab8-gd705-write-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "4667ab8",
+   "source": "SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_source_write_repro.py",
+   "status": "reproduced",
+   "result": {
+    "foreign_evidence_write": "201",
+    "foreign_capa_key_write": "201",
+    "missing_inspection_write": "201",
+    "foreign_explanation_in_victim_replay": true,
+    "digital_twin_claim_served": true
+   },
+   "notes": "GD7-05 write side: tenant B wrote under tenant A's sources; RB-T28 passed only via read-side filtering"
+  },
+  {
+   "id": "LOCAL-6a661bb-gd705-write-after",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6a661bb",
+   "source": "SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_source_write_repro.py",
+   "status": "pass",
+   "result": {
+    "foreign_evidence_write": "404",
+    "foreign_capa_key_write": "403",
+    "missing_inspection_write": "404",
+    "foreign_explanation_write": "404",
+    "digital_twin_claim": "403"
+   },
+   "notes": "fail-closed floor only; RB-T32 explanation reads still OPEN; ownerless-key semantics await GD-7; NOT independently reviewed"
+  },
+  {
+   "id": "LOCAL-3fbbe65-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "3fbbe65",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -rfEsxX",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-3fbbe65-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "3fbbe65",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "alembic_exit 0; 1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-3fbbe65-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "3fbbe65",
+   "source": "tenant_isolation_matrix.py --sweep sqlite",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "unscoped_leads": 353,
+    "partly_exercised": 735,
+    "role_gated": 164
+   },
+   "notes": "oracle blind spots: role-gated, partly exercised, unscoped leads, response leakage, IDOR, untyped bodies (R-SWEEP-BLINDSPOTS)",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-sqlite-3fbbe65.json.gz",
+   "artifact_sha256": "d0a35ad33d9fa53aaaeb1556dbb9f940e17a872efa5c021f95fd73e0bce98e22"
+  },
+  {
+   "id": "LOCAL-6a661bb-tripwire-kit-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6a661bb",
+   "source": "p472_03_tripwire_review_kit.py run --db sqlite",
+   "command": "before/after x original/final assertions for RB-T01..RB-T33 + controls",
+   "status": "pass",
+   "result": {
+    "variants": 112,
+    "matched_expectation": 112
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-sqlite.json",
+   "notes": "RB-T04 rows re-run with corrected before-SHA 137e9b1; RB-T32 fails as an OPEN finding (expected); author reproduction, not a review",
+   "artifact_sha256": "36ae05eb9bf56e530f96cedd4b2a7e5da0c0ca828343444e4007ffe692bd308e"
+  },
+  {
+   "id": "LOCAL-6a661bb-tripwire-kit-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6a661bb",
+   "source": "p472_03_tripwire_review_kit.py run --db postgres",
+   "command": "as above, PostgreSQL 16.15",
+   "status": "pass",
+   "result": {
+    "variants": 112,
+    "matched_expectation": 112
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-postgres.json",
+   "notes": "as above",
+   "artifact_sha256": "4687afc72be8a5ccc8bf0e8285a12961fa1a47a8199200e146c06139fffd6c8b"
+  },
+  {
+   "id": "LOCAL-992a227-b72-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "SQLite, b72_repro_plugin.py",
+   "command": "command-center case with a tenant-bound background scheduler, guard off/on",
+   "status": "reproduced",
+   "result": {
+    "guard_off_failed": "3/5 (+1/2)",
+    "guard_on_failed": "0/5 (+0/2)"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_deterministic_repro.txt",
+   "notes": "reproduces the CI 135978365382 assertion text; timing-dependent",
+   "artifact_sha256": "defe51c466c9816e4663c3b7ed2f69fbbacf92aeaaf890dd8d1c12418197955c"
+  },
+  {
+   "id": "LOCAL-992a227-batch2-harness-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_batch2_remediation.py",
+   "status": "pass",
+   "result": {
+    "passed": 1926,
+    "skipped": 0,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "notes": "includes the 2 B7.2 regression tests"
+  },
+  {
+   "id": "LOCAL-992a227-batch2-harness-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "PostgreSQL 16.15",
+   "command": "pytest tests/test_p472_03_batch2_remediation.py",
+   "status": "pass",
+   "result": {
+    "passed": 1926,
+    "skipped": 0,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "notes": "includes the 2 B7.2 regression tests"
+  },
+  {
+   "id": "CI-7cc7bfb-sqlite",
+   "class": "CI",
+   "sha": "7cc7bfb",
+   "source": "run 44663315052 job 136046505144",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9238,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-7cc7bfb-pg16",
+   "class": "CI",
+   "sha": "7cc7bfb",
+   "source": "run 44663315052 job 136046505518",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9239,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-992a227-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -p no:cacheprovider -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9240,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-pytest.log.gz",
+   "notes": "+2 vs 3fbbe65 = B7.2 regression tests; 1 xfailed = RB-T32 (OPEN); 20 m 03 s",
+   "artifact_sha256": "02bc943ce71179bbb11d4d60bc0c89051fd394402b6643e34c9fd5574e7b16a0"
+  },
+  {
+   "id": "LOCAL-992a227-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh (alembic up/down/up + full suite)",
+   "status": "pass",
+   "result": {
+    "passed": 9241,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-pytest.log.gz",
+   "notes": "alembic_exit 0; 1 xfailed = RB-T32 (OPEN); 30 m 53 s",
+   "artifact_sha256": "826df2e9cfb7fe7ee3b0b0fa7ed062e40e9cda8d3b555ff441cb2084b18e7957"
+  },
+  {
+   "id": "LOCAL-992a227-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "Chromium, real login, real backend (SQLite), Vite",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run1.txt",
+   "notes": "no concurrent load",
+   "artifact_sha256": "9a3359f16a2d40555fa4f007f0783982f066c9246c163a9ea28d2ca3382e1acd"
+  },
+  {
+   "id": "LOCAL-992a227-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "as above",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run2.txt",
+   "notes": "second consecutive run",
+   "artifact_sha256": "d69c01d7bd7d40508e92452b48ab7ef2a61cbd322c0bdb77cecd11cf555cf810"
+  },
+  {
+   "id": "LOCAL-992a227-frontend",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "frontend/",
+   "command": "npm test; npm run build",
+   "status": "pass",
+   "result": {
+    "passed": 48,
+    "failed": 0
+   },
+   "notes": "build succeeded; frontend unchanged since c63d398"
+  },
+  {
+   "id": "LOCAL-992a227-ruff",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "repo root",
+   "command": "ruff check backend/app backend/tests",
+   "status": "pass",
+   "result": {
+    "errors": 0
+   },
+   "notes": "All checks passed"
+  },
+  {
+   "id": "CI-992a227-sqlite",
+   "class": "CI",
+   "sha": "992a227",
+   "source": "run 44666305369 job 136056334880",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9240,
+    "skipped": 3,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "matches local exactly; 1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "CI-992a227-pg16",
+   "class": "CI",
+   "sha": "992a227",
+   "source": "run 44666305369 job 136056335112",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9241,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "matches local exactly; 1 xfailed = RB-T32 (OPEN)"
+  },
+  {
+   "id": "LOCAL-992a227-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "tenant_isolation_matrix.py --sweep postgres (fresh DB, fresh workdir)",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "unscoped_leads": 353,
+    "role_gated": 164,
+    "partly_exercised": 729
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-pg16.json.gz",
+   "notes": "POST /api/guardianx/evidence and /explainability now 422 at the sweep baseline (no valid source) -> partly exercised; covered by RB-T29..T33 tests, not by the sweep",
+   "artifact_sha256": "1ae22f2d40d77b0af32bb07c5f39258b61cf81f9752b769e3bc70497c6c14a3d"
+  },
+  {
+   "id": "LOCAL-992a227-register-isolation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "992a227",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_application_wide_isolation.py (register regenerated from SQLite 3fbbe65 + PG16 992a227 sweeps)",
+   "status": "pass",
+   "result": {
+    "passed": 17,
+    "failed": 0
+   },
+   "notes": "register empty"
+  },
+  {
+   "id": "LOCAL-83dbf70-explanation-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "83dbf70",
+   "source": "fresh SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_explanation_repro.py",
+   "status": "reproduced",
+   "result": {
+    "cross_tenant_reads_disclosing": "5/5",
+    "foreign_override": "200 persisted",
+    "explanation_into_foreign_key": "201, visible to owner",
+    "explanation_audit_events": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/repro_83dbf70_sqlite.json",
+   "notes": "RB-T32 and GX-11..GX-14",
+   "artifact_sha256": "038e6b4234547d2352493e6bdf7070b4e4cad823fa8b9d0ead275493a699faf7"
+  },
+  {
+   "id": "LOCAL-eec3bc8-tripwires-failing",
+   "class": "LOCAL-AUTHOR",
+   "sha": "eec3bc8",
+   "source": "SQLite + PostgreSQL 16.15",
+   "command": "pytest tests/test_p472_03_batch8_guardianx_explanations.py",
+   "status": "reproduced",
+   "result": {
+    "xfailed": 4,
+    "failed_negatives": 3,
+    "passed": 7
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/tests_83dbf70_sqlite.txt",
+   "notes": "strict tripwires committed failing against unchanged application code",
+   "artifact_sha256": "18ad46f5c8b2fe196da990b5a1ace0dbffbb0f02208e92977ef68f2d570512d3"
+  },
+  {
+   "id": "LOCAL-c22a879-explanation-repro",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "fresh SQLite + PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_gx_explanation_repro.py",
+   "status": "pass",
+   "result": {
+    "cross_tenant_reads_disclosing": "0/5",
+    "foreign_override": "404, nothing persisted",
+    "explanation_into_foreign_key": "403",
+    "foreign_chain_event_count": 0,
+    "owner_controls": "all work"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-after/repro_fix_sqlite.json",
+   "notes": "author-remediated; not independently reviewed; GD-7 unsigned",
+   "artifact_sha256": "589dc915aa228c295310ecbcc25f23e753a5bcc8654a5d1c967da570f25abe12"
+  },
+  {
+   "id": "CI-c22a879-sqlite",
+   "class": "CI",
+   "sha": "c22a879",
+   "source": "run 44673768328 job 136080604432",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9256,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "first run with RB-T32 passing; 0 xfails"
+  },
+  {
+   "id": "CI-c22a879-pg16",
+   "class": "CI",
+   "sha": "c22a879",
+   "source": "run 44673768328 job 136080603927",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9257,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": ""
+  },
+  {
+   "id": "CI-6b2a8d6-sqlite",
+   "class": "CI",
+   "sha": "6b2a8d6",
+   "source": "run 44674546943 job 136083146817",
+   "command": "pytest tests -q -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9258,
+    "skipped": 3,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "3 xfailed = RB-T38..T40 (OPEN PA-1 findings); NOT a passing security gate"
+  },
+  {
+   "id": "CI-6b2a8d6-pg16",
+   "class": "CI",
+   "sha": "6b2a8d6",
+   "source": "run 44674546943 job 136083146420",
+   "command": "alembic up/down/up + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9259,
+    "skipped": 2,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "3 xfailed = RB-T38..T40 (OPEN)"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9258,
+    "skipped": 3,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-pytest.log.gz",
+   "notes": "identical to CI; 3 xfailed = RB-T38..T40",
+   "artifact_sha256": "0edcb0653d830fec2c9162ebca38cd86f4ae572934a17345b7c364730ef21291"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "isolated worktree, PostgreSQL 16.15",
+   "command": "ci_pg_repro.sh",
+   "status": "pass",
+   "result": {
+    "passed": 9259,
+    "skipped": 2,
+    "xfailed": 3,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-pytest.log.gz",
+   "notes": "alembic_exit 0; identical to CI",
+   "artifact_sha256": "be220db18dde602c122a29c1ecbd93a793d3d03ae16b9f33ccf42d26c51e17ef"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "tenant_isolation_matrix.py --sweep sqlite",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 735,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-sqlite.json.gz",
+   "notes": "oracle blind spots unchanged (R-SWEEP-BLINDSPOTS)",
+   "artifact_sha256": "e799474a673ffec15a419d2d05aa3ebd4e8e725a68269a7588ef9b044a590e91"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "tenant_isolation_matrix.py --sweep postgres",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 729,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-pg16.json.gz",
+   "notes": "",
+   "artifact_sha256": "7566a372c9faa130c9077026b81f51feea596e767c7f5f0eb946c5447749d999"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-register-isolation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_application_wide_isolation.py",
+   "status": "pass",
+   "result": {
+    "passed": 17,
+    "failed": 0
+   },
+   "notes": "register regenerated (empty); matrix unchanged"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "Chromium, real login, real backend",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run1.txt",
+   "notes": "",
+   "artifact_sha256": "0a1065dc30d07960907aadeedb6881f142ca834b46acfec173ef52d9f8ba3259"
+  },
+  {
+   "id": "LOCAL-6b2a8d6-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "6b2a8d6",
+   "source": "as above",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run2.txt",
+   "notes": "",
+   "artifact_sha256": "dee18e0951d03bd7e6bb5b2f78bb89e8371c3c1ae902d26b57d0b800ffc9d5ad"
+  },
+  {
+   "id": "LOCAL-batch8-tripwire-kit-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "merged kit results (see meta)",
+   "command": "p472_03_tripwire_review_kit.py run --ids \u2026",
+   "status": "pass",
+   "result": {
+    "variants": 136,
+    "matched_expectation": 136
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-sqlite.json",
+   "notes": "RB-T01..T31/T33 carried from Batch 7 (after 6a661bb); RB-T32,T34..T37 at c22a879; RB-T38..T40 (OPEN) at 6b2a8d6; aborted full re-run (32 variants, all matched) logged",
+   "artifact_sha256": "1d674fc937445da5775272dfb53f979fafbee6916591e03555042f99d76bfea6"
+  },
+  {
+   "id": "LOCAL-batch8-tripwire-kit-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "merged kit results, PostgreSQL 16.15",
+   "command": "p472_03_tripwire_review_kit.py run --ids \u2026",
+   "status": "pass",
+   "result": {
+    "variants": 136,
+    "matched_expectation": 136
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-postgres.json",
+   "notes": "as above; aborted full re-run 29 variants, all matched",
+   "artifact_sha256": "401028b28b834f0a52e46adf14bbeef769f3d742cf5376b3abdbe970032bce60"
+  },
+  {
+   "id": "LOCAL-c22a879-pa1-probe",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c22a879",
+   "source": "8 configurations, fresh subprocess each",
+   "command": "backend/scripts/p472_03_pa1_env_probe.py",
+   "status": "reproduced",
+   "result": {
+    "render_yaml": "closed",
+    "PA1-01": "dev token admin with ENVIRONMENT-only production",
+    "PA1-02": "demo reset 200 with public token",
+    "PA1-03": "JWT-shape check off for APP_ENV-only / capitalised"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-batch8/pa1/pa1_env_probe_c22a879.json",
+   "notes": "PA-1 unsigned; no gate changed; RB-T38..T40 failing",
+   "artifact_sha256": "ef651e801a374d04bafa318e07b0974cc7fa2ddb7ce23c15910bcd3fb7fd3bc4"
+  },
+  {
+   "id": "LOCAL-8bfcc9a-pa1-repro-before",
+   "class": "LOCAL-AUTHOR",
+   "sha": "8bfcc9a",
+   "source": "fresh DB per configuration; SQLite and PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_pa1_remediation_repro.py --db sqlite|postgres",
+   "status": "reproduced",
+   "result": {
+    "RB-T38": "dev token admin (ENVIRONMENT-only production)",
+    "RB-T39": "demo reset 200, seeded row deleted",
+    "RB-T40": "JWT-shape check off (APP_ENV-only, capitalised)",
+    "AUTH_MODE=dev+ALLOW": "dev token + header admin/any tenant accepted in production",
+    "sqlite_vs_postgres": "identical"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_postgres.json",
+   "notes": "tests-first commit c2014ff; application code unchanged",
+   "artifact_sha256": "1bf229e577f15663e25fa38cce0f98780ec6f3723058ef2235847d77f46e9ace"
+  },
+  {
+   "id": "LOCAL-8bfcc9a-pa1-tripwires-runxfail",
+   "class": "LOCAL-AUTHOR",
+   "sha": "c2014ff",
+   "source": "SQLite + PA1_PG_ADMIN_URL",
+   "command": "pytest tests/test_p472_03_batch8_pa1_env_gates.py --runxfail",
+   "status": "reproduced",
+   "result": {
+    "failed": 3,
+    "passed": 2
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_postgres.txt",
+   "notes": "same on both DBs; strict run: 3 xfailed",
+   "artifact_sha256": "db6c9247acd660dc37d7cbf77c40dbbec8b5ba1127d6d336b5b6d4cc338bb47f"
+  },
+  {
+   "id": "CI-829f36a-sqlite",
+   "class": "CI",
+   "sha": "829f36a",
+   "source": "run 44834645331 job 136627844743",
+   "command": "pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "RB-T38..T40 converted; +56 new tests"
+  },
+  {
+   "id": "CI-829f36a-pg16",
+   "class": "CI",
+   "sha": "829f36a",
+   "source": "run 44834645331 job 136627844401",
+   "command": "alembic chain + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": ""
+  },
+  {
+   "id": "LOCAL-829f36a-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "isolated worktree",
+   "command": "pytest tests -q -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/pytest.log.gz",
+   "notes": "identical to CI",
+   "artifact_sha256": "06da50271c248d7a9690bd848357dea0719b735b71131216ee312e10d3861180"
+  },
+  {
+   "id": "LOCAL-829f36a-pg16-ci-faithful",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "ci_pg_repro.sh (fresh DB, alembic up/down/up exit 0)",
+   "command": "pytest tests -q -rfEsxX --junitxml",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/pytest.log.gz",
+   "notes": "identical to CI",
+   "artifact_sha256": "b4a44e215617c7e62db09684f2fc3595a9470036f55cc2d881e6563f14302460"
+  },
+  {
+   "id": "LOCAL-829f36a-pa1-repro-after",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "fresh DB per configuration; SQLite and PostgreSQL 16.15",
+   "command": "backend/scripts/p472_03_pa1_remediation_repro.py",
+   "status": "pass",
+   "result": {
+    "production_configurations": "refused or closed at every layer",
+    "dev_controls": "unchanged",
+    "sqlite_vs_postgres": "identical"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.json",
+   "notes": "",
+   "artifact_sha256": "47a86ed34164ec4c07595567b1fc88d94b63c6667bec3626c8de18439b393de6"
+  },
+  {
+   "id": "LOCAL-829f36a-pa1-tests",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "fresh SQLite and fresh PostgreSQL",
+   "command": "pytest test_p472_03_batch8_pa1_env_gates.py + test_p472_03_pa1_remediation.py",
+   "status": "pass",
+   "result": {
+    "gates_passed_per_db": 8,
+    "layer_passed_per_db": 53,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_postgres.txt",
+   "notes": "",
+   "artifact_sha256": "c409771e9ac5cc15724932d9341b1643387eaa71bd912656aeadce9336ba0919"
+  },
+  {
+   "id": "LOCAL-829f36a-tripwire-kit",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "kit --ids RB-T38,RB-T39,RB-T40, SQLite + PG16.15",
+   "command": "p472_03_tripwire_review_kit.py run",
+   "status": "pass",
+   "result": {
+    "variants": 24,
+    "matched_expectation": 24
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/postgres/kit-results-postgres.json",
+   "notes": "after/original for RB-T38/T39 fails by design (amended helper A-1)",
+   "artifact_sha256": "2097d9b9349c3e0275d216e178c309bae17652b69a2830c9efd4c6f2ddf21bd5"
+  },
+  {
+   "id": "LOCAL-829f36a-sweep-sqlite",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "tenant_isolation_matrix.py --sweep sqlite",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 735,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite.json.gz",
+   "notes": "oracle blind spots unchanged (R-SWEEP-BLINDSPOTS)",
+   "artifact_sha256": "15fdf3838706daccfc4aa948960e08f313bd5f26f24cece2ac8d4b73c718b644"
+  },
+  {
+   "id": "LOCAL-829f36a-sweep-pg16",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "tenant_isolation_matrix.py --sweep postgres",
+   "command": "route-wide adversarial sweep",
+   "status": "pass",
+   "result": {
+    "routes": 1913,
+    "with_finding": 0,
+    "foreign_write_routes": 0,
+    "role_gated": 164,
+    "partly_exercised": 729,
+    "unscoped_leads": 353
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16.json.gz",
+   "notes": "",
+   "artifact_sha256": "f566a6f5b7b6f099b2cca691c1952d6188d2bbc21890c3331255c69b73e1b09c"
+  },
+  {
+   "id": "LOCAL-829f36a-register-isolation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "backend/",
+   "command": "pytest tests/test_p472_03_application_wide_isolation.py",
+   "status": "pass",
+   "result": {
+    "passed": 17,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/register-isolation.txt",
+   "notes": "register regenerated from both sweeps (empty)",
+   "artifact_sha256": "4e225d1b5d8aa9574dcda060ff6f8ab137edb51147781a6b6c3c648b874aa392"
+  },
+  {
+   "id": "LOCAL-829f36a-e2e-1",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "Chromium, real login, real backend",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run1.txt",
+   "notes": "a first attempt without CORS_ORIGINS failed 0/6 (set-up error, R-E2E-CORS-SETUP)",
+   "artifact_sha256": "e749371ea79f8dc81723e5fb62b68834cb554d9631fa5231238dee769bc02781"
+  },
+  {
+   "id": "LOCAL-829f36a-e2e-2",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "Chromium, real login, real backend",
+   "command": "node frontend/tests/e2e/tenantContext.e2e.mjs",
+   "status": "pass",
+   "result": {
+    "passed": 6,
+    "failed": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run2.txt",
+   "notes": "",
+   "artifact_sha256": "1a2d7c4d4dc57ac08fce893d8cbda7570954a0174b244c8dc21f86b64940d75a"
+  },
+  {
+   "id": "LOCAL-829f36a-frontend",
+   "class": "LOCAL-AUTHOR",
+   "sha": "829f36a",
+   "source": "frontend/",
+   "command": "npm test; npm run build",
+   "status": "pass",
+   "result": {
+    "passed": 48,
+    "failed": 0,
+    "build": "ok"
+   },
+   "artifact": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
+   "notes": "frontend unchanged",
+   "artifact_sha256": "d51b7335097f0f5bf4b0f48114dfcb58420fb5bb806df842d194ed1c9e801ffe"
+  },
+  {
+   "id": "CI-bed42c8-sqlite",
+   "class": "CI",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947604",
+   "command": "pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9317,
+    "skipped": 3,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_sqlite",
+   "notes": "Milestone 9 frozen baseline"
+  },
+  {
+   "id": "CI-bed42c8-pg16",
+   "class": "CI",
+   "sha": "bed42c8",
+   "source": "run 44840371217 job 136646947540",
+   "command": "alembic chain + pytest -rfEsxX (CI)",
+   "status": "pass",
+   "result": {
+    "passed": 9318,
+    "skipped": 2,
+    "xfailed": 0,
+    "failed": 0
+   },
+   "skips": "skips_pg16",
+   "notes": "Milestone 9 frozen baseline"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-freeze",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "git objects at bed42c8",
+   "command": "backend/scripts/m9_evidence_freeze.py freeze/verify",
+   "status": "pass",
+   "result": {
+    "files": 230,
+    "integrity_failures": 0
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/freeze-bed42c8.json",
+   "notes": "custody record, not a review",
+   "artifact_sha256": "69d6a492442bdd269555d9c402840285ef02d5773c318af60774a3a18f0a459f"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-kit-rehearsal",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "kit --ids RB-T24..RB-T37 --after bed42c8, SQLite + PG16.15",
+   "command": "p472_03_tripwire_review_kit.py run",
+   "status": "pass",
+   "result": {
+    "variants_per_db": 48,
+    "matched_expectation_sqlite": 48,
+    "matched_expectation_pg16": 48
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/postgres/kit-results-postgres.json",
+   "notes": "rehearsal of handbook commands; not independent",
+   "artifact_sha256": "45de5ffcdb7a671d4e06844355b99e33f2d9f9b78610ca1a3df8ecde97de5bf3"
+  },
+  {
+   "id": "LOCAL-bed42c8-m9-a1-mutation",
+   "class": "LOCAL-AUTHOR",
+   "sha": "bed42c8",
+   "source": "6 single-gate mutations, SQLite + PG16.15",
+   "command": "backend/scripts/m9_a1_mutation_check.py",
+   "status": "pass",
+   "result": {
+    "mutations": 6,
+    "matched_sqlite": 6,
+    "matched_pg16": 6
+   },
+   "artifact": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-postgres.json",
+   "notes": "first SQLite run had an incomplete author expectation for M5 (unset-AUTH_MODE control); corrected and rerun; first output preserved",
+   "artifact_sha256": "f10d1e5bbb6d5f8a15ca176d99cd6d882a1c0b283ebc8a0ea7aafae547174ef1"
+  }
+ ],
+ "files": [
+  {
+   "path": "backend/tests/p472_03_findings_register.json",
+   "sha256": "804773a6aeddece27bf054159c6a29f7323ffb220cec0d95889fbd6d551384fa",
+   "bytes": 1216,
+   "git_blob_at_HEAD": "ecf270e7acbcb7b2fb442c98a8a961f7f8fc3d41",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.md",
+   "sha256": "7e8317873f3f71452429c046b1ce9e02b613e57562a15bf1c1dc37901c93d7c7",
+   "bytes": 468595,
+   "git_blob_at_HEAD": "ea9ba35061faf570adcbe8a1c7f3dd36f022c1a9",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.csv",
+   "sha256": "b379dccc56955eb383ac7bc02f632bfe63181b9883ffde742bc84acf5b07357a",
+   "bytes": 667948,
+   "git_blob_at_HEAD": "e845ac7bc3595d935827081ab20e63e0ec996157",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-evidence-index-v5.md",
+   "sha256": "3844b4897154d9c9871940f2ecf5a3f82504e2bc51a9a19fb7e9390ef17f3d3f",
+   "bytes": 7803,
+   "git_blob_at_HEAD": "c4c83a0e9470b9b9f6e56a5d70e0b850211aeaaa",
+   "last_commit": "c6ba66c 2026-11-20T01:19:16+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v3.md",
+   "sha256": "5cb310832419afff0d8ff1917f62db016d8eed5db03eecb6ee5689d0b41c93a7",
+   "bytes": 2155,
+   "git_blob_at_HEAD": "877727483d689894c4969febcf06bdd5e623c754",
+   "last_commit": "bc0cb94 2026-11-19T23:47:10+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v5.md",
+   "sha256": "56f9448c5a50d03f8b9d3f5c62f0ad692e523d46765dd950f0ee9f4b443393b4",
+   "bytes": 2912,
+   "git_blob_at_HEAD": "23d1905ddc55d7371cac5a9b3ec52292149fcb5a",
+   "last_commit": "c6ba66c 2026-11-20T01:19:16+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v5.md",
+   "sha256": "de86b9862a0975ed6438d7385e4d3d27ee25f473e86298572e3d455328e295fa",
+   "bytes": 2340,
+   "git_blob_at_HEAD": "82451332ddd2b626b77dc3c82dc1564eff3d3448",
+   "last_commit": "bc0cb94 2026-11-19T23:47:10+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch6-independent-review-packages-v2.md",
+   "sha256": "03541de3f9d74f080f881b6e969204a8f86876ce5dc68f6504f5ca69ca2ef757",
+   "bytes": 2810,
+   "git_blob_at_HEAD": "d4eb59b38671a0fb747433ac6d6de8071506c6bf",
+   "last_commit": "bc0cb94 2026-11-19T23:47:10+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch5-independent-review-packages-v1.md",
+   "sha256": "41d86151c159aa25193057c6ea2909d184d0cca61ab20ac11a1e6615e38f18ed",
+   "bytes": 7174,
+   "git_blob_at_HEAD": "a9e11c1675c88b347b9c055e0f74eba108677605",
+   "last_commit": "9f2b6e3 2026-11-19T23:30:35+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-historical-access-investigation-plan.md",
+   "sha256": "bb0463469f7a7286d218a6788fe40608dc4ef8a467a90269272fff21496db82c",
+   "bytes": 15659,
+   "git_blob_at_HEAD": "8e7021f74b4872a48e8f1542411b2d1e9bfdf973",
+   "last_commit": "728b587 2026-11-18T21:57:49+00:00"
+  },
+  {
+   "path": "backend/scripts/tenant_isolation_matrix.py",
+   "sha256": "650f13166c0fa9c2ef8eb1921f45d06a333f6a9e30b69c0e1abaf4302dfa04a8",
+   "bytes": 33379,
+   "git_blob_at_HEAD": "efe583e1e296b52562032df1becdf63cfffc9e44",
+   "last_commit": "c826fcc 2026-11-19T19:37:49+00:00"
+  },
+  {
+   "path": "backend/tests/tenant_isolation_sweep_runner.py",
+   "sha256": "52b65682527f1e5e8422642c89eeaafa51d104039bdc9ad204f580252fa0c8f3",
+   "bytes": 26471,
+   "git_blob_at_HEAD": "55338975c7f83114aadbcbc68c39aba8754716ce",
+   "last_commit": "51c2133 2026-11-19T05:10:02+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_tripwire_review_kit.py",
+   "sha256": "ed6bb9b7c0af81c383bbd61dc62272cfc587a84ba4aa831c4313a17c9eb9e802",
+   "bytes": 30533,
+   "git_blob_at_HEAD": "550950dec533947ce56b6bd167391a2301e40e84",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_evidence_manifest.py",
+   "sha256": "b483185730a41806cbb19e0c215583264ed72b05c82794dd39ccac3f6d8188c1",
+   "bytes": 6290,
+   "git_blob_at_HEAD": "202111676aad13343d8c55d1671c70a8fe11dd6b",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": ".github/workflows/pilot-zero-gate.yml",
+   "sha256": "6d1edb7469a4240beee58c3156762eb01b18cf3ac7cb0894f24cd894f0fd9a9f",
+   "bytes": 6525,
+   "git_blob_at_HEAD": "ed1a270a2b3c5b7a2ba343c404b0d797025f5494",
+   "last_commit": "bd7af7c 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": ".github/scripts/junit_failure_summary.py",
+   "sha256": "fe59eaf296adf8acfa7964a11637012e3a57f34a93c0471cbff81adabe8e355c",
+   "bytes": 1530,
+   "git_blob_at_HEAD": "2e2715cb4464df7d2041d3f42b9e0bf1d5adf5e7",
+   "last_commit": "bd7af7c 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v6.md",
+   "sha256": "fa9e2c0fcb61f64330403157dadeacce3e2558746a693de9be339d3dfafd0c14",
+   "bytes": 6616,
+   "git_blob_at_HEAD": "47f1a5aa2ff1a47c246c591e3450e018c5f46ab7",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v4.md",
+   "sha256": "2508aec7363cea795a79f08af0f503285c6a6a5532bc650215841690db2ebd06",
+   "bytes": 3569,
+   "git_blob_at_HEAD": "912d986f3b77583b9986b655dd77089f4c928306",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v6.md",
+   "sha256": "a528b28dff59287150226d502540f54314a2649d92a848a0f4bdfc152d8fce02",
+   "bytes": 2801,
+   "git_blob_at_HEAD": "012669152608915161e5641b8674551c1c4b8e35",
+   "last_commit": "4667ab8 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-tripwire-disposition-ledger-v1.md",
+   "sha256": "f066c777b910cb747141b3e69a6ff04d7402303e4e4392405cd4e56c569e0c0e",
+   "bytes": 4445,
+   "git_blob_at_HEAD": "a1a888f3670487d30de0f2d17ecf8b7ded12b67c",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-gd7-05-write-side-authorization-v1.md",
+   "sha256": "6e83e792efecc059d839d8a8428a8b29ffc70744f49a5c9432003f0d74ea57ce",
+   "bytes": 10127,
+   "git_blob_at_HEAD": "5ff7c5b7f57c4e77f784fbbe345282d62724306d",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-pg16-ci-anomaly-report-v2.md",
+   "sha256": "cd0375807da03605e49543c2984b102d7d089ad53696c3e333505344ad8b44b2",
+   "bytes": 7662,
+   "git_blob_at_HEAD": "748c87c06d4364bb0700ed5015bba8cf589ebe48",
+   "last_commit": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-governance-decision-packets-v1.md",
+   "sha256": "1dd88cb750bc8fc1b7c5939910d95e59f8871393427eeade8c38dde5da7a2942",
+   "bytes": 19097,
+   "git_blob_at_HEAD": "7fd9de55a57b2414bcf2e8612e58dc959e9fb0d7",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-clinical-data-governance-packet-v1.md",
+   "sha256": "0728d7b586e8fa359514b03921b5c3b79ee2efe8a48fe94fd1e1fac94cc25b88",
+   "bytes": 9046,
+   "git_blob_at_HEAD": "22e7c008e319981ea1eac874800187444f5ad9dc",
+   "last_commit": "4667ab8 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-v1.md",
+   "sha256": "80e2609977f8bfc60a1e32b455dfc60edf4dcc8d7a95c24ea6af14b3ba61e28a",
+   "bytes": 8754,
+   "git_blob_at_HEAD": "12d05e1467352aa9466b8d0453f521b1145eeefd",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "backend/app/services/guardianx_source_ownership.py",
+   "sha256": "c9dfa355e6654c2ac95631b38e14fa388bb12df02188f569567bb0a260e092e2",
+   "bytes": 7100,
+   "git_blob_at_HEAD": "665e47f50b5c08f979bbedbd7d01e0f0758bb7e3",
+   "last_commit": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch7_guardianx_source_ownership.py",
+   "sha256": "ffdc3dcb235aa585f6a3693fb834a3cded04084262a8188e222f1ffb67eb2539",
+   "bytes": 11054,
+   "git_blob_at_HEAD": "b72baecbb9124a23c196768f3b9931b13a9cb657",
+   "last_commit": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_gx_source_write_repro.py",
+   "sha256": "d7fdd544c15d1cf0b76bb0a105b43f893df847cc2f723c4efa4951c255199b20",
+   "bytes": 7537,
+   "git_blob_at_HEAD": "f9d8e0916114c449be3048b88ed8d889f47fa15e",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v6.md",
+   "sha256": "b30cd45a8bbfd9ffc8efbd88613d0ddfd56caf51774f15c80dadccf41ff24d64",
+   "bytes": 12882,
+   "git_blob_at_HEAD": "4f390618b8cfe2a2ffd6bd749126c2a398937fef",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch7-tripwire-review-packets-generated-v1.md",
+   "sha256": "1ea31098fce5e65f8a98a333fa0a55b23238bd80c51593ba45c4b0ac9904d8b0",
+   "bytes": 64990,
+   "git_blob_at_HEAD": "956aa70399427581012e775a6ad82ff157c41227",
+   "last_commit": "643a8e5 2026-11-20T03:17:55+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v7.md",
+   "sha256": "4658477a89244288fa3038f11a6faa291b9900906b8a7ba0b9e65deb99276eb9",
+   "bytes": 10104,
+   "git_blob_at_HEAD": "f63a28ea45c0cefa366d94784c144e8b162df386",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v7.md",
+   "sha256": "d5f717078f0d923369cb610e9e7ee33ad9f25309d4ab46cba077d1b3beeb9bb2",
+   "bytes": 9008,
+   "git_blob_at_HEAD": "ebca6c11050677d18b413c80123ac266d5f95956",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v5.md",
+   "sha256": "0d430e9bc66735e7ea41491050a830a762faf5964d75218d11a2f6d9781bcd74",
+   "bytes": 4824,
+   "git_blob_at_HEAD": "a7adfa43e9bdb2c092c31091a8b2c0228d06d2ee",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v2.md",
+   "sha256": "306780565f06e53de5ada655ca1ec4296e649c0deb3a2713ac62fee28d6976e5",
+   "bytes": 5913,
+   "git_blob_at_HEAD": "13db1c94e042aaabb0cf9fc9c4d4764b84fa64a8",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v7.md",
+   "sha256": "2edc97ff870c1dfc9adad062e298bb340e7c1bb4a1a2969310b5429b71e59f52",
+   "bytes": 3301,
+   "git_blob_at_HEAD": "f1e65e3254c3afd3ef3475befd199938b3b934d2",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-review-packets-generated-v1.md",
+   "sha256": "ff114427a0286a50fea8d22d6f0268ab7f0a712ee162592469e07fe2b823c7a8",
+   "bytes": 78290,
+   "git_blob_at_HEAD": "d9936fc5df812022e3eaaff3a280d3b81efc1667",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-guardianx-explanation-ownership-v1.md",
+   "sha256": "3c38475dfa8a8cb9101afc21540b5508ff6175dd6f1178a556cc453e4d08ed50",
+   "bytes": 8674,
+   "git_blob_at_HEAD": "7032ba36ddc43a39a6a67e767f9532e5c2940004",
+   "last_commit": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v1.md",
+   "sha256": "25ac86d743db91660b4050ba9ddd3b5946675f53cc3062c9058cba984f222702",
+   "bytes": 6990,
+   "git_blob_at_HEAD": "4fac2bde988322a6c1dbc9beb368609363369376",
+   "last_commit": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-governance-and-forensic-workflows-v1.md",
+   "sha256": "0c799aad49edc8bd6eab8d4070523723f0172a64e1bf12423de47b1c31988dba",
+   "bytes": 9116,
+   "git_blob_at_HEAD": "64d9ee55386fc46c489cd1e6e74e4933ea1134af",
+   "last_commit": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch8_guardianx_explanations.py",
+   "sha256": "ffe39271ea0c0f4cd7920327cbc511a217233d446ac27d2bcfcca551abee86f3",
+   "bytes": 14294,
+   "git_blob_at_HEAD": "b6781859907d9cf63536249350eebd5a029ebf58",
+   "last_commit": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_batch8_pa1_env_gates.py",
+   "sha256": "0d6104e6a6a970022077f6c84b0e125ed63860ac1272a1aed1ccd2c79d5c6489",
+   "bytes": 8579,
+   "git_blob_at_HEAD": "8a9e7c48520e44cfc53867ad5deceaf3bbcab0fa",
+   "last_commit": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_gx_explanation_repro.py",
+   "sha256": "2199f3db24f628bc244758178f8edc13e2fa6bf37d63d60ada3215d23fdb1887",
+   "bytes": 6826,
+   "git_blob_at_HEAD": "fd7e773c30ca138367aa3a5a57328f326c8555fb",
+   "last_commit": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_pa1_env_probe.py",
+   "sha256": "5ad715ddef2ef6361df50524ed4f49604b83b111f14bf43f8c2685fa0484449f",
+   "bytes": 4192,
+   "git_blob_at_HEAD": "0875c5486b88a24e70f153fb5df9e9aadac8c1ee",
+   "last_commit": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-release-gate-assessment-v8.md",
+   "sha256": "0dd701a3cc30e18922dfa64d037a2a57cc251d9b35ab82bb2c2919fe90d8b272",
+   "bytes": 12431,
+   "git_blob_at_HEAD": "9005bded0b03886040b8657f8ca4e46461019b0c",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v8.md",
+   "sha256": "c482668479200aeeb9272c83159c71638a56931731533ec461177b862fc116a0",
+   "bytes": 11818,
+   "git_blob_at_HEAD": "c8b820358d3836810569a76db40a5d126045d26d",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-security-tripwire-disposition-v6.md",
+   "sha256": "3ba25216e2547498f8964b02b375a8b18c03d1d2bb9e45466ffbb5ac5e9cac6c",
+   "bytes": 5446,
+   "git_blob_at_HEAD": "dddd98b21986cde1a9c7ad058fe753fc8b18ca55",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-tripwire-disposition-ledger-v3.md",
+   "sha256": "a0b0ef934967d2b46c3acecdda165ac8fa279ca0794a69d18b6f607fdd24405d",
+   "bytes": 6403,
+   "git_blob_at_HEAD": "6808cbaec6ab943ccc73502718f9a59fa66f618b",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/gd1-gd4-governance-decision-register-v8.md",
+   "sha256": "e9563fb89d360b217a1fa1a48fa8abb316cb699fef337e089855d08ebb905a15",
+   "bytes": 4048,
+   "git_blob_at_HEAD": "7b05dffbe709eedeaea33861d0c597be12bc6f3f",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-batch8-pa1-privileged-access-investigation-v2.md",
+   "sha256": "09824ccb72d451644f9f405aa89ddb8239d03f11239e8056043021f303120402",
+   "bytes": 11508,
+   "git_blob_at_HEAD": "0450e708f7076a705bd30d2544074024e9066dfc",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-pa1-remediation-assertion-change-log-v1.md",
+   "sha256": "9995ca7c994c2db2eb9203ae3fd8133ee485cffae5a34d5e9a708a85255f734f",
+   "bytes": 7864,
+   "git_blob_at_HEAD": "03babe5c1f4394288a3dc0b2cf12a9dff2dec31e",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-pa1-remediation-review-packets-v1.md",
+   "sha256": "bff7c23cfde4048e205af9ec22187aa0dd34e4dfc5d27bb7f786f85302dee461",
+   "bytes": 9264,
+   "git_blob_at_HEAD": "4ace39e9c251cafd892ff2910758c5e78a4f8dee",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "backend/app/core/environment.py",
+   "sha256": "765b28c858f3448074b522ce97bd7028b2166a365437964f8eaf088c2bf10845",
+   "bytes": 6056,
+   "git_blob_at_HEAD": "306747629d54b0cfa93e60b8efebb048ddaabf89",
+   "last_commit": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "backend/tests/test_p472_03_pa1_remediation.py",
+   "sha256": "05b0704e7d6bb61d25e86bd57c296d55b2bae7a889c12f51a3445b492db7e3fe",
+   "bytes": 16403,
+   "git_blob_at_HEAD": "e982928b35a14d94701a58258fd48148992a0eb4",
+   "last_commit": "829f36a 2026-11-20T23:09:02+00:00"
+  },
+  {
+   "path": "backend/scripts/p472_03_pa1_remediation_repro.py",
+   "sha256": "324551066da12ab46ef463e8277c55427113a589a94cf1dfc8aa0d742718e7e8",
+   "bytes": 8354,
+   "git_blob_at_HEAD": "82256e1c61fae4a6a9aafbe5517fd009f5cddbcf",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-independent-reviewer-handbook-v1.md",
+   "sha256": "08851e8f44e9b20a5636bdab2a5c879e3ec184622a88ab12d366c5ec80509cda",
+   "bytes": 14218,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-forty-tripwire-review-and-disposition-ledger-v1.md",
+   "sha256": "423067734734dfc45140859157a4e44710d3f55686bdcac1d67771ff94b0fcf9",
+   "bytes": 42139,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-pa1-architecture-assurance-packet-v1.md",
+   "sha256": "00d020d4b892de61de238cd6baf8f99783386f70130ffdc307dbf123d90a0229",
+   "bytes": 12181,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-governance-approval-matrix-v1.md",
+   "sha256": "6c0d80065527f29b962e427e42a061e1c584017241ca36e22215dd4aac1576f8",
+   "bytes": 12812,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-historical-access-authorization-package-v1.md",
+   "sha256": "6e1914ffa7c965217606735623711cd5480d0894579872e82f164ce9de1f33dd",
+   "bytes": 9521,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/m9-enterprise-release-readiness-assessment-v1.md",
+   "sha256": "347169218e051a4b27bb7c018326ca32eab7788a30337b1f085748885317ca92",
+   "bytes": 9328,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/p472-03-residual-risk-register-v9.md",
+   "sha256": "ea0f470dae98cdac87af410e108921e8d73c64b57f2e8424ec75fc6a357300e4",
+   "bytes": 13745,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "backend/scripts/m9_evidence_freeze.py",
+   "sha256": "56e590bdb911def47b027e1d7d66a232000486201b2db02b13fac8515637fb10",
+   "bytes": 7751,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "backend/scripts/m9_a1_mutation_check.py",
+   "sha256": "34d6c9b7a3a55da695c160639708424c6329cd9b63732e1798ddf8261192c6b5",
+   "bytes": 7472,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "backend/scripts/m9_tripwire_ledger.py",
+   "sha256": "5f3cf27c07aa3baf9135bbace3c1340955ae58c7fa673bb9d61a58424463f2bb",
+   "bytes": 9478,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_deterministic_repro.txt",
+   "sha256": "defe51c466c9816e4663c3b7ed2f69fbbacf92aeaaf890dd8d1c12418197955c",
+   "bytes": 1829,
+   "git_blob_at_HEAD": "023a369b5c7598c56c8cad04057b86d75d978b20",
+   "last_commit": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/b72_repro_plugin.py",
+   "sha256": "2638e901a0e9f69c3bf2c681d5c1ac666ea2cc6e63cb35f8610766f239291655",
+   "bytes": 678,
+   "git_blob_at_HEAD": "4f035330c76d52d89fe13aef3c0f1e89fea5a234",
+   "last_commit": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob_at_HEAD": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-env.txt",
+   "sha256": "6c9eaeaac801906eaa9938004068331d8447ed6f6790d7356b0a454f6dabfe01",
+   "bytes": 384,
+   "git_blob_at_HEAD": "659d04d21d616fd46b8bac2c3c61b8c9800ce92f",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-junit.xml.gz",
+   "sha256": "cb6e6c46db611e3b31ba98d28f288c726697ff97ac7e3e101f4d55b62b34f7f5",
+   "bytes": 123692,
+   "git_blob_at_HEAD": "bcbed7de5e4057c9792563c4a911cf499fc59dbd",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-faithful-pg16-2976b4e-pytest.log.gz",
+   "sha256": "94df51759802c4db495131102cbb0d261b333a9535640a07c4e0e491cac331ce",
+   "bytes": 11171,
+   "git_blob_at_HEAD": "df3c98bfb198a3815d520c39250c737d2792d55c",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci-job-135978365382-failure-extract.txt",
+   "sha256": "71d3d6ff2697a5cd25aacd281732a0a3cbbb1651bc3530f837045e4ef65e59d7",
+   "bytes": 199951,
+   "git_blob_at_HEAD": "781cc2203ba1b82fcd24f70653a5e99f1962a0fb",
+   "last_commit": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/ci_pg_repro.sh",
+   "sha256": "b8bdec59c031de47f5fe50ebcf34d0a4ef3d463fa22a649f3c0a1b4f1c06ae6b",
+   "bytes": 1135,
+   "git_blob_at_HEAD": "65ed362c7cf3442ef656e5ff233f1eff204d164d",
+   "last_commit": "3fbbe65 2026-11-20T02:18:09+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/b72-ci-repro/earlier-pg16-failures-census-pin-extract.txt",
+   "sha256": "96ae1a8b4d2b850b5fb91a56f88ca478428eeb4cbc9eafbd9dd91c286d468c2c",
+   "bytes": 2613,
+   "git_blob_at_HEAD": "2dea818216dfb42528bfd452456a6b42b8e0385b",
+   "last_commit": "992a227 2026-11-20T03:13:54+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/INVALID-local-sqlite-e81b51d-concurrent.log.gz",
+   "sha256": "1c724f46df2b5c45890e019bc82681115889c0ce66aea11953cb288d4e61cbe2",
+   "bytes": 35798,
+   "git_blob_at_HEAD": "42c79dd8d1c5daae9d6f2dc54cd51466d24fcca7",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-7cead8a-baseline.txt.gz",
+   "sha256": "248986873d96bff849cb36188be3dbcd65d626e48d6bb1c556173b7abf28683e",
+   "bytes": 311,
+   "git_blob_at_HEAD": "495375b8c41a55fde7c41db5183b5ed69e46b4a4",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-e81b51d-run1.txt.gz",
+   "sha256": "cc0b15880f4cb34eb89d5799d1841ff7844e88569ba746cb637ac9f9e71d8e5a",
+   "bytes": 231,
+   "git_blob_at_HEAD": "f72730dee4eebb7968a441140ff6855b0654ca55",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/e2e-e81b51d-run2.txt.gz",
+   "sha256": "cc0b15880f4cb34eb89d5799d1841ff7844e88569ba746cb637ac9f9e71d8e5a",
+   "bytes": 231,
+   "git_blob_at_HEAD": "f72730dee4eebb7968a441140ff6855b0654ca55",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-pg16-c63d398.log.gz",
+   "sha256": "1f30c5b50dac49192d2a6482c725ac52ecc73ff21840cd8d142003520502d758",
+   "bytes": 11356,
+   "git_blob_at_HEAD": "77949b75c275042420d24282ea9d7d872f38640e",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-pg16-e81b51d-worktree.log.gz",
+   "sha256": "b521f7f7313f5fd2fa02f16b7cd9f28d06f0d316ca0465f5db481d8e19e01e41",
+   "bytes": 11129,
+   "git_blob_at_HEAD": "9ef52291a7eb21efcfa9e575542fe6ea7cbb3415",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-sqlite-c63d398.log.gz",
+   "sha256": "32ef2e97a247041067b564fbf11951b78121a2824b145cd86b4f1e4e1046ba8d",
+   "bytes": 11411,
+   "git_blob_at_HEAD": "3e0b63f76c657f903e014491c7143d84bef8ee4f",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/local-sqlite-e81b51d-solo.log.gz",
+   "sha256": "50fd7432c178d9ca9a22fd906dd3bf8b22a8ebb2e96f0f62943c6ff7109608ff",
+   "bytes": 11031,
+   "git_blob_at_HEAD": "1f0aac5d5871d94509578155bcc07b9d47cf560c",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/sweep-pg16-2976b4e.json.gz",
+   "sha256": "9aab90d07fdeb7344e0b5cfdfe48a3ee14583798e1289a12d94f0b8b60e012e9",
+   "bytes": 70631,
+   "git_blob_at_HEAD": "14a4236679389013ce562b07a1e65f06334aa707",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/batch6/sweep-sqlite-2976b4e.json.gz",
+   "sha256": "843fa02bc244430ba0270f2ab282c8c88eba7acd4aeed4fa6a776dd89e2208bb",
+   "bytes": 70464,
+   "git_blob_at_HEAD": "16faa2157c98e27fe61ef6fda7b1cdc742c649f5",
+   "last_commit": "2aa7680 2026-11-20T01:54:03+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run1.txt",
+   "sha256": "9a3359f16a2d40555fa4f007f0783982f066c9246c163a9ea28d2ca3382e1acd",
+   "bytes": 534,
+   "git_blob_at_HEAD": "16c401a9b5629114484dcd66e4a1aa2a06fc4863",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/e2e-run2.txt",
+   "sha256": "d69c01d7bd7d40508e92452b48ab7ef2a61cbd322c0bdb77cecd11cf555cf810",
+   "bytes": 534,
+   "git_blob_at_HEAD": "382914b1c5dc775a98ce42e41efa83fe86fe0668",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob_at_HEAD": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-env.txt",
+   "sha256": "7197420810e5d6e37f06d8d526e308cd53ea8a5627ed45ed787d68199381398d",
+   "bytes": 382,
+   "git_blob_at_HEAD": "8dc69a2a584f21c5af6b61d88ef09c8ae3d24adf",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-junit.xml.gz",
+   "sha256": "194b461a01cb1c42b1348a165f56da87bdca14db303d180bc7233be48307af5c",
+   "bytes": 123781,
+   "git_blob_at_HEAD": "1b112582e9a1b119cc8e3e3d7401d1a1d5483df2",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/pg16-pytest.log.gz",
+   "sha256": "826df2e9cfb7fe7ee3b0b0fa7ed062e40e9cda8d3b555ff441cb2084b18e7957",
+   "bytes": 11306,
+   "git_blob_at_HEAD": "e100192777172e0b92ed293c8419e09f944a375e",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-env.txt",
+   "sha256": "c9086f31e2b8619e59f722fb70bc8bc74568e340b93fd7a5fc2dafdb267c7834",
+   "bytes": 111,
+   "git_blob_at_HEAD": "068b735e05932acce64e0b4fc7a0cc954aaac447",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-junit.xml.gz",
+   "sha256": "f43d647cfd7f87034c542343cb0a1837f0cacfc417d35c3ccb866438d0e31f6a",
+   "bytes": 122112,
+   "git_blob_at_HEAD": "5d4d9028657d12524d1a0265fab6a3e2c38aa462",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sqlite-pytest.log.gz",
+   "sha256": "02bc943ce71179bbb11d4d60bc0c89051fd394402b6643e34c9fd5574e7b16a0",
+   "bytes": 11368,
+   "git_blob_at_HEAD": "861737e5c1733771fd120a344b19a64efdfbaf7b",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-pg16-summary.txt",
+   "sha256": "d63239499bfc4415fc783eafa20c9ec8f2f41ae1cab552598f8a4543dfd841d9",
+   "bytes": 277,
+   "git_blob_at_HEAD": "39c68b2c0548b27e88b59e3009c49563b1700f65",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-pg16.json.gz",
+   "sha256": "1ae22f2d40d77b0af32bb07c5f39258b61cf81f9752b769e3bc70497c6c14a3d",
+   "bytes": 70612,
+   "git_blob_at_HEAD": "2c542d4b6f49f1070f548278cdda0cc4aafa8322",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-sqlite-3fbbe65-summary.txt",
+   "sha256": "723325c945f55a829c3bbf3e61b614f382528b8b2488e84bc2a11ff49ec6e399",
+   "bytes": 277,
+   "git_blob_at_HEAD": "d72810a4ad2420751a914e21c7a01da299423be5",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/final-992a227/sweep-sqlite-3fbbe65.json.gz",
+   "sha256": "d0a35ad33d9fa53aaaeb1556dbb9f940e17a872efa5c021f95fd73e0bce98e22",
+   "bytes": 70449,
+   "git_blob_at_HEAD": "5cf78a3e947560e65b5fd00247cd2714c6bbdc71",
+   "last_commit": "83dbf70 2026-11-20T03:51:00+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/b7gx_after_pg16.txt",
+   "sha256": "5007b028a22b7e1de4a21bd07e0fcbe206ac40ba7c8a54b680672a07f33d7588",
+   "bytes": 327,
+   "git_blob_at_HEAD": "62b4ae541bc84f3586925918d5b81ecf8ae8b370",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/b7gx_before_runxfail.txt",
+   "sha256": "237d0e1091a6e49de78e51c6f62dd636dd21c4a7753cb1db1c255706d29bb23d",
+   "bytes": 965,
+   "git_blob_at_HEAD": "de6e4968e45589ce4740eadb8347ff8145b79430",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/b7gx_before_runxfail_pg16.txt",
+   "sha256": "31ea4ab2cbbfc191ce2a14bf646d9676f837352ffe2b2c0999480498e1c9eabc",
+   "bytes": 334,
+   "git_blob_at_HEAD": "834aeeba18a81eac6e9833703bd83f878ac9eaaa",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_after_pg16.json",
+   "sha256": "80b42d5cd9477210ea9fc4701c91596aff412882628240dabfbe94d17ebb43e5",
+   "bytes": 2603,
+   "git_blob_at_HEAD": "f7c9ad4307d781e2d7a683d8a8ef813f8fccb058",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_after_sqlite.json",
+   "sha256": "5ca489e73079c423634a3583dafa59b93db970372db00bce569579500243d4d7",
+   "bytes": 2597,
+   "git_blob_at_HEAD": "98a00950adbb4d7095638bf1ebe1efeaf5d43bb4",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_before_pg16.json",
+   "sha256": "323bf31fac47164aae9f42b8e47533c74519b50a3fc02e95f18af71e01f6d8ea",
+   "bytes": 5311,
+   "git_blob_at_HEAD": "35fca4e27a327f0b69203c8dc3cac0e0f7655a51",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/gd7-05-write-side/gx_repro_before_sqlite.json",
+   "sha256": "9c6cc2daf3b1d1181c89d500fcfb5d321fce09f5e36c46d86f9e96573d00bae3",
+   "bytes": 5287,
+   "git_blob_at_HEAD": "ae671f97a610723d05310579b03bb4f9cebe30e4",
+   "last_commit": "6a661bb 2026-11-20T02:09:47+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-postgres.json",
+   "sha256": "4687afc72be8a5ccc8bf0e8285a12961fa1a47a8199200e146c06139fffd6c8b",
+   "bytes": 41083,
+   "git_blob_at_HEAD": "3ac27719ca2033458a9f1c9c177c180d0dd67be9",
+   "last_commit": "643a8e5 2026-11-20T03:17:55+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch7/kit/kit-results-sqlite.json",
+   "sha256": "36ae05eb9bf56e530f96cedd4b2a7e5da0c0ca828343444e4007ffe692bd308e",
+   "bytes": 40857,
+   "git_blob_at_HEAD": "01f191abbd30072064a7684ad21758ebd5248555",
+   "last_commit": "643a8e5 2026-11-20T03:17:55+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-after/repro_fix_pg16.json",
+   "sha256": "cc5f62c58f9aed3e7c2291c527d14d710e818729d91eb6a3143f573d17473011",
+   "bytes": 1263,
+   "git_blob_at_HEAD": "86676cd5397e668860e0a52e555ae153d5451157",
+   "last_commit": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-after/repro_fix_sqlite.json",
+   "sha256": "589dc915aa228c295310ecbcc25f23e753a5bcc8654a5d1c967da570f25abe12",
+   "bytes": 1263,
+   "git_blob_at_HEAD": "93c857a91d95a9676c409007007fecea1227f928",
+   "last_commit": "c22a879 2026-11-20T04:20:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/repro_83dbf70_pg16.json",
+   "sha256": "11521bfd0fc567d170afa7a2ad5289dda9c98601fd82562a440b5b218cc1ae56",
+   "bytes": 1331,
+   "git_blob_at_HEAD": "1eeb789ba407a9dc0f1aba6ce9667bd0ce52b2c5",
+   "last_commit": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/repro_83dbf70_sqlite.json",
+   "sha256": "038e6b4234547d2352493e6bdf7070b4e4cad823fa8b9d0ead275493a699faf7",
+   "bytes": 1331,
+   "git_blob_at_HEAD": "cc460d69c1a9f01b3652884aca2f552db865c045",
+   "last_commit": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/tests_83dbf70_pg16.txt",
+   "sha256": "dac67189dcedace6e99f26f2fd50c1bf50ad1cac6aec17fc197b16067724fd68",
+   "bytes": 1519,
+   "git_blob_at_HEAD": "af933f52ca7ce419edf4376833fc4609bf77c759",
+   "last_commit": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/explanations-before/tests_83dbf70_sqlite.txt",
+   "sha256": "18ad46f5c8b2fe196da990b5a1ace0dbffbb0f02208e92977ef68f2d570512d3",
+   "bytes": 1620,
+   "git_blob_at_HEAD": "62293abe873a6e7e74dbd4b27bc72877f5502b82",
+   "last_commit": "eec3bc8 2026-11-20T04:13:52+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run1.txt",
+   "sha256": "0a1065dc30d07960907aadeedb6881f142ca834b46acfec173ef52d9f8ba3259",
+   "bytes": 506,
+   "git_blob_at_HEAD": "458c83d835a552008320e5f8ad14ee4110850b2d",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/e2e-run2.txt",
+   "sha256": "dee18e0951d03bd7e6bb5b2f78bb89e8371c3c1ae902d26b57d0b800ffc9d5ad",
+   "bytes": 506,
+   "git_blob_at_HEAD": "1aae270ed376ebe9ac803534dd9241ec4d415441",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob_at_HEAD": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-env.txt",
+   "sha256": "f0b4bd7d6d261f65b1741ce8eb788e9b0121e44b7b3d20afd16e1a26d4ff3ef9",
+   "bytes": 381,
+   "git_blob_at_HEAD": "62ad57d0983f5008a06360e6d8d36642deb98949",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-junit.xml.gz",
+   "sha256": "76e81f35ae64051b9ca11cfe1a463d42cbb98ed45584d0e0458c8c0bfaf34aca",
+   "bytes": 125507,
+   "git_blob_at_HEAD": "0a5bb5fabcca9caef7611fe1ffe1f5fea7a6e777",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/pg16-pytest.log.gz",
+   "sha256": "be220db18dde602c122a29c1ecbd93a793d3d03ae16b9f33ccf42d26c51e17ef",
+   "bytes": 11461,
+   "git_blob_at_HEAD": "7d6158f08338eb5f07f2d62944a2f86de879f91f",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-env.txt",
+   "sha256": "564666322751a35a879ffe7e23486ec9b283123cb6dbff335ba6d99bd8263a09",
+   "bytes": 111,
+   "git_blob_at_HEAD": "3281d02190e625494b64152a756b95d6b4d9f34d",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-junit.xml.gz",
+   "sha256": "067ceb4c0839b9c0b74c1b2a8ae9d097577726ec1a3e0737640f9c6d873eb9c8",
+   "bytes": 123488,
+   "git_blob_at_HEAD": "7977e4c6a211f5eb4c6c1c65919a817854d327f5",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sqlite-pytest.log.gz",
+   "sha256": "0edcb0653d830fec2c9162ebca38cd86f4ae572934a17345b7c364730ef21291",
+   "bytes": 11521,
+   "git_blob_at_HEAD": "394c5f4bd56674f9b1a34e1c801e58da53247514",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-pg16-summary.txt",
+   "sha256": "8d9021edc172c836aebe5e8288f0e0757ce34a04ce6e6c8bfda8dc522938be13",
+   "bytes": 277,
+   "git_blob_at_HEAD": "5ce67366a579c5493d7367c50dc80b167b944e32",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-pg16.json.gz",
+   "sha256": "7566a372c9faa130c9077026b81f51feea596e767c7f5f0eb946c5447749d999",
+   "bytes": 70611,
+   "git_blob_at_HEAD": "080c840f92c7a335e8bcd91b385801806843ad98",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-sqlite-summary.txt",
+   "sha256": "1958d8c088eb811c6552ec0718cb059f5716a83e2e065da0624e98a000befc2a",
+   "bytes": 277,
+   "git_blob_at_HEAD": "33bed4c4bcf52bbbc80d94bc84c493bf9b32e77e",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/final-6b2a8d6/sweep-sqlite.json.gz",
+   "sha256": "e799474a673ffec15a419d2d05aa3ebd4e8e725a68269a7588ef9b044a590e91",
+   "bytes": 70448,
+   "git_blob_at_HEAD": "125d634e86d9c83c8ff7a09e1442dbd1dda57d47",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-postgres.json",
+   "sha256": "401028b28b834f0a52e46adf14bbeef769f3d742cf5376b3abdbe970032bce60",
+   "bytes": 51596,
+   "git_blob_at_HEAD": "15c084ec26eb517642425449d6b79aed6922a052",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit-results-sqlite.json",
+   "sha256": "1d674fc937445da5775272dfb53f979fafbee6916591e03555042f99d76bfea6",
+   "bytes": 51322,
+   "git_blob_at_HEAD": "342679d2d24e7b9e84cd17eeba8a48a1b53b682a",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8_pg.log",
+   "sha256": "e91efd694ab14bdea2508ebe248eac0c7c7aad17ba7f05b3d9aa11dbf34b15ec",
+   "bytes": 2923,
+   "git_blob_at_HEAD": "401d5c9ea486290d21cd754a6b30ba3395470f6b",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8_sqlite.log",
+   "sha256": "2b88499145aa628868d2cda2cd4a2ad43e487985a6f84ff82f854371f58b6ec0",
+   "bytes": 2925,
+   "git_blob_at_HEAD": "d927495cc15f915105b2c9fe5f9ef2d719487669",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8pa_pg.log",
+   "sha256": "5a824b840c1fec0bb13843cdc8096cb953cc36fd6e9f83b352c17062d2c5f48e",
+   "bytes": 796,
+   "git_blob_at_HEAD": "8b1e0991cde5933549908b22b941368d3e71a980",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit8pa_sqlite.log",
+   "sha256": "7f705aaa883c6d874220d16d42fbb4f87a3cbe66681ae72d4fa71c5ae6734c08",
+   "bytes": 798,
+   "git_blob_at_HEAD": "b1a0fb36a273f56488a63233562683209495c0b2",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit_pg_aborted.log",
+   "sha256": "3b9e8d687cec0d97cbef6dac23e0184c939551712ce4543e074dc52046634e6e",
+   "bytes": 3432,
+   "git_blob_at_HEAD": "9642ca80335f0ffa14670661ad1e93ccacdf2e51",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/kit/kit_sqlite_aborted.log",
+   "sha256": "b63014da74ac5637d9dc018eeb1e7826ad3fec7e2447422af5c8c07e6ba237f1",
+   "bytes": 3726,
+   "git_blob_at_HEAD": "7399826a26344c226a33fdc17df0dd1956130e9d",
+   "last_commit": "8bfcc9a 2026-11-20T05:14:24+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-batch8/pa1/pa1_env_probe_c22a879.json",
+   "sha256": "ef651e801a374d04bafa318e07b0974cc7fa2ddb7ce23c15910bcd3fb7fd3bc4",
+   "bytes": 4377,
+   "git_blob_at_HEAD": "1143552f445ec9f4050ca3a30ef6a716f14c4c41",
+   "last_commit": "6b2a8d6 2026-11-20T04:27:33+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_gates_postgres.txt",
+   "sha256": "47c09fc4344e45381294c2a8eb65ecb9309b126e82758352f0f6a57b9900fa13",
+   "bytes": 29,
+   "git_blob_at_HEAD": "cef687207f74a3c3fbbd74fc03e6a5ef3bb34131",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_gates_sqlite.txt",
+   "sha256": "7bf2c9cf78dad207fb4a1b488b16abe9bc7b9b2dd4b5e4b7d18696eb348c5791",
+   "bytes": 29,
+   "git_blob_at_HEAD": "592ebf4865424f2f230a17c66773b6471fcb34e9",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_postgres.txt",
+   "sha256": "c409771e9ac5cc15724932d9341b1643387eaa71bd912656aeadce9336ba0919",
+   "bytes": 32,
+   "git_blob_at_HEAD": "cd44da77f0b6bdb2ff6ddc7a239fae1ee0d23b1d",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/pytest_layer_sqlite.txt",
+   "sha256": "aa6c8d172167465b9a778143de71d0387da666932cb5de9adceb374e002ec54c",
+   "bytes": 32,
+   "git_blob_at_HEAD": "a91c62197c0b58a90ae0ea084a9ac8cf7a8a446a",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.json",
+   "sha256": "47a86ed34164ec4c07595567b1fc88d94b63c6667bec3626c8de18439b393de6",
+   "bytes": 5343,
+   "git_blob_at_HEAD": "28cc2c04605f0a6e0e1b68efc480171db6205393",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_postgres.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob_at_HEAD": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_sqlite.json",
+   "sha256": "1b19dc46a0cf5fdf3964ac9d5669bea590474d78d2cda2d6766b59ce602674a5",
+   "bytes": 5305,
+   "git_blob_at_HEAD": "b38be97d813df2e2d65eb75ba6d2d3d5afa860b8",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/after-829f36a/repro_sqlite.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob_at_HEAD": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_postgres.txt",
+   "sha256": "db6c9247acd660dc37d7cbf77c40dbbec8b5ba1127d6d336b5b6d4cc338bb47f",
+   "bytes": 526,
+   "git_blob_at_HEAD": "489778ae9469da73c4f1877ba9da1b55be39cc43",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_runxfail_sqlite.txt",
+   "sha256": "5d3c687915f77271019cccf3027d8076fa21c0cb22284410dc1573894ca6dc40",
+   "bytes": 1076,
+   "git_blob_at_HEAD": "ffdb55237f31e419bcc67b4ceb3cf5a263351d45",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/pytest_strict_sqlite.txt",
+   "sha256": "4066938047f3fc713df0ddad58f1ad4de707f01483c56b29b9ca4ec3def67858",
+   "bytes": 902,
+   "git_blob_at_HEAD": "4a5b01ed506cc3b428680f4fe9d6312ea631cd62",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_postgres.json",
+   "sha256": "1bf229e577f15663e25fa38cce0f98780ec6f3723058ef2235847d77f46e9ace",
+   "bytes": 4852,
+   "git_blob_at_HEAD": "f618d67281f6f42e03b13465554527fa7390e46c",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_postgres.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob_at_HEAD": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_sqlite.json",
+   "sha256": "d78aa076b2fea549ff2e4761cb0b314dfb96490c58e1fd423965aa5abab82af8",
+   "bytes": 4814,
+   "git_blob_at_HEAD": "2a7367de41a0be8b903b1727e1dc562ccf227551",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/before-8bfcc9a/repro_sqlite.stderr",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "bytes": 0,
+   "git_blob_at_HEAD": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "last_commit": "c2014ff 2026-11-20T23:08:42+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run1.txt",
+   "sha256": "e749371ea79f8dc81723e5fb62b68834cb554d9631fa5231238dee769bc02781",
+   "bytes": 561,
+   "git_blob_at_HEAD": "139b9b980a7086e9070bcfd39d805fb9074404e7",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/e2e-run2.txt",
+   "sha256": "1a2d7c4d4dc57ac08fce893d8cbda7570954a0174b244c8dc21f86b64940d75a",
+   "bytes": 561,
+   "git_blob_at_HEAD": "bf5e4a951063fcfe695c0b480eae1e67002775b9",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-build.txt",
+   "sha256": "f5ce31a6beee2885b833a6315be9992714ef1dbaea2567e07faf15260d8043eb",
+   "bytes": 190,
+   "git_blob_at_HEAD": "e34ed7d3f227d4b896bf69739d4f75d59770eb1f",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/frontend-test.txt",
+   "sha256": "d51b7335097f0f5bf4b0f48114dfcb58420fb5bb806df842d194ed1c9e801ffe",
+   "bytes": 101,
+   "git_blob_at_HEAD": "204dad9a3992c52021d0db279df652091a219fb1",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/alembic.log",
+   "sha256": "3d147aafcf3740c0c9db8cc93042661c6d1d3dab71ee1fd0043d6e52b2fc3482",
+   "bytes": 3279,
+   "git_blob_at_HEAD": "86a1aacc4ea37c7fab3fb8f6e2e8629bb27d7aa3",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/driver.log",
+   "sha256": "f989f51f01bc310d5717d642e286dfc23e1aabc80e811b7c7338b15e377721f5",
+   "bytes": 63,
+   "git_blob_at_HEAD": "90917d02a5b6005b09d6fec7026b304a26eaaad5",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/env.txt",
+   "sha256": "5633f00ed004ce126d60cfb7e61f8172a82a8eda630ba13e2c609e5ae8db1ec6",
+   "bytes": 389,
+   "git_blob_at_HEAD": "3a0d8424d0d59ba50e88c3615bad1e6e3772bdaf",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/junit.xml.gz",
+   "sha256": "85b877917423ae7c932dfc722f40dcf0be588656118bc0445473e1ac78db673b",
+   "bytes": 133677,
+   "git_blob_at_HEAD": "ecda93b1c47a5b25c58bb1ddf677c6d3f402276c",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/pg/pytest.log.gz",
+   "sha256": "b4a44e215617c7e62db09684f2fc3595a9470036f55cc2d881e6563f14302460",
+   "bytes": 11091,
+   "git_blob_at_HEAD": "95aabe0f63d1635f50f744b01c38ab9c45fa18e8",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/register-isolation.txt",
+   "sha256": "4e225d1b5d8aa9574dcda060ff6f8ab137edb51147781a6b6c3c648b874aa392",
+   "bytes": 43,
+   "git_blob_at_HEAD": "3bac33201ee995406f02d5c74702bcd54aed6c9c",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/junit.xml.gz",
+   "sha256": "be76c909ca7c9160886f9fb5e33bb35713a9ebe7602aa76a7d9357f1b43bb3ce",
+   "bytes": 130532,
+   "git_blob_at_HEAD": "45c8cbafbeb8e1ad935bb730dca2f38d93600b10",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sqlite/pytest.log.gz",
+   "sha256": "06da50271c248d7a9690bd848357dea0719b735b71131216ee312e10d3861180",
+   "bytes": 11154,
+   "git_blob_at_HEAD": "5d5afcc4545293c91690ccc2bebb8ca6d9a9cb57",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16-summary.txt",
+   "sha256": "380a8a97f8564acc523c7ed2e17035d25d3922522087e510d72050aa541fa9e8",
+   "bytes": 277,
+   "git_blob_at_HEAD": "8c2f2fa943ff5c829185b10469e8d63c7562604e",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-pg16.json.gz",
+   "sha256": "f566a6f5b7b6f099b2cca691c1952d6188d2bbc21890c3331255c69b73e1b09c",
+   "bytes": 75570,
+   "git_blob_at_HEAD": "f53c4009babf19dc8917d80de3f5429ff2a84bfd",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite-summary.txt",
+   "sha256": "f3cee8dd90ffff19a4ab7821a599156ffec04f21f77ae34532d4d88e5ced2fdc",
+   "bytes": 277,
+   "git_blob_at_HEAD": "495aa9f6d922e005e11702ebd5e412afc7ec862d",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/final-829f36a/sweep-sqlite.json.gz",
+   "sha256": "15fdf3838706daccfc4aa948960e08f313bd5f26f24cece2ac8d4b73c718b644",
+   "bytes": 75363,
+   "git_blob_at_HEAD": "49e24dc209ce00adbb5ca5e6f1a618d180283a6e",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/kit_postgres.log",
+   "sha256": "9cc5f10fa37ede58674237897b62e8809e828a24dc111730ef284931c027ed64",
+   "bytes": 1553,
+   "git_blob_at_HEAD": "521cfdf0cfea320a250991b0926cb4fe2a3dce87",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/kit_sqlite.log",
+   "sha256": "1202a16b9ade9c65465a788968943c07aeeef8c8f28a89ebb8d01e431d14e8a5",
+   "bytes": 1549,
+   "git_blob_at_HEAD": "820a81d0c5e4366678d6db6f634b23c4ca2cd834",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/postgres/kit-results-postgres.json",
+   "sha256": "2097d9b9349c3e0275d216e178c309bae17652b69a2830c9efd4c6f2ddf21bd5",
+   "bytes": 4700,
+   "git_blob_at_HEAD": "a065cbd09298fa08ac07522a7b650a46f66dbbb0",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/p472-03-pa1-remediation/kit/sqlite/kit-results-sqlite.json",
+   "sha256": "b960e6406ac69ab713f23566771d94d7a81299204c70ed684af6c8fe10942819",
+   "bytes": 4677,
+   "git_blob_at_HEAD": "261626cdc3b56a556a606ef31ef6737f9975a993",
+   "last_commit": "bed42c8 2026-11-20T23:56:08+00:00"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-postgres.json",
+   "sha256": "f10d1e5bbb6d5f8a15ca176d99cd6d882a1c0b283ebc8a0ea7aafae547174ef1",
+   "bytes": 3494,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-sqlite-run1-expectation-incomplete.json",
+   "sha256": "1e4bc6a6048622f543603a6da34b8de118cbbcc50bc7773ca0853bb0f9d4c17b",
+   "bytes": 3492,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/a1-mutation/a1-mutation-sqlite.json",
+   "sha256": "af0ae59b599faf0dee35580541050c567b25df9e11eb93650aca84d519a9f81f",
+   "bytes": 3490,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/freeze-bed42c8.json",
+   "sha256": "69d6a492442bdd269555d9c402840285ef02d5773c318af60774a3a18f0a459f",
+   "bytes": 91453,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/kit_postgres.log",
+   "sha256": "93ef9a6576cb60931304f9fc52fd268177767aebdd6c795b6369a86c00860288",
+   "bytes": 4342,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/kit_sqlite.log",
+   "sha256": "869bc0a2d64052fee00baf6da71a34f635f79403a5a975104c6e895a4e1997a2",
+   "bytes": 4338,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/postgres/kit-results-postgres.json",
+   "sha256": "45de5ffcdb7a671d4e06844355b99e33f2d9f9b78610ca1a3df8ecde97de5bf3",
+   "bytes": 15793,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  },
+  {
+   "path": "docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/sqlite/kit-results-sqlite.json",
+   "sha256": "435ccdf76d00cc446240b7acbdf70273de01bc3364a08434ab192e1ecef17ac1",
+   "bytes": 15695,
+   "git_blob_at_HEAD": "not committed",
+   "last_commit": "not committed"
+  }
+ ],
+ "checks": [
+  {
+   "check": "alembic single head",
+   "result": "OK",
+   "detail": "heads=['b5a2c7e19d40']"
+  },
+  {
+   "check": "alembic head matches documented head",
+   "result": "OK",
+   "detail": "documented=b5a2c7e19d40"
+  },
+  {
+   "check": "findings register empty (matches 0-finding sweeps)",
+   "result": "OK",
+   "detail": "findings={} baseline=PA-1 remediation final (application code 829f36a)"
+  },
+  {
+   "check": "INDEPENDENT records exist",
+   "result": "DISCREPANCY",
+   "detail": "0 record(s) \u2014 expected 0 at Batch 7 (none performed)"
+  },
+  {
+   "check": "GOVERNANCE records exist",
+   "result": "DISCREPANCY",
+   "detail": "0 record(s) \u2014 expected 0 at Batch 7 (none performed)"
+  },
+  {
+   "check": "p472-03-batch5-independent-review-packages-v1.md Package B",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "says the final SHA shows 1 route with AW-04; superseded by B6.1 (0 routes). Preserved; corrected in the Batch 7 packets."
+  },
+  {
+   "check": "p472-03-batch5-independent-review-packages-v1.md Package A",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "gives 4fdac4c / 'pre-Day-3' as the before-SHA; the exact marker-removal commits are 5adde8d, 76d7fc3, cea6d7f, c826fcc and the AW-08 fixes fbd2581/137e9b1/ae54f5e. The Batch 7 kit uses exact parents."
+  },
+  {
+   "check": "p472-03-release-gate-evidence-index-v5.md heading 'CI failures during Batch 6 (all one cause)'",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "the PG16 CI failures on 3f479d9/c63d398/bc0cb94 were never observed (logs unreadable); their cause is inferred. The 2976b4e PG16 failure is separate and unexplained (listed lower in the same file)."
+  },
+  {
+   "check": "RB-T28 test name test_another_tenant_cannot_contaminate_a_source",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "passes because the victim's reads are filtered; the foreign write under the victim's source key is still accepted (write-side check pending GD-7)."
+  },
+  {
+   "check": "GD-6: B5.3 proposed default vs B6.1 implementation",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "B5.3 proposed no self-publication (curator only); B6.1 restricts publish/reject to the submitting tenant's leadership, so self-publication to the network remains possible pending GD-6."
+  },
+  {
+   "check": "earlier docs: 'development tokens (not accepted in production)'",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "acceptance depends on APP_ENV/ENABLE_DEV_AUTH (app/deps.py) and ENVIRONMENT (app/enterprise_auth.py); the startup check only logs. Accurate only if deployment variables are consistent."
+  },
+  {
+   "check": "CLAUDE.md",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "names branch claude/tender-johnson-mww1wi and '~2059 tests'; this work is on engineering/render-local-inference-p47 (per the issue) and the suite has 9,226 tests."
+  },
+  {
+   "check": "p472-03-batch5-independent-review-packages-v1.md Package A note 1 (RB-T04)",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "says reproduce RB-T04 at 30638f0^; the Batch 7 kit shows the test PASSES at 30638f0^ (e615afd) and FAILS at fbd2581^ (137e9b1) and 5ab34f2 \u2014 the fixing commit is fbd2581 (AW-08a). Kit corrected."
+  },
+  {
+   "check": "records.json (Batch 6) and p472-03-batch7-pg16-ci-anomaly-report-v1.md",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "PG16 failures on 3f479d9/c63d398/bc0cb94 were recorded as 'inferred census pin' and 2976b4e as 'unknown'; Batch 7 read the CI logs: the first three are the census pin (confirmed), 2976b4e is scheduler contamination of the SQL oracle (v2 report). Records updated; v1 preserved."
+  },
+  {
+   "check": "Issue #190 B7.6 wording",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "Issue #190 describes RB-T32 as a write-side defect; in the code RB-T32 (GX-09) is cross-tenant explanation DISCLOSURE. Batch 8 fixed the disclosure and the related writes (foreign override GX-11, key injection GX-12) and recorded each as its own tripwire."
+  },
+  {
+   "check": "p472-03-batch7-governance-decision-packets-v1.md PA-1",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "said the startup check 'only logs'. Batch 8 probe: main.py refuses to start in production without AUTH_MODE (and AUTH_MODE=dev without ALLOW_DEV_AUTH_IN_PROD); Settings.validate() only logs. Both statements are now in the PA-1 investigation doc."
+  },
+  {
+   "check": "p472-03-batch8-pa1-privileged-access-investigation-v1.md and p472-03-batch8-governance-and-forensic-workflows-v1.md (HIST B2)",
+   "result": "DISCREPANCY (recorded)",
+   "detail": "list PA1-01/PA1-02 as 'not fixed' and RB-T38..T40 as failing. Superseded by 829f36a (author fix; PA-1 unsigned): see the PA-1 investigation v2 and assessment v8. v1 documents preserved unchanged; the earlier dev-token discrepancy above now describes pre-829f36a behaviour."
+  }
+ ]
+}

@@ -70,8 +70,6 @@ export default function EnterpriseGovernanceCommandCenter() {
         Authorization: `Bearer ${AUTH_TOKEN}`,
         "X-LumenAI-Role": role,
         "X-LumenAI-Actor": "john-demo",
-        "X-Tenant-Id": "bonsecours",
-        "X-Tenant-Name": "Bon Secours",
       },
     });
 

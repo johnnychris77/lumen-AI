@@ -53,7 +53,7 @@ class AuditPackageResult(BaseModel):
 
 
 class AuditPackageRequest(BaseModel):
-    tenant_id: str
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     facility_id: str = ""
     package_type: str = "joint_commission"  # joint_commission|aami|fda|cms|full
     period_label: str = ""
@@ -74,7 +74,7 @@ class FDASubmissionResult(BaseModel):
 
 
 class FDASubmissionCreate(BaseModel):
-    tenant_id: str
+    tenant_id: str = ""  # optional claim; must be the caller's verified tenant (P472-03)
     submission_type: str = "510k"
     submission_number: str | None = None
     device_name: str

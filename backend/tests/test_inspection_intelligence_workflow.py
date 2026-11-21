@@ -253,6 +253,10 @@ def test_baseline_comparison_returns_structured_response():
         db.flush()
 
         baseline = EnterpriseInstrumentBaseline(
+            # P472-03 batch 1: a baseline belongs to its instrument's tenant, as
+            # the application always writes it. This seed used to omit the
+            # tenant (so the row landed in the column default, another tenant).
+            tenant_id="test-tenant",
             instrument_id=instrument.id,
             baseline_status="approved",
             created_at=datetime.now(timezone.utc),
@@ -284,6 +288,10 @@ def test_baseline_comparison_returns_structured_response():
             "Authorization": "Bearer dev-token",
             "X-LumenAI-Role": "operator",
             "X-LumenAI-Actor": "reviewer@test.com",
+            # P472-03: findings are tenant-owned. The finding above is seeded in
+            # "test-tenant", so the request states that tenant (the development
+            # token's tenant comes from this header; it used to be ignored).
+            "X-Tenant-Id": "test-tenant",
         },
     )
     assert response.status_code == 200

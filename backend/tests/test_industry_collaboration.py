@@ -34,8 +34,39 @@ def _headers(base: dict, tenant_id: str) -> dict:
     return {**base, "x-tenant-id": tenant_id}
 
 
+# P472-03 AW-07: manufacturer portals now require the caller to be a verified,
+# enabled member of the manufacturer / repair-partner organization they name.
+# These tests operate as a stable test user who is granted that membership; the
+# AW-07 exploit test deliberately bypasses this helper (no membership) and is
+# refused.
+MFR_USER = "beacon-mfr-user@example.com"
+
+
+def _grant_manufacturer(manufacturer_id: str, user: str = MFR_USER) -> None:
+    from app.db.models import ManufacturerMembership
+
+    db = SessionLocal()
+    try:
+        exists = (
+            db.query(ManufacturerMembership)
+            .filter(
+                ManufacturerMembership.user_email == user,
+                ManufacturerMembership.manufacturer_id == manufacturer_id,
+            )
+            .first()
+        )
+        if not exists:
+            db.add(ManufacturerMembership(
+                manufacturer_id=manufacturer_id, user_email=user,
+                role="manufacturer_admin", is_enabled=True))
+            db.commit()
+    finally:
+        db.close()
+
+
 def _manufacturer_headers(manufacturer_id: str) -> dict:
-    return {**AUTH_ADMIN, "X-Manufacturer-ID": manufacturer_id}
+    _grant_manufacturer(manufacturer_id)
+    return {**AUTH_ADMIN, "x-lumenai-actor": MFR_USER, "X-Manufacturer-ID": manufacturer_id}
 
 
 def _make_registry_instrument(manufacturer_name: str, udi: str) -> None:

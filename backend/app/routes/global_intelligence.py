@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.global_intelligence import (
     GlobalIntelligenceSignal,
     GlobalRecallEarlyWarning,
@@ -31,9 +32,6 @@ router = APIRouter(tags=["global_intelligence"])
 
 _DISCLAIMER = DISCLAIMER
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -84,8 +82,7 @@ def list_global_signals(
     db: Session = Depends(get_db),
 ) -> Any:
     """Published global quality signals (filtered by region)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     signals = get_global_signals(db, tenant_id, region=region)
 
@@ -117,8 +114,7 @@ def list_risk_registry(
     db: Session = Depends(get_db),
 ) -> Any:
     """Instrument risk registry entries."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     entries = get_instrument_risk_registry(db, tenant_id, category=category)
 
@@ -149,8 +145,7 @@ def list_recall_warnings(
     db: Session = Depends(get_db),
 ) -> Any:
     """Early warning signals for potential recalls."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     warnings = get_recall_early_warnings(db, tenant_id)
 
@@ -181,8 +176,7 @@ def get_participant_status(
     db: Session = Depends(get_db),
 ) -> Any:
     """This tenant's GSIN network participation status."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     participant = get_network_participant(db, tenant_id)
 
@@ -213,8 +207,7 @@ def list_regulatory_evidence(
     db: Session = Depends(get_db),
 ) -> Any:
     """Regulatory evidence packages (read-only archive)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     packages = get_regulatory_evidence_packages(db, tenant_id, authority=authority)
 
@@ -245,8 +238,7 @@ def global_dashboard(
     db: Session = Depends(get_db),
 ) -> Any:
     """Consolidated global intelligence dashboard."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     dashboard = get_global_dashboard(db, tenant_id)
 
@@ -275,8 +267,7 @@ def contribute_signal(
     db: Session = Depends(get_db),
 ) -> Any:
     """Contribute an anonymized signal to the global network."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     # Gate 1: DPA/BAA must be signed and participant must be active
     participant = db.query(GSINParticipant).filter_by(tenant_id=tenant_id).first()
@@ -377,8 +368,7 @@ def review_signal(
     db: Session = Depends(get_db),
 ) -> Any:
     """Governance Board review: approve or reject a pending signal for network publication."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     if body.decision not in ("approve", "reject"):
         raise HTTPException(
@@ -449,8 +439,7 @@ def enroll_participant(
     db: Session = Depends(get_db),
 ) -> Any:
     """Enroll this tenant as a GSIN network participant (creates pending record)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     existing = db.query(GSINParticipant).filter_by(tenant_id=tenant_id).first()
     if existing is not None:
@@ -513,8 +502,7 @@ def sign_dpa(
     db: Session = Depends(get_db),
 ) -> Any:
     """Admin acknowledges DPA signing, activating this tenant's GSIN participation."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     participant = db.query(GSINParticipant).filter_by(tenant_id=tenant_id).first()
     if participant is None:
@@ -577,8 +565,7 @@ def notify_recall_warning(
     db: Session = Depends(get_db),
 ) -> Any:
     """Record that a manufacturer or regulatory body has been notified about this early warning signal."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     if body.target not in ("manufacturer", "regulatory"):
         raise HTTPException(
@@ -645,9 +632,14 @@ def notify_recall_warning(
 
 @router.get("/api/global-intelligence/network-stats")
 def network_stats(
+    request: Request,
     db: Session = Depends(get_db),
 ) -> Any:
-    """Public network statistics (no authentication required)."""
+    """Network statistics. Authenticated."""
+    # Governance decision GD-1 (P472-03): operational counters require a verified
+    # caller unless specifically approved for public release. This route used to be
+    # public. The figures are network-wide totals, so they are not tenant-scoped.
+    require_enterprise_auth(request, db=db)
     from app.models.global_intelligence import GSINParticipant as NP
 
     active_participants = db.query(NP).filter(NP.enrollment_status == "active").count()

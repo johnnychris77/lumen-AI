@@ -3,28 +3,14 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { api, openProtectedFile } from "@/lib/api";
+import { RequireTenant, TenantSwitcher } from "@/lib/tenant";
 
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function fetchJSON(path: string) {
-  const res = await apiFetch(`${path}`, { raw: true, headers: authHeaders() });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-async function postJSON(path: string, body: object) {
-  const res = await apiFetch(`${path}`, { raw: true,
-    method: "POST",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
+// P472-03 B5.1: the tenant is the signed-in user's verified selection (sent as
+// X-Tenant-Id by apiFetch). Routes that still require a `tenant_id` parameter
+// get the SAME value — never a hard-coded, stored or user-typed tenant.
+const fetchJSON = <T = any>(path: string) => api.get<T>(path);
+const postJSON = <T = any>(path: string, body: object) => api.post<T>(path, body);
 
 const ACCREDITORS = [
   { value: "joint_commission", label: "Joint Commission" },
@@ -60,7 +46,10 @@ interface EvidenceItem {
 }
 
 export default function AccreditationConsole() {
-  const [tenantId, setTenantId] = useState(localStorage.getItem("tenant_id") || "default-tenant");
+  return <RequireTenant>{(tenantId) => <AccreditationWorkspace key={tenantId} tenantId={tenantId} />}</RequireTenant>;
+}
+
+function AccreditationWorkspace({ tenantId }: { tenantId: string }) {
   const [facilityId, setFacilityId] = useState("F1");
   const [accreditor, setAccreditor] = useState("joint_commission");
   const [readiness, setReadiness] = useState<Readiness | null>(null);
@@ -121,7 +110,7 @@ export default function AccreditationConsole() {
   const generateBinder = () => action(async () => {
     const r = await postJSON("/api/accreditation/survey-evidence/generate",
       { tenant_id: tenantId, facility_id: facilityId, accreditor, package_type: "binder" });
-    window.open(`${API_BASE}/api/accreditation/survey-evidence/${r.id}/export`, "_blank");
+    await openProtectedFile(`/api/accreditation/survey-evidence/${r.id}/export`);
     setMsg("Survey binder generated (opened for print/PDF).");
   });
 
@@ -137,8 +126,8 @@ export default function AccreditationConsole() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Tenant</label>
-            <Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} className="w-44" />
+            <span className="text-xs font-medium text-slate-500">Tenant</span>
+            <TenantSwitcher />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Facility</label>

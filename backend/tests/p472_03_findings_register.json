@@ -1,0 +1,25 @@
+{
+ "description": "P472-03 application-wide tenant-isolation findings observed by the sweep. Each entry is an OPEN finding. tests/test_p472_03_application_wide_isolation.py fails if a route appears that is not listed here, and if a listed route stops reproducing without being removed.",
+ "baseline_commit": "PA-1 remediation final (application code 829f36a)",
+ "sweeps": [
+  "sqlite",
+  "postgresql"
+ ],
+ "classes": {
+  "AW-01": "Tenant header trusted with no membership check",
+  "AW-02": "Membership checked on one tenant header, data scoped by another",
+  "AW-03": "Handler re-reads the tenant from a header the auth layer did not verify",
+  "AW-04": "Tenant taken from a query, path or body parameter",
+  "AW-05": "Header trusted when the user has no single verified tenant",
+  "AW-06M": "Verified members without a tenant header are pooled in ``default-tenant``",
+  "AW-06N": "Users with no membership are pooled in ``default-tenant``",
+  "AW-09": "Unauthenticated request reads or writes tenant tables",
+  "AW-UNAUTH": "Tenant-scoped SQL executed for an unauthenticated or invalid-token caller"
+ },
+ "shadowed": [
+  "GET /api/capa/health",
+  "POST /api/billing/webhook"
+ ],
+ "unstable": {},
+ "findings": {}
+}

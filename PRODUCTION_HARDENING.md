@@ -6,13 +6,17 @@ This guide documents the minimum configuration needed before deploying LumenAI o
 
 ## Required production changes
 
-1. Set APP_ENV=production **and** ENVIRONMENT=production (both are checked; the
-   app refuses to boot if SECRET_KEY is still the default under either).
-2. Set ENABLE_DEV_AUTH=false.
-3. Set AUTH_MODE explicitly. The app refuses to boot in production if AUTH_MODE
-   is unset. Use AUTH_MODE=oidc with OIDC_ISSUER_URL and OIDC_AUDIENCE.
-   AUTH_MODE=dev in production additionally requires ALLOW_DEV_AUTH_IN_PROD=true
-   as a deliberate, auditable exception (controlled pilot demos only).
+1. Set APP_ENV=production **and** ENVIRONMENT=production. Every gate uses one
+   determination (`backend/app/core/environment.py`): production when either
+   names production (case-insensitive). The app refuses to boot if the two
+   disagree (one production, the other set to anything else).
+2. Set ENABLE_DEV_AUTH=false. The app refuses to boot in production otherwise.
+3. Set AUTH_MODE=oidc with OIDC_ISSUER_URL and OIDC_AUDIENCE. The app refuses to
+   boot in production if AUTH_MODE is unset or anything other than `oidc`.
+   (PA-1 remediation: AUTH_MODE=dev is refused in production;
+   ALLOW_DEV_AUTH_IN_PROD is no longer honoured.)
+3a. Do not set DEMO_MODE in production. The app refuses to boot otherwise, and
+   the demo routes answer 403 in production whatever DEMO_MODE says.
 4. Set a strong SECRET_KEY (render.yaml generates one). This signs app-issued
    login tokens; the default value is rejected in production.
 5. Set PUBLIC_BASE_URL to the deployed HTTPS domain.

@@ -225,8 +225,14 @@ def capa_effectiveness(
     """CAPA cycle time and closure effectiveness from inspection signals."""
     from app.services.capa_service import capa_summary, list_capas
 
-    items = list_capas(limit=200)
-    capa_summary()  # refresh summary data
+    # P472-03 AW-11: CAPA records are tenant-owned. The register is read for the
+    # caller's own tenant only; a caller with no single verified tenant (including
+    # the platform admin's all-tenant view of inspections below) gets no CAPA rows
+    # rather than every tenant's.
+    capa_tenant_id = getattr(current_user, "tenant_id", None)
+    items = list_capas(limit=200, tenant_id=capa_tenant_id) if capa_tenant_id else []
+    if capa_tenant_id:
+        capa_summary(tenant_id=capa_tenant_id)  # refresh summary data
 
     open_count = sum(1 for c in items if c.get("status") == "open")
     closed_count = sum(1 for c in items if c.get("status") in ("closed", "verified"))

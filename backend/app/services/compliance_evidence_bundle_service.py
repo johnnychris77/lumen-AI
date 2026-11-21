@@ -29,9 +29,11 @@ def build_compliance_evidence_bundle(
     resource_type: str | None = None,
     resource_id: str | None = None,
     limit: int = 200,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
     export = export_audit_events_csv(
         db,
+        owner_tenant_id=owner_tenant_id,
         tenant_id=tenant_id,
         actor=actor_filter,
         actor_role=actor_role_filter,
@@ -48,6 +50,7 @@ def build_compliance_evidence_bundle(
         actor=actor,
         actor_role=actor_role,
         export_result=export,
+        tenant_id=owner_tenant_id,
     )
 
     bundle = {
@@ -116,6 +119,9 @@ def build_compliance_evidence_bundle(
         action_type="compliance_evidence_bundle_generated",
         resource_type="compliance_evidence_bundle",
         resource_id=bundle_hash,
+        # Owned by the tenant that generated it, so that tenant (and no other) can
+        # verify it later. It used to take the column default, "default-tenant".
+        tenant_id=owner_tenant_id,
         actor=actor,
         actor_role=actor_role,
         packet_hash=bundle_hash,

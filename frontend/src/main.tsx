@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { TenantProvider } from "@/lib/tenant";
 import { NotificationProvider } from "@/lib/notifications";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -427,6 +428,7 @@ function App() {
                 path="/*"
                 element={
                   <RequireAuth>
+                  <TenantProvider>
                   <NotificationProvider>
                   <AppShell>
                     <Routes>
@@ -561,6 +563,7 @@ function App() {
                     </Routes>
                   </AppShell>
                   </NotificationProvider>
+                  </TenantProvider>
                   </RequireAuth>
                 }
               />

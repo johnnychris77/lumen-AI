@@ -66,12 +66,19 @@ def _clear_baselines(instrument_type: str) -> None:
 
 
 def _add_uploaded_baseline(instrument_type: str, baseline_source: str = "manufacturer",
-                           approval_status: str = "approved") -> int:
-    """Simulate a baseline uploaded + reviewed through the UI (vendor-subscription table)."""
+                           approval_status: str = "approved",
+                           tenant_id: str = "default-tenant") -> int:
+    """Simulate a baseline uploaded + reviewed through the UI (vendor-subscription table).
+
+    GD-3: the baseline is owned by ``tenant_id``; the resolver only returns it to
+    that tenant. Defaults to ``default-tenant`` to match the resolve_baseline
+    calls in these tests.
+    """
     from app.models.enterprise_quality import EnterpriseVendorBaselineSubscription
     db = SessionLocal()
     try:
         row = EnterpriseVendorBaselineSubscription(
+            tenant_id=tenant_id,
             vendor_name="UI Upload",
             instrument_name=instrument_type.replace("_", " "),
             instrument_category=instrument_type,

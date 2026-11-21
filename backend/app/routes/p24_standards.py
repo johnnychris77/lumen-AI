@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.p24_standards import (
     APIPartnerApplication,
     AdvisoryConsortiumMember,
@@ -34,9 +35,6 @@ router = APIRouter(prefix="/api/standards", tags=["p24_standards"])
 
 _DISCLAIMER = DISCLAIMER
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -103,8 +101,7 @@ def list_quality_standards(
     db: Session = Depends(get_db),
 ) -> Any:
     """Published quality classification standards."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     standards = get_quality_standards(db, standard_type=standard_type, status="published")
     _audit(db, tenant_id, _actor(request),
            "p24.standards.list", "quality_standards", "all", {"count": len(standards)})
@@ -128,8 +125,7 @@ def list_baseline_governance(
     db: Session = Depends(get_db),
 ) -> Any:
     """This tenant's baseline governance records."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     records = get_baseline_governance(db, tenant_id)
     _audit(db, tenant_id, _actor(request),
            "p24.baseline_governance.list", "baseline_governance", "all", {"count": len(records)})
@@ -150,8 +146,7 @@ def submit_baseline_governance(
     db: Session = Depends(get_db),
 ) -> Any:
     """Submit a baseline governance event (version change, approval request, provenance record)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     VALID_TYPES = {"approval", "version_change", "provenance", "audit"}
     if body.governance_type not in VALID_TYPES:
@@ -205,8 +200,7 @@ def approve_baseline_governance(
     db: Session = Depends(get_db),
 ) -> Any:
     """Approve a pending baseline governance record."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     record = db.query(BaselineGovernanceRecord).filter_by(id=record_id, tenant_id=tenant_id).first()
     if record is None:
@@ -247,8 +241,7 @@ def list_benchmarks(
     db: Session = Depends(get_db),
 ) -> Any:
     """Published benchmark reports (annual, contamination, reliability, executive scorecard)."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     reports = get_benchmark_reports(db, tenant_id, report_type=report_type)
     _audit(db, tenant_id, _actor(request),
            "p24.benchmarks.list", "benchmark_reports", "all",
@@ -274,8 +267,7 @@ def list_regional_deployments(
     db: Session = Depends(get_db),
 ) -> Any:
     """Regional deployment status and compliance frameworks."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     deployments = get_regional_deployments(db, region=region)
     _audit(db, tenant_id, _actor(request),
            "p24.regional_deployments.list", "regional_deployments", "all",
@@ -300,8 +292,7 @@ def list_api_partners(
     db: Session = Depends(get_db),
 ) -> Any:
     """This tenant's API partner applications."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     partners = get_api_partners(db, tenant_id)
     _audit(db, tenant_id, _actor(request),
            "p24.api_partners.list", "api_partners", "all", {"count": len(partners)})
@@ -322,8 +313,7 @@ def apply_api_partner(
     db: Session = Depends(get_db),
 ) -> Any:
     """Apply for API partner access."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     VALID_TIERS = {"partner", "manufacturer", "research", "governance"}
     if body.api_tier not in VALID_TIERS:
@@ -372,8 +362,7 @@ def approve_api_partner(
     db: Session = Depends(get_db),
 ) -> Any:
     """Governance Board approves an API partner application."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     app_record = db.query(APIPartnerApplication).filter_by(id=app_id, tenant_id=tenant_id).first()
     if app_record is None:
@@ -417,8 +406,7 @@ def list_consortium(
     db: Session = Depends(get_db),
 ) -> Any:
     """Advisory consortium member directory."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     members = get_consortium_members(db, tier=tier)
     _audit(db, tenant_id, _actor(request),
            "p24.consortium.list", "consortium_members", "all", {"count": len(members)})
@@ -439,8 +427,7 @@ def enroll_consortium(
     db: Session = Depends(get_db),
 ) -> Any:
     """Enroll this tenant as an advisory consortium member."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     existing = db.query(AdvisoryConsortiumMember).filter_by(tenant_id=tenant_id).first()
     if existing is not None:
@@ -512,8 +499,7 @@ def list_publications(
     db: Session = Depends(get_db),
 ) -> Any:
     """Published standards documents and guidance from the Advisory Consortium."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     pubs = get_publications(db, pub_type=publication_type)
     _audit(db, tenant_id, _actor(request),
            "p24.publications.list", "standards_publications", "all", {"count": len(pubs)})
@@ -534,8 +520,7 @@ def review_publication(
     db: Session = Depends(get_db),
 ) -> Any:
     """Consortium governance review: approve or reject a standards publication."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     if body.decision not in ("approve", "reject"):
         raise HTTPException(
@@ -590,8 +575,7 @@ def ecosystem_dashboard(
     db: Session = Depends(get_db),
 ) -> Any:
     """Consolidated P24 ecosystem dashboard."""
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     dashboard = get_ecosystem_dashboard(db, tenant_id)
     _audit(db, tenant_id, _actor(request),
            "p24.dashboard.get", "ecosystem_dashboard", "all", {})

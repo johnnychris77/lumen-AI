@@ -31,8 +31,28 @@ class ReplayNotFoundError(Exception):
     pass
 
 
-def replay_inspection(db: Session, inspection_id: int) -> dict:
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
+def _scoped_chain(db: Session, resource_type: str, resource_id: str, tenant_id: str | None) -> dict:
+    """GD-2 scope for every replayed chain (P472-03 Batch 8, GX-14). Without a
+    verified tenant nothing is verified: an empty tenant must not match events
+    stored with no tenant."""
+    tenant = (tenant_id or "").strip()
+    if not tenant:
+        return {"verified": True, "resource_type": resource_type, "resource_id": str(resource_id),
+                "event_count": 0, "broken_event_id": None, "message": "No audit events found for this resource."}
+    return verify_audit_chain(db, resource_type=resource_type, resource_id=str(resource_id), owner_tenant_id=tenant)
+
+
+def replay_inspection(db: Session, inspection_id: int, tenant_id: str | None = None) -> dict:
+    # P472-03 AW-08c (defence in depth): the route already refuses callers who are
+    # not a verified member of the tenant they name, so a cross-tenant replay is
+    # blocked before this service runs. Scope the lookup by the verified tenant as
+    # well, so the service cannot return another tenant's inspection even if a
+    # future caller reaches it without that route guard. A missing or foreign
+    # inspection is an indistinguishable not-found (the route maps it to 404).
+    query = db.query(Inspection).filter(Inspection.id == inspection_id)
+    if tenant_id is not None:
+        query = query.filter(Inspection.tenant_id == tenant_id)
+    inspection = query.first()
     if inspection is None:
         raise ReplayNotFoundError(f"Inspection {inspection_id} not found.")
 
@@ -41,14 +61,19 @@ def replay_inspection(db: Session, inspection_id: int) -> dict:
         "timeline": {"created_at": inspection.created_at.isoformat()},
         "stain_detected": inspection.stain_detected,
         "confidence": inspection.confidence,
-        "evidence_ledger": guardianx_evidence_ledger_service.list_entries_for_source(db, "inspection", str(inspection_id)),
-        "explanations": guardianx_explainability_service.list_explanations_for_source(db, "inspection", str(inspection_id)),
-        "audit_chain": verify_audit_chain(db, resource_type="inspection", resource_id=str(inspection_id)),
+        "evidence_ledger": guardianx_evidence_ledger_service.list_entries_for_source(db, "inspection", str(inspection_id), tenant_id or ""),
+        "explanations": guardianx_explainability_service.list_explanations_for_source(
+            db, "inspection", str(inspection_id), tenant_id or ""),
+        "audit_chain": _scoped_chain(db, "inspection", str(inspection_id), tenant_id),
     }
 
 
-def replay_workflow_execution(db: Session, execution_id: int) -> dict:
-    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+def replay_workflow_execution(db: Session, execution_id: int, tenant_id: str = "") -> dict:
+    # P472-03 B6.2: scope by the verified tenant (the execution is tenant-owned);
+    # another tenant's execution is indistinguishable from a missing one.
+    execution = (db.query(WorkflowExecution)
+                 .filter(WorkflowExecution.id == execution_id, WorkflowExecution.tenant_id == tenant_id)
+                 .first() if tenant_id else None)
     if execution is None:
         raise ReplayNotFoundError(f"Workflow execution {execution_id} not found.")
 
@@ -66,13 +91,15 @@ def replay_workflow_execution(db: Session, execution_id: int) -> dict:
             "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
             "execution_time_ms": execution.execution_time_ms,
         },
-        "evidence_ledger": guardianx_evidence_ledger_service.list_entries_for_source(db, "workflow_execution", str(execution_id)),
-        "audit_chain": verify_audit_chain(db, resource_type="workflow_execution", resource_id=str(execution_id)),
+        "evidence_ledger": guardianx_evidence_ledger_service.list_entries_for_source(db, "workflow_execution", str(execution_id), tenant_id),
+        "audit_chain": _scoped_chain(db, "workflow_execution", str(execution_id), tenant_id),
     }
 
 
-def replay_rule(db: Session, rule_id: int) -> dict:
-    rule = db.query(WorkflowRule).filter(WorkflowRule.id == rule_id).first()
+def replay_rule(db: Session, rule_id: int, tenant_id: str = "") -> dict:
+    # P472-03 B6.2: scope by the verified tenant (the rule is tenant-owned).
+    rule = (db.query(WorkflowRule).filter(WorkflowRule.id == rule_id, WorkflowRule.tenant_id == tenant_id).first()
+            if tenant_id else None)
     if rule is None:
         raise ReplayNotFoundError(f"Workflow rule {rule_id} not found.")
     return {
@@ -83,14 +110,20 @@ def replay_rule(db: Session, rule_id: int) -> dict:
     }
 
 
-def replay_recommendation(db: Session, source_type: str, source_id: str) -> dict:
+def replay_recommendation(db: Session, source_type: str, source_id: str, tenant_id: str = "") -> dict:
     """Generic replay for any AI recommendation, keyed the same way
     `EvidenceLedgerEntry`/`AIExplainabilityRecord` are: by `source_type`/
-    `source_id` reference, never a copy of the underlying content."""
+    `source_id` reference, never a copy of the underlying content.
+
+    P472-03 Batch 8: explanations are limited to the caller's provably owned
+    ones, and the audit chain of the caller-named resource is verified under
+    the GD-2 tenant scope (another tenant's chain reads as "no events"; a mixed
+    chain raises ``AuditChainScopeError``, mapped to 403 by the route)."""
     return {
         "source_type": source_type,
         "source_id": source_id,
-        "evidence_ledger": guardianx_evidence_ledger_service.list_entries_for_source(db, source_type, source_id),
-        "explanations": guardianx_explainability_service.list_explanations_for_source(db, source_type, source_id),
-        "audit_chain": verify_audit_chain(db, resource_type=source_type, resource_id=source_id),
+        "evidence_ledger": guardianx_evidence_ledger_service.list_entries_for_source(db, source_type, source_id, tenant_id),
+        "explanations": guardianx_explainability_service.list_explanations_for_source(
+            db, source_type, source_id, tenant_id),
+        "audit_chain": _scoped_chain(db, source_type, source_id, tenant_id),
     }

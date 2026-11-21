@@ -1,0 +1,28 @@
+# B7.2 deterministic reproduction of CI job 135978365382 (LOCAL-AUTHOR evidence, SQLite)
+# Code: working tree on 7cc7bfb + the harness guard committed with this file.
+# Command (from backend/, plugin dir on PYTHONPATH):
+#   B72_GUARD={off|on} python -m pytest -p b72_repro_plugin -p no:cacheprovider -q \
+#     "tests/test_p472_03_batch2_remediation.py::test_unverified_tenant_requests_are_refused_and_change_nothing[GET /api/pulse/command-center]"
+# The plugin starts a BackgroundScheduler whose job runs tenant-A-bound SQL while the case captures.
+# guard=off replaces _pause_running_schedulers with a no-op (the pre-B7.2 harness behaviour).
+# Not an independent result. Timing-dependent: a guard-off pass means the job did not overlap the capture.
+== guard off
+1 passed, 1925 deselected, 2 warnings in 12.64s
+== guard on
+1 passed, 1925 deselected, 2 warnings in 12.85s
+== guard off
+            failed_like_the_owner = how == "handler" and owner_status >= 400 and status == owner_status
+            assert status in REFUSED or failed_like_the_owner, f"{name}: HTTP {status} (owner gets {owner_status})"
+E               AssertionError: two memberships, none selected: SQL bound to b2-alpha-c3ec9dff on ['emerging_risk_signals']
+== guard on
+1 passed, 1925 deselected, 2 warnings in 12.59s
+guard=off run=1 1 passed 
+guard=off run=2 1 passed 
+guard=off run=3 E               AssertionError: two memberships, none selected: SQL bound to b2-alpha-12538592 1 failed 
+guard=off run=4 E               AssertionError: two memberships, none selected: SQL bound to b2-alpha-98391f12 1 failed 
+guard=off run=5 E               AssertionError: two memberships, none selected: SQL bound to b2-alpha-0cd35ebc 1 failed 
+guard=on run=1 1 passed 
+guard=on run=2 1 passed 
+guard=on run=3 1 passed 
+guard=on run=4 1 passed 
+guard=on run=5 1 passed 

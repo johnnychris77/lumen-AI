@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.network_benchmark import NetworkParticipant
 from app.services.recall_signal_engine import (
     escalate_signal,
@@ -34,8 +35,7 @@ def _require_participant(db: Session, tenant_id: str) -> NetworkParticipant:
 @router.get("")
 def list_signals(request: Request, db: Session = Depends(get_db)):
     """List active recall signals (requires network participation)."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _require_participant(db, tenant_id)
 
     signals = get_active_signals(db)
@@ -63,8 +63,7 @@ def list_signals(request: Request, db: Session = Depends(get_db)):
 @router.get("/my-exposure")
 def my_exposure(request: Request, db: Session = Depends(get_db)):
     """Signals affecting this tenant's instrument types."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _require_participant(db, tenant_id)
 
     signals = get_signals_for_tenant(db, tenant_id)
@@ -92,8 +91,7 @@ def my_exposure(request: Request, db: Session = Depends(get_db)):
 @router.get("/{signal_id}")
 def signal_detail(signal_id: str, request: Request, db: Session = Depends(get_db)):
     """Get detail for a specific recall signal."""
-    require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
     _require_participant(db, tenant_id)
 
     all_signals = get_active_signals(db)
@@ -119,7 +117,7 @@ def signal_detail(signal_id: str, request: Request, db: Session = Depends(get_db
 def escalate(signal_id: str, request: Request, db: Session = Depends(get_db)):
     """Escalate signal to FDA (requires auth)."""
     auth = require_enterprise_auth(request, db=db)
-    tenant_id = get_request_tenant_id(request)
+    tenant_id = request_tenant(auth, request)
 
     result = escalate_signal(db, signal_id)
 

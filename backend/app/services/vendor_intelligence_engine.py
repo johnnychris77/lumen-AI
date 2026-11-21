@@ -453,7 +453,7 @@ def get_shared_defect_signals(limit: int = 20, db=None) -> list[SharedDefectSign
         # First try to aggregate from real CVInferenceRecord data (Enhancement 2)
         try:
             from app.models.cv_inference import CVInferenceRecord
-            from sqlalchemy import func
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
 
             # Finding types mapped to columns
             finding_columns = [
@@ -475,12 +475,19 @@ def get_shared_defect_signals(limit: int = 20, db=None) -> list[SharedDefectSign
 
             now = datetime.now(timezone.utc)
             period = now.strftime("%Y-%m")
+            verified_records = integrity_verified(
+                db,
+                db.query(CVInferenceRecord).filter(*operational_sql_criteria(CVInferenceRecord)).all(),
+            )
             aggregated = []
             for finding_type, col_name, signal_type, severity in finding_columns:
                 col = getattr(CVInferenceRecord, col_name, None)
                 if col is None:
                     continue
-                total = db.query(func.sum(col)).scalar() or 0
+                # P4.7.1/P4.7.2: cross-hospital signals are aggregated ONLY from
+                # verified model inference. The sum is taken in Python over rows
+                # whose provenance seal verified — a SQL SUM cannot check a seal.
+                total = sum(int(getattr(r, col_name) or 0) for r in verified_records)
                 if total > 0:
                     aggregated.append((finding_type, signal_type, severity, int(total)))
 

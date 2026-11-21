@@ -2,7 +2,10 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class EnterpriseInspectionIntakeRequest(BaseModel):
-    tenant_id: str = Field(default="bonsecours")
+    # P472-03 AW-09: the finding is created in the caller's verified tenant. This
+    # field is optional and is only a claim: if sent, it must name that tenant
+    # (403 otherwise). It used to default to the literal tenant "bonsecours".
+    tenant_id: str | None = Field(default=None)
     tenant_name: str = Field(default="Bon Secours")
     facility_name: str
     department_name: str = Field(default="Sterile Processing")
@@ -167,19 +170,6 @@ class EnterpriseCapaListItem(BaseModel):
 
 class EnterpriseCapaListResponse(BaseModel):
     items: list[EnterpriseCapaListItem]
-
-
-class EnterpriseCapaListItem(BaseModel):
-    capa_id: int
-    finding_id: int | None = None
-    vendor_id: int | None = None
-    capa_number: str
-    title: str
-    description: str
-    status: str
-    due_date: str = ""
-    closed_at: str = ""
-    created_at: str = ""
 
 
 class EnterpriseCapaStatusUpdateRequest(BaseModel):

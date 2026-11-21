@@ -24,10 +24,19 @@ def _details(event: AuditLog) -> dict[str, Any]:
     return {"raw_details": str(raw)}
 
 
+def _owned(query, owner_tenant_id: str | None):
+    """Limit a lookup of export events to the caller's verified tenant (governance
+    decision GD-2). Another tenant's export is then simply not found."""
+    if owner_tenant_id is None:
+        return query
+    return query.filter(AuditLog.tenant_id == owner_tenant_id)
+
+
 def verify_audit_export_hash(
     db: Session,
     *,
     audit_export_hash: str,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
     normalized_hash = (audit_export_hash or "").strip()
 
@@ -42,7 +51,7 @@ def verify_audit_export_hash(
         }
 
     event = (
-        db.query(AuditLog)
+        _owned(db.query(AuditLog), owner_tenant_id)
         .filter(
             AuditLog.action_type == "audit_events_csv_exported",
             AuditLog.resource_type == "enterprise_audit_export",
@@ -90,6 +99,7 @@ def verify_audit_export_manifest_hash(
     db: Session,
     *,
     manifest_hash: str,
+    owner_tenant_id: str | None = None,
 ) -> dict[str, Any]:
     normalized_hash = (manifest_hash or "").strip()
 
@@ -104,7 +114,7 @@ def verify_audit_export_manifest_hash(
         }
 
     events = (
-        db.query(AuditLog)
+        _owned(db.query(AuditLog), owner_tenant_id)
         .filter(
             AuditLog.action_type == "audit_events_csv_exported",
             AuditLog.resource_type == "enterprise_audit_export",

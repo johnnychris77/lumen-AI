@@ -85,7 +85,11 @@ def test_compliance_evidence_bundle_endpoint_requires_admin_and_returns_bundle()
     from app.main import app
     from app.services.enterprise_audit_service import record_enterprise_audit_event
 
-    client = TestClient(app)
+    # P472-03 batch 1: the request below filters by a tenant; the development
+    # token's tenant comes from X-Tenant-Id, which this wrapper sets to match.
+    from tenant_header_client import TenantHeaderClient
+
+    client = TenantHeaderClient(TestClient(app))
 
     db = SessionLocal()
     try:

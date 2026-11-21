@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import request_tenant
 from app.deps import get_db
 from app.enterprise_auth import require_enterprise_auth
 from app.models.enterprise_quality import (
@@ -30,11 +31,24 @@ from app.services.ranking_engine import score_composite, score_inspection
 router = APIRouter(prefix="/api/enterprise/ranking", tags=["ranking"])
 
 
-def _persist_score(db: Session, finding_id: int, result: RankingResult) -> None:
+def _tenant_finding(db: Session, finding_id: int, tenant_id: str) -> EnterpriseFinding:
+    """The caller's finding, or 404 — another tenant's finding id is indistinguishable
+    from a missing one (P472-03 batch 4: these lookups had no tenant predicate)."""
+    finding = (
+        db.query(EnterpriseFinding)
+        .filter(EnterpriseFinding.id == finding_id, EnterpriseFinding.tenant_id == tenant_id)
+        .first()
+    )
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return finding
+
+
+def _persist_score(db: Session, finding_id: int, result: RankingResult, tenant_id: str) -> None:
     """Write computed score back to EnterpriseRiskScore row."""
     risk_row = (
         db.query(EnterpriseRiskScore)
-        .filter(EnterpriseRiskScore.finding_id == finding_id)
+        .filter(EnterpriseRiskScore.finding_id == finding_id, EnterpriseRiskScore.tenant_id == tenant_id)
         .first()
     )
     if risk_row:
@@ -48,7 +62,7 @@ def _maybe_trigger_capa(db: Session, finding_id: int, result: RankingResult, ten
         return False
     existing = (
         db.query(EnterpriseCapa)
-        .filter(EnterpriseCapa.finding_id == finding_id)
+        .filter(EnterpriseCapa.finding_id == finding_id, EnterpriseCapa.tenant_id == tenant_id)
         .first()
     )
     if existing:
@@ -77,13 +91,18 @@ def compute_ranking_score(
     db: Session = Depends(get_db),
 ):
     """Compute inspection ranking score. Persists score + auto-triggers CAPA on Critical."""
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): req.tenant_id is a claim; the score, the persisted row and
+    # any auto-CAPA belong to the verified tenant, and finding_id must be one of its own.
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, req.tenant_id)
+    req = req.model_copy(update={"tenant_id": tenant_id})
+    if req.finding_id:
+        _tenant_finding(db, req.finding_id, tenant_id)
     result = score_inspection(req, db=db)
 
     capa_triggered = False
     if req.finding_id:
-        _persist_score(db, req.finding_id, result)
-        capa_triggered = _maybe_trigger_capa(db, req.finding_id, result, req.tenant_id)
+        _persist_score(db, req.finding_id, result, tenant_id)
+        capa_triggered = _maybe_trigger_capa(db, req.finding_id, result, tenant_id)
         db.commit()
 
     result.capa_auto_triggered = capa_triggered
@@ -97,8 +116,8 @@ def compute_composite_score(
     db: Session = Depends(get_db),
 ):
     """Score multiple findings on the same instrument with compound escalation."""
-    require_enterprise_auth(request)
-    return score_composite(req, db=db)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, req.tenant_id)
+    return score_composite(req.model_copy(update={"tenant_id": tenant_id}), db=db)
 
 
 @router.get("/history/{finding_id}", response_model=RankingResult)
@@ -108,10 +127,8 @@ def get_ranking_for_finding(
     db: Session = Depends(get_db),
 ):
     """Re-compute ranking for an existing finding from stored data."""
-    require_enterprise_auth(request)
-    finding = db.query(EnterpriseFinding).filter(EnterpriseFinding.id == finding_id).first()
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
+    finding = _tenant_finding(db, finding_id, tenant_id)
 
     req = RankingRequest(
         finding_id=finding_id,
@@ -131,10 +148,8 @@ def ranking_report_pdf(
     db: Session = Depends(get_db),
 ):
     """Generate explainability PDF governance packet for a finding's ranking score."""
-    require_enterprise_auth(request)
-    finding = db.query(EnterpriseFinding).filter(EnterpriseFinding.id == finding_id).first()
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
+    finding = _tenant_finding(db, finding_id, tenant_id)
 
     req = RankingRequest(
         finding_id=finding_id,
@@ -224,11 +239,12 @@ def ranking_report_pdf(
 @router.get("/kpi-summary", response_model=RankingKPISummary)
 def ranking_kpi_summary(
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     """KPI summary — reads persisted scores from DB (no re-scoring loop)."""
-    require_enterprise_auth(request)
+    # P472-03 AW-04 (batch 4): the query value is a claim (it defaulted to "demo-tenant").
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     findings = (
         db.query(EnterpriseFinding)
         .filter(EnterpriseFinding.tenant_id == tenant_id)
@@ -321,11 +337,11 @@ def ranking_kpi_summary(
 def create_scoring_profile(
     req: ScoringProfileCreate,
     request: Request,
-    tenant_id: str = "demo-tenant",
+    tenant_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Create or replace the active scoring profile for a tenant."""
-    require_enterprise_auth(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     # Deactivate existing active profiles
     db.query(EnterpriseScoringProfile).filter(
         EnterpriseScoringProfile.tenant_id == tenant_id,
@@ -366,7 +382,7 @@ def get_active_scoring_profile(
     db: Session = Depends(get_db),
 ):
     """Return the active scoring profile for a tenant, or null if using defaults."""
-    require_enterprise_auth(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request, tenant_id)
     row = (
         db.query(EnterpriseScoringProfile)
         .filter(

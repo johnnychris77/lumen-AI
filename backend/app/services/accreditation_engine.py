@@ -42,12 +42,16 @@ def compute_accreditation_readiness(
     if db is not None:
         try:
             from app.models.cv_inference import CVInferenceRecord
+            from app.cv.evidence import integrity_verified, operational_sql_criteria
             q = db.query(CVInferenceRecord).filter(
                 CVInferenceRecord.tenant_id == tenant_id,
+                # P4.7.1/P4.7.2: verified model inference only (trusted provenance) — never simulated,
+                # not-evaluated or legacy-unverified rows.
+                *operational_sql_criteria(CVInferenceRecord),
             )
             if facility_id:
                 q = q.filter(CVInferenceRecord.facility_id == facility_id)
-            records = q.order_by(CVInferenceRecord.id.desc()).limit(100).all()
+            records = integrity_verified(db, q.order_by(CVInferenceRecord.id.desc()).limit(100).all())
 
             if records:
                 data_source = "real"

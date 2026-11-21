@@ -6,9 +6,10 @@ Route: /pre-sterilization-command-center (frontend). API prefix below.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import principal_tenant
 from app.authz import require_roles
 from app.db import models
 from app.deps import get_db
@@ -32,8 +33,8 @@ router = APIRouter(prefix="/api/pre-sterilization-command-center", tags=["pre-st
 _READ_ROLES = ("admin", "spd_manager", "operator", "viewer")
 
 
-def _tenant_cases(db: Session, current_user) -> tuple[str, list]:
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+def _tenant_cases(db: Session, current_user, request: Request) -> tuple[str, list]:
+    tenant_id = principal_tenant(current_user, request)
     cases = (
         db.query(models.Inspection)
         .filter(models.Inspection.tenant_id == tenant_id)
@@ -44,8 +45,8 @@ def _tenant_cases(db: Session, current_user) -> tuple[str, list]:
     return tenant_id, cases
 
 
-def _tenant_annotated(db: Session, current_user) -> tuple[str, list, list[dict]]:
-    tenant_id, cases = _tenant_cases(db, current_user)
+def _tenant_annotated(db: Session, current_user, request: Request) -> tuple[str, list, list[dict]]:
+    tenant_id, cases = _tenant_cases(db, current_user, request)
     reviewed_ids = _reviewed_ids(db, tenant_id)
     annotated = _annotate(cases, reviewed_ids)
     return tenant_id, cases, annotated
@@ -53,114 +54,125 @@ def _tenant_annotated(db: Session, current_user) -> tuple[str, list, list[dict]]
 
 @router.get("/clinical-inspection-readiness")
 def get_clinical_inspection_readiness(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 1 — Clinical Inspection Readiness Score."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     return {"tenant_id": tenant_id, **clinical_inspection_readiness(annotated)}
 
 
 @router.get("/tray-readiness")
 def get_tray_readiness(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 2 — Tray Readiness Score."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     return {"tenant_id": tenant_id, "trays": tray_readiness(annotated)}
 
 
 @router.get("/instrument-readiness")
 def get_instrument_readiness(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 3 — Instrument Readiness Score."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     return {"tenant_id": tenant_id, "instruments": instrument_readiness(annotated)}
 
 
 @router.get("/facility-readiness")
 def get_facility_readiness(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 4 — Facility Readiness Score."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     return {"tenant_id": tenant_id, "facilities": facility_readiness(annotated)}
 
 
 @router.get("/high-risk-findings")
 def get_high_risk_findings(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 5 — High-Risk Findings Queue."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     items = high_risk_findings_queue(annotated)
     return {"tenant_id": tenant_id, "count": len(items), "items": items}
 
 
 @router.get("/supervisor-review-queue")
 def get_supervisor_review_queue(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 6 — Supervisor Review Queue."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     items = supervisor_review_queue(annotated)
     return {"tenant_id": tenant_id, "count": len(items), "items": items}
 
 
 @router.get("/missing-zone-coverage")
 def get_missing_zone_coverage(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 7 — Missing Anatomy Zone Coverage."""
-    tenant_id, cases = _tenant_cases(db, current_user)
+    tenant_id, cases = _tenant_cases(db, current_user, request)
     items = missing_zone_coverage_queue(cases)
     return {"tenant_id": tenant_id, "count": len(items), "items": items}
 
 
 @router.get("/baseline-coverage")
 def get_baseline_coverage(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 8 — Baseline Coverage."""
-    tenant_id, cases = _tenant_cases(db, current_user)
+    tenant_id, cases = _tenant_cases(db, current_user, request)
     return {"tenant_id": tenant_id, **baseline_coverage(db, tenant_id, cases)}
 
 
 @router.get("/repair-remove-queue")
 def get_repair_remove_queue(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 9 — Repair / Remove From Service Queue."""
-    tenant_id, _, annotated = _tenant_annotated(db, current_user)
+    tenant_id, _, annotated = _tenant_annotated(db, current_user, request)
     return {"tenant_id": tenant_id, **repair_remove_queue(annotated)}
 
 
 @router.get("/executive-risk-dashboard")
 def get_executive_risk_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Module 10 — Executive Risk Dashboard."""
-    tenant_id, cases, annotated = _tenant_annotated(db, current_user)
+    tenant_id, cases, annotated = _tenant_annotated(db, current_user, request)
     return {"tenant_id": tenant_id, **executive_risk_dashboard(db, tenant_id, cases, annotated)}
 
 
 @router.get("/dashboard")
 def get_full_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Aggregator — all ten modules in one call for the command-center page."""
-    tenant_id, cases, annotated = _tenant_annotated(db, current_user)
+    tenant_id, cases, annotated = _tenant_annotated(db, current_user, request)
     return {
         "tenant_id": tenant_id,
         "clinical_inspection_readiness": clinical_inspection_readiness(annotated),

@@ -1,4 +1,14 @@
-"""Deterministic mock CV provider.
+"""Deterministic mock CV provider — a SIMULATION, never image analysis.
+
+P4.7.1: this provider does not look at pixels. Its "findings" are pseudo-random
+numbers seeded from the image URL. It is therefore:
+
+* selectable ONLY when simulation is explicitly permitted (explicit dev/test
+  ``APP_ENV`` AND ``AI_ALLOW_DEMO_SCORING`` — see ``app.ai.inference_gate`` and
+  ``app.cv.registry``); it is never the fallback for a missing or broken model;
+* stamped ``simulated=True`` / ``evidence_class="simulated"`` on the result and
+  on every region, so it can never be counted as a detection, a KPI, a ranking
+  input or a performance metric.
 
 No GPU or external API required. Outputs are seeded from the image URL
 so the same input always returns the same result — stable for tests and demos.
@@ -160,8 +170,11 @@ class MockCVProvider(BaseCVProvider):
                 confidence=round(1.0 - match_pct / 100, 3),
                 bbox=BoundingBox(x=0.2, y=0.3, width=0.4, height=0.3),
                 area_pct=round(rng.uniform(5, 25), 1),
-                evidence_description=f"Visual deviation from baseline ({match_pct}% match)",
+                evidence_description=(
+                    f"SIMULATED (not image analysis): placeholder baseline deviation ({match_pct}% match)"
+                ),
                 model_name="baseline_comparator",
+                simulated=True,
             ))
         return BaselineComparisonResult(
             compared=True,
@@ -200,8 +213,12 @@ class MockCVProvider(BaseCVProvider):
                         height=round(rng.uniform(0.05, 0.25), 3),
                     ),
                     area_pct=round(rng.uniform(0.5, 12.0), 1),
-                    evidence_description=f"Detected {entry['label']} in inspection image",
+                    evidence_description=(
+                        f"SIMULATED (not image analysis): placeholder '{entry['label']}' "
+                        "generated from the image URL for development/testing"
+                    ),
                     model_name="finding_detector",
+                    simulated=True,
                 ))
         return regions
 
@@ -264,6 +281,10 @@ class MockCVProvider(BaseCVProvider):
         inference_id = f"inf-{uuid.uuid4().hex[:12]}"
         warnings: list[str] = []
 
+        warnings.append(
+            "SIMULATED RESULT: produced by the development/test mock provider from the image "
+            "URL, not by analysing the image. Not a detection; not operational evidence."
+        )
         if not req.image_url and not req.image_data_b64:
             warnings.append("No image_url or image_data_b64 provided; using mock fixture.")
 
@@ -314,4 +335,8 @@ class MockCVProvider(BaseCVProvider):
             calibration_temperature=temperature,
             review_required=review_required,
             provider_cost_usd=0.0,   # R12: mock has no cost
+            simulated=True,
+            evidence_class="simulated",
+            model_integrity={"verified": False, "reason": "simulated provider — no model artifact"},
+            human_review_required=True,
         )

@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
 from app.deps import get_db
-from app.enterprise_auth import get_request_actor, get_request_tenant_id, require_enterprise_auth
+from app.enterprise_auth import get_request_actor, require_enterprise_auth
+from app.auth.tenant_scope import request_tenant
 from app.models.integrations import (
     ExternalSystemConnection,
     InfectionPreventionEventRecord,
@@ -57,9 +58,6 @@ _BAA_REQUIRED_CATEGORIES = {"quality_safety", "infection_prevention", "ehr"}
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
-
-def _tenant(request: Request) -> str:
-    return get_request_tenant_id(request)
 
 
 def _actor(request: Request) -> str:
@@ -109,8 +107,7 @@ class CorrelateRequest(BaseModel):
 
 @router.get("/systems")
 def list_systems(request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     connections = (
         db.query(ExternalSystemConnection)
@@ -135,8 +132,7 @@ def list_systems(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/systems")
 def create_system(request: Request, body: CreateConnectionRequest, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     # BAA gate: quality/IP/EHR systems require a signed BAA
     if body.system_category in _BAA_REQUIRED_CATEGORIES:
@@ -190,8 +186,7 @@ def create_system(request: Request, body: CreateConnectionRequest, db: Session =
 
 @router.post("/systems/{system_id}/test")
 def test_system_connection(system_id: int, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     conn = (
         db.query(ExternalSystemConnection)
@@ -231,8 +226,7 @@ def test_system_connection(system_id: int, request: Request, db: Session = Depen
 
 @router.post("/systems/{system_id}/preview-import")
 def preview_import(system_id: int, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     conn = (
         db.query(ExternalSystemConnection)
@@ -264,8 +258,7 @@ def preview_import(system_id: int, request: Request, db: Session = Depends(get_d
 
 @router.post("/systems/{system_id}/run-import")
 def run_import(system_id: int, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     conn = (
         db.query(ExternalSystemConnection)
@@ -328,8 +321,7 @@ def list_imports(
     limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(IntegrationImportRun).filter(IntegrationImportRun.tenant_id == tenant_id)
     if status:
@@ -354,8 +346,7 @@ def list_imports(
 
 @router.get("/imports/{import_id}")
 def get_import(import_id: str, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     run = (
         db.query(IntegrationImportRun)
@@ -393,8 +384,7 @@ def list_external_events(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     qs_q = db.query(QualitySafetyEventRecord).filter(QualitySafetyEventRecord.tenant_id == tenant_id)
     ip_q = db.query(InfectionPreventionEventRecord).filter(InfectionPreventionEventRecord.tenant_id == tenant_id)
@@ -430,8 +420,7 @@ _PHI_FORBIDDEN = {"patient_id", "mrn", "dob", "patient_name", "name", "ssn"}
 
 @router.post("/external-events/import")
 def import_external_events(request: Request, body: ImportEventsRequest, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     imported = 0
     errors = []
@@ -540,8 +529,7 @@ def list_correlation_candidates(
     min_score: float = Query(default=0.0),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(PatientImpactCorrelationCandidate).filter(
         PatientImpactCorrelationCandidate.tenant_id == tenant_id
@@ -578,8 +566,7 @@ def run_correlation_endpoint(
     body: CorrelateRequest,
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     result = run_correlation(
         db=db,
@@ -617,8 +604,7 @@ def integration_dashboard(
     facility_id: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     dashboard = get_integration_dashboard(db, tenant_id, facility_id)
 
@@ -670,8 +656,7 @@ def _compute_health_status(conn: ExternalSystemConnection) -> str:
 
 @router.get("/systems/{system_id}/health")
 def get_system_health(system_id: int, request: Request, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     conn = (
         db.query(ExternalSystemConnection)
@@ -733,8 +718,7 @@ class DryRunRequest(BaseModel):
 
 @router.post("/systems/{system_id}/dry-run")
 def dry_run_import(system_id: int, request: Request, body: DryRunRequest, db: Session = Depends(get_db)):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     conn = (
         db.query(ExternalSystemConnection)
@@ -937,8 +921,7 @@ def list_integration_errors(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    require_enterprise_auth(request)
-    tenant_id = _tenant(request)
+    tenant_id = request_tenant(require_enterprise_auth(request, db=db), request)
 
     q = db.query(IntegrationErrorRecord).filter(IntegrationErrorRecord.tenant_id == tenant_id)
     if system_name:

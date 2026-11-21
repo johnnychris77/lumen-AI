@@ -6,10 +6,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.auth.tenant_scope import principal_tenant
 from app.authz import require_roles
 from app.cios import event_bus
 from app.cios.certificate import build_certificate, render_certificate_pdf
@@ -41,24 +42,26 @@ def _get_inspection(db: Session, inspection_id: int, tenant_id: str):
 
 @router.get("/run/{inspection_id}")
 def run_cios(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 1 — run the full Clinical Intelligence Operating System pipeline."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = _get_inspection(db, inspection_id, tenant_id)
     return run_cios_pipeline(db, insp, tenant_id)
 
 
 @router.get("/state/{inspection_id}")
 def get_inspection_state(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 4 — Inspection State Machine."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = _get_inspection(db, inspection_id, tenant_id)
     review = (
         db.query(SupervisorReview)
@@ -71,36 +74,39 @@ def get_inspection_state(
 
 @router.get("/decision-ledger/{inspection_id}")
 def get_decision_ledger(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 5 — Clinical Decision Ledger for one inspection."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     _get_inspection(db, inspection_id, tenant_id)
     return {"inspection_id": inspection_id, "decisions": list_decisions(db, tenant_id, inspection_id)}
 
 
 @router.get("/events")
 def get_events(
+    request: Request,
     inspection_id: int | None = Query(None),
     limit: int = Query(100, le=500),
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 6 — Enterprise Event Bus."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     return {"events": event_bus.list_events(db, tenant_id, inspection_id, limit)}
 
 
 @router.get("/certificate/{inspection_id}")
 def get_certificate(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 8 — Clinical Readiness Certificate (JSON)."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = _get_inspection(db, inspection_id, tenant_id)
     cios_result = run_cios_pipeline(db, insp, tenant_id)
     return build_certificate(db, insp, tenant_id, cios_result)
@@ -108,12 +114,13 @@ def get_certificate(
 
 @router.get("/certificate/{inspection_id}/pdf")
 def get_certificate_pdf(
+    request: Request,
     inspection_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 8 — Clinical Readiness Certificate (PDF)."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     insp = _get_inspection(db, inspection_id, tenant_id)
     cios_result = run_cios_pipeline(db, insp, tenant_id)
     certificate = build_certificate(db, insp, tenant_id, cios_result)
@@ -139,9 +146,10 @@ def get_rule_registry(current_user=Depends(require_roles(*_READ_ROLES))):
 
 @router.get("/dashboard")
 def get_cios_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Section 9 — Enterprise Health Dashboard (/cios-dashboard)."""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+    tenant_id = principal_tenant(current_user, request)
     return build_dashboard(db, tenant_id)

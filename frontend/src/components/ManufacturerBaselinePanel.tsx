@@ -55,8 +55,6 @@ async function reviewManufacturerBaseline(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Tenant-Id": "bonsecours",
-      "X-Tenant-Name": "Bon Secours",
     },
     body: JSON.stringify({
       reviewer_name: "Quality Reviewer",
@@ -105,8 +103,6 @@ export default function ManufacturerBaselinePanel() {
       const response = await apiFetch(`/api/enterprise/intake/history?limit=25`, { raw: true,
         signOutOn401: false,
         headers: {
-          "X-Tenant-Id": "bonsecours",
-          "X-Tenant-Name": "Bon Secours",
         },
       });
 
@@ -155,8 +151,6 @@ export default function ManufacturerBaselinePanel() {
       const response = await apiFetch(`/api/enterprise/vendor-baselines?limit=25`, { raw: true,
         signOutOn401: false,
         headers: {
-          "X-Tenant-Id": "bonsecours",
-          "X-Tenant-Name": "Bon Secours",
         },
       });
 
@@ -212,8 +206,6 @@ export default function ManufacturerBaselinePanel() {
           signOutOn401: false,
           method: "POST",
           headers: {
-            "X-Tenant-Id": "bonsecours",
-            "X-Tenant-Name": "Bon Secours",
           },
           body: formData,
         }

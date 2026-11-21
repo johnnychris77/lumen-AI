@@ -13,12 +13,17 @@ TS = str(int(time.time()))[-6:]
 class TestAccreditationPrograms:
     def test_create_and_list(self):
         tid = f"acc-{TS}"
+        # P472-03: the listing is scoped to the caller's verified tenant. This
+        # smoke test selects the tenant it operates in with the verified
+        # ``X-Tenant-Id`` header (honoured here for the dev/admin token), rather
+        # than passing a tenant selector in the query string (now inert, AW-04).
+        scoped = {**AUTH, "X-Tenant-Id": tid}
         r = client.post("/api/accreditation/programs",
                         json={"tenant_id": tid, "facility_id": "F1",
-                              "accreditor": "joint_commission"}, headers=AUTH)
+                              "accreditor": "joint_commission"}, headers=scoped)
         assert r.status_code == 201
         pid = r.json()["id"]
-        lst = client.get(f"/api/accreditation/programs?tenant_id={tid}", headers=AUTH)
+        lst = client.get("/api/accreditation/programs", headers=scoped)
         assert any(p["id"] == pid for p in lst.json()["programs"])
 
     def test_invalid_accreditor_422(self):
@@ -28,11 +33,16 @@ class TestAccreditationPrograms:
         assert r.status_code == 422
 
     def test_update_status(self):
+        # P472-03: the status update enforces object ownership — the program must
+        # belong to the caller's verified tenant (AW-08a). Operate in that tenant
+        # via the verified ``X-Tenant-Id`` header.
+        tid = f"acc2-{TS}"
+        scoped = {**AUTH, "X-Tenant-Id": tid}
         r = client.post("/api/accreditation/programs",
-                        json={"tenant_id": f"acc2-{TS}", "facility_id": "F1",
-                              "accreditor": "dnv"}, headers=AUTH)
+                        json={"tenant_id": tid, "facility_id": "F1",
+                              "accreditor": "dnv"}, headers=scoped)
         pid = r.json()["id"]
-        u = client.patch(f"/api/accreditation/programs/{pid}?status=accredited", headers=AUTH)
+        u = client.patch(f"/api/accreditation/programs/{pid}?status=accredited", headers=scoped)
         assert u.status_code == 200
         assert u.json()["status"] == "accredited"
 
@@ -41,6 +51,9 @@ class TestAccreditationPrograms:
 
 
 class TestReadinessEngine:
+    # P472-03 batch 4 (AW-04): a tenant_id in a body or query is a claim that must
+    # name the tenant the request acts in, which these tests select with the
+    # X-Tenant-Id header (honoured for the dev token).
     def _seed(self, tid, fid, accreditor="cms"):
         # 4 items: 2 complete, 1 in_progress, 1 missing critical
         specs = [
@@ -51,13 +64,14 @@ class TestReadinessEngine:
             client.post("/api/accreditation/evidence-items",
                         json={"tenant_id": tid, "facility_id": fid, "accreditor": accreditor,
                               "status": status, "is_critical": crit,
-                              "title": "item"}, headers=AUTH)
+                              "title": "item"}, headers={**AUTH, "X-Tenant-Id": tid})
 
     def test_readiness_scoring(self):
         tid, fid = f"rd-{TS}", "F1"
         self._seed(tid, fid)
+        # P472-03 AW-04: readiness scopes to the caller's verified tenant; select it.
         r = client.get(f"/api/accreditation/readiness?tenant_id={tid}&facility_id={fid}&accreditor=cms",
-                       headers=AUTH)
+                       headers={**AUTH, "X-Tenant-Id": tid})
         assert r.status_code == 200
         body = r.json()
         assert body["total_items"] == 4
@@ -70,7 +84,7 @@ class TestReadinessEngine:
 
     def test_empty_facility_is_not_ready(self):
         r = client.get(f"/api/accreditation/readiness?tenant_id=empty-{TS}&facility_id=F9",
-                       headers=AUTH)
+                       headers={**AUTH, "X-Tenant-Id": f"empty-{TS}"})
         assert r.json()["readiness_status"] == "not_ready"
         assert r.json()["risk_score"] == 100.0
 
@@ -79,11 +93,11 @@ class TestReadinessEngine:
         self._seed(tid, fid, "hfap")
         s = client.post("/api/accreditation/readiness/snapshot",
                         json={"tenant_id": tid, "facility_id": fid, "accreditor": "hfap"},
-                        headers=AUTH)
+                        headers={**AUTH, "X-Tenant-Id": tid})
         assert s.status_code == 201
         assert "assessment_id" in s.json()
         t = client.get(f"/api/accreditation/readiness/trend?tenant_id={tid}&facility_id={fid}",
-                       headers=AUTH)
+                       headers={**AUTH, "X-Tenant-Id": tid})
         assert t.status_code == 200
         assert len(t.json()["points"]) >= 1
 
@@ -93,16 +107,16 @@ class TestSurveyEvidence:
         tid, fid = f"pkg-{TS}", "F1"
         client.post("/api/accreditation/evidence-items",
                     json={"tenant_id": tid, "facility_id": fid, "accreditor": "state",
-                          "status": "complete", "title": "policy"}, headers=AUTH)
+                          "status": "complete", "title": "policy"}, headers={**AUTH, "X-Tenant-Id": tid})
         g = client.post("/api/accreditation/survey-evidence/generate",
                         json={"tenant_id": tid, "facility_id": fid, "accreditor": "state",
-                              "package_type": "binder"}, headers=AUTH)
+                              "package_type": "binder"}, headers={**AUTH, "X-Tenant-Id": tid})
         assert g.status_code == 201
         body = g.json()
         assert body["item_count"] == 1
         assert body["complete_count"] == 1
         assert "readiness" in body
-        lst = client.get(f"/api/accreditation/survey-evidence?tenant_id={tid}", headers=AUTH)
+        lst = client.get(f"/api/accreditation/survey-evidence?tenant_id={tid}", headers={**AUTH, "X-Tenant-Id": tid})
         assert lst.json()["count"] >= 1
 
     def test_invalid_package_type_422(self):
@@ -117,11 +131,11 @@ class TestCertification:
         tid = f"cert-{TS}"
         c = client.post("/api/accreditation/certifications",
                         json={"tenant_id": tid, "facility_id": "F1",
-                              "certification_type": "certified_site"}, headers=AUTH)
+                              "certification_type": "certified_site"}, headers={**AUTH, "X-Tenant-Id": tid})
         assert c.status_code == 201
         cid = c.json()["id"]
         assert c.json()["status"] == "applicant"
-        a = client.post(f"/api/accreditation/certifications/{cid}/award?valid_days=365", headers=AUTH)
+        a = client.post(f"/api/accreditation/certifications/{cid}/award?valid_days=365", headers={**AUTH, "X-Tenant-Id": tid})
         assert a.status_code == 200
         assert a.json()["status"] == "certified"
         assert a.json()["expires_at"] is not None
@@ -167,12 +181,12 @@ class TestEvidenceTemplates:
         tid, fid = f"seed-{TS}", "F1"
         first = client.post("/api/accreditation/evidence-items/seed",
                             json={"tenant_id": tid, "facility_id": fid,
-                                  "accreditor": "cms"}, headers=AUTH)
+                                  "accreditor": "cms"}, headers={**AUTH, "X-Tenant-Id": tid})
         assert first.status_code == 201
         assert first.json()["created"] > 0
         second = client.post("/api/accreditation/evidence-items/seed",
                              json={"tenant_id": tid, "facility_id": fid,
-                                   "accreditor": "cms"}, headers=AUTH)
+                                   "accreditor": "cms"}, headers={**AUTH, "X-Tenant-Id": tid})
         assert second.json()["created"] == 0  # already seeded
 
 
@@ -182,10 +196,10 @@ class TestReadinessCapaLinkage:
         # Seed CMS template (has a critical missing item by default)
         client.post("/api/accreditation/evidence-items/seed",
                     json={"tenant_id": tid, "facility_id": fid, "accreditor": "cms"},
-                    headers=AUTH)
+                    headers={**AUTH, "X-Tenant-Id": tid})
         r = client.post("/api/accreditation/readiness/create-capas",
                         json={"tenant_id": tid, "facility_id": fid, "accreditor": "cms"},
-                        headers=AUTH)
+                        headers={**AUTH, "X-Tenant-Id": tid})
         assert r.status_code == 201
         body = r.json()
         assert body["open_critical_gaps"] >= 1
@@ -193,7 +207,7 @@ class TestReadinessCapaLinkage:
         # idempotent second call creates none
         again = client.post("/api/accreditation/readiness/create-capas",
                             json={"tenant_id": tid, "facility_id": fid, "accreditor": "cms"},
-                            headers=AUTH)
+                            headers={**AUTH, "X-Tenant-Id": tid})
         assert again.json()["capas_created"] == 0
 
 
@@ -202,12 +216,12 @@ class TestCertificationEligibility:
         tid, fid = f"elig-{TS}", "F1"
         client.post("/api/accreditation/evidence-items/seed",
                     json={"tenant_id": tid, "facility_id": fid, "accreditor": "hfap"},
-                    headers=AUTH)
+                    headers={**AUTH, "X-Tenant-Id": tid})
         c = client.post("/api/accreditation/certifications",
                         json={"tenant_id": tid, "facility_id": fid,
-                              "certification_type": "certified_site"}, headers=AUTH)
+                              "certification_type": "certified_site"}, headers={**AUTH, "X-Tenant-Id": tid})
         cid = c.json()["id"]
-        e = client.get(f"/api/accreditation/certifications/{cid}/eligibility", headers=AUTH)
+        e = client.get(f"/api/accreditation/certifications/{cid}/eligibility", headers={**AUTH, "X-Tenant-Id": tid})
         assert e.status_code == 200
         body = e.json()
         # HFAP template has open critical items → not eligible
@@ -231,12 +245,12 @@ class TestBenchmarkArchiveAndExport:
         tid, fid = f"exp-{TS}", "F1"
         client.post("/api/accreditation/evidence-items",
                     json={"tenant_id": tid, "facility_id": fid, "accreditor": "state",
-                          "status": "complete", "title": "policy"}, headers=AUTH)
+                          "status": "complete", "title": "policy"}, headers={**AUTH, "X-Tenant-Id": tid})
         g = client.post("/api/accreditation/survey-evidence/generate",
                         json={"tenant_id": tid, "facility_id": fid, "accreditor": "state"},
-                        headers=AUTH)
+                        headers={**AUTH, "X-Tenant-Id": tid})
         pid = g.json()["id"]
-        x = client.get(f"/api/accreditation/survey-evidence/{pid}/export", headers=AUTH)
+        x = client.get(f"/api/accreditation/survey-evidence/{pid}/export", headers={**AUTH, "X-Tenant-Id": tid})
         assert x.status_code == 200
         assert "Survey Evidence Binder" in x.text
 

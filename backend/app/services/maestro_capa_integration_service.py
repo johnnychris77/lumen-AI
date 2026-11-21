@@ -41,4 +41,4 @@ def create_capa_from_recommendation(
     if match is None:
         return None
 
-    return create_capa_from_suggestion(match, owner=owner)
+    return create_capa_from_suggestion(match, owner=owner, tenant_id=tenant_id)

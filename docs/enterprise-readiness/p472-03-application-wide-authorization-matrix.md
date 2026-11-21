@@ -1,0 +1,2367 @@
+# P472-03 — Application-Wide Tenant Isolation Review and Authorization Matrix
+
+| | |
+|---|---|
+| Repository / PR | `johnnychris77/lumen-AI`, PR #181 (draft) |
+| Branch | `engineering/render-local-inference-p47` |
+| Reviewed baseline | `6c3072c` (application code is unchanged by this review) |
+| Revisions | `5ab34f2` first issue; second issue adds AW-10, AW-11, a second AW-08 case, and sections 2.1 to 2.3; third and fourth issues regenerate section 10 after remediation batches 1 and 2 (see below) |
+| Release status | **HOLD / NO-GO** |
+| P472-03 status | **Open.** Not closed by this document. |
+| Nature of this change | Review, tests and documentation only. **No remediation is implemented here.** |
+
+**This document does not claim application-wide tenant isolation.** It records
+that isolation is *not* in place: 716 of the 1,912 mounted routes have at
+least one cross-tenant or unauthenticated data pathway (682 observed by the
+automated sweep, 34 more established by code review and a test), a further 988
+routes have incomplete evidence, and only 206 were fully exercised with nothing
+observed. Every row of the matrix is marked "Not reviewed" under independent
+review, because no independent review has taken place.
+
+The earlier four-module remediation is described in
+`p472-03-cross-tenant-authorization-review.md`; this document covers everything
+else.
+
+### Status after remediation batches 1 and 2
+
+Sections 1 to 9 describe the application as reviewed at `90fb1a6` and are kept
+as the record of that review. Two remediation batches have since changed the
+code (`p472-03-batch1-remediation-review.md`,
+`p472-03-batch2-remediation-review.md`). Only the per-endpoint matrix in
+section 10, the CSV and the findings register
+(`backend/tests/p472_03_findings_register.json`) are regenerated from a new
+sweep after each batch:
+
+| | At `90fb1a6` | After batch 1 | After batch 2 |
+|---|---|---|---|
+| Routes with a finding observed by the sweep | 682 | 641 | 186 |
+| AW-09 (unauthenticated access to tenant data) | 44 | 3 | 0 |
+| AW-01 / AW-02 / AW-05 | 19 / 60 / 373 | 19 / 60 / 373 | 0 / 0 / 0 |
+| AW-03 / AW-04 | 132 / 38 | 132 / 38 | 118 / 38 |
+| AW-06M / AW-06N | 149 / 428 | 141 / 420 | 122 / 28 |
+| Routes answering an anonymous caller with 2xx | 93 | 48 | 45 |
+| AW-10 / AW-11 (code review) | open | remediated, covered by tests | unchanged |
+| AW-12 / AW-13 (found and fixed in batch 2) | not known | not known | remediated, covered by tests |
+| AW-07, AW-08 | open | open | open (AW-08: 4 confirmed cases) |
+
+**Isolation is still not in place application-wide, P472-03 stays open, and the
+release status stays HOLD / NO-GO.** No independent review has taken place.
+
+---
+
+## 1. Method
+
+### 1.1 What was run
+
+`backend/tests/tenant_isolation_sweep_runner.py` enumerates every mounted
+`APIRoute` of `app.main.app`, builds a schema-valid request for it from the
+OpenAPI document, and sends that request under each of the identities and
+tenant claims below. It runs in four subprocess shards against throw-away
+databases with outbound network blocked.
+`backend/scripts/tenant_isolation_matrix.py` merges the shards, classifies the
+results and generates the table in section 10 and the CSV companion.
+
+| Caller | Variants sent to every route |
+|---|---|
+| Unauthenticated | no credentials; no credentials while naming tenant B in header, query, path and body |
+| Invalid authentication | malformed bearer token; expired signed token |
+| Verified member of tenant A | legitimate request (baseline); tenant B in `X-Tenant-Id`; tenant B in `X-LumenAI-Tenant-Id`; the two headers split both ways (A verified, B in the other); tenant B in query, path and body parameters where the route has them; no tenant header at all |
+| Authenticated user with no membership | tenant B in each header; no header |
+| User with memberships in A and B | legitimate request as B; a third tenant D in headers; D in parameters |
+
+Tenant-A requests are tried under six role profiles (global role / membership
+role): `spd_manager`/`spd_manager`, `spd_manager`/`tenant_admin`,
+`executive`/`admin`, `operator`/`operator`, `vendor_user`/`viewer`,
+`viewer`/`viewer`. The first profile a route admits is used.
+
+### 1.2 The oracle
+
+A request made by tenant A is a **cross-tenant hit** when SQL executed on its
+behalf binds tenant B's identifier on any table other than
+`tenant_memberships` (captured with a `before_cursor_execute` listener). An
+unauthenticated request is a hit when it reads or writes a table that has a
+`tenant_id` column. The oracle is the query, not the response body, so it does
+not depend on either tenant having data, and it catches writes, aggregation and
+scheduled work started inside the request as well as reads.
+
+A route is **not** called vulnerable because it accepts a tenant identifier.
+It is listed only when the foreign identifier reached the database (or, for the
+hand-written tests, when the other tenant's stored row came back or was
+created).
+
+### 1.3 Stability
+
+The final sweep was run twice on SQLite and once on PostgreSQL 16. All three
+runs produced the same 682 routes with the same finding classes; no route is
+recorded as unstable.
+
+### 1.4 Limits of this method — read before relying on a "none observed" row
+
+1. **Classification is automated for all routes; manual code review covered
+   only the priority modules in section 4.** A row is evidence, not a verdict.
+2. **722 routes (SQLite; 716 on PostgreSQL) answered the legitimate request
+   with 4xx or 5xx** (404 for a synthetic object id: 385; 422: 138; 400: 12;
+   409: 1; 5xx: 186). For these the handler's data access was not, or not
+   fully, executed. 320 of them still showed a finding or a lead; the other 402
+   are marked *Incomplete*.
+3. **164 routes refuse every tenant role profile** (they require global role
+   `admin`, a manufacturer identity or another credential). They were not
+   attacked. Three of them showed a finding under another variant and 20 carry
+   AW-07 from code review; the other 141 are marked *Not assessed*.
+4. **Platform admin.** `app/security/tenant_context.py` documents that global
+   role `admin` may operate across all tenants. That policy was treated as
+   intended and was not attacked; it has no separate reviewed authorization
+   policy on file and is listed for the reviewer in section 9.
+5. **Object-level access (IDOR)** was tested only indirectly: the sweep flags
+   SQL on a tenant table that carries no `tenant_id` predicate (445 routes
+   marked *Lead*). A lead is not a confirmed defect; two were confirmed by hand
+   (AW-08). Per-object tests with real foreign object ids were written only
+   for the cases in section 3.
+6. **Background jobs** are covered only where a request starts work inside the
+   request cycle. Schedulers and workers that run outside a request were not
+   exercised.
+7. Synthetic requests satisfy the schema, not business rules, so a route can
+   pass here and still be reachable through a payload this sweep did not send.
+8. **The oracle sees only SQL issued through the application's SQLAlchemy
+   engine.** Data held anywhere else is invisible to it, and a route that
+   serves such data is reported as "none observed". The first issue of this
+   document missed two stores for that reason. They were then looked for
+   statically: module-level containers mutated at run time (3 found: a login
+   rate limiter; the CV async-result cache, which checks the tenant; and the
+   vendor-governance event list, AW-10), database connections opened outside
+   the engine (1 found: the CAPA register, AW-11), and file downloads (all
+   resolve the path from a database row, so the sweep does see their lookup).
+   The static scan is pattern-based and is not proof that no other store
+   exists.
+
+---
+
+## 2. Mounted-route inventory
+
+| Measure | Count |
+|---|---|
+| Mounted method + path pairs (`HEAD`/`OPTIONS` excluded) | 1,912 |
+| Route modules | 188 |
+| Exercised by the sweep | 1,910 |
+| Duplicate registrations that can never run | 2 |
+| Answer an anonymous request with 2xx (public) | 93 |
+| Refuse every tenant role profile | 164 |
+| Legitimate request answered 4xx/5xx (partly exercised) | 722 |
+| Routes with at least one finding from the sweep | 682 (in 94 modules) |
+| Further routes with a finding from code review only | 34 (716 in total) |
+| Routes that wrote under a foreign tenant | 87 (62 tables, audit tables excluded) |
+| Earlier remediation re-checked, no finding | 52 (13 CV routes at `c13c5eb`, 39 at `6c3072c`) |
+
+**Shadowed handlers.** `GET /api/capa/health` and `POST /api/billing/webhook`
+are each registered twice; the second registration is unreachable. A third
+case is a routing-order defect: `GET /api/packet-releases/history` is declared
+after `GET /api/packet-releases/{release_id}` and is therefore served by the
+parameterised handler.
+
+**Handlers that exist but are not mounted.** 79 decorated handlers in 22
+modules are not part of the running application (largest:
+`executive_decisions` 11, `tenant_remediations` 9, `governance_packet_exports`
+8, `executive_escalations` 7, `enterprise_access_control` 5,
+`executive_kpi_snapshots` 5). They are outside this matrix. Several are
+tenant-scoped and must be reviewed before anyone mounts them.
+
+**Non-functional routes.** 186 routes returned HTTP 5xx to a legitimate
+request. A sample traced to route and service code that references ORM classes
+which `app.db.models` does not define (36 class names across 57 files, for
+example `GeneratedBriefing`, `SavedReport`, `DigestSubscription`,
+`TenantSubscription`). This is a functional defect, not an isolation finding,
+but it means those routes could not be assessed dynamically: 109 of the 176
+routes that combine a membership-checking dependency with `resolve_tenant`
+fall in this group and carry the AW-02 pattern in their source without a
+dynamic result.
+
+### 2.1 Tenant-resolution mechanisms in use
+
+| Mechanism | Defined in | Routes | What it does | Verdict |
+|---|---|---|---|---|
+| `require_tenant_roles(...)` | `app/tenant_authz.py` | 562 | Identity from the bearer token; tenant from `X-LumenAI-Tenant-Id`, else `X-Tenant-Id`, else `default-tenant`; checks an enabled membership and its role. | Sound for the header it reads. Unsound when the handler takes the tenant from somewhere else (AW-02, AW-04). |
+| `resolve_tenant` | `app/tenant.py` | 181 | Returns `X-Tenant-Id` (default `default-tenant`). No verification. | Unsound (AW-01, AW-02). |
+| `require_roles(...)` | `app/authz.py` | 883 | Global role only. Resolves no tenant. | Not a tenant control; the handler must scope data itself (AW-01, AW-05, AW-08, AW-11). |
+| `require_enterprise_auth(request)` | `app/enterprise_auth.py` | 251 (called in the handler) | Verifies the token and the membership for the named tenant, or resolves a sole membership; returns a context. Always runs the membership check. | Sound, but 103 handlers discard the returned tenant and re-read the header (AW-03) and others use a parameter (AW-04). |
+| `get_request_tenant_id(request)` | `app/enterprise_auth.py` | 146 call sites in 59 files | Reads the raw header; default `default-tenant`. | Not a control. Source of AW-03, AW-05, AW-06. |
+| `getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)` | 75 occurrences in 50 files | modules holding 695 routes | Principal's tenant when the user has exactly one membership, otherwise the header. | Unsound for users with none or several memberships (AW-05, AW-06N). |
+| `authorized_tenant(ctx, *claimed)` | `app/auth/tenant_scope.py` | 37 | Verified context tenant; any differing claim is refused. | Sound (introduced in `6c3072c`). |
+| `require_manufacturer_auth` | `app/enterprise_auth.py` | 20 (17 as a dependency, 3 in the handler) | Any authenticated user plus a client-supplied `X-Manufacturer-ID`. | Unsound (AW-07). |
+| `require_gateway_auth` | gateway routes | 20 | API key or bearer. | 13 of the 20 show AW-05/AW-06N. |
+| Other guards (`require_portfolio_access`, `require_inspection_runner`, `require_audit_chain_verify`, `require_hospital_or_enterprise_admin`, module-local `_check` / `_require_*`) | various | 60 | Role or capability checks. | Not tenant controls. |
+
+### 2.2 Public and intentionally shared endpoints
+
+**Documented policy.** `docs/security/lumenai-protected-endpoint-authentication-test-baseline-v1.md`
+allows six unauthenticated endpoints, "because they return safe metadata
+only": `/api/health` and the five `/api/public/module-status/*` routes.
+
+**Observed.** 93 routes answer an anonymous request with 2xx: 87 more than
+the documented six.
+
+| Group | Routes | Finding |
+|---|---|---|
+| Documented exceptions | 6 | None. They execute no SQL and return fixed metadata. |
+| `enterprise_intake` | 41 | AW-09: tenant tables read anonymously. |
+| Aggregate counts (`/api/network/participants/count`, `/api/global-intelligence/network-stats`, `/api/infrastructure/platform-stats`) | 3 | AW-09 pending an owner's decision; plausibly intended, but undocumented. |
+| Vendor governance reads | 4 | AW-10: every tenant's events read anonymously from process memory. |
+| Other health and status routes | 13 | None observed; fixed responses. |
+| Fixed-content analytics (`capa_predictive_risk`, `capa_trend_intelligence`, `vendor_trend_intelligence`, `vendor_performance_scorecard`, `governance_intelligence`, `power_bi_executive_analytics`, and the `/api/enterprise/audit-command-center/*` routes defined in `main.py`) | 17 | No tenant data: these modules import nothing from the application and return hard-coded content. They present that content as analytics without authentication, which is a product-integrity question outside this review. |
+| Catalogues and portals (`/api/integrations/catalog`, `/api/standards/ecosystem-overview`, three `/api/infinity/developer-portal/*` routes, `/api/enterprise/audit-to-capa/summary`) | 6 | None observed; no tenant tables. |
+| `POST /api/manufacturers/register` | 1 | Unauthenticated write to a non-tenant table (manufacturer self-registration). Not a tenant-isolation finding; needs an owner's decision and abuse controls. |
+| `POST /api/baseline-ranking/audit-evidence`, `GET /api/reviews/queue` | 2 | Stateless (no SQL) and a stub returning an empty list. |
+
+None of the 87 undocumented public routes has a recorded policy decision.
+
+**Intentional cross-tenant sharing.** Network benchmark, global intelligence,
+GSIN, Olympus network and the baseline library are designed to share derived
+data between hospitals under consent and anonymisation rules. This review
+tested only whether a caller can act *as another tenant* inside those modules
+(it can: AW-03, AW-04 and AW-06M include the network opt-in and the
+data-sharing consent writes). Whether the shared output is correctly
+anonymised, consent-gated and audited is a separate control and was not
+evaluated here.
+
+### 2.3 Background and scheduled work
+
+| Work | Tenant source | Assessed |
+|---|---|---|
+| CV async analysis (`BackgroundTasks`, the only use in the application) | Verified context tenant passed into the task; results cached per tenant and checked on read. | Yes, earlier (`c13c5eb`, `be88e4a`); clean. |
+| Work a request performs before responding (snapshots, audit rows, derived records) | Whatever tenant the handler resolved. | Yes: the oracle counts these writes. 87 routes wrote under a foreign tenant. |
+| APScheduler jobs registered at start-up (prediction, RWE, integration, quality intelligence, global aggregation) | Iterate tenant ids read from the database; no caller. | No. They take no request input, so no request can redirect them, but their per-tenant scoping was not tested. |
+| On-demand schedulers started through routes (portfolio briefing recurring, executive KPI) | No tenant parameter. | No. Start routes are role-gated or unmounted. |
+| Other scheduler modules (approval escalation, dunning, retention, digest, governance SLA scanner) | — | No. No start call was found in the application; they appear inactive. |
+
+---
+
+## 3. Findings register (prioritised)
+
+Each finding is a shared root cause. "Routes" is the number observed by the
+sweep; "Proof" names the hand-written test in
+`backend/tests/test_p472_03_application_wide_findings.py` that reproduces it
+with real stored data. AW-07, AW-08, AW-10 and AW-11 come from code review and
+are not in the sweep register. Those tests state the required behaviour and are
+`xfail(strict=True)`; they are open findings, not accepted behaviour.
+
+| Priority | ID | Risk | Routes | Modules | Root cause | Proof |
+|---|---|---|---|---|---|---|
+| 1 | AW-09 | Critical | 44 | 4 | No authentication on routes that read or write tenant tables. 41 are in `enterprise_intake`. `GET /api/enterprise/audit-command-center` (and its `.csv` / `.powerbi.csv` forms) returns audit-log entries of every tenant to an anonymous caller. | 8 tests (`test_aw09_*`) |
+| 2 | AW-10 | Critical | 4 | 1 | Vendor governance events are kept in one process-wide in-memory list with no tenant field. Creating an event requires authentication; the four read routes (`events`, `summary`, `capa-linkage-summary`, `powerbi-csv`) require none and return every tenant's events. The data is lost on restart and differs per replica, which limits but does not remove the exposure. | 5 tests (`test_aw10_*`) |
+| 3 | AW-01 | High | 19 | 3 | Tenant taken from a request header with no membership check; only a global role is required (`ml_images` 6, `tenant_analytics` 5, `p22_operations` 8). | `test_aw01_*` |
+| 4 | AW-02 | High | 60 observed, 176 by pattern | 21 | Membership is verified against `X-LumenAI-Tenant-Id`, but the handler scopes data with `resolve_tenant`, which returns `X-Tenant-Id` unverified. Sending both headers with different values passes the check and reads the other tenant. | `test_aw02_*` |
+| 5 | AW-03 | High | 132 | 15 | After `require_enterprise_auth` succeeds, the handler re-reads the tenant with `get_request_tenant_id(request)`, which prefers a header the auth layer did not verify (146 call sites in 59 files). | `test_aw03_*` |
+| 6 | AW-04 | High | 38 | 11 | Tenant taken from a query, path or body parameter and never compared with the caller's verified tenant (`p20_network_intelligence` 10, `accreditation` 6, `ranking` 5, `intelligence` 4 + consent 1, `commercial` 4, `olympus_network` 3, `genesis_ai` 2, `billing`, `growth`, `infinity`). | 4 tests (`test_aw04_*`) |
+| 7 | AW-11 | High | 8 | 1 | CAPA records live in a `capas` table that `app/services/capa_service.py` opens with its own `sqlite3` connection, outside the application database, and the table has no tenant column. Every `/api/capa` route requires only a global role, so a manager of any tenant lists, reads by id and modifies every tenant's CAPAs. With a PostgreSQL deployment the register is a local SQLite file on the application container. | 4 tests (`test_aw11_*`) |
+| 8 | AW-06M | High | 149 | 18 | A verified member who sends no tenant header is placed in the shared literal tenant `default-tenant` instead of their own tenant. The web client's `apiFetch` sends no tenant header, so this is the normal path for those routes. | `test_aw06m_*` |
+| 9 | AW-05 | High | 373 | 39 | `getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)`: the principal carries a tenant only when the user has exactly one membership, so users with none or several are scoped by whatever header they send (75 occurrences in 50 files). | 2 tests (`test_aw05_*`) |
+| 10 | AW-07 | High | 20 by pattern | 3 | `require_manufacturer_auth` accepts any authenticated hospital user as whichever manufacturer `X-Manufacturer-ID` names. Found by code review; these routes refuse the sweep's profiles without that header. | `test_aw07_*` |
+| 11 | AW-08 | High | 3 confirmed, 445 leads | — | SQL on a tenant table with no `tenant_id` predicate. Confirmed for `GET /api/accreditation/programs` (no `tenant_id` returns every tenant's programs) and for the vendor scorecard routes, which load every tenant's inspections (`db.query(Inspection).all()`) and serve a scorecard built from another tenant's records. The remaining leads are unconfirmed and need manual review. | 2 tests (`test_aw08_*`) |
+| 12 | AW-06N | Medium | 428 | 49 | Authenticated users with no membership are served, and pooled together, in `default-tenant`. | `test_aw06n_*` |
+| — | AW-UNAUTH | — | 0 | 0 | Tenant-*bound* SQL for an unauthenticated, malformed-token or expired-token caller. None observed; kept as a passing regression test. | driver test |
+
+A route can carry several findings; the per-class counts overlap and do not
+sum to 716.
+
+Notes on severity:
+
+- Three of the 44 AW-09 routes (`GET /api/network/participants/count`,
+  `GET /api/global-intelligence/network-stats`,
+  `GET /api/infrastructure/platform-stats`) return aggregate counts and look
+  intentionally public. They stay in the register until an owner confirms and
+  documents that policy.
+- AW-06N is Medium rather than High because it needs an account with no
+  membership. It becomes High if self-registration or any other path can
+  create such accounts in production; that was not established here.
+
+---
+
+## 4. Priority investigations
+
+| Subject | Conclusion | Evidence |
+|---|---|---|
+| Header-trusting `resolve_tenant` (`app/tenant.py`) | **Vulnerable.** Returns `X-Tenant-Id` (default `default-tenant`) with no verification. Used by 181 routes: 5 with a role-only guard (AW-01) and 176 beside a membership check made on a different header (AW-02; 60 observed, 109 not assessable because the route returns 500, the rest showed no tenant-bound SQL). | sweep; `test_aw01_*`, `test_aw02_*` |
+| `POST /api/baseline-ranking/audit-evidence` | **Not a tenant-isolation defect.** Unauthenticated, but stateless: it executes no SQL and returns a normalised copy of its input. It should still be authenticated or documented as public (hardening, not isolation). | `test_control_baseline_ranking_audit_evidence_is_stateless` (passes) |
+| Accreditation (28 routes) | **Vulnerable.** 6 list/read routes take `tenant_id` from the query (AW-04); `POST /api/accreditation/programs` stores whatever `tenant_id` the body names; the unfiltered listing returns all tenants (AW-08). 7 write routes with a body `tenant_id` answered 422 to the synthetic request and are *Incomplete*; the code pattern is the same. | `test_aw04_*`, `test_aw08_*` |
+| Network intelligence (`p20_network_intelligence`, 34 routes) | **Vulnerable.** 10 routes take `tenant_id` from query or body, including 4 writes (`p20_spd_registry`, `p20_instrument_lifecycle`, `p20_executive_dashboards`, `p20_executive_snapshots`). 16 routes are role-gated and were not assessed. | `test_aw04_*` (registry) |
+| Intelligence (`intelligence`, `intelligence_consent`, `quality_intelligence`; 22 routes) | **Vulnerable.** 4 read routes and `POST /api/intelligence/consent` take the tenant from the request (AW-04) — the consent route lets tenant A record or change tenant B's data-sharing consent. 10 quality-intelligence routes re-read the raw header (AW-03, AW-06M). | `test_aw04_*` (consent) |
+| Network benchmark / sharing (`network_benchmark`, 6 routes) | **Vulnerable.** 5 routes re-read the raw header (AW-03), including the opt-in write; the participant count is public. | `test_aw03_*`, `test_aw06m_*` |
+| Manufacturer intelligence (`/api/manufacturer-intelligence`, 4 routes) | **Latent.** Takes `tenant_id` from the query after `require_enterprise_auth(request)` with no membership comparison, and echoes it. The scorecards are generated from a seeded function, not stored rows, so no tenant's stored data is reached today. Same pattern as AW-04; must be fixed in the same batch before the service is backed by stored data. | code review; sweep: no tenant-bound SQL |
+| Manufacturer / repair-partner portals (20 routes) | **Vulnerable (AW-07).** Identity comes from a client header. | `test_aw07_*` |
+| Vendor governance (found by reviewing public routes that run no SQL; 4 read routes) | **Vulnerable, Critical (AW-10).** Unauthenticated read of every tenant's events from an in-memory store. | `test_aw10_*` |
+| CAPA register (found by looking for stores outside the engine; 8 routes) | **Vulnerable (AW-11).** No tenant ownership at all: cross-tenant list, read by id and update. | `test_aw11_*` |
+| Vendor analytics scorecards (found from an unscoped-SQL lead) | **Vulnerable (AW-08).** Scorecard built from every tenant's inspections. Other routes in the module follow the same pattern and remain leads. | `test_aw08_vendor_*` |
+| Enterprise intake (found during discovery; 41 routes) | **Vulnerable, Critical (AW-09).** The module has no authentication dependency at all. | `test_aw09_*` |
+
+Controls shown to work (passing tests): routes guarded only by
+`require_tenant_roles` verify the header they use (386 such routes; the 6 with
+a finding all take a second tenant from a parameter, AW-04); routes using the
+verified context ignore or refuse a foreign tenant; platform-admin routes
+refuse tenant users.
+
+---
+
+## 5. Contract-impact assessment
+
+No contract changes are made by this change. The table states what each
+remediation batch is expected to change so that it can be reviewed first.
+
+| Finding | Expected HTTP change | Who is affected |
+|---|---|---|
+| AW-09 | Anonymous `200` → `401` on 41 enterprise-intake routes (3 aggregate routes: owner decision). | 15 frontend files call these routes. Most go through `apiFetch`, which already sends the bearer token. At least two open them by plain browser navigation, which cannot carry a token and will break: `VendorBaselineSubscriptionPortal.tsx` (`window.open` of a governance packet) and `AuditCommandCenterEvidencePage.jsx` (`href` links). PDF/CSV/ZIP exports need an authenticated download. Any Power BI or scripted consumer of the `.powerbi.csv` and toolkit routes will need credentials; none is documented in the repository. |
+| AW-01, AW-02, AW-03 | Request naming a tenant the caller is not a member of: `200` → `403`. Two tenant headers that disagree: `200` → `403`. Same-tenant requests unchanged. | 8 frontend files hard-code `"X-Tenant-Id": "bonsecours"` (12 occurrences). Every user who is not a member of `bonsecours` will receive 403 from those components once the header is verified. They must stop sending a literal tenant. |
+| AW-04 | Foreign `tenant_id` in query, path or body: `200`/`201` → `403`. Omitted `tenant_id`: resolved from membership instead of being required or defaulted (routes that declare it required would otherwise keep returning 422; decide per route). Unfiltered listings return only the caller's tenant. | External clients that pass another organisation's id; any integration relying on unfiltered listings. |
+| AW-06M | No status change. A member who sends no header is served their own tenant instead of `default-tenant`. **Data impact:** rows already written under `default-tenant` by header-less clients stop being visible to them. Whether production holds such rows, and whose they are, must be established before this batch; it needs a data-migration decision, not only a code change. | The web client (header-less `apiFetch`) on 149 routes. |
+| AW-05, AW-06N | User with no membership: `200` → `403`. User with several memberships and no header: `200` → `400` (tenant must be named). Several memberships naming a non-member tenant: `200` → `403`. | Accounts without a membership row lose access to 428 routes. Whether such accounts exist in production must be checked first. Test suites that authenticate without creating a membership will need the same treatment as the 183 tests adjusted in `6c3072c`. |
+| AW-07 | Hospital user asserting a manufacturer id: `200` → `403` until a verified manufacturer relationship exists. | Needs a design decision: there is no stored user-to-manufacturer relationship to verify against today. |
+| AW-10 | Anonymous `200` → `401` on the four vendor-governance read routes; authenticated listings limited to the caller's tenant. | The store has no tenant field, so events must record their tenant on creation; existing in-memory events have no owner and cannot be attributed. `EnterpriseGovernanceCommandCenter.tsx` and any Power BI consumer of `powerbi-csv` are affected. |
+| AW-11 | Listings omit other tenants' CAPAs; another tenant's CAPA by id `200` → `404`; update of another tenant's CAPA `200` → `404`. | Needs a schema change (tenant ownership on CAPA records) and a decision on existing rows, which have no owner. `EnterpriseCapaPanel.tsx`, `EnterpriseCapaSummaryPanel.tsx` and the CAPA Power BI export are affected. Moving the register into the application database is advisable but is a separate change. |
+
+Compatibility risks common to all batches: the shared development token
+(non-production) trusts the tenant header by design and is used widely in the
+test suite; `RegulatoryComplianceDashboard.tsx` and `DigitalTwinDashboard.tsx`
+still fall back to the literal `dev-token` when no token is stored, which
+should be removed in the same pass.
+
+---
+
+## 6. Recommended remediation batches
+
+Ordered so that confirmed unauthorised access and writes come first and each
+batch is small enough to review on its own. The matrix assigns every open route
+to the earliest batch that applies to it; a route with several findings is not
+clean until its later batches are done.
+
+| Batch | Scope | Routes (earliest batch) | Change | Contract change |
+|---|---|---|---|---|
+| B0 | AW-09, AW-10 | 48 | Require authentication and a verified tenant on `enterprise_intake` and on the vendor-governance read routes; scope the audit command center to the caller's tenant; record the tenant on vendor-governance events; decide and document the three aggregate routes. | Yes (401); frontend download links |
+| B1 | AW-01, AW-02 | 79 | Make `resolve_tenant` return the membership-verified tenant (or replace its 181 uses with the verified context), and refuse disagreeing headers. One dependency change covers both classes, including the 109 routes that could not be assessed. | Yes (403); hard-coded `bonsecours` header |
+| B2 | AW-03, AW-06M | 122 | Replace `get_request_tenant_id(request)` after enterprise auth with the tenant returned by the auth context; resolve a sole membership instead of `default-tenant`. | Behavioural; `default-tenant` data decision |
+| B3 | AW-04, AW-08 (accreditation, vendor scorecards), manufacturer-intelligence | 38 | Apply `authorized_tenant(ctx, claimed)` (the helper introduced in `6c3072c`) to every query, path and body tenant; add the tenant predicate to unfiltered listings. | Yes (403) |
+| B4 | AW-05, AW-06N | 401 | Replace the `getattr(...) or get_request_tenant_id(...)` fallback (75 occurrences) with one verified resolver that fails closed for no membership and requires a named, verified tenant for several. | Yes (403/400) |
+| B5 | AW-07 | 20 | Design and implement a verified manufacturer identity. | Yes; needs design |
+| B6 | AW-11 | 8 | Give CAPA records a tenant owner and enforce it on every `/api/capa` route. | Yes (404); schema and data decision |
+| B7 | AW-08 leads | 445 leads | Manual object-level review of SQL without a tenant predicate; write per-object adversarial tests. | To be determined |
+| B8 | Evidence gaps | 402 incomplete, 141 role-gated, 79 unmounted, public-route policy, non-SQL stores | Give the sweep valid objects for 404/422 routes; decide and test the platform-admin policy; repair or remove the routes that return 500; review unmounted handlers; record a decision for each of the 87 undocumented public routes; extend the oracle or add a lint for data kept outside the engine. | None expected |
+
+After each batch: remove the fixed routes from
+`backend/tests/p472_03_findings_register.json`, remove the `xfail` marker of any
+class that reaches zero, and regenerate the matrix. The driver test fails if a
+fixed route is left in the register or a new route appears.
+
+---
+
+## 7. Tests and reproduction
+
+| File | Purpose |
+|---|---|
+| `backend/tests/tenant_isolation_sweep_runner.py` | The sweep itself. Not collected by the normal suite; started in subprocesses. |
+| `backend/scripts/tenant_isolation_matrix.py` | Runs and merges the shards, classifies results, writes the register, the table below and the CSV. |
+| `backend/tests/p472_03_findings_register.json` | The 682 routes and their finding classes. |
+| `backend/tests/test_p472_03_application_wide_isolation.py` | Runs the sweep in the suite and compares it with the register: every mounted route swept; no unauthenticated tenant-bound SQL; earlier remediation still clean; no finding outside the register; every registered finding still reproduces; one strict `xfail` per open root cause. |
+| `backend/tests/test_p472_03_application_wide_findings.py` | 31 data-backed exploit tests (strict `xfail`) and 4 passing control tests. |
+
+No existing assertion was weakened and nothing is skipped. An `xfail(strict)`
+test here states the secure behaviour and fails the suite the moment the
+behaviour changes without the marker being removed.
+
+```bash
+cd backend
+# both test files (runs the sweep; add DATABASE_URL=postgresql+psycopg2://... for PostgreSQL)
+python -m pytest tests/test_p472_03_application_wide_isolation.py tests/test_p472_03_application_wide_findings.py -q
+# regenerate the evidence
+python scripts/tenant_isolation_matrix.py --sweep sqlite --out /tmp/sweep.json \
+  --write-register tests/p472_03_findings_register.json \
+  --update-document ../docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.md \
+  --write-csv ../docs/enterprise-readiness/p472-03-application-wide-authorization-matrix.csv
+```
+
+The sweep adds roughly two to three minutes to each backend test job.
+
+---
+
+## 8. What has not been reviewed
+
+- 402 routes with incomplete dynamic evidence and 141 role-gated routes
+  (section 1.4).
+- 445 unscoped-SQL leads, other than the confirmed cases.
+- Data kept outside the SQLAlchemy engine, beyond the pattern-based scan in
+  section 1.4 item 8.
+- Anonymisation, consent and audit controls of the intentional
+  cross-tenant sharing features (section 2.2).
+- Scheduled jobs (section 2.3).
+- 109 `resolve_tenant` routes that return 500 and could only be classified by
+  source pattern.
+- Platform-admin cross-tenant access.
+- 79 unmounted handlers; schedulers and workers outside the request cycle.
+- Manufacturer identity beyond the single AW-07 proof.
+- Whether production holds rows under `default-tenant`, accounts without a
+  membership, or external consumers of the unauthenticated export routes.
+
+---
+
+## 9. Independent review
+
+Status: **not performed.** Recommendation: commission an independent
+authorization review and a contract review before any remediation batch is
+merged, and do not close P472-03 or change HOLD / NO-GO on the strength of this
+document, its tests or CI.
+
+Suggested order for the reviewer:
+
+1. Reproduce AW-09 on a deployed non-production instance. If the audit command
+   center or the vendor-governance read routes (AW-10) are reachable
+   anonymously in production, treat it as an incident question (was it
+   accessed?) as well as a defect; this review did not examine production.
+2. Confirm or correct the root-cause grouping in section 3, sampling routes
+   from each class against the CSV.
+3. Rule on the open policy questions: the 87 public routes that have no
+   documented exception (section 2.2), the platform-admin cross-tenant role,
+   the `default-tenant` data, manufacturer identity, CAPA ownership.
+4. Review the 445 leads and the incomplete rows, and look independently for
+   data stores the SQL oracle cannot see.
+5. Sign off, or amend, the contract changes in section 5 before batch B0 and
+   B1 are implemented.
+
+---
+
+## 10. Per-endpoint authorization matrix
+
+### How to read the matrix
+
+The table is generated from the SQLite sweep (identical to the PostgreSQL
+sweep). The file
+`p472-03-application-wide-authorization-matrix.csv` beside this document holds
+the same 1,912 rows without abbreviations, with complete table lists, the
+handler name, the baseline HTTP status and the finding classes; use it for
+filtering.
+
+| Column | Meaning and abbreviations |
+|---|---|
+| Authentication | Observed guard. `public`: an anonymous request received 2xx. `global role`: bearer token and `require_roles`. `tenant role`: bearer token and `require_tenant_roles`. `handler: …`: guard called inside the handler. `manufacturer header`: bearer token and `X-Manufacturer-ID`. `undetermined (anonymous NNN)`: no recognised guard; the status an anonymous request received. |
+| Tenant source | Where the handler takes the tenant from. `verified header`: the membership-checking dependency. `verified context`: `authorized_tenant`. `resolve_tenant`: unverified `X-Tenant-Id`. `raw header`: `get_request_tenant_id` in the handler. `principal/header`: principal's tenant, else header, else `default-tenant`. `query:` / `path:` / `body:` name the parameter. `—`: none identified. |
+| Membership verification | `queried`: the legitimate request read `tenant_memberships`. `no`: it did not. `n/a`: the request was refused. Whether the *verified* tenant is the one used for data is what the result column shows. |
+| Object-level authorization | `tenant-bound`: all SQL on tenant tables carried the caller's tenant. `unscoped: …`: SQL on these tenant tables had no tenant predicate (a lead, see AW-08). `—`: no SQL on tenant tables. |
+| DB reads / DB writes | Tables touched by the legitimate request (first two, then a count; identity tables omitted from reads). |
+| Cross-tenant adversarial result | Finding classes, with tables written under the foreign tenant or reached anonymously. `(code review + test)`: established by reading the code and reproduced by a hand-written test, not by the sweep; the sweep's own result follows after `sweep:`. `none observed`: no variant bound a foreign tenant. `refused`: every foreign-tenant variant was refused. `role-gated`: not reachable with tenant roles. `(baseline NNN)`: the legitimate request itself returned that status. |
+| Contract impact | Status the adversarial request is expected to receive after remediation: `403`, `401*` (unless confirmed public by design), `own tenant` (served the caller's tenant instead of `default-tenant`), `404` (another tenant's object no longer found), `filtered` (other tenants' rows no longer returned). See section 5. |
+| Risk | `Critical` / `High` / `Medium`: highest open finding. `Lead`: unscoped SQL to review. `Incomplete`: legitimate request failed, nothing concluded. `Not assessed`: role-gated. `None observed`: fully exercised, nothing found. `Info`: unreachable duplicate. |
+| Remediation | `Open Bn`: earliest batch in section 6. `Remediated (sha)`: fixed earlier and clean in this sweep. `Review: …`: needs manual review for the stated reason. `—`: nothing required by this evidence. |
+| Independent review | `Not reviewed` on every row. |
+
+<!-- BEGIN GENERATED MATRIX -->
+| Method | Route | Module | Authentication | Tenant source | Membership verification | Object-level authorization | DB reads | DB writes | Cross-tenant adversarial result | Contract impact | Risk | Remediation | Independent review |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| GET | /health | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /ready | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /metrics | main | undetermined (anonymous 403) | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/audit-to-capa/summary | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/capa/health | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/audit-command-center/pdf | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/audit-command-center/csv | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/audit-command-center/powerbi-csv | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/audit-command-center/data-dictionary/pdf | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/audit-command-center/toolkit.zip | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/audit-command-center/health | main | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/public/module-status/vendor | routers.public_module_status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/public/module-status/capa | routers.public_module_status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/public/module-status/audit | routers.public_module_status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/public/module-status/evidence | routers.public_module_status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/public/module-status/all | routers.public_module_status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/health | system | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/auth/login | system | undetermined (anonymous 400) | — | no | — | — | — | none observed (baseline 400) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/auth/tenants | system | bearer | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/reviews/queue | system | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1/system/inference-status | system | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/baseline-ranking/audit-evidence | inspect | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/stream/frame | inspect | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/history | history | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/history/summary | history | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/history/export.json | history | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/history/export.csv | history | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/history/export.xlsx | history | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/history/export.bundle.zip | history | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/reports | reports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/reports | reports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/reports/{report_id}/preview | reports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/reports/{report_id}/run | reports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/reports/history | reports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/reports/{report_id}/schedule | reports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baselines/manufacturer | inspections | global role | — | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs, baseline_library | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/baselines/{entry_id}/reference-image | inspections | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id} | inspections | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/clinical-report.pdf | inspections | global role | — | queried | tenant-bound | inspections | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections | inspections | require_inspection_runner | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/inspections/{inspection_id}/status | inspections | global role | — | queried | tenant-bound | inspections | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections/{inspection_id}/baseline-override | inspections | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pilot/metrics | inspections | global role | — | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/inspections/upload-images | inspections | require_inspection_runner | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections/decode-identifiers | inspections | require_inspection_runner | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baselines/upload-images | inspections | require_inspection_runner | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/admin/bootstrap | admin_users | undetermined (anonymous 404) | — | no | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/admin/users | admin_users | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/admin/users/role | admin_users | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/ml/retention/status | ml_images | require_inspection_runner | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/ml/images | ml_images | require_inspection_runner | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| GET | /api/ml/images | ml_images | require_inspection_runner | — | queried | tenant-bound | retained_images | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/ml/images/{image_id}/bytes | ml_images | require_inspection_runner | — | queried | tenant-bound | retained_images | — | refused (baseline 404) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| POST | /api/ml/images/{image_id}/labels | ml_images | require_inspection_runner | — | queried | tenant-bound | retained_images | — | refused (baseline 404) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| GET | /api/ml/images/{image_id}/labels | ml_images | require_inspection_runner | — | queried | tenant-bound | image_labels | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/ml/images/{image_id}/labels/{label_id}/adjudicate | ml_images | global role | — | queried | tenant-bound | image_labels | — | refused (baseline 404) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| GET | /api/ml/dataset/export | ml_images | global role | — | queried | tenant-bound | retained_images | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/capture/devices | capture | global role | — | queried | unscoped: audit_logs, capture_devices | audit_logs, capture_devices | audit_logs, capture_devices | refused | — | Lead | Remediated (batch 2) | Not reviewed |
+| GET | /api/capture/devices | capture | global role | — | queried | tenant-bound | capture_devices | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/capture/devices/{device_id}/revoke | capture | global role | — | queried | tenant-bound | capture_devices | — | refused (baseline 404) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| POST | /api/capture/ingest | capture | undetermined (anonymous 422) | — | no | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| POST | /api/inspections/{inspection_id}/supervisor-review | ai_clinical_review | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/supervisor-reviews | ai_clinical_review | global role | — | queried | unscoped: supervisor_reviews | supervisor_reviews | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-performance/ai-summary | ai_clinical_review | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/instruments/{identifier}/timeline | instrument_intelligence | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/instrument-anatomy | instrument_intelligence_admin | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/instrument-anatomy/{instrument_type} | instrument_intelligence_admin | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/instrument-zones | instrument_intelligence_admin | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/coverage-dashboard/summary | instrument_intelligence_admin | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/instrument-knowledge | instrument_intelligence_admin | global role | — | queried | unscoped: instrument_knowledge | instrument_knowledge | instrument_knowledge | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/instrument-knowledge | instrument_intelligence_admin | global role | — | queried | tenant-bound | instrument_knowledge | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/analytics/zone-intelligence | instrument_intelligence_admin | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guided-capture/{instrument_type} | guided_capture | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/inspections/{inspection_id}/image-tags | guided_capture | global role | — | queried | tenant-bound | inspections | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections/{inspection_id}/coverage-override | guided_capture | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/model-pipeline/tasks | model_pipeline | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/model-pipeline/deployment-gates | model_pipeline | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/model-pipeline/prepare-run | model_pipeline | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/model-pipeline/models | model_pipeline | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/model-pipeline/models | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/model-pipeline/models/{model_db_id}/promote | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/model-pipeline/models/{model_db_id}/record-training-result | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/model-pipeline/models/{model_db_id}/generate-model-card | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/model-pipeline/models/{model_db_id}/governance-flags | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/model-pipeline/models/{model_db_id}/promotion-readiness | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/model-pipeline/shadow-predictions | model_pipeline | global role | — | queried | unscoped: shadow_predictions | model_registry, shadow_predictions | shadow_predictions | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-pipeline/shadow-predictions/performance | model_pipeline | global role | — | queried | tenant-bound | shadow_predictions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/model-pipeline/shadow-predictions/{shadow_id}/reveal | model_pipeline | global role | — | queried | tenant-bound | shadow_predictions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/model-pipeline/models/{model_db_id}/candidate-checklist | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/model-pipeline/models/{model_db_id}/validated-candidate-checklist | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/model-pipeline/models/{model_db_id}/candidate-flags | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/model-pipeline/models/{model_db_id}/candidate-promotion | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/model-pipeline/models/{model_db_id}/validation-package | model_pipeline | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dataset-registry/versions | dataset_registry | global role | — | queried | unscoped: dataset_versions | dataset_versions | dataset_versions | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/dataset-registry/versions | dataset_registry | global role | — | queried | tenant-bound | dataset_versions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/dataset-registry/versions/{version_id}/freeze | dataset_registry | global role | — | queried | tenant-bound | dataset_versions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dataset-registry/images | dataset_registry | global role | — | queried | tenant-bound | dataset_versions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dataset-registry/images | dataset_registry | global role | — | queried | tenant-bound | dataset_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/dataset-registry/images/{entry_id}/annotation-transition | dataset_registry | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dataset-registry/images/{entry_id}/annotation-history | dataset_registry | global role | — | queried | unscoped: annotation_events | annotation_events | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/dataset-registry/images/{entry_id}/double-blind/primary | dataset_registry | global role | — | queried | unscoped: double_blind_reviews | double_blind_reviews | double_blind_reviews | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/dataset-registry/images/{entry_id}/double-blind/independent | dataset_registry | global role | — | queried | unscoped: double_blind_reviews | double_blind_reviews | double_blind_reviews | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/dataset-registry/images/{entry_id}/double-blind/adjudicate | dataset_registry | global role | — | queried | tenant-bound | double_blind_reviews | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dataset-registry/images/{entry_id}/quality-assessment | dataset_registry | global role | — | queried | tenant-bound | dataset_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dataset-registry/versions/{version_id}/build-training-dataset | dataset_registry | global role | — | queried | unscoped: audit_logs | audit_logs, dataset_registry_entries | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/dataset-registry/versions/{version_id}/run-candidate-training | dataset_registry | global role | — | queried | tenant-bound | dataset_registry_entries | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dataset-registry/digital-twin/{digital_twin_id:path}/history | dataset_registry | global role | — | queried | tenant-bound | dataset_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/dataset-registry/versions/{version_id}/export | dataset_registry | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dataset-registry/validation-report | dataset_registry | global role | — | queried | tenant-bound | baseline_library, dataset_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/dataset-registry/unknown-findings/{review_id}/promote | dataset_registry | global role | — | queried | unscoped: unknown_finding_reviews | unknown_finding_reviews | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/baseline-library/images | baseline_image_library | global role | — | queried | — | baseline_library | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/baseline-library/images/{link_id} | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/baseline-library/images | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/baseline-library/images/{link_id}/submit-for-review | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baseline-library/images/{link_id}/review | baseline_image_library | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baseline-library/images/{link_id}/activate | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baseline-library/images/{link_id}/suspend | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baseline-library/images/{link_id}/archive | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baseline-library/images/{link_id}/supersede | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/baseline-library/images/{link_id}/audit-history | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/baseline-library/compatibility-check | baseline_image_library | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/baseline-library/resolve | baseline_image_library | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/baseline-library/sets | baseline_image_library | global role | — | queried | unscoped: baseline_sets | baseline_set_members, baseline_sets | baseline_sets | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/baseline-library/sets/{set_id} | baseline_image_library | global role | — | queried | tenant-bound | baseline_sets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/baseline-library/legacy-report | baseline_image_library | global role | — | queried | tenant-bound | baseline_image_links, baseline_library | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/dataset-ingestion/images | dataset_ingestion | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dataset-ingestion/images/bulk | dataset_ingestion | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/reviewer-queues | reviewer_queues | global role | — | queried | tenant-bound | annotation_reviews, annotations +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/dataset-eligibility | dataset_eligibility | global role | — | queried | tenant-bound | dataset_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/annotations/{annotation_id}/review/secondary/blind-view | review_workspace | global role | — | queried | tenant-bound | annotations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dataset-registry/images/{entry_id}/baseline-comparison | review_workspace | global role | — | queried | tenant-bound | dataset_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dataset-release/preview | dataset_release | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/dataset-release/export-preview | dataset_release | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/pilot-validation/dashboard | pilot_validation | global role | — | queried | tenant-bound | supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pilot-validation/safety-queue | pilot_validation | global role | — | queried | tenant-bound | supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pilot-validation/go-no-go | pilot_validation | global role | — | queried | tenant-bound | supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pilot-validation/report | pilot_validation | global role | — | queried | tenant-bound | model_registry, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/shadow-validation/pilot-sites | shadow_validation | global role | — | queried | unscoped: audit_logs, pilot_status | audit_logs, pilot_status | audit_logs, pilot_status | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/shadow-validation/pilot-sites/{facility_id} | shadow_validation | global role | — | queried | tenant-bound | pilot_status | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/shadow-validation/ground-truth | shadow_validation | global role | — | queried | unscoped: shadow_ground_truth | shadow_ground_truth | shadow_ground_truth | refused | — | Lead | Review: SQL lead | Not reviewed |
+| PATCH | /api/shadow-validation/ground-truth/{gt_id}/supervisor-finding | shadow_validation | global role | — | queried | tenant-bound | shadow_ground_truth | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/shadow-validation/ground-truth/{gt_id}/adjudication | shadow_validation | global role | — | queried | tenant-bound | shadow_ground_truth | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/shadow-validation/ground-truth | shadow_validation | global role | — | queried | tenant-bound | shadow_ground_truth | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/shadow-validation/dashboard | shadow_validation | global role | — | queried | tenant-bound | shadow_predictions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/shadow-validation/error-review-queue | shadow_validation | global role | — | queried | tenant-bound | shadow_error_review_items | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/shadow-validation/error-review-queue/{item_id}/resolve | shadow_validation | global role | — | queried | tenant-bound | shadow_error_review_items | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/shadow-validation/failure-analysis | shadow_validation | global role | — | queried | tenant-bound | shadow_error_review_items | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/shadow-validation/clinical-review-board | shadow_validation | global role | — | queried | unscoped: audit_logs, clinical_review_board_sessions | audit_logs, clinical_review_board_sessions | audit_logs, clinical_review_board_sessions | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/shadow-validation/clinical-review-board/latest | shadow_validation | global role | — | queried | tenant-bound | clinical_review_board_sessions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/shadow-validation/drift | shadow_validation | global role | — | queried | tenant-bound | shadow_predictions, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/shadow-validation/validation-metrics | shadow_validation | global role | — | queried | tenant-bound | shadow_ground_truth, shadow_predictions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/shadow-validation/safety-monitor | shadow_validation | global role | — | queried | tenant-bound | shadow_error_review_items, shadow_predictions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/shadow-validation/reports/{report_type} | shadow_validation | global role | — | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/advisory-pilot/governance | advisory_pilot | global role | — | queried | unscoped: audit_logs, pilot_status | audit_logs, pilot_status | audit_logs, pilot_status | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/advisory-pilot/recommendations/present | advisory_pilot | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/advisory-pilot/recommendations/respond | advisory_pilot | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/advisory-pilot/recommendations | advisory_pilot | global role | — | queried | tenant-bound | advisory_recommendation_interactions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/advisory-pilot/workflow-impact | advisory_pilot | global role | — | queried | tenant-bound | advisory_recommendation_interactions, inspection_assignments +2 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/advisory-pilot/clinical-performance | advisory_pilot | global role | — | queried | tenant-bound | advisory_recommendation_interactions, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/advisory-pilot/feedback | advisory_pilot | global role | — | queried | unscoped: advisory_user_feedback | advisory_user_feedback | advisory_user_feedback | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/advisory-pilot/feedback/summary | advisory_pilot | global role | — | queried | tenant-bound | advisory_user_feedback | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/advisory-pilot/safety-events | advisory_pilot | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/advisory-pilot/safety-events/{event_id}/review | advisory_pilot | global role | — | queried | tenant-bound | advisory_safety_events | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/advisory-pilot/safety-events/summary | advisory_pilot | global role | — | queried | tenant-bound | advisory_safety_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/advisory-pilot/dashboard | advisory_pilot | global role | — | queried | tenant-bound | advisory_recommendation_interactions, advisory_safety_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/advisory-pilot/success-metrics | advisory_pilot | global role | — | queried | tenant-bound | advisory_user_feedback, inspections +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/advisory-pilot/final-report | advisory_pilot | global role | — | queried | tenant-bound | model_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/agent/inspection/{inspection_id} | agent | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/agent/feed | agent | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/analytics/vendors | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/analytics/vendors/export.json | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/analytics/vendors/export.csv | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/analytics/vendors/export.xlsx | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/analytics/vendors/export.bundle.zip | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/analytics/vendors/{vendor_name}/scorecard.json | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/analytics/vendors/{vendor_name}/scorecard.pdf | vendor_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/mentor/education | spd_mentor | global role | principal/header | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/mentor/education/{finding_type} | spd_mentor | global role | principal/header | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/mentor/education/{finding_type}/complete | spd_mentor | global role | principal/header | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/mentor/competency/{technician} | spd_mentor | global role | principal/header | queried | unscoped: competency_events | competency_events | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/inspections/{inspection_id}/mentor | spd_mentor | global role | principal/header | queried | tenant-bound | inspections | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/mentor/build | spd_mentor | global role | principal/header | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/mentor/coaching-queue | spd_mentor | global role | principal/header | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/inspections/{inspection_id}/coaching-review | spd_mentor | global role | principal/header | queried | unscoped: inspections | inspections | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/mentor/coaching-effectiveness | spd_mentor | global role | principal/header | queried | tenant-bound | mentor_coaching_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/dashboard | quality_dashboard | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/finding-trends | quality_dashboard | global role | — | queried | tenant-bound | inspection_findings | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/anatomy-risk | quality_dashboard | global role | — | queried | tenant-bound | inspection_findings, inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/instrument-performance | quality_dashboard | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/technician-quality | quality_dashboard | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/supervisor-quality | quality_dashboard | global role | — | queried | tenant-bound | inspections, mentor_coaching_reviews +1 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality/root-cause | quality_dashboard | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/quality/root-cause-trends | quality_dashboard | global role | — | queried | tenant-bound | root_cause_assignments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/capa-suggestions | quality_dashboard | global role | — | queried | tenant-bound | apollo_customer_complaints, inspection_findings +3 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality/capa-suggestions/create | quality_dashboard | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/benchmark | quality_dashboard | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/executive-score | quality_dashboard | global role | — | queried | tenant-bound | competency_events, inspections +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality/improvement-initiatives | quality_dashboard | global role | — | queried | tenant-bound | continuous_improvement_initiatives | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality/improvement-initiatives | quality_dashboard | global role | — | queried | unscoped: continuous_improvement_initiatives | continuous_improvement_initiatives | continuous_improvement_initiatives | refused | — | Lead | Review: SQL lead | Not reviewed |
+| PATCH | /api/quality/improvement-initiatives/{initiative_id} | quality_dashboard | global role | — | queried | tenant-bound | continuous_improvement_initiatives | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/clinical-readiness/dashboard | clinical_readiness | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/clinical-readiness/enterprise-analytics | clinical_readiness | global role | — | queried | tenant-bound | disposition_overrides, inspections +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/clinical-readiness/instrument-condition | clinical_readiness | global role | — | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/evidence-panel | clinical_readiness | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/readiness-timeline | clinical_readiness | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/risk-stratification | clinical_readiness | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/readiness-report | clinical_readiness | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/readiness-report.pdf | clinical_readiness | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections/{inspection_id}/disposition-action | clinical_readiness | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/disposition-actions | clinical_readiness | global role | — | queried | tenant-bound | disposition_overrides | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/inspection-work-queue | workflow | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/operations-board | workflow | global role | — | queried | tenant-bound | inspection_assignments, inspections | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/inspections/{inspection_id}/assign | workflow | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/assignments | workflow | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/workflow-state | workflow | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections/{inspection_id}/workflow/cancel | workflow | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/workflow/technician-workload | workflow | global role | — | queried | tenant-bound | inspection_assignments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/workflow/sla-monitoring | workflow | global role | — | queried | tenant-bound | workflow_state_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/workflow/escalations | workflow | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/workflow/daily-dashboard | workflow | global role | — | queried | tenant-bound | inspections, workflow_state_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/workflow/shift-handoff | workflow | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/workflow/notifications | workflow | global role | — | queried | tenant-bound | workflow_notifications | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/workflow/notifications/generate | workflow | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/workflow/notifications/{notification_id}/read | workflow | global role | — | queried | tenant-bound | workflow_notifications | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/workflow/analytics | workflow | global role | — | queried | tenant-bound | inspection_assignments, inspections +1 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/knowledge/articles | knowledge | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/knowledge/articles | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/knowledge/articles/{article_id} | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/knowledge/articles/{article_id} | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/knowledge/articles/{article_id}/submit-for-review | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/knowledge/articles/{article_id}/approve | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/knowledge/articles/{article_id}/reject | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/knowledge/articles/{article_id}/archive | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/knowledge/governance-summary | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/knowledge/cases | knowledge | global role | — | queried | tenant-bound | clinical_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/knowledge/cases/{case_id} | knowledge | global role | — | queried | tenant-bound | clinical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/inspections/{inspection_id}/similar-cases | knowledge | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/inspections/{inspection_id}/teaching-point | knowledge | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/knowledge/search | knowledge | global role | — | queried | tenant-bound | knowledge_articles | knowledge_query_logs | refused | — | None observed | — | Not reviewed |
+| POST | /api/knowledge/assistant | knowledge | global role | — | queried | tenant-bound | — | knowledge_query_logs | refused | — | None observed | — | Not reviewed |
+| POST | /api/knowledge/standards | knowledge | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/knowledge/standards | knowledge | global role | — | queried | tenant-bound | organization_standards | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/knowledge/standards/{standard_id}/deactivate | knowledge | global role | — | queried | tenant-bound | organization_standards | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/knowledge/competency-topics | knowledge | global role | — | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/knowledge/competency-topics/{finding_type} | knowledge | global role | — | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/knowledge/analytics | knowledge | global role | — | queried | tenant-bound | clinical_cases, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pilot-deployment/site-config | pilot_deployment | global role | — | queried | unscoped: pilot_site_configs | pilot_site_configs | pilot_site_configs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| PUT | /api/pilot-deployment/site-config | pilot_deployment | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/pilot-deployment/error-log | pilot_deployment | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pilot-deployment/data-collection | pilot_deployment | global role | — | queried | tenant-bound | baseline_library, inspections +3 | pilot_site_configs | refused | — | None observed | — | Not reviewed |
+| GET | /api/inspections/{inspection_id}/data-quality | pilot_deployment | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/analytics/kpi-summary | analytics | global role | — | queried | tenant-bound | baseline_library, inspections | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/analytics/powerbi | analytics | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/anatomy/zone-risk-matrix | anatomy_intelligence | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/anatomy/zone-engine/{instrument_type}/{zone_name:path} | anatomy_intelligence | global role | — | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/anatomy/inspection-zone-guidance/{instrument_type}/{zone_name:path} | anatomy_intelligence | global role | — | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/anatomy/learning-dataset | anatomy_intelligence | global role | — | queried | tenant-bound | supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/alerts/channel-health | alerts | global role | — | queried | — | alert_events | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/alerts/feed | alerts | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/alerts/open | alerts | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/alerts/{inspection_id}/acknowledge | alerts | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/alerts/{inspection_id}/resolve | alerts | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/alerts/status | alerts | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/alerts/send/{inspection_id} | alerts | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/alerts/resend/{alert_event_id} | alerts | global role | — | queried | — | alert_events | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/alerts/history | alerts | global role | — | queried | — | alert_events | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/alerts/history/export.json | alerts | global role | — | queried | — | alert_events | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/alerts/history/export.csv | alerts | global role | — | queried | — | alert_events | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/alerts/history/export.xlsx | alerts | global role | — | queried | — | alert_events | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/alerts/history/export.bundle.zip | alerts | global role | — | queried | — | alert_events | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/capa/risk-scorecard/health | capa_predictive_risk | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/capa/risk-scorecard/ | capa_predictive_risk | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/capa/risk-scorecard | capa_predictive_risk | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/capa/health | capa | — | — | — | — | — | — | unreachable: shadowed by `main.direct_capa_health` | — | Info | Review | Not reviewed |
+| GET | /api/capa | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/capa | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/capa/from-audit-signal | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/capa/escalation-summary | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/capa/powerbi-csv | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/capa/governance-scorecard | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/capa/{capa_id} | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| PATCH | /api/capa/{capa_id} | capa | global role | verified context | queried | — | — | — | none observed; batch 1 tests (baseline 400) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-governance/health | vendor_governance | public | — | no | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-governance/events | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-governance/events | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-governance/summary | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-governance/capa-linkage-summary | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-governance/events/{event_id}/link-capa | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-governance/events/{event_id}/create-capa | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-governance/powerbi-csv | vendor_governance | handler: authorized_tenant | verified context | queried | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/qa-review/pending | qa_review | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/qa-review/{inspection_id} | qa_review | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/review-analytics/summary | review_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/review-analytics/feedback-dataset.json | review_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/review-analytics/feedback-dataset.csv | review_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/review-analytics/feedback-dataset.xlsx | review_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/review-analytics/feedback-dataset.bundle.zip | review_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-performance/summary | model_performance | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-performance/export.json | model_performance | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-performance/export.csv | model_performance | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-performance/export.xlsx | model_performance | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/model-performance/export.bundle.zip | model_performance | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/site-analytics/summary | site_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/site-analytics/export.json | site_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/site-analytics/export.csv | site_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/site-analytics/export.xlsx | site_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/site-analytics/export.bundle.zip | site_analytics | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/executive-digest/weekly | executive_digest | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/executive-digest/weekly.csv | executive_digest | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/executive-digest/weekly.xlsx | executive_digest | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/executive-digest/weekly.bundle.zip | executive_digest | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/board-reporting/weekly | board_reporting | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/board-reporting/weekly.csv | board_reporting | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/board-reporting/weekly.xlsx | board_reporting | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/board-reporting/weekly.bundle.zip | board_reporting | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/digest-scheduler/status | digest_scheduler | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/digest-scheduler/run-now | digest_delivery | global role | — | queried | unscoped: inspections | inspections | — | none observed (baseline 500) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/digest-delivery/history | digest_delivery | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/digest-delivery/history.csv | digest_delivery | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/digest-subscriptions | digest_subscriptions | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/digest-subscriptions | digest_subscriptions | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/digest-subscriptions/{subscription_id}/toggle | digest_subscriptions | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/tenant-analytics/summary | tenant_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/tenant-analytics/export.json | tenant_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/tenant-analytics/export.csv | tenant_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/tenant-analytics/export.xlsx | tenant_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/tenant-analytics/export.bundle.zip | tenant_analytics | global role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/tenant-admin/memberships | tenant_admin | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/tenant-admin/memberships | tenant_admin | global role | body: tenant_id | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/tenant-admin/memberships/{membership_id}/toggle | tenant_admin | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/admin/tenants | tenant_admin | global role | body: tenant_id | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/tenant-subscriptions | tenant_scoped_subscriptions | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/tenant-subscriptions | tenant_scoped_subscriptions | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/tenant-subscriptions/{subscription_id}/toggle | tenant_scoped_subscriptions | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/audit-logs | audit_logs | tenant role | resolve_tenant | queried | tenant-bound | audit_logs | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/audit-logs/export.json | audit_logs | tenant role | resolve_tenant | queried | tenant-bound | audit_logs | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/audit-logs/export.csv | audit_logs | tenant role | resolve_tenant | queried | tenant-bound | audit_logs | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/audit-logs/export.xlsx | audit_logs | tenant role | resolve_tenant | queried | tenant-bound | audit_logs | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/audit-logs/export.bundle.zip | audit_logs | tenant role | resolve_tenant | queried | tenant-bound | audit_logs | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/compliance-exports/evidence-pack.json | compliance_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/compliance-exports/evidence-pack.csv | compliance_exports | tenant role | resolve_tenant | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/compliance-exports/evidence-pack.xlsx | compliance_exports | tenant role | resolve_tenant | queried | tenant-bound | audit_logs, inspections | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/compliance-exports/evidence-pack.bundle.zip | compliance_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/compliance-exports/verify | compliance_exports | tenant role | resolve_tenant | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/retention-policies | retention_admin | tenant role | resolve_tenant | queried | unscoped: audit_logs | audit_logs, retention_policies | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/retention-policies | retention_admin | tenant role | resolve_tenant | queried | unscoped: audit_logs, retention_policies | audit_logs, retention_policies | audit_logs, retention_policies | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/retention-policies/{policy_id}/toggle | retention_admin | tenant role | resolve_tenant | queried | tenant-bound | retention_policies | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/retention-policies/evaluate/{artifact_type} | retention_admin | tenant role | resolve_tenant | queried | tenant-bound | retention_policies | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/retention-enforcement/run | retention_enforcement | tenant role | resolve_tenant | queried | unscoped: audit_logs, inspections | audit_logs, inspections | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/retention-enforcement/exceptions | retention_enforcement | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/retention-enforcement/exceptions.csv | retention_enforcement | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/retention-enforcement/exceptions.bundle.zip | retention_enforcement | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/retention-scheduler/status | retention_scheduler | tenant role | resolve_tenant | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/governance-console/summary | governance_console | tenant role | resolve_tenant | queried | tenant-bound | retention_policies | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/legal-hold | legal_hold_admin | tenant role | resolve_tenant | queried | unscoped: audit_logs, retention_policies | audit_logs, retention_policies | audit_logs, retention_policies | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/governance-approvals/request | governance_approvals | tenant role | resolve_tenant | queried | unscoped: audit_logs, governance_approvals | audit_logs, governance_approvals | audit_logs, governance_approvals | refused (baseline 500) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/governance-approvals/pending | governance_approvals | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/governance-approvals/history | governance_approvals | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/governance-approvals/{approval_id}/approve | governance_approvals | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/governance-approvals/{approval_id}/reject | governance_approvals | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused (baseline 400) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/approval-notifications/status | approval_notifications | tenant role | resolve_tenant | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/approval-notifications/test-latest | approval_notifications | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/approval-notifications/run-escalation | approval_notifications | tenant role | resolve_tenant | queried | unscoped: governance_approvals | governance_approvals | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/governance-rollbacks | governance_reconciliation | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/governance-approvals/{approval_id}/reconcile | governance_reconciliation | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/governance-rollbacks/{rollback_id}/execute | governance_reconciliation | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/trust-center/summary | trust_center | tenant role | resolve_tenant | queried | tenant-bound | governance_approvals | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/trust-center/attestations.json | trust_center_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/trust-center/attestations.bundle.zip | trust_center_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/tenant-onboarding/bootstrap | tenant_onboarding | global role | body: tenant_id | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/tenant-onboarding/history | tenant_onboarding | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/tenant-setup/readiness | tenant_setup | tenant role | resolve_tenant | queried | tenant-bound | retention_policies | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/tenant-quotas | usage_metering | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/tenant-quotas | usage_metering | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/usage/summary | usage_metering | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/usage/check/{metric_key} | usage_metering | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/billing/checkout | billing | handler: require_enterprise_auth | body: tenant_id | queried | — | — | — | none observed (baseline 400) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/billing/webhook | billing | undetermined (anonymous 503) | — | no | — | — | — | none observed (baseline 503) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/billing/status | billing | handler: require_enterprise_auth | query: tenant_id | queried | tenant-bound | tenant_plans | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/billing/upgrade | billing | undetermined (anonymous 401) | body: tenant_id | queried | — | — | — | none observed (baseline 400) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/billing/plan | billing | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/billing/plan | billing | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/billing/invoice-preview | billing | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/billing/invoice-preview/persist | billing | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/subscription/activate | subscription_lifecycle | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/subscription/upgrade | subscription_lifecycle | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/subscription/downgrade | subscription_lifecycle | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/subscription/renew | subscription_lifecycle | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/subscription/status | subscription_lifecycle | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/subscription/history | subscription_lifecycle | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dunning/payment-failed | dunning | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dunning/payment-succeeded | dunning | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dunning/run-suspension-check | dunning | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dunning/status | dunning | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/dunning-automation/status | dunning_automation | tenant role | resolve_tenant | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/dunning-automation/run | dunning_automation | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/dunning-automation/recover | dunning_automation | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/finance-console/summary | finance_console | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/finance-console/invoice-preview.json | finance_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/finance-console/invoice-preview.csv | finance_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/finance-console/invoice-preview.bundle.zip | finance_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/entitlements | entitlements | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/feature-access/{feature_key} | entitlements | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/entitlements/override | entitlements | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/feature-flags | entitlements | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/feature-flags | entitlements | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/branding | branding | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/branding/theme | branding | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/branding/export-profile | branding | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/branding | branding | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/notification-templates | notification_templates | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/notification-templates | notification_templates | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/notification-templates/{template_key}/{channel} | notification_templates | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/notification-templates/render | notification_templates | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/automation-rules | automation_studio | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/automation-rules | automation_studio | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/automation-runs | automation_studio | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/automation-rules/test | automation_studio | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/executive-scorecards | executive_scorecards | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/executive-scorecards/generate | executive_scorecards | tenant role | resolve_tenant | queried | tenant-bound | inspections | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/executive-scorecards/latest | executive_scorecards | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/briefings | briefings | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/briefings/generate | briefings | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/briefings/{briefing_id} | briefings | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/briefings/{briefing_id}/slide-outline | briefings | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/briefings/{briefing_id}/memo | briefings | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/leadership-packets/generate | leadership_packets | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/leadership-packets | leadership_packets | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/leadership-packets/{packet_id} | leadership_packets | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/leadership-packets/{packet_id}/docx | leadership_packets | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/leadership-packets/{packet_id}/pptx | leadership_packets | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/leadership-packets/{packet_id}/pdf | leadership_packets | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/scheduled-leadership-packets | scheduled_leadership_packets | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scheduled-leadership-packets | scheduled_leadership_packets | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/scheduled-leadership-packets/{schedule_id}/run | scheduled_leadership_packets | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scheduled-leadership-packets/deliveries | scheduled_leadership_packets | tenant role | resolve_tenant | queried | tenant-bound | leadership_packet_deliveries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/scheduled-leadership-packets/{schedule_id}/assign-distribution-list | scheduled_leadership_packets | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/distribution-lists | distribution_lists | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/distribution-lists | distribution_lists | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/distribution-lists/{list_id}/recipients | distribution_lists | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/distribution-lists/{list_id}/recipients | distribution_lists | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/distribution-lists/{list_id}/delivery-preview | distribution_lists | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/packet-releases/request | packet_releases | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/packet-releases/{release_id}/approve | packet_releases | tenant role | resolve_tenant | queried | tenant-bound | packet_releases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/packet-releases/{release_id}/reject | packet_releases | tenant role | resolve_tenant | queried | tenant-bound | packet_releases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/packet-releases | packet_releases | tenant role | resolve_tenant | queried | tenant-bound | packet_releases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/packet-releases/{release_id} | packet_releases | tenant role | resolve_tenant | queried | tenant-bound | packet_releases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/packet-releases/history | packet_releases | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/packet-release-holds | packet_release_holds | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/packet-release-holds | packet_release_holds | tenant role | resolve_tenant | queried | tenant-bound | packet_release_holds | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/packet-release-holds/{hold_id}/clear | packet_release_holds | tenant role | resolve_tenant | queried | tenant-bound | packet_release_holds | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/packet-release-overrides/emergency | packet_release_holds | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/packet-release-overrides | packet_release_holds | tenant role | resolve_tenant | queried | tenant-bound | packet_release_overrides | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/packet-release-governance/status/{packet_id} | packet_release_holds | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/release-governance/dashboard | release_governance_dashboard | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets, packet_release_holds +2 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/release-governance/readiness | release_governance_dashboard | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/release-governance/exceptions | release_governance_dashboard | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/release-governance/packets/{packet_id}/status | release_governance_dashboard | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/governance-sla/policies | governance_sla | tenant role | resolve_tenant | queried | unscoped: audit_logs, governance_sla_policies | audit_logs, governance_sla_policies | audit_logs, governance_sla_policies | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/governance-sla/policies | governance_sla | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_policies | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/governance-sla/run | governance_sla | tenant role | resolve_tenant | queried | unscoped: audit_logs | audit_logs, governance_sla_policies +3 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/governance-sla/events | governance_sla | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/governance-sla/dashboard | governance_sla | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/governance-sla-scanner/status | governance_sla_scanner | tenant role | resolve_tenant | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/governance-sla-scanner/run | governance_sla_scanner | tenant role | resolve_tenant | queried | unscoped: audit_logs | audit_logs, governance_sla_policies +3 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/governance-sla-scanner/recommendations | governance_sla_scanner | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/governance-command-center/summary | governance_command_center | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_events, leadership_packets +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/governance-command-center/work-items | governance_command_center | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_events, leadership_packets | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/governance-command-center/actions/run-sla-scan | governance_command_center | tenant role | resolve_tenant | queried | unscoped: audit_logs | audit_logs, governance_sla_policies +3 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/governance-command-center/actions/resolve-sla-event | governance_command_center | tenant role | resolve_tenant | queried | unscoped: audit_logs | audit_logs, governance_sla_events | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/governance-command-center/actions/request-release | governance_command_center | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/governance-command-center/actions/create-hold | governance_command_center | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/governance-command-center/actions/emergency-override | governance_command_center | tenant role | resolve_tenant | queried | tenant-bound | leadership_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/implementation-readiness | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/implementation-readiness/seed | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/implementation-readiness/items | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/implementation-readiness/items/{item_id}/complete | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/implementation-readiness/items/{item_id}/block | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/go-live-control-center | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/go-live-control-center/checkpoints | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/go-live-control-center/approve | implementation_readiness | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-health/summary | customer_health | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/customer-health/snapshot | customer_health | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-health/history | customer_health | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-health/recommendations | customer_health | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-success/playbooks | customer_success | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/customer-success/playbooks | customer_success | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-success/renewal-risk | customer_success | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/customer-success/renewal-risk/run | customer_success | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-success/recommendations | customer_success | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-operations-hub/summary | customer_operations_hub | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-operations-hub/work-queue | customer_operations_hub | tenant role | resolve_tenant | queried | tenant-bound | governance_sla_events, leadership_packets +3 | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/customer-operations-hub/status | customer_operations_hub | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/customer-operations-hub/actions/run-health-snapshot | customer_operations_hub | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/customer-operations-hub/actions/run-renewal-risk | customer_operations_hub | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/customer-operations-hub/actions/run-sla-scan | customer_operations_hub | tenant role | resolve_tenant | queried | unscoped: audit_logs | audit_logs, governance_sla_policies +3 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/account-review-exports/generate | account_review_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/account-review-exports | account_review_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/account-review-exports/{export_id} | account_review_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/account-review-exports/{export_id}/docx | account_review_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/account-review-exports/{export_id}/pptx | account_review_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/account-review-exports/{export_id}/pdf | account_review_exports | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/scheduled-account-reviews | scheduled_account_reviews | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scheduled-account-reviews | scheduled_account_reviews | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/scheduled-account-reviews/{schedule_id}/run | scheduled_account_reviews | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scheduled-account-reviews/deliveries | scheduled_account_reviews | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/scheduled-account-reviews/{schedule_id}/assign-distribution-list | scheduled_account_reviews | tenant role | resolve_tenant | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-dashboard/summary | portfolio_dashboard | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/portfolio-dashboard/qbr-rollup | portfolio_dashboard | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/portfolio-dashboard/executive | portfolio_dashboard | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/portfolio-briefings | portfolio_briefings | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/portfolio-briefings/generate | portfolio_briefings | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/portfolio-briefings/{briefing_id} | portfolio_briefings | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/portfolio-briefings/{briefing_id}/summary | portfolio_briefings | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/portfolio-briefings/{briefing_id}/board-narrative | portfolio_briefings | require_portfolio_access | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/portfolio-briefings/{briefing_id}/exports | portfolio_briefing_exports | undetermined (anonymous 401) | — | no | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-briefings/{briefing_id}/exports | portfolio_briefing_exports | undetermined (anonymous 401) | — | no | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-briefings/exports/{export_id} | portfolio_briefing_exports | undetermined (anonymous 401) | — | no | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-briefings/exports/{export_id}/{artifact_type} | portfolio_briefing_exports | undetermined (anonymous 401) | — | no | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/portfolio-briefings/{briefing_id}/distribute | portfolio_briefing_exports | undetermined (anonymous 401) | — | no | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-briefings/{briefing_id}/deliveries | portfolio_briefing_exports | undetermined (anonymous 401) | — | no | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/portfolio-tenants | portfolio_tenants | undetermined (anonymous 401) | — | no | — | — | portfolio_tenants | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-tenants | portfolio_tenants | undetermined (anonymous 401) | — | no | — | portfolio_tenants | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/portfolio-tenants/rollup | portfolio_tenants | undetermined (anonymous 401) | — | no | — | portfolio_tenants | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/portfolio-tenants/rescore | portfolio_tenants | undetermined (anonymous 401) | — | no | — | portfolio_tenants | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/portfolio-tenants/generate-board-briefing | portfolio_tenants | undetermined (anonymous 401) | — | no | — | portfolio_tenants | portfolio_briefings | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/portfolio-tenants/{tenant_id} | portfolio_tenants | undetermined (anonymous 422) | path: tenant_id | no | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/portfolio-tenants/{tenant_id} | portfolio_tenants | undetermined (anonymous 422) | path: tenant_id | no | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/tenant-insights/top-risks | tenant_insights | undetermined (anonymous 401) | — | no | — | portfolio_tenants | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/tenant-insights/rollup | tenant_insights | undetermined (anonymous 401) | — | no | — | portfolio_tenants | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/tenant-insights/{tenant_id} | tenant_insights | undetermined (anonymous 422) | path: tenant_id | no | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/enterprise/intake | enterprise_intake | handler: authorized_tenant | verified context; body: tenant_id | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/history | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_findings | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-packet | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-packet.pdf | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-packet/verify-hash | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-export-history | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-trail | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/intake/{finding_id}/review | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/intake/{finding_id}/capa | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/capas | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_capas | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| PATCH | /api/enterprise/capas/{capa_id}/status | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/capas/summary | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_capas | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/intake/{finding_id}/evidence | enterprise_intake | handler: authorized_tenant | verified context | no | — | — | — | none observed; batch 1 tests (baseline 422) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/evidence | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/evidence/{evidence_id}/download | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_evidence | enterprise_evidence | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/instruments/{instrument_id}/baseline | enterprise_intake | handler: authorized_tenant | verified context | no | — | — | — | none observed; batch 1 tests (baseline 422) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/instruments/{instrument_id}/baseline | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_instruments | enterprise_instruments | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-baselines | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_instrument_baselines | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/intake/{finding_id}/baseline-comparison | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/baselines/{baseline_id}/review | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_instrument_baselines | enterprise_instrument_baselines | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/storage/health | enterprise_intake | public | — | no | — | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-export-package | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-zip-bundle | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/vendor-escalation-packet | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/vendor-escalation-packet.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/infection-prevention-review-packet | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/infection-prevention-review-packet.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/executive-quality-review-dashboard | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs, enterprise_capas +2 | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/executive-quality-review-dashboard.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs, enterprise_capas +2 | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/export-readiness-status | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_findings | enterprise_findings | — | none observed; batch 1 tests (baseline 404) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_export_readiness_history | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_export_readiness_history | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.csv | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_export_readiness_history | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi.csv | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_export_readiness_history | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi.data-dictionary | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi.data-dictionary.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi.dashboard-spec | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi.dashboard-spec.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.zip | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_export_readiness_history | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.readme.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.metadata | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.health | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.executive-summary.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.final-validation | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.production-lock | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.release-notes.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.completion-certificate.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.v1-archive.zip | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_export_readiness_history | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/export-readiness-history.powerbi-toolkit.v1-closeout | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.csv | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.powerbi.csv | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.powerbi.data-dictionary | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.powerbi.data-dictionary.pdf | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.toolkit.zip | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: audit_logs | audit_logs | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit-command-center.health | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | audit_logs | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/baseline-aware-score | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | — | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/baseline-review-queue | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_findings | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-baseline-subscription/baselines | enterprise_intake | handler: authorized_tenant | verified context | queried | unscoped: enterprise_vendor_baseline_subscriptions | enterprise_vendor_baseline_subscriptions, vendor_baseline_audit_events | audit_logs, enterprise_vendor_baseline_subscriptions +1 | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-baseline-subscription/baselines/upload-image | enterprise_intake | handler: authorized_tenant | verified context | no | — | — | — | none observed; batch 1 tests (baseline 422) | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-baseline-subscription/baselines | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/approve | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/vendor-baseline-subscription/match | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_vendor_baseline_subscriptions | audit_logs | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/vendor-baseline-subscription/baselines/{baseline_id}/audit | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/verify-chain | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/intake/{finding_id}/governance-packet/certificate | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/events | enterprise_intake | handler: authorized_tenant | verified context; query: tenant_id | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/events/export.csv | enterprise_intake | handler: authorized_tenant | verified context; query: tenant_id | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/events/export/verify | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/events/export/manifest/verify | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/evidence-bundle | enterprise_intake | handler: authorized_tenant | verified context; query: tenant_id | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/evidence-bundle/verify | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/evidence-bundle/download.json | enterprise_intake | handler: authorized_tenant | verified context; query: tenant_id | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/audit/evidence-bundle/verification-summary | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/audit/events | enterprise_intake | handler: authorized_tenant | verified context | n/a | n/a | — | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| GET | /api/enterprise/findings/kpi-summary | enterprise_intake | handler: authorized_tenant | verified context | queried | tenant-bound | enterprise_findings, enterprise_vendor_baseline_subscriptions | — | none observed; batch 1 tests | — | None observed | Remediated (batch 1) | Not reviewed |
+| POST | /api/enterprise/ranking/score | ranking | handler: require_enterprise_auth | body: tenant_id | queried | tenant-bound | enterprise_scoring_profiles | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/enterprise/ranking/composite-score | ranking | handler: require_enterprise_auth | body: tenant_id | queried | tenant-bound | enterprise_scoring_profiles | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/enterprise/ranking/history/{finding_id} | ranking | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | enterprise_findings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/enterprise/ranking/score/{finding_id}/report.pdf | ranking | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | enterprise_findings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/enterprise/ranking/kpi-summary | ranking | handler: require_enterprise_auth | query: tenant_id | queried | tenant-bound | enterprise_findings, enterprise_risk_scores | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/enterprise/ranking/profiles | ranking | handler: require_enterprise_auth | query: tenant_id | queried | unscoped: enterprise_scoring_profiles | enterprise_scoring_profiles | enterprise_scoring_profiles | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/enterprise/ranking/profiles/{tenant_id} | ranking | handler: require_enterprise_auth | path: tenant_id | queried | tenant-bound | enterprise_scoring_profiles | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/enterprise/cv/analyze | cv | handler: require_enterprise_auth | body: tenant_id | queried | tenant-bound | — | cv_inference_records | none observed | — | None observed | Remediated (c13c5eb) | Not reviewed |
+| POST | /api/enterprise/cv/baseline-compare | cv | handler: require_enterprise_auth | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (c13c5eb) | Not reviewed |
+| POST | /api/enterprise/cv/analyze-and-rank | cv | handler: require_enterprise_auth | body: tenant_id | queried | tenant-bound | — | cv_inference_records | none observed | — | None observed | Remediated (c13c5eb) | Not reviewed |
+| POST | /api/enterprise/cv/analyze-async | cv | handler: require_enterprise_auth | body: tenant_id | queried | tenant-bound | — | cv_inference_records | none observed | — | None observed | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/inference/{inference_id}/status | cv | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | Remediated (c13c5eb) | Not reviewed |
+| POST | /api/enterprise/cv/analyze-video | cv | handler: require_enterprise_auth | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/review-queue | cv | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | cv_inference_records | — | refused | — | None observed | Remediated (c13c5eb) | Not reviewed |
+| POST | /api/enterprise/cv/inference/{inference_id}/annotate | cv | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | cv_inference_records | — | refused (baseline 404) | — | Incomplete | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/provider/metrics | cv | handler: require_enterprise_auth | enterprise context | queried | unscoped: cv_inference_provenance | cv_inference_provenance, cv_inference_records | — | refused | — | Lead | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/inference/{inference_id} | cv | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | cv_inference_records | — | refused (baseline 404) | — | Incomplete | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/history | cv | handler: require_enterprise_auth | enterprise context | queried | unscoped: cv_inference_provenance | cv_inference_provenance, cv_inference_records | — | refused | — | Lead | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/kpi-summary | cv | handler: require_enterprise_auth | enterprise context | queried | unscoped: cv_inference_provenance | cv_inference_provenance, cv_inference_records | — | refused | — | Lead | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/cv/provider/info | cv | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | Remediated (c13c5eb) | Not reviewed |
+| GET | /api/enterprise/governance-intelligence/health | governance_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/governance-intelligence/summary | governance_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/vendor-governance/performance-scorecard/health | vendor_performance_scorecard | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/vendor-governance/performance-scorecard/ | vendor_performance_scorecard | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/enterprise/vendor-governance/performance-scorecard | vendor_performance_scorecard | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/power-bi/executive-analytics/health | power_bi_executive_analytics | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/power-bi/executive-analytics/summary | power_bi_executive_analytics | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/power-bi/executive-analytics/data-dictionary | power_bi_executive_analytics | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/power-bi/executive-analytics/export.csv | power_bi_executive_analytics | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/capa/trend-intelligence/health | capa_trend_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/capa/trend-intelligence/summary | capa_trend_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/capa/trend-intelligence/export.csv | capa_trend_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/vendor/trend-intelligence/health | vendor_trend_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/vendor/trend-intelligence/summary | vendor_trend_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/v1-2/vendor/trend-intelligence/export.csv | vendor_trend_intelligence | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/vendor-intelligence/vendors | vendor_intelligence | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | vendor_benchmarks | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/vendor-intelligence/vendors/{vendor_id} | vendor_intelligence | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | vendor_benchmarks | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/vendor-intelligence/vendors/{vendor_id}/scorecard | vendor_intelligence | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | vendor_benchmarks | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/vendor-intelligence/vendors/{vendor_id}/trends | vendor_intelligence | handler: authorized_tenant | verified context; query: tenant_id | queried | — | — | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/manufacturer-intelligence/manufacturers | manufacturer_intelligence | handler: require_enterprise_auth | query: tenant_id | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/manufacturer-intelligence/manufacturers/{manufacturer_id} | manufacturer_intelligence | handler: require_enterprise_auth | query: tenant_id | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/manufacturer-intelligence/manufacturers/{manufacturer_id}/scorecard | manufacturer_intelligence | handler: require_enterprise_auth | query: tenant_id | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/manufacturer-intelligence/manufacturers/{manufacturer_id}/trends | manufacturer_intelligence | handler: require_enterprise_auth | query: tenant_id | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/intelligence/shared-defects | intelligence | handler: require_enterprise_auth | enterprise context | queried | — | cv_inference_provenance, cv_inference_records +2 | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/risk-patterns | intelligence | handler: require_enterprise_auth | enterprise context | queried | — | instrument_risk_patterns, tenant_plans | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/trending-findings | intelligence | handler: require_enterprise_auth | enterprise context | queried | — | cross_hospital_trends | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/recalls | intelligence | handler: require_enterprise_auth | query: tenant_id | queried | tenant-bound | recall_events, tenant_plans | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/recalls/{recall_id} | intelligence | handler: require_enterprise_auth | query: tenant_id | queried | tenant-bound | recall_events, tenant_plans | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/capa-effectiveness | intelligence | handler: require_enterprise_auth | query: tenant_id | queried | tenant-bound | enterprise_capas, tenant_plans | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/dashboard | intelligence | handler: require_enterprise_auth | query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +6 | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/intelligence/recalls/sync | intelligence | handler: require_enterprise_auth | query: tenant_id | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/intelligence/consent | intelligence_consent | handler: require_enterprise_auth | body: tenant_id | queried | unscoped: intelligence_sharing_consents | intelligence_sharing_consents | intelligence_sharing_consents | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| DELETE | /api/intelligence/consent/{facility_id} | intelligence_consent | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | intelligence_sharing_consents | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/consent/{facility_id} | intelligence_consent | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | intelligence_sharing_consents | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/manufacturer-portal/my-scorecard | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/manufacturer-portal/my-defect-trends | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/manufacturer-portal/network-benchmark | manufacturer_portal | handler: require_manufacturer_auth | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/benchmarks/hospitals | benchmarking | handler: authorized_tenant | verified context; body: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/hospitals/{hospital_id} | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/hospitals | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/enterprise/benchmarks/vendors | benchmarking | handler: authorized_tenant | verified context; body: tenant_id | queried | tenant-bound | enterprise_vendors | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/vendors | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | enterprise_vendors | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/enterprise/benchmarks/rollup | benchmarking | handler: authorized_tenant | verified context; body: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +2 | enterprise_rollups | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/rollup | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +2 | enterprise_rollups | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/executive-dashboard | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | benchmark_trend_points, cv_inference_provenance +3 | enterprise_rollups | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/trends/{subject_type}/{subject_id}/{metric_name} | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | benchmark_trend_points | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/enterprise/benchmarks/reports/generate | benchmarking | handler: authorized_tenant | verified context; body: tenant_id | queried | tenant-bound | board_reports, cv_inference_provenance +3 | board_reports | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/reports/{report_type} | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | board_reports | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/reports/{report_type}/{period_label} | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | board_reports, cv_inference_provenance +3 | board_reports, enterprise_rollups | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/enterprise/benchmarks/kpi-summary | benchmarking | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +2 | enterprise_rollups | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/failures | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/failures/{instrument_id} | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/contamination | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/contamination/{instrument_id} | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/repairs | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/repairs/{instrument_id} | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/recall-risk | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | recall_events, shared_defect_signals +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/recall-risk/{instrument_category} | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | recall_events, shared_defect_signals +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/tray-risk | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/dashboard | predictions | handler: authorized_tenant, require_enterprise_auth | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +3 | audit_logs | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/predictions/outcomes | predictions | handler: authorized_tenant | verified context; body: tenant_id | queried | — | — | — | refused (baseline 500) | — | Incomplete | Remediated (6c3072c) | Not reviewed |
+| GET | /api/predictions/accuracy | predictions | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | prediction_outcomes | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/readiness | regulatory | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/readiness/findings | regulatory | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +1 | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/standards | regulatory | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/standards/mapping | regulatory | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/regulatory/audit-package | regulatory | handler: authorized_tenant | verified context; body: tenant_id | queried | unscoped: regulatory_audit_packages | cv_inference_provenance, cv_inference_records +2 | regulatory_audit_packages | refused | — | Lead | Remediated (6c3072c) | Not reviewed |
+| POST | /api/regulatory/audit-package/pdf | regulatory | handler: authorized_tenant | verified context; body: tenant_id | queried | unscoped: regulatory_audit_packages | cv_inference_provenance, cv_inference_records +2 | regulatory_audit_packages | refused | — | Lead | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/audit-packages | regulatory | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | regulatory_audit_packages, tenant_plans | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/fda-submissions | regulatory | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | fda_submission_trackers, tenant_plans | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/regulatory/fda-submissions | regulatory | handler: authorized_tenant | verified context; body: tenant_id | queried | unscoped: fda_submission_trackers | fda_submission_trackers, tenant_plans | fda_submission_trackers | refused | — | Lead | Remediated (6c3072c) | Not reviewed |
+| GET | /api/regulatory/dashboard | regulatory | handler: authorized_tenant | verified context; query: tenant_id | queried | tenant-bound | cv_inference_provenance, cv_inference_records +3 | — | refused | — | None observed | Remediated (6c3072c) | Not reviewed |
+| POST | /api/copilot/sessions | copilot | handler: require_enterprise_auth | enterprise context | queried | unscoped: inspection_sessions | cv_inference_provenance, cv_inference_records +3 | inspection_sessions, inspection_steps | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/copilot/sessions | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | inspection_sessions, tenant_plans | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/copilot/sessions/{session_id} | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | inspection_sessions, tenant_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/copilot/sessions/{session_id}/steps/{step_id}/respond | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | inspection_sessions, tenant_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/copilot/sessions/{session_id}/complete | copilot | handler: require_enterprise_auth | enterprise context | queried | unscoped: inspection_sessions | copilot_recommendations, inspection_sessions +2 | inspection_sessions | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/copilot/escalations | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | escalation_events, tenant_plans | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/copilot/escalations/{escalation_id}/resolve | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | escalation_events, tenant_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/copilot/protocols | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | inspection_protocols, tenant_plans | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/copilot/dashboard | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | escalation_events, inspection_sessions +2 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/copilot/sessions/{session_id}/pdf | copilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | inspection_sessions, tenant_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/digital-twin/state | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | cv_inference_provenance, cv_inference_records +4 | spd_alerts, spd_workflow_stations | refused | — | None observed | — | Not reviewed |
+| GET | /api/digital-twin/stations | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | spd_workflow_stations, tenant_plans | spd_workflow_stations | refused | — | None observed | — | Not reviewed |
+| GET | /api/digital-twin/flow | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | instrument_flow_records, tenant_plans | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/digital-twin/flow | digital_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: instrument_flow_records | instrument_flow_records, spd_workflow_stations +1 | instrument_flow_records | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/digital-twin/flow/{flow_id}/complete | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | instrument_flow_records, tenant_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/digital-twin/alerts | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | spd_alerts, tenant_plans | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/digital-twin/alerts/{alert_id}/acknowledge | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | spd_alerts, tenant_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/digital-twin/whatif | digital_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: whatif_scenarios | cv_inference_provenance, cv_inference_records +5 | spd_alerts, spd_workflow_stations +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/digital-twin/whatif | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | tenant_plans, whatif_scenarios | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/digital-twin/dashboard | digital_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | cv_inference_provenance, cv_inference_records +5 | spd_alerts | refused | — | None observed | — | Not reviewed |
+| POST | /api/validation/cases | validation | handler: require_enterprise_auth | enterprise context | queried | unscoped: validation_cases | validation_cases | validation_cases | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/validation/cases | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | validation_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/validation/report | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | validation_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/validation/report/{finding_category} | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | validation_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/validation/categories | validation | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/validation/simulate-study | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | — | validation_cases | refused | — | None observed | — | Not reviewed |
+| POST | /api/validation/sealed-test | validation | handler: require_enterprise_auth | enterprise context | queried | unscoped: sealed_test_registry | sealed_test_registry | sealed_test_registry | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/validation/sealed-test | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | sealed_test_registry | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/validation/sealed-test/{entry_id}/evaluate | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | sealed_test_registry | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/validation/rwe/enroll | validation | handler: require_enterprise_auth | enterprise context | queried | unscoped: rwe_enrollments | rwe_enrollments | rwe_enrollments | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/validation/rwe/enrollments | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | rwe_enrollments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/validation/rwe/metrics | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | rwe_metric_snapshots | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/validation/kappa-monitor | validation | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | validation_cases | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/validation/rwe/snapshot | validation | handler: require_enterprise_auth | enterprise context | queried | unscoped: rwe_metric_snapshots | rwe_metric_snapshots | rwe_metric_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/executive/dashboard/{role} | executive | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused (baseline 400) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/executive/dashboard/cfo/pdf | executive | handler: require_enterprise_auth | enterprise context | queried | — | validation_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/executive/summary | executive | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/pilot/start | pilot | handler: require_enterprise_auth | enterprise context | queried | unscoped: pilot_status | pilot_status | pilot_status | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pilot/status | pilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | pilot_status | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/pilot/convert | pilot | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | pilot_status | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/tenant/health-score | tenant_health | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | tenant_health_scores | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/billing/webhook | billing_webhooks | — | — | — | — | — | — | unreachable: shadowed by `routes.billing.stripe_webhook` | — | Info | Review | Not reviewed |
+| GET | /api/demo/reset | demo | handler: _require_demo_auth | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/manufacturers/register | manufacturer_reg | public | — | no | — | manufacturer_registrations | manufacturer_registrations | none observed | — | None observed | — | Not reviewed |
+| GET | /api/manufacturers/register/{registration_id} | manufacturer_reg | undetermined (anonymous 404) | — | no | — | manufacturer_registrations | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/manufacturers/registrations | manufacturer_reg | handler: require_enterprise_auth | enterprise context | queried | — | manufacturer_registrations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/manufacturers/registrations/{registration_id}/approve | manufacturer_reg | handler: require_enterprise_auth | enterprise context | queried | — | manufacturer_registrations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/billing/gpo-contract | gpo_contract | handler: require_enterprise_auth | enterprise context | queried | unscoped: tenant_subscriptions_p14 | tenant_subscriptions_p14 | tenant_subscriptions_p14 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/billing/gpo-contract | gpo_contract | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | tenant_subscriptions_p14 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/usage/current-month | usage_p14 | handler: require_enterprise_auth | enterprise context | queried | unscoped: tenant_usage_counters | tenant_usage_counters | tenant_usage_counters | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/usage/increment | usage_p14 | handler: require_enterprise_auth | enterprise context | queried | unscoped: tenant_usage_counters | tenant_usage_counters | tenant_usage_counters | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/tenant/hipaa-baa | hipaa_baa | handler: require_enterprise_auth | enterprise context | queried | unscoped: tenant_subscriptions_p14 | tenant_subscriptions_p14 | tenant_subscriptions_p14 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/tenant/hipaa-baa | hipaa_baa | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | tenant_subscriptions_p14 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/tenant/sso-config | sso_config | handler: require_enterprise_auth | enterprise context | queried | unscoped: tenant_sso_configs | tenant_sso_configs | tenant_sso_configs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/tenant/sso-config | sso_config | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | tenant_sso_configs | — | refused | — | None observed | — | Not reviewed |
+| DELETE | /api/tenant/sso-config | sso_config | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | tenant_sso_configs | — | refused | — | None observed | — | Not reviewed |
+| GET | /status | status | public | — | no | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/network/opt-in | network_benchmark | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, network_participants | audit_logs, network_participants | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/opt-in/status | network_benchmark | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | network_participants | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network/opt-out | network_benchmark | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | network_participants | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/benchmarks | network_benchmark | handler: _require_participant, require_enterprise_auth | enterprise context | n/a | n/a | network_participants | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/benchmarks/my-percentile | network_benchmark | handler: _require_participant, require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, industry_benchmarks +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/participants/count | network_benchmark | handler: require_enterprise_auth | enterprise context | queried | unscoped: network_participants | network_participants | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/recall-signals | recall_signals | handler: _require_participant, require_enterprise_auth | enterprise context | n/a | n/a | network_participants | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/recall-signals/my-exposure | recall_signals | handler: _require_participant, require_enterprise_auth | enterprise context | n/a | n/a | network_participants | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/recall-signals/{signal_id} | recall_signals | handler: _require_participant, require_enterprise_auth | enterprise context | queried | tenant-bound | network_participants, recall_signals | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/network/recall-signals/{signal_id}/escalate | recall_signals | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, recall_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/registry/lookup | instrument_registry | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/network/registry | instrument_registry | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, registry_instruments | audit_logs, registry_instruments | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/registry/stats | instrument_registry | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, registry_instruments | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/registry/search | instrument_registry | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, registry_instruments | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/registry/{udi}/defect-history | instrument_registry | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, registry_instruments | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/baselines | baseline_library | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/network/baselines | baseline_library | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs, baseline_library | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/baselines/search | baseline_library | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/baselines/stats | baseline_library | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/baselines/{entry_id} | baseline_library | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/network/baselines/{entry_id}/approve | baseline_library | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, baseline_library | audit_logs, baseline_library | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/dashboard/hospital | industry_dashboard | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, industry_benchmarks +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/dashboard/health-system | industry_dashboard | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, industry_benchmarks +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/dashboard/manufacturer | industry_dashboard | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, industry_benchmarks +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/dashboard/vendor | industry_dashboard | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, industry_benchmarks +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network/dashboard/quality-leader | industry_dashboard | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, network_participants | audit_logs, industry_benchmarks +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/signals | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, instrument_quality_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/signals/{signal_id} | patient_safety | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | instrument_quality_signals | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/patient-safety/correlate | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, instrument_quality_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/near-misses | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, near_miss_correlations | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/quality-investigations | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, quality_investigations | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/executive-risk | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, executive_risk_signals +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/patient-safety/events/import | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/dashboard | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, capa_effectiveness_signals +4 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/infection-prevention | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, infection_prevention_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/patient-safety/capa-effectiveness | patient_safety | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, capa_effectiveness_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/systems | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, external_system_connections | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/systems | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, external_system_connections | audit_logs, external_system_connections | audit_logs, external_system_connections | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/systems/{system_id}/test | integrations | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | external_system_connections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/systems/{system_id}/preview-import | integrations | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | external_system_connections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/systems/{system_id}/run-import | integrations | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | external_system_connections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/imports | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, integration_import_runs | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/imports/{import_id} | integrations | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | integration_import_runs | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/external-events | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, infection_prevention_event_records +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/external-events/import | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/correlation-candidates | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, patient_impact_correlation_candidates | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/correlation-candidates/run | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, infection_prevention_event_records +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/dashboard | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, external_system_connections +7 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/catalog | integrations | public | — | no | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/systems/{system_id}/health | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, external_system_connections | audit_logs, external_system_connections +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/systems/{system_id}/dry-run | integrations | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | external_system_connections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/integrations/webhook/{system_name} | integrations | undetermined (anonymous 503) | — | no | — | — | — | none observed (baseline 503) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/integrations/errors | integrations | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, integration_error_records | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/sessions | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, offline_inspection_sessions | audit_logs, offline_inspection_sessions | audit_logs, offline_inspection_sessions | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/sessions | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | offline_inspection_sessions | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/sessions/{session_id} | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | offline_inspection_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/mobile/sessions/{session_id} | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | offline_inspection_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/sessions/{session_id}/sync | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, offline_inspection_sessions | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/sessions/{session_id}/sync-status | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | offline_inspection_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/scan/decode | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, scan_results | audit_logs, scan_results | audit_logs, scan_results | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/scan/results | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | scan_results | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/scan/lookup | mobile | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/images/session | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: image_capture_sessions | image_capture_sessions | image_capture_sessions | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/images/upload | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | image_capture_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/images/session/{capture_session_id} | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | image_capture_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/notifications | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | mobile_notifications | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/notifications | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: mobile_notifications | mobile_notifications | mobile_notifications | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/mobile/notifications/{notification_id}/read | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | mobile_notifications | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/mobile/notifications/{notification_id}/dismiss | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | mobile_notifications | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/notifications/broadcast | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: mobile_notifications | mobile_notifications | mobile_notifications | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/device-sessions | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: device_sessions | device_sessions | device_sessions | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/device-sessions | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | device_sessions | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/device-sessions/{device_session_id}/logout | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | device_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/device-sessions/{device_session_id}/wipe | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | device_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/sync-queue | mobile | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/sync-queue/process | mobile | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | mobile_sync_queue | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/dashboard/{role} | mobile | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused (baseline 400) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/auth/token-refresh | mobile | undetermined (anonymous 401) | — | no | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/mobile/auth/check | mobile | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/mobile/auth/logout | mobile | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/signals | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, emerging_risk_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/emerging-risks | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, emerging_risk_signals | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/investigations | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, quality_investigations_p21 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/intelligence/investigations | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, quality_investigations_p21 | audit_logs, quality_investigations_p21 | audit_logs, quality_investigations_p21 | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/intelligence/investigations/{investigation_id} | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | quality_investigations_p21 | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/recommendations | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, preventive_action_recommendations | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/intelligence/recommendations/{recommendation_id}/review | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | — | — | — | refused (baseline 400) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/executive-summary | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, emerging_risk_signals +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/intelligence/run-analysis | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, emerging_risk_signals +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/risk-graph | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, enterprise_risk_edges +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/intelligence/quality-dashboard | quality_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, emerging_risk_signals +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/quality-twin/state | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, quality_twin_states | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/quality-twin/forecasts | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, quality_forecasts +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/quality-twin/simulate | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, scenario_simulations | audit_logs, quality_twin_states +1 | audit_logs, scenario_simulations | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/quality-twin/interventions | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, intervention_models +1 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/quality-twin/interventions | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, intervention_models | audit_logs, intervention_models | audit_logs, intervention_models | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/quality-twin/executive-brief | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, emerging_risk_signals +3 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/quality-twin/synthesize | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, quality_twin_states | audit_logs, emerging_risk_signals +3 | audit_logs, quality_twin_states | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/quality-twin/dashboard | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, quality_forecasts +2 | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/quality-twin/scenarios | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, scenario_simulations | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/quality-twin/scenarios/{scenario_id}/approve | digital_quality_twin | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | scenario_simulations | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/signals | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, global_intelligence_signals | audit_logs, global_intelligence_signals | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/risk-registry | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, instrument_risk_registry | audit_logs, instrument_risk_registry | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/recall-warnings | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, global_recall_early_warnings | audit_logs, global_recall_early_warnings | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/participant-status | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, gsin_participants | audit_logs, gsin_participants | audit_logs, gsin_participants | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/regulatory-evidence | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, regulatory_evidence_packages | audit_logs, regulatory_evidence_packages | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/dashboard | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, gsin_participants | audit_logs, global_intelligence_signals +4 | audit_logs, global_intelligence_signals +3 | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/global-intelligence/contribute | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | gsin_participants | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/global-intelligence/signals/{signal_id}/review | global_intelligence | global role | enterprise context | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/global-intelligence/enroll | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, gsin_participants | audit_logs, gsin_participants | audit_logs, gsin_participants | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/global-intelligence/sign-dpa | global_intelligence | global role | enterprise context | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/global-intelligence/recall-warnings/{warning_id}/notify | global_intelligence | global role | enterprise context | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/global-intelligence/network-stats | global_intelligence | handler: require_enterprise_auth | enterprise context | queried | unscoped: global_intelligence_signals, gsin_participants | global_intelligence_signals, gsin_participants | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/pilot-analytics/contamination-trends | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/inspection-efficiency | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/capa-effectiveness | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/baseline-adoption | pilot_analytics | global role | principal/header | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/roi | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/clinical-outcomes | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/executive-scorecard | pilot_analytics | global role | principal/header | queried | unscoped: audit_logs | audit_logs, inspections | audit_logs | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pilot-analytics/quarterly-review | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/export/inspections.csv | pilot_analytics | global role | principal/header | queried | unscoped: audit_logs | audit_logs, inspections | audit_logs | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pilot-analytics/export/report.json | pilot_analytics | global role | principal/header | queried | unscoped: audit_logs | audit_logs, inspections | audit_logs | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pilot-analytics/site-breakdown | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/alerts | pilot_analytics | global role | principal/header | queried | tenant-bound | inspections | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pilot-analytics/export/scorecard.pdf | pilot_analytics | global role | principal/header | queried | unscoped: audit_logs | audit_logs, inspections | audit_logs | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/pilot-analytics/survey/submit | pilot_analytics | global role | principal/header | queried | unscoped: audit_logs | audit_logs | audit_logs | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pilot-analytics/survey/summary | pilot_analytics | global role | principal/header | queried | tenant-bound | audit_logs | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/enterprise/systems | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/systems | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/systems/{system_id} | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/markets | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/systems/{system_id}/markets | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/regions | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/facilities | enterprise_hierarchy | global role | body: tenant_id | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/systems/{system_id}/facilities | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/departments | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/onboarding | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| PATCH | /api/enterprise/onboarding/{workflow_id}/advance | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/onboarding/{workflow_id} | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/systems/{system_id}/onboarding | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/baselines | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/baselines/{baseline_id}/approve | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/enterprise/baselines/{baseline_id}/publish | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/baselines | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/baselines/{baseline_id}/history | enterprise_hierarchy | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/system-quality/{system_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/market/{market_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/executive-scorecard/{system_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/benchmarking/{system_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/adoption/{system_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/readiness/{system_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/enterprise/dashboards/readiness/{system_id}/facility/{facility_id} | enterprise_dashboards | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/commercial/packages | commercial | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/packages/{tier} | commercial | global role | — | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/pricing/hospital | commercial | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/pricing/vendor | commercial | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/pricing/enterprise | commercial | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/commercial/pricing/estimate | commercial | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/customer-success/health-score | commercial | global role | query: tenant_id | queried | tenant-bound | customer_success_snapshots, inspections | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/commercial/customer-success/snapshot | commercial | global role | body: tenant_id | queried | unscoped: audit_logs, customer_success_snapshots | audit_logs, customer_success_snapshots +1 | audit_logs, customer_success_snapshots | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/customer-success/trend | commercial | global role | query: tenant_id | queried | tenant-bound | customer_success_snapshots | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/customer-success/onboarding-status | commercial | global role | — | queried | — | enterprise_onboarding_workflows | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/expansion/opportunities | commercial | global role | — | queried | unscoped: inspections | inspections | — | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/commercial/roi/calculate | commercial | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/commercial/business-case/executive-summary | commercial | global role | query: tenant_id | queried | unscoped: audit_logs | audit_logs, inspections | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/growth/partnerships | growth | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/partnerships | growth | global role | — | queried | — | strategic_partnerships | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/growth/partnerships/{partnership_id} | growth | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/growth/partnerships/{partnership_id}/notes | growth | global role | — | queried | — | strategic_partnerships | — | none observed (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/partnerships/{partnership_id}/notes | growth | global role | — | queried | — | strategic_partnerships | — | none observed (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/growth/reference-customers | growth | global role | body: tenant_id | queried | unscoped: audit_logs, reference_customers | audit_logs, reference_customers | audit_logs, reference_customers | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/growth/reference-customers/{ref_id}/consent | growth | global role | — | queried | unscoped: reference_customers | reference_customers | — | none observed (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/growth/reference-customers/{ref_id}/roi | growth | global role | — | queried | unscoped: reference_customers | reference_customers | — | none observed (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/reference-customers/{ref_id}/case-study-checklist | growth | global role | — | queried | unscoped: reference_customers | reference_customers | — | none observed (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/reference-customers | growth | global role | — | queried | unscoped: reference_customers | reference_customers | — | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/conversion-funnel | growth | global role | — | queried | unscoped: reference_customers | reference_customers | — | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/growth/benchmark-snapshots | growth | global role | — | queried | unscoped: audit_logs | audit_logs, network_benchmark_snapshots | audit_logs, network_benchmark_snapshots | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/benchmark-trends | growth | global role | — | queried | — | network_benchmark_snapshots | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/market-intelligence/by-region | growth | global role | — | queried | unscoped: audit_logs, network_participants | audit_logs, network_participants | audit_logs | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/market-intelligence/summary | growth | global role | — | queried | unscoped: audit_logs, network_participants +1 | audit_logs, network_participants +2 | audit_logs | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/growth/kpis | growth | global role | — | queried | unscoped: network_participants, reference_customers | network_participants, reference_customers +1 | — | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/programs | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/programs | accreditation | global role | resolve_tenant; query: tenant_id | queried | tenant-bound | accreditation_programs | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/accreditation/programs/{program_id} | accreditation | global role | resolve_tenant | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/evidence-items | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/evidence-items | accreditation | global role | resolve_tenant; query: tenant_id | queried | tenant-bound | accreditation_evidence_items | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/accreditation/evidence-items/{item_id} | accreditation | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/readiness | accreditation | global role | resolve_tenant; query: tenant_id | queried | tenant-bound | accreditation_evidence_items | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/readiness/snapshot | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/readiness/trend | accreditation | global role | resolve_tenant; query: tenant_id | queried | tenant-bound | accreditation_readiness_assessments | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/survey-evidence/generate | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/survey-evidence | accreditation | global role | resolve_tenant; query: tenant_id | queried | tenant-bound | accreditation_evidence_packages | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/benchmark-publications/annual-report | accreditation | global role | — | queried | unscoped: audit_logs, network_participants | audit_logs, network_participants | audit_logs | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/certifications | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/certifications | accreditation | global role | resolve_tenant; query: tenant_id | queried | tenant-bound | accreditation_certified_sites | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/certifications/{cert_id}/award | accreditation | global role | — | queried | unscoped: accreditation_certified_sites | accreditation_certified_sites | — | none observed (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/kpis | accreditation | global role | — | queried | unscoped: accreditation_certified_sites, accreditation_programs +1 | accreditation_certified_sites, accreditation_programs +1 | — | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/evidence-templates | accreditation | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/evidence-items/seed | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/readiness/create-capas | accreditation | global role | body: tenant_id | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/certifications/{cert_id}/eligibility | accreditation | global role | — | queried | unscoped: accreditation_certified_sites | accreditation_certified_sites | — | none observed (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/benchmark-publications/publish | accreditation | global role | — | queried | unscoped: network_participants | network_participants | — | none observed (baseline 409) | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/benchmark-publications | accreditation | global role | — | queried | — | accreditation_benchmark_publications | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/survey-evidence/{package_id}/export | accreditation | global role | — | queried | unscoped: accreditation_evidence_packages | accreditation_evidence_packages | — | none observed (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/advisory-board/members | accreditation | global role | — | queried | unscoped: audit_logs | accreditation_advisory_board_members, audit_logs | accreditation_advisory_board_members, audit_logs | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/advisory-board/members | accreditation | global role | — | queried | — | accreditation_advisory_board_members | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/advisory-board/proposals | accreditation | global role | — | queried | unscoped: audit_logs | accreditation_criteria_proposals, audit_logs | accreditation_criteria_proposals, audit_logs | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/accreditation/advisory-board/proposals | accreditation | global role | — | queried | — | accreditation_criteria_proposals | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/accreditation/advisory-board/proposals/{proposal_id}/sign-off | accreditation | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/registry | p20_network_intelligence | global role | body: tenant_id | queried | unscoped: audit_logs, p20_spd_registry | audit_logs, p20_spd_registry | audit_logs, p20_spd_registry | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/registry | p20_network_intelligence | global role | query: tenant_id | queried | tenant-bound | p20_spd_registry | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/registry/network-summary | p20_network_intelligence | global role | — | queried | unscoped: p20_spd_registry | p20_spd_registry | — | none observed | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/sharing-agreements | p20_network_intelligence | global role | body: tenant_id | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| DELETE | /api/network-intelligence/sharing-agreements/{agreement_id} | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/aggregate-snapshots | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/aggregate-snapshots | p20_network_intelligence | global role | — | queried | — | p20_network_aggregate_snapshots | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/lifecycle/instruments | p20_network_intelligence | global role | body: tenant_id | queried | unscoped: audit_logs, p20_instrument_lifecycle | audit_logs, p20_instrument_lifecycle | audit_logs, p20_instrument_lifecycle | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/lifecycle/instruments | p20_network_intelligence | global role | query: tenant_id | queried | tenant-bound | p20_instrument_lifecycle | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/lifecycle/events | p20_network_intelligence | global role | body: tenant_id | queried | — | — | — | refused (baseline 400) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/lifecycle/events | p20_network_intelligence | global role | query: tenant_id | queried | tenant-bound | p20_lifecycle_events | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/lifecycle/benchmarks | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/lifecycle/benchmarks/compute | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/lifecycle/benchmarks | p20_network_intelligence | global role | — | queried | — | p20_lifecycle_benchmarks | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/recall-early-warning | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/recall-early-warning | p20_network_intelligence | global role | — | queried | — | p20_recall_early_warnings | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/recall-early-warning/{warning_id}/review | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/recall-early-warning/{warning_id}/promote | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/anomaly-detection/run | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/anomaly-detection/runs | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/manufacturer-intelligence | p20_network_intelligence | global role | — | queried | — | p20_manufacturer_intelligence | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/manufacturer-intelligence | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/research/datasets | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/research/datasets/{dataset_id}/approve | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/research/datasets/{dataset_id}/release | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/research/datasets | p20_network_intelligence | global role | — | queried | — | p20_research_datasets | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/research/studies | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/research/studies | p20_network_intelligence | global role | — | queried | — | p20_research_studies | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/research/publications | p20_network_intelligence | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/executive/dashboards | p20_network_intelligence | global role | body: tenant_id | queried | unscoped: audit_logs, p20_executive_dashboards | audit_logs, p20_executive_dashboards | audit_logs, p20_executive_dashboards | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/executive/dashboards | p20_network_intelligence | global role | query: tenant_id | queried | tenant-bound | p20_executive_dashboards | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/network-intelligence/executive/snapshots | p20_network_intelligence | global role | body: tenant_id | queried | unscoped: audit_logs, p20_executive_snapshots | audit_logs, p20_executive_snapshots | audit_logs, p20_executive_snapshots | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/executive/snapshots | p20_network_intelligence | global role | query: tenant_id | queried | tenant-bound | p20_executive_snapshots | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/network-intelligence/executive/network-intelligence-summary | p20_network_intelligence | global role | query: tenant_id | queried | unscoped: p20_spd_registry | p20_executive_snapshots, p20_recall_early_warnings +3 | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/operations/workflows | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/workflows | p22_operations | global role | — | queried | tenant-bound | p22_operations_workflows | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/workflows/{workflow_id}/steps | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/workflows/{workflow_id}/steps | p22_operations | global role | — | queried | tenant-bound | p22_operations_workflows | — | refused (baseline 404) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/workflows/{workflow_id}/execute | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/executions | p22_operations | global role | — | queried | tenant-bound | p22_workflow_executions | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/executions/{execution_id}/approve | p22_operations | global role | — | queried | tenant-bound | p22_workflow_executions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/executions/{execution_id}/steps/{step_id}/complete | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/executions/{execution_id}/escalate | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/work-queue | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/work-queue | p22_operations | global role | — | queried | tenant-bound | p22_work_queue_items | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/work-queue/{item_id}/claim | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/work-queue/{item_id}/complete | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/work-queue/{item_id}/escalate | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/command-center/snapshots | p22_operations | global role | — | queried | — | — | — | refused (baseline 400) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/command-center/snapshots | p22_operations | global role | — | queried | tenant-bound | p22_operational_risk_snapshots | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/command-center/dashboard | p22_operations | global role | — | queried | tenant-bound | p22_work_queue_items, p22_workflow_executions | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/executions/scan-timeouts | p22_operations | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/copilot/query | p22_operations | global role | — | queried | — | — | — | refused (baseline 400) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| GET | /api/operations/copilot/recommendations | p22_operations | global role | — | queried | tenant-bound | p22_copilot_recommendations | — | refused | — | None observed | Remediated (batch 2) | Not reviewed |
+| POST | /api/operations/copilot/recommendations/{rec_id}/review | p22_operations | global role | — | queried | — | — | — | refused (baseline 400) | — | Incomplete | Remediated (batch 2) | Not reviewed |
+| GET | /api/standards/quality-standards | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p24_quality_standards | audit_logs, p24_quality_standards | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/baseline-governance | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p24_baseline_governance | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/standards/baseline-governance | p24_standards | global role | enterprise context | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/standards/baseline-governance/{record_id}/approve | p24_standards | global role | enterprise context | queried | tenant-bound | p24_baseline_governance | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/benchmarks | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p24_benchmark_reports | audit_logs, p24_benchmark_reports | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/regional-deployments | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p24_regional_deployments | audit_logs, p24_regional_deployments | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/api-partners | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p24_api_partners | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/standards/api-partners | p24_standards | global role | enterprise context | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/standards/api-partners/{app_id}/approve | p24_standards | global role | enterprise context | queried | tenant-bound | p24_api_partners | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/consortium | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, p24_consortium_members | audit_logs, p24_consortium_members | audit_logs, p24_consortium_members | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/standards/consortium/enroll | p24_standards | global role | enterprise context | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/publications | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p24_standards_publications | audit_logs, p24_standards_publications | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/standards/publications/review | p24_standards | global role | enterprise context | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/dashboard | p24_standards | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs, p24_consortium_members | audit_logs, p24_api_partners +5 | audit_logs, p24_benchmark_reports +2 | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/standards/ecosystem-overview | p24_standards | public | — | no | — | p24_quality_standards, p24_regional_deployments | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/instruments | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p25_instrument_identities | audit_logs, p25_instrument_identities | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/instruments/{instrument_id} | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | p25_instrument_identities | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infrastructure/instruments | p25_infrastructure | global role | enterprise context | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infrastructure/instruments/{instrument_id}/lifecycle | p25_infrastructure | global role | enterprise context | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infrastructure/readiness | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p25_instrument_identities | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/instruments/{instrument_id}/passport | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | tenant-bound | p25_instrument_identities | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infrastructure/instruments/{instrument_id}/passport | p25_infrastructure | global role | enterprise context | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/quality-registry | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p25_quality_registry | audit_logs, p25_quality_registry | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/api-credentials | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p25_api_credentials | audit_logs | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/infrastructure/api-credentials | p25_infrastructure | global role | enterprise context | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/infrastructure/api-credentials/{cred_id}/revoke | p25_infrastructure | global role | enterprise context | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/forecasts | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p25_quality_forecasts | audit_logs, p25_quality_forecasts | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/dashboard | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: audit_logs | audit_logs, p25_instrument_identities +2 | audit_logs, p25_quality_forecasts +1 | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/infrastructure/platform-stats | p25_infrastructure | handler: require_enterprise_auth | enterprise context | queried | unscoped: p25_instrument_identities, p25_passport_events | p25_instrument_identities, p25_passport_events | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/clinical-inspection-readiness | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/tray-readiness | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/instrument-readiness | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/facility-readiness | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/high-risk-findings | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/supervisor-review-queue | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/missing-zone-coverage | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/baseline-coverage | pre_sterilization_command_center | global role | — | queried | tenant-bound | baseline_library, inspections | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/repair-remove-queue | pre_sterilization_command_center | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/executive-risk-dashboard | pre_sterilization_command_center | global role | — | queried | tenant-bound | baseline_library, inspections +1 | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/pre-sterilization-command-center/dashboard | pre_sterilization_command_center | global role | — | queried | tenant-bound | baseline_library, inspections +1 | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/schema | knowledge_graph | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/instrument-families | knowledge_graph | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/instrument-families/{family_key} | knowledge_graph | global role | — | queried | — | — | — | none observed (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/reasoning-chain | knowledge_graph | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/explain/{inspection_id} | knowledge_graph | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/explore | knowledge_graph | global role | — | queried | — | — | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/analytics | knowledge_graph | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/knowledge-graph/learning-confidence | knowledge_graph | global role | — | queried | tenant-bound | supervisor_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/scenario-analysis/{inspection_id}/generate | scenario_analysis | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scenario-analysis/analytics | scenario_analysis | global role | — | queried | tenant-bound | disposition_overrides, scenario_outcomes +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/scenario-analysis/instrument-health | scenario_analysis | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scenario-analysis/education/compare | scenario_analysis | global role | — | queried | tenant-bound | clinical_cases | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/scenario-analysis/{simulation_run_id}/actual-outcome | scenario_analysis | global role | — | queried | tenant-bound | simulation_runs | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scenario-analysis/{inspection_id}/workflow-impact | scenario_analysis | global role | — | queried | tenant-bound | simulation_runs | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/scenario-analysis/{inspection_id} | scenario_analysis | global role | — | queried | tenant-bound | simulation_runs | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/or-connect/cases | or_connect | global role | — | queried | unscoped: audit_logs, surgical_cases | audit_logs, surgical_cases | audit_logs, surgical_cases | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/or-connect/cases | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/or-connect/dashboard | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/or-connect/executive-dashboard | or_connect | global role | — | queried | tenant-bound | or_connect_readiness_scores, or_connect_repair_requests +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/or-connect/clinical-engineering | or_connect | global role | — | queried | tenant-bound | or_connect_repair_requests | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/or-connect/repairs | or_connect | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/or-connect/repairs/{repair_id} | or_connect | global role | — | queried | tenant-bound | or_connect_repair_requests | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/or-connect/notifications | or_connect | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/or-connect/notifications/{notification_id}/read | or_connect | global role | — | queried | tenant-bound | or_connect_notifications | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/or-connect/cases/{case_id}/link-inspection | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/or-connect/cases/{case_id}/approve | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/or-connect/cases/{case_id}/trays | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/or-connect/trays/{tray_id} | or_connect | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/or-connect/cases/{case_id}/readiness-score | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/or-connect/cases/{case_id}/timeline | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/or-connect/cases/{case_id}/risks | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/or-connect/cases/{case_id}/notifications/generate | or_connect | global role | — | queried | unscoped: audit_logs | audit_logs, inspections +4 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/or-connect/cases/{case_id} | or_connect | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/or-connect/vendor-portal | or_connect_vendor_portal | manufacturer header | enterprise context | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/or-connect/vendor-portal/trays/{tray_id}/confirm-delivery | or_connect_vendor_portal | manufacturer header | enterprise context | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/or-connect/vendor-portal/trays/{tray_id}/request-replacement | or_connect_vendor_portal | manufacturer header | enterprise context | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/quality-guardian/events | quality_guardian | global role | — | queried | unscoped: audit_logs, quality_events | audit_logs, quality_events | audit_logs, quality_events | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/quality-guardian/events/import-csv | quality_guardian | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality-guardian/events | quality_guardian | global role | — | queried | tenant-bound | quality_events | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality-guardian/events/{event_id}/classify | quality_guardian | global role | — | queried | tenant-bound | quality_events | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/quality-guardian/events/{event_id}/confirm | quality_guardian | global role | — | queried | unscoped: quality_events | quality_events | quality_events | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/quality-guardian/events/{event_id}/learning-loop | quality_guardian | global role | — | queried | tenant-bound | quality_events | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/quality-guardian/events/{event_id}/correlate | quality_guardian | global role | — | queried | tenant-bound | quality_events | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/quality-guardian/events/{event_id}/correlations | quality_guardian | global role | — | queried | tenant-bound | quality_event_correlations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality-guardian/events/{event_id}/rca-draft | quality_guardian | global role | — | queried | unscoped: quality_event_correlations, quality_events +1 | quality_event_correlations, quality_events +2 | quality_event_correlations, quality_rca_drafts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/quality-guardian/events/{event_id} | quality_guardian | global role | — | queried | tenant-bound | quality_events | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/quality-guardian/taxonomy | quality_guardian | global role | — | queried | tenant-bound | quality_taxonomy_terms | quality_taxonomy_terms | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality-guardian/taxonomy | quality_guardian | global role | — | queried | unscoped: quality_taxonomy_terms | quality_taxonomy_terms | quality_taxonomy_terms | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/quality-guardian/correlations/{correlation_id}/confirm | quality_guardian | global role | — | queried | unscoped: quality_event_correlations | quality_event_correlations | quality_event_correlations | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/quality-guardian/rca-drafts/{draft_id} | quality_guardian | global role | — | queried | tenant-bound | quality_rca_drafts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/quality-guardian/rca-drafts/{draft_id} | quality_guardian | global role | — | queried | tenant-bound | quality_rca_drafts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/quality-guardian/rca-drafts/{draft_id}/approve | quality_guardian | global role | — | queried | tenant-bound | quality_rca_drafts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/quality-guardian/rca-drafts/{draft_id}/reject | quality_guardian | global role | — | queried | unscoped: quality_rca_drafts | quality_rca_drafts | quality_rca_drafts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/quality-guardian/capa-recommendations/generate | quality_guardian | global role | — | queried | unscoped: quality_capa_recommendations | quality_capa_recommendations | quality_capa_recommendations | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/quality-guardian/capa-recommendations | quality_guardian | global role | — | queried | tenant-bound | quality_capa_recommendations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality-guardian/capa-recommendations/{recommendation_id}/accept | quality_guardian | global role | — | queried | tenant-bound | quality_capa_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/quality-guardian/capa-recommendations/{recommendation_id}/dismiss | quality_guardian | global role | — | queried | tenant-bound | quality_capa_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/quality-guardian/capas | quality_guardian | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality-guardian/capas/{capa_id}/advance | quality_guardian | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/quality-guardian/competency-opportunities/detect | quality_guardian | global role | — | queried | tenant-bound | competency_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality-guardian/competency-opportunities | quality_guardian | global role | — | queried | tenant-bound | quality_competency_opportunities | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/quality-guardian/competency-opportunities/{opportunity_id}/address | quality_guardian | global role | — | queried | tenant-bound | quality_competency_opportunities | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/quality-guardian/competency-opportunities/{opportunity_id}/effectiveness | quality_guardian | global role | — | queried | tenant-bound | quality_competency_opportunities | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/quality-guardian/first-pass-yield/all-scopes | quality_guardian | global role | — | queried | unscoped: quality_fpy_snapshots | inspections, quality_event_correlations +2 | quality_fpy_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/quality-guardian/first-pass-yield | quality_guardian | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/quality-guardian/command-center | quality_guardian | global role | — | queried | unscoped: quality_fpy_snapshots | baseline_library, inspections +6 | quality_fpy_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/sentinel/scan | sentinel_orchestration | global role | — | queried | unscoped: audit_logs, sentinel_health_snapshots +1 | audit_logs, baseline_library +16 | audit_logs, sentinel_health_snapshots +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/sentinel/risk-signals/detect | sentinel_orchestration | global role | — | queried | tenant-bound | disposition_overrides, inspection_findings +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinel/risk-signals | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_risk_signals | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinel/risk-signals/{signal_id}/resolve | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_risk_signals | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sentinel/watchlist/refresh | sentinel_orchestration | global role | — | queried | tenant-bound | baseline_library, inspection_findings +6 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinel/watchlist | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_watchlist_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinel/watchlist/{entry_id}/resolve | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_watchlist_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinel/ai-health | sentinel_orchestration | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinel/digital-twin-flags/monitor | sentinel_orchestration | global role | — | queried | tenant-bound | inspections, sentinel_digital_twin_flags | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinel/digital-twin-flags | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_digital_twin_flags | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinel/digital-twin-flags/{flag_id}/resolve | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_digital_twin_flags | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinel/supervisor-intelligence | sentinel_orchestration | global role | — | queried | tenant-bound | inspection_findings, inspections +4 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinel/dashboard | sentinel_orchestration | global role | — | queried | unscoped: sentinel_health_snapshots | competency_events, inspections +12 | sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/sentinel/recommendations/generate | sentinel_orchestration | global role | — | queried | unscoped: sentinel_recommendations | inspections, quality_competency_opportunities +5 | sentinel_recommendations | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/sentinel/recommendations | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_recommendations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinel/recommendations/{recommendation_id}/action | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sentinel/recommendations/{recommendation_id}/dismiss | sentinel_orchestration | global role | — | queried | unscoped: sentinel_recommendations | sentinel_recommendations | sentinel_recommendations | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/sentinel/alerts/generate | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_alerts, sentinel_digital_twin_flags +2 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinel/alerts | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_alerts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinel/alerts/{alert_id}/acknowledge | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sentinel/alerts/{alert_id}/resolve | sentinel_orchestration | global role | — | queried | tenant-bound | sentinel_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/atlas/dashboard/{system_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/benchmarking/{system_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/watchlist/{system_id}/refresh | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/watchlist/{system_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/watchlist/{system_id}/{entry_id}/resolve | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/facility-intelligence/{system_id}/{facility_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/knowledge/share | atlas_enterprise | global role | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/knowledge/{system_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/knowledge/{system_id}/{article_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/knowledge/{system_id}/{article_id}/retract | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/analytics/{system_id}/trend | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/analytics/{system_id}/trend/all | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/alerts/{system_id}/generate | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/alerts/{system_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/alerts/{system_id}/{alert_id}/acknowledge | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/alerts/{system_id}/{alert_id}/resolve | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/reports/{system_id}/generate | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/reports/{system_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/reports/{system_id}/{report_id}.csv | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/reports/{system_id}/{report_id}.xlsx | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/reports/{system_id}/{report_id}.pdf | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/reports/{system_id}/{report_id} | atlas_enterprise | global role; _check | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/atlas/roles/grant | atlas_enterprise | global role | — | n/a | n/a | atlas_enterprise_role_assignments | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/atlas/roles/access-check | atlas_enterprise | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/atlas/roles/{user_email} | atlas_enterprise | global role | — | queried | — | atlas_enterprise_role_assignments | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/atlas/roles/{assignment_id}/revoke | atlas_enterprise | global role | — | queried | — | atlas_enterprise_role_assignments | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/catalog | nexus_integration | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/nexus/connectors | nexus_integration | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/connectors | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id} | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/enable | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/disable | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/version | nexus_integration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/credentials | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id}/credentials | nexus_integration | global role | — | queried | tenant-bound | nexus_connector_credentials | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/credentials/{credential_id}/revoke | nexus_integration | global role | — | queried | tenant-bound | nexus_connector_credentials | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/health-check | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id}/errors | nexus_integration | global role | — | queried | tenant-bound | nexus_connector_error_logs | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id}/sync-runs | nexus_integration | global role | — | queried | tenant-bound | nexus_sync_runs | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nexus/dashboard | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/sync/assets | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id}/synced-assets | nexus_integration | global role | — | queried | tenant-bound | nexus_synced_assets | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/sync/work-queue | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id}/work-queue-links | nexus_integration | global role | — | queried | tenant-bound | nexus_work_queue_links | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/connectors/{connector_id}/identity-mappings | nexus_integration | global role | — | queried | tenant-bound | nexus_connectors | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/connectors/{connector_id}/identity-mappings | nexus_integration | global role | — | queried | tenant-bound | nexus_identity_mappings | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/identity/resolve-role | nexus_integration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nexus/events/publish | nexus_integration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/events | nexus_integration | global role | — | queried | tenant-bound | nexus_events | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/events/subscriptions | nexus_integration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nexus/events/subscriptions | nexus_integration | global role | — | queried | tenant-bound | nexus_event_subscriptions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nexus/events/subscriptions/{subscription_id}/deactivate | nexus_integration | global role | — | queried | tenant-bound | nexus_event_subscriptions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/v1/instruments | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/inspections | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/digital-twins | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | cv_inference_provenance, cv_inference_records +4 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/knowledge | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/enterprise | nexus_api_gateway | gateway key or bearer | — | queried | unscoped: enterprise_hierarchy_facilities | enterprise_hierarchy_facilities | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/v1/identity | nexus_api_gateway | gateway key or bearer | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/organizations | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | enterprise_hierarchy_facilities | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/users | nexus_api_gateway | gateway key or bearer | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/analytics | nexus_api_gateway | gateway key or bearer | — | queried | unscoped: quality_fpy_snapshots | baseline_library, inspections +6 | quality_fpy_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/v1/pulse | nexus_api_gateway | gateway key or bearer | — | queried | unscoped: sentinel_health_snapshots | audit_logs, competency_events +22 | platform_modules, sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/v1/sentinel | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/forge | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | forge_workflow_definitions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/catalyst | nexus_api_gateway | gateway key or bearer | — | queried | — | catalyst_skills | catalyst_skills | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/orbit | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | cv_inference_provenance, cv_inference_records +10 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/apollo | nexus_api_gateway | gateway key or bearer | — | queried | unscoped: quality_fpy_snapshots | apollo_quality_policies, baseline_library +19 | quality_fpy_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/v1/athena | nexus_api_gateway | gateway key or bearer | — | queried | tenant-bound | apollo_quality_policies, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/phoenix | nexus_api_gateway | gateway key or bearer | — | queried | unscoped: quality_fpy_snapshots, sentinel_health_snapshots | audit_logs, baseline_library +41 | platform_modules, quality_fpy_snapshots +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/v1/instrument-registry | nexus_api_gateway | gateway key or bearer | — | queried | — | registry_instruments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/anatomy | nexus_api_gateway | gateway key or bearer | — | queried | — | genesis_ai_anatomy_profiles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/v1/evidence | nexus_api_gateway | gateway key or bearer | — | queried | unscoped: horizon_clinical_evidence_references | horizon_clinical_evidence_references | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/insight/intelligence | predictive_insight | global role | — | queried | unscoped: insight_operational_forecasts, insight_quality_trend_forecasts | competency_events, cv_inference_provenance +11 | insight_operational_forecasts, insight_quality_trend_forecasts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/insight/quality-trends/generate | predictive_insight | global role | — | queried | unscoped: insight_quality_trend_forecasts | insight_quality_trend_forecasts, inspection_findings +2 | insight_quality_trend_forecasts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/insight/quality-trends | predictive_insight | global role | — | queried | tenant-bound | insight_quality_trend_forecasts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/insight/operational-forecasts/generate | predictive_insight | global role | — | queried | unscoped: insight_operational_forecasts | insight_operational_forecasts, inspections +2 | insight_operational_forecasts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/insight/operational-forecasts | predictive_insight | global role | — | queried | tenant-bound | insight_operational_forecasts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/insight/instrument-lifecycle/generate | predictive_insight | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/insight/instrument-lifecycle | predictive_insight | global role | — | queried | tenant-bound | insight_instrument_lifecycle_forecasts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/insight/education-signals/generate | predictive_insight | global role | — | queried | tenant-bound | competency_events, inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/insight/education-signals | predictive_insight | global role | — | queried | tenant-bound | insight_predictive_education_signals | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/insight/recommendations/generate | predictive_insight | global role | — | queried | tenant-bound | insight_instrument_lifecycle_forecasts, insight_operational_forecasts +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/insight/recommendations | predictive_insight | global role | — | queried | tenant-bound | insight_predictive_recommendations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/insight/recommendations/{recommendation_id}/action | predictive_insight | global role | — | queried | tenant-bound | insight_predictive_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/insight/recommendations/{recommendation_id}/dismiss | predictive_insight | global role | — | queried | tenant-bound | insight_predictive_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/insight/reports/generate | predictive_insight | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/insight/reports | predictive_insight | global role | — | queried | tenant-bound | insight_executive_forecast_reports | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/insight/reports/{report_id}.csv | predictive_insight | global role | — | queried | tenant-bound | insight_executive_forecast_reports | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/insight/reports/{report_id}.xlsx | predictive_insight | global role | — | queried | tenant-bound | insight_executive_forecast_reports | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/insight/reports/{report_id}.pdf | predictive_insight | global role | — | queried | tenant-bound | insight_executive_forecast_reports | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/insight/reports/{report_id} | predictive_insight | global role | — | queried | tenant-bound | insight_executive_forecast_reports | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/insight/dashboard | predictive_insight | global role | — | queried | unscoped: insight_operational_forecasts, insight_quality_trend_forecasts | competency_events, cv_inference_provenance +11 | insight_operational_forecasts, insight_quality_trend_forecasts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/agents/registry | agents_pipeline | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/agents/health | agents_pipeline | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/agents/run/{inspection_id} | agents_pipeline | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/agents/trace/{inspection_id} | agents_pipeline | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/run/{inspection_id} | cios | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/state/{inspection_id} | cios | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/decision-ledger/{inspection_id} | cios | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/events | cios | global role | — | queried | tenant-bound | cios_events | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/certificate/{inspection_id} | cios | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/certificate/{inspection_id}/pdf | cios | global role | — | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/governance | cios | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/rule-registry | cios | global role | — | queried | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/cios/dashboard | cios | global role | — | queried | tenant-bound | inspections, quality_twin_states +1 | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/horizon/participation/enroll | federated_horizon | global role | principal/header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/horizon/participation/status | federated_horizon | global role | principal/header | queried | tenant-bound | gsin_participants, p20_intelligence_sharing_agreements | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/horizon/participation/withdraw | federated_horizon | global role | principal/header | queried | unscoped: audit_logs | audit_logs, gsin_participants +1 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/horizon/participation/contribution-categories | federated_horizon | global role | principal/header | queried | unscoped: gsin_participants | gsin_participants | gsin_participants | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/horizon/knowledge-graph/local | federated_horizon | global role | principal/header | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/horizon/knowledge-graph/enterprise | federated_horizon | global role | principal/header | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/horizon/knowledge-graph/global/generate | federated_horizon | global role | principal/header | queried | unscoped: p20_intelligence_sharing_agreements | p20_intelligence_sharing_agreements | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/horizon/knowledge-graph/global | federated_horizon | global role | principal/header | queried | — | horizon_global_knowledge_graph_edges | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/horizon/contributions | federated_horizon | global role | principal/header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/horizon/contributions | federated_horizon | global role | principal/header | queried | — | horizon_knowledge_contributions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/horizon/contributions/{contribution_id}/approve | federated_horizon | global role | principal/header | queried | — | horizon_knowledge_contributions | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/horizon/contributions/{contribution_id}/reject | federated_horizon | global role | principal/header | queried | — | horizon_knowledge_contributions | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/horizon/contributions/{contribution_id}/revise | federated_horizon | global role | principal/header | queried | — | horizon_knowledge_contributions | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/horizon/contributions/{contribution_ref}/versions | federated_horizon | global role | principal/header | queried | — | horizon_knowledge_contributions | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/horizon/federated-signals/generate | federated_horizon | global role | principal/header | queried | unscoped: p20_intelligence_sharing_agreements | p20_intelligence_sharing_agreements | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/horizon/federated-signals | federated_horizon | global role | principal/header | queried | — | horizon_federated_learning_signals | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/horizon/benchmarks | federated_horizon | global role | principal/header | queried | unscoped: p20_intelligence_sharing_agreements | p20_intelligence_sharing_agreements | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/horizon/benchmarks/percentile | federated_horizon | global role | principal/header | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/horizon/emerging-trends/detect | federated_horizon | global role | principal/header | queried | unscoped: p20_intelligence_sharing_agreements | horizon_emerging_trend_alerts, p20_intelligence_sharing_agreements | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/horizon/emerging-trends | federated_horizon | global role | principal/header | queried | — | horizon_emerging_trend_alerts | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/horizon/emerging-trends/{trend_id}/acknowledge | federated_horizon | global role | principal/header | queried | — | horizon_emerging_trend_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/horizon/research/portal | federated_horizon | global role | principal/header | queried | unscoped: p20_intelligence_sharing_agreements | horizon_emerging_trend_alerts, horizon_federated_learning_signals +6 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/horizon/evidence | federated_horizon | global role | principal/header | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/horizon/evidence | federated_horizon | global role | principal/header | queried | tenant-bound | horizon_clinical_evidence_references | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/horizon/evidence/{evidence_id} | federated_horizon | global role | principal/header | queried | unscoped: horizon_clinical_evidence_references | horizon_clinical_evidence_references | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/horizon/evidence/link | federated_horizon | global role | principal/header | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/horizon/evidence/for/{source_type}/{source_id} | federated_horizon | global role | principal/header | queried | — | horizon_recommendation_evidence_links | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/horizon/governance/overview | federated_horizon | global role | principal/header | queried | tenant-bound | audit_logs, gsin_participants +2 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/horizon/governance/pending-approvals | federated_horizon | global role | principal/header | queried | — | horizon_knowledge_contributions | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/horizon/ai-improvement/suggestions | federated_horizon | global role | principal/header | queried | — | horizon_emerging_trend_alerts, horizon_federated_learning_signals +1 | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/beacon/collaboration/hub | industry_collaboration | global role | — | queried | unscoped: p24_consortium_members | p24_consortium_members | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/beacon/collaboration/my-status | industry_collaboration | global role | — | queried | tenant-bound | p24_consortium_members | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/collaboration/participants/{organization_type} | industry_collaboration | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/manufacturer-portal | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/approved-baselines | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/quality-trends | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/instrument-family-performance | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/anatomy-findings | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/corrosion-trend | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/damage-patterns | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/manufacturer-portal/repair-recommendations | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/repair-partner-portal | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/referrals | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/turnaround | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/repeat-analysis | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/repair-partner-portal/digital-twin-history/{instrument_identity} | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/beacon/repair-partner-portal/repairs/{repair_id}/record-outcome | industry_collaboration | manufacturer header | — | n/a | n/a | manufacturer_memberships | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/beacon/standards-center | industry_collaboration | global role | — | queried | — | p24_standards_publications | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/beacon/standards-center/publish | industry_collaboration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/standards-center/publications/{publication_id}/versions | industry_collaboration | global role | — | queried | — | p24_standards_publications | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/beacon/evidence-exchange | industry_collaboration | global role | — | queried | tenant-bound | horizon_clinical_evidence_references | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/beacon/evidence-exchange/case-reports | industry_collaboration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/beacon/evidence-exchange/quality-improvement-initiatives | industry_collaboration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/beacon/evidence-exchange/best-practices | industry_collaboration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/evidence-exchange/for/{source_type}/{source_id} | industry_collaboration | global role | — | queried | — | horizon_recommendation_evidence_links | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/beacon/manufacturer-feedback | industry_collaboration | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/manufacturer-feedback | industry_collaboration | global role | — | queried | — | horizon_knowledge_contributions | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/beacon/repair-intelligence/generate | industry_collaboration | global role | — | queried | unscoped: or_connect_repair_requests | beacon_repair_intelligence_snapshots, or_connect_repair_requests | beacon_repair_intelligence_snapshots | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/beacon/repair-intelligence | industry_collaboration | global role | — | queried | — | beacon_repair_intelligence_snapshots | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/beacon/industry-benchmarks | industry_collaboration | global role | — | queried | unscoped: p20_intelligence_sharing_agreements | p20_intelligence_sharing_agreements | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/beacon/industry-benchmarks/percentile/all | industry_collaboration | global role | — | queried | unscoped: p20_intelligence_sharing_agreements | p20_intelligence_sharing_agreements | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/beacon/industry-benchmarks/percentile | industry_collaboration | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/governance/overview | industry_collaboration | global role | — | queried | tenant-bound | audit_logs, horizon_knowledge_contributions +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/beacon/governance/pending-approvals | industry_collaboration | global role | — | queried | — | horizon_knowledge_contributions | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/beacon/advisory-board | industry_collaboration | global role | — | queried | unscoped: p24_consortium_members | beacon_advisory_board_action_items, beacon_advisory_board_meetings +2 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/beacon/advisory-board/meetings | industry_collaboration | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/advisory-board/meetings | industry_collaboration | global role | — | queried | — | beacon_advisory_board_meetings | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/beacon/advisory-board/meetings/{meeting_id}/notes | industry_collaboration | global role | — | queried | — | beacon_advisory_board_meetings | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/beacon/advisory-board/action-items | industry_collaboration | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/advisory-board/action-items | industry_collaboration | global role | — | queried | — | beacon_advisory_board_action_items | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/beacon/advisory-board/action-items/{item_id}/resolve | industry_collaboration | global role | — | queried | — | beacon_advisory_board_action_items | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/beacon/advisory-board/recommendations | industry_collaboration | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/beacon/advisory-board/recommendations | industry_collaboration | global role | — | queried | — | beacon_advisory_board_recommendations | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/beacon/advisory-board/recommendations/{recommendation_id}/decide | industry_collaboration | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/platform/identity/me | platform | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/platform/identity/roles | platform | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/platform/organizations/tree | platform | global role | — | queried | unscoped: enterprise_hierarchy_facilities | enterprise_health_systems, enterprise_hierarchy_departments +3 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/platform/organizations/facilities | platform | global role | — | queried | unscoped: enterprise_hierarchy_facilities | enterprise_hierarchy_facilities | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/platform/modules | platform | global role | — | queried | — | platform_modules | platform_modules | none observed | — | None observed | — | Not reviewed |
+| GET | /api/platform/modules/{module_key} | platform | global role | — | queried | — | platform_modules | — | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/platform/licenses | platform | global role | — | queried | tenant-bound | platform_module_licenses | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/platform/licenses | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/notifications | platform | global role | — | queried | tenant-bound | mobile_notifications, or_connect_notifications +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/platform/configuration | platform | global role | — | queried | tenant-bound | platform_configurations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/platform/configuration | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/platform/plugins | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/plugins | platform | global role | — | queried | — | platform_plugins | — | none observed | — | None observed | — | Not reviewed |
+| POST | /api/platform/plugins/{plugin_key}/activate | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/platform/plugins/{plugin_key}/disable | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/navigation/launcher | platform | global role | — | queried | tenant-bound | mobile_notifications, or_connect_notifications +5 | platform_modules | refused | — | None observed | — | Not reviewed |
+| POST | /api/platform/navigation/recent | platform | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/platform/navigation/favorites/{module_key} | platform | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| DELETE | /api/platform/navigation/favorites/{module_key} | platform | global role | — | queried | tenant-bound | platform_favorite_modules | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/platform/search | platform | global role | — | queried | unscoped: enterprise_hierarchy_facilities | baseline_library, enterprise_hierarchy_facilities +6 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/platform/activity-feed | platform | global role | — | queried | tenant-bound | audit_logs, nexus_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/platform/intelligence/services | platform | global role | — | queried | — | — | — | none observed | — | None observed | — | Not reviewed |
+| GET | /api/platform/admin/dashboard | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/admin/users | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/admin/feature-flags | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/admin/api-keys | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/admin/integrations | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/platform/admin/audit-logs | platform | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/forge/workflows | workflow_forge | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/forge/workflows | workflow_forge | global role | — | queried | tenant-bound | forge_workflow_definitions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/forge/workflows/{workflow_id} | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/revise | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/publish | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/archive | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/forge/workflows/{workflow_id}/versions | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/rollback | workflow_forge | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/forge/workflow-rules | workflow_forge | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/forge/workflow-rules | workflow_forge | global role | — | queried | tenant-bound | forge_workflow_rules | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/forge/workflow-rules/{rule_id} | workflow_forge | global role | — | queried | unscoped: forge_workflow_rules | forge_workflow_rules | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflow-rules/{rule_id}/approve | workflow_forge | global role | — | queried | unscoped: forge_workflow_rules | forge_workflow_rules | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflow-rules/{rule_id}/evaluate | workflow_forge | global role | — | queried | unscoped: forge_workflow_rules | forge_workflow_rules | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/forge/workflow-templates | workflow_forge | global role | — | queried | — | forge_workflow_definitions | forge_workflow_definitions | none observed | — | None observed | — | Not reviewed |
+| GET | /api/forge/workflow-templates/{category} | workflow_forge | global role | — | queried | — | forge_workflow_definitions | forge_workflow_definitions | none observed (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/forge/workflow-templates/{category}/import | workflow_forge | global role | — | queried | — | forge_workflow_definitions | forge_workflow_definitions | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/forge/workflow-execution | workflow_forge | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/forge/workflow-execution/simulate | workflow_forge | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/forge/workflow-execution | workflow_forge | global role | — | queried | tenant-bound | forge_workflow_executions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/forge/workflow-execution/{execution_id} | workflow_forge | global role | — | queried | unscoped: forge_workflow_executions | forge_workflow_executions | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/forge/workflow-history/{workflow_id} | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions, forge_workflow_executions | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/approval-chains | workflow_forge | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/forge/approval-chains | workflow_forge | global role | — | queried | tenant-bound | forge_approval_chains | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/forge/approval-instances/{instance_id} | workflow_forge | global role | — | queried | unscoped: forge_approval_instances | forge_approval_instances | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/approval-instances/{instance_id}/decide | workflow_forge | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/forge/marketplace | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/clone | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | forge_workflow_definitions | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/share | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | forge_workflow_definitions | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/forge/workflows/{workflow_id}/approve-share | workflow_forge | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/forge/workflows/{workflow_id}/export | workflow_forge | global role | — | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/command-center | pulse_operations | global role | — | queried | unscoped: sentinel_health_snapshots | audit_logs, competency_events +22 | sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/events | pulse_operations | global role | — | queried | tenant-bound | nexus_events | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pulse/map | pulse_operations | global role | — | queried | unscoped: enterprise_hierarchy_facilities | enterprise_health_systems, enterprise_hierarchy_departments +3 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/map/facilities/{system_id}/{facility_id} | pulse_operations | global role | — | queried | unscoped: atlas_facility_intelligence_snapshots, enterprise_hierarchy_facilities | atlas_facility_intelligence_snapshots, enterprise_hierarchy_facilities | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/kpis | pulse_operations | global role | — | queried | unscoped: sentinel_health_snapshots | competency_events, cv_inference_provenance +13 | sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/pulse/alerts/generate | pulse_operations | global role | — | queried | tenant-bound | inspection_findings, inspections +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pulse/alerts | pulse_operations | global role | — | queried | tenant-bound | pulse_alerts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/pulse/alerts/{alert_id}/acknowledge | pulse_operations | global role | — | queried | tenant-bound | pulse_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/pulse/alerts/{alert_id}/resolve | pulse_operations | global role | — | queried | tenant-bound | pulse_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pulse/executive | pulse_operations | global role | — | queried | unscoped: insight_operational_forecasts, sentinel_health_snapshots | competency_events, cv_inference_provenance +12 | insight_operational_forecasts, sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/workflow-monitor | pulse_operations | global role | — | queried | tenant-bound | forge_workflow_executions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pulse/workflow-monitor/{execution_id} | pulse_operations | global role | — | queried | unscoped: forge_workflow_executions | forge_workflow_executions | — | none observed (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/ai-ops | pulse_operations | global role | — | queried | tenant-bound | inspections, supervisor_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/pulse/facility-console | pulse_operations | global role | — | queried | unscoped: sentinel_health_snapshots | audit_logs, competency_events +19 | sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/pulse/notifications | pulse_operations | global role | — | queried | tenant-bound | mobile_notifications, or_connect_notifications +1 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/pulse/notifications/route | pulse_operations | global role | — | queried | tenant-bound | forge_workflow_rules | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/pulse/notifications/send | pulse_operations | global role | — | queried | — | — | — | none observed (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pulse/replay/shift | pulse_operations | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pulse/replay/day | pulse_operations | global role | — | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pulse/replay/incident/{alert_id} | pulse_operations | global role | — | queried | tenant-bound | pulse_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/pulse/widgets | pulse_operations | global role | — | queried | — | pulse_widgets | pulse_widgets | none observed | — | None observed | — | Not reviewed |
+| GET | /api/pulse/dashboard-layout | pulse_operations | global role | — | queried | tenant-bound | pulse_dashboard_layouts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/pulse/dashboard-layout | pulse_operations | global role | — | queried | unscoped: pulse_dashboard_layouts | pulse_dashboard_layouts | pulse_dashboard_layouts | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/catalyst/chat | catalyst_copilot | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/catalyst/conversations | catalyst_copilot | global role | — | queried | tenant-bound | catalyst_conversations | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/catalyst/conversations/{conversation_id}/messages | catalyst_copilot | global role | — | queried | tenant-bound | catalyst_conversations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/catalyst/actions/propose | catalyst_copilot | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/catalyst/actions/confirm | catalyst_copilot | global role | — | queried | tenant-bound | catalyst_pending_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/catalyst/actions/cancel | catalyst_copilot | global role | — | queried | tenant-bound | catalyst_pending_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/catalyst/persona/executive-briefing | catalyst_copilot | global role | — | queried | unscoped: insight_operational_forecasts, sentinel_health_snapshots | competency_events, cv_inference_provenance +16 | insight_operational_forecasts, sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/catalyst/persona/supervisor-coaching | catalyst_copilot | global role | — | queried | unscoped: competency_events | competency_events | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/catalyst/actions/pending | catalyst_copilot | global role | — | queried | tenant-bound | catalyst_pending_actions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/catalyst/persona/supervisor-finding-explanation | catalyst_copilot | global role | — | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/catalyst/persona/technician-help | catalyst_copilot | global role | — | queried | tenant-bound | inspections, knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/catalyst/skills | catalyst_copilot | global role | — | queried | — | catalyst_skills | catalyst_skills | none observed | — | None observed | — | Not reviewed |
+| POST | /api/catalyst/upload | catalyst_copilot | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/cases | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/cart | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/implants | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/loaner-equipment | orbit_readiness | global role | — | queried | unscoped: orbit_loaner_equipment | orbit_loaner_equipment, surgical_cases | orbit_loaner_equipment | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/staff | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/environmental | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/orbit/cart/{cart_id} | orbit_readiness | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/orbit/implants/{implant_id} | orbit_readiness | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/orbit/loaner-equipment/{equipment_id} | orbit_readiness | global role | — | queried | tenant-bound | orbit_loaner_equipment | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/orbit/staff/{staff_id} | orbit_readiness | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/case-readiness/{case_id} | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/case-readiness/{case_id}/history | orbit_readiness | global role | — | queried | tenant-bound | orbit_readiness_snapshots | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/orbit/surgical-readiness/{case_id} | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/cases/{case_id}/intelligence | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/cases/{case_id}/coordination | orbit_readiness | global role | — | queried | tenant-bound | or_connect_notifications, or_connect_risk_alerts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/coordinate | orbit_readiness | global role | — | queried | unscoped: audit_logs | audit_logs, inspections +4 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/orbit/department-inbox | orbit_readiness | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/readiness-alerts/{case_id} | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/cases/{case_id}/timeline | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/procedure-complete | orbit_readiness | global role | — | queried | unscoped: audit_logs, surgical_cases | audit_logs, surgical_cases | audit_logs, surgical_cases | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/orbit/executive | orbit_readiness | global role | — | queried | tenant-bound | cv_inference_provenance, cv_inference_records +10 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/orbit/procedure-intelligence | orbit_readiness | global role | — | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/simulate/time-shift | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/simulate/instrument-unavailable | orbit_readiness | global role | — | queried | tenant-bound | inspections, surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/orbit/cases/{case_id}/simulate/vendor-tray-delay | orbit_readiness | global role | — | queried | tenant-bound | surgical_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/orbit/cases/{case_id}/simulations | orbit_readiness | global role | — | queried | tenant-bound | orbit_simulation_runs | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vanguard/executive-intelligence | vanguard_intelligence | global role | — | queried | unscoped: sentinel_health_snapshots | audit_logs, competency_events +28 | sentinel_health_snapshots, spd_alerts +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/vanguard/scorecards/{audience} | vanguard_intelligence | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/scorecards/{audience}/history | vanguard_intelligence | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/financial | vanguard_intelligence | global role | — | queried | tenant-bound | cv_inference_provenance, cv_inference_records +8 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vanguard/operational | vanguard_intelligence | global role | — | queried | unscoped: sentinel_health_snapshots | competency_events, cv_inference_provenance +17 | sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/vanguard/strategy/initiatives | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_strategic_initiatives | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vanguard/strategy/initiatives/{initiative_id} | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_strategic_initiatives | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/vanguard/strategy/initiatives/{initiative_id}/status | vanguard_intelligence | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/vanguard/strategy/generate/{initiative_type} | vanguard_intelligence | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/board-reports | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_board_report_packets | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/vanguard/board-reports/generate | vanguard_intelligence | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/board-reports/{packet_id}.pdf | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_board_report_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/board-reports/{packet_id}.xlsx | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_board_report_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/board-reports/{packet_id}.pptx | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_board_report_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/board-reports/{packet_id} | vanguard_intelligence | global role | — | queried | tenant-bound | vanguard_board_report_packets | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/benchmarking/{benchmark_type} | vanguard_intelligence | global role | — | queried | — | — | — | none observed (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vanguard/governance | vanguard_intelligence | global role | — | queried | tenant-bound | cv_inference_provenance, cv_inference_records +10 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/capa/summary | apollo_quality | global role | — | queried | tenant-bound | apollo_customer_complaints, inspection_findings +3 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/apollo/capa/suggestions/create | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/capa/complaints | apollo_quality | global role | — | queried | unscoped: apollo_customer_complaints, audit_logs | apollo_customer_complaints, audit_logs | apollo_customer_complaints, audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/apollo/capa/complaints | apollo_quality | global role | — | queried | tenant-bound | apollo_customer_complaints | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/apollo/capa/complaints/{complaint_id}/link | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/capa/complaints/{complaint_id}/close | apollo_quality | global role | — | queried | tenant-bound | apollo_customer_complaints | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/apollo/rca/five-whys/{draft_id} | apollo_quality | global role | — | queried | tenant-bound | quality_rca_drafts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/apollo/rca/fishbone/{draft_id} | apollo_quality | global role | — | queried | tenant-bound | quality_rca_drafts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/apollo/rca/pareto | apollo_quality | global role | — | queried | tenant-bound | root_cause_assignments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/rca/trend | apollo_quality | global role | — | queried | tenant-bound | root_cause_assignments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/rca/summary | apollo_quality | global role | — | queried | tenant-bound | quality_rca_drafts, root_cause_assignments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/audit/summary | apollo_quality | global role | — | queried | tenant-bound | cv_inference_provenance, cv_inference_records +2 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/apollo/audit/generate | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/apollo/competency/summary | apollo_quality | global role | — | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/apollo/competency/annual | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/competency/procedure-validation | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/competency/simulation | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/competency/knowledge-contribution | apollo_quality | global role | — | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/policies | apollo_quality | global role | — | queried | unscoped: apollo_quality_policies, audit_logs | apollo_quality_policies, audit_logs | apollo_quality_policies, audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/apollo/policies | apollo_quality | global role | — | queried | tenant-bound | apollo_quality_policies | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/policies/due-for-review | apollo_quality | global role | — | queried | tenant-bound | apollo_quality_policies | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/policies/{policy_id} | apollo_quality | global role | — | queried | tenant-bound | apollo_quality_policies | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/apollo/policies/{policy_id}/publish | apollo_quality | global role | — | queried | unscoped: apollo_quality_policies, audit_logs | apollo_quality_policies, audit_logs | apollo_quality_policies, audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/apollo/policies/{policy_id}/history | apollo_quality | global role | — | queried | tenant-bound | apollo_quality_policies | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/standards/library | apollo_quality | global role | — | queried | tenant-bound | apollo_quality_policies, p24_quality_standards +1 | p24_quality_standards | refused | — | None observed | — | Not reviewed |
+| POST | /api/apollo/improvement-projects | apollo_quality | global role | — | queried | unscoped: audit_logs, continuous_improvement_initiatives | audit_logs, continuous_improvement_initiatives | audit_logs, continuous_improvement_initiatives | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/apollo/improvement-projects | apollo_quality | global role | — | queried | tenant-bound | continuous_improvement_initiatives | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/improvement-projects/summary | apollo_quality | global role | — | queried | tenant-bound | continuous_improvement_initiatives | — | refused | — | None observed | — | Not reviewed |
+| PATCH | /api/apollo/improvement-projects/{project_id} | apollo_quality | global role | — | queried | tenant-bound | continuous_improvement_initiatives | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/apollo/quality-twin/{department} | apollo_quality | global role | — | queried | unscoped: apollo_quality_twin_snapshots | apollo_quality_policies, apollo_quality_twin_snapshots +4 | apollo_quality_twin_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/apollo/quality-twin/{department}/history | apollo_quality | global role | — | queried | tenant-bound | apollo_quality_twin_snapshots | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/apollo/executive-dashboard | apollo_quality | global role | — | queried | unscoped: quality_fpy_snapshots | apollo_quality_policies, baseline_library +19 | quality_fpy_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/athena/memory/entries | athena_knowledge | tenant role | verified header | queried | tenant-bound | apollo_quality_policies, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/memory/search | athena_knowledge | tenant role | verified header | queried | tenant-bound | apollo_quality_policies, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/memory/summary | athena_knowledge | tenant role | verified header | queried | tenant-bound | apollo_quality_policies, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/athena/expert-contributions | athena_knowledge | tenant role | verified header | queried | unscoped: audit_logs, knowledge_articles | audit_logs, knowledge_articles | audit_logs, knowledge_articles | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/athena/expert-contributions/{article_id}/media | athena_knowledge | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/athena/expert-contributions/{article_id}/media | athena_knowledge | tenant role | verified header | queried | tenant-bound | athena_knowledge_media_attachments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/athena/experience-graph/chains | athena_knowledge | tenant role | verified header | queried | unscoped: audit_logs | audit_logs | athena_experience_graph_edges, athena_experience_graph_nodes +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/athena/experience-graph/person/{person} | athena_knowledge | tenant role | verified header | queried | tenant-bound | athena_experience_graph_nodes | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/experience-graph/nodes/{node_id}/chain | athena_knowledge | tenant role | verified header | queried | unscoped: athena_experience_graph_nodes | athena_experience_graph_nodes | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/athena/experience-graph/schema | athena_knowledge | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/timeline | athena_knowledge | tenant role | verified header | queried | tenant-bound | apollo_quality_policies, clinical_cases +2 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/athena/playbooks | athena_knowledge | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/athena/playbooks | athena_knowledge | tenant role | verified header | queried | tenant-bound | forge_workflow_definitions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/playbooks/{workflow_id} | athena_knowledge | tenant role | verified header | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/athena/playbooks/{workflow_id}/standards | athena_knowledge | tenant role | verified header | queried | unscoped: audit_logs, forge_workflow_definitions | audit_logs, forge_workflow_definitions | audit_logs, forge_workflow_definitions | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/athena/playbooks/{workflow_id}/history | athena_knowledge | tenant role | verified header | queried | unscoped: forge_workflow_definitions | forge_workflow_definitions | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/athena/curator/summary | athena_knowledge | tenant role | verified header | queried | tenant-bound | clinical_cases, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/search | athena_knowledge | tenant role | verified header | queried | tenant-bound | apollo_quality_policies, apollo_quality_twin_snapshots +5 | knowledge_query_logs, p24_standards_publications | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/trust/articles | athena_knowledge | tenant role | verified header | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/trust/articles/{article_id} | athena_knowledge | tenant role | verified header | queried | unscoped: competency_events | competency_events, knowledge_articles | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/athena/assistant/ask | athena_knowledge | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/athena/preservation/sessions | athena_knowledge | tenant role | verified header | queried | unscoped: athena_knowledge_preservation_sessions, audit_logs | athena_knowledge_preservation_sessions, audit_logs | athena_knowledge_preservation_sessions, audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/athena/preservation/sessions/{session_id}/media | athena_knowledge | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/athena/preservation/sessions/{session_id}/transcript | athena_knowledge | tenant role | verified header | queried | tenant-bound | athena_knowledge_preservation_sessions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/athena/preservation/sessions/{session_id}/convert | athena_knowledge | tenant role | verified header | queried | tenant-bound | athena_knowledge_preservation_sessions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/athena/preservation/sessions | athena_knowledge | tenant role | verified header | queried | tenant-bound | athena_knowledge_preservation_sessions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/athena/preservation/sessions/{session_id} | athena_knowledge | tenant role | verified header | queried | tenant-bound | athena_knowledge_preservation_sessions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/athena/governance/summary | athena_knowledge | tenant role | verified header | queried | tenant-bound | knowledge_articles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/learning-engine/summary | phoenix_intelligence | tenant role | verified header | queried | unscoped: quality_fpy_snapshots, sentinel_health_snapshots | audit_logs, baseline_library +41 | quality_fpy_snapshots, sentinel_health_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/phoenix/recommendations/generate | phoenix_intelligence | tenant role | verified header | queried | unscoped: audit_logs | audit_logs, clinical_cases +11 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/phoenix/recommendations | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_improvement_recommendations | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/recommendations/{recommendation_id} | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_improvement_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/phoenix/observatory/summary | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | inspections, phoenix_ai_inference_latency_samples +1 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/phoenix/observatory/latency | phoenix_intelligence | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/phoenix/observatory/latency | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_ai_inference_latency_samples | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/observatory/coverage | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | inspections | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/workflow-optimization/summary | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | forge_approval_instances, forge_workflow_executions +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/workflow-optimization/{workflow_id} | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | forge_workflow_executions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/knowledge-evolution/summary | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | clinical_cases, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/phoenix/competency-intelligence/run | phoenix_intelligence | tenant role | verified header | queried | unscoped: audit_logs | audit_logs, competency_events +1 | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/phoenix/competency-intelligence/opportunities | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | quality_competency_opportunities | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/platform-health/dashboard | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | apollo_quality_twin_snapshots, cv_inference_provenance +14 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/phoenix/innovation/ideas | phoenix_intelligence | tenant role | verified header | queried | unscoped: audit_logs, phoenix_innovation_ideas | audit_logs, phoenix_innovation_ideas | audit_logs, phoenix_innovation_ideas | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/phoenix/innovation/ideas | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_innovation_ideas | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/innovation/summary | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_innovation_ideas | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/phoenix/innovation/ideas/{idea_id} | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_innovation_ideas | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/phoenix/innovation/ideas/{idea_id}/status | phoenix_intelligence | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/phoenix/recommendations/{recommendation_id}/validation/start | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_improvement_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/phoenix/recommendations/{recommendation_id}/validation/advance | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_improvement_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/phoenix/recommendations/{recommendation_id}/validation/outcomes | phoenix_intelligence | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/phoenix/recommendations/{recommendation_id}/validation | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_improvement_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/phoenix/maturity/compute | phoenix_intelligence | tenant role | verified header | queried | unscoped: phoenix_platform_maturity_snapshots | apollo_quality_twin_snapshots, clinical_cases +24 | phoenix_platform_maturity_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/phoenix/maturity/history | phoenix_intelligence | tenant role | verified header | queried | tenant-bound | phoenix_platform_maturity_snapshots | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/infinity/developer-portal/api-explorer | infinity_platform | public | — | no | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/developer-portal/rate-limits | infinity_platform | public | — | no | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/developer-portal/tutorials | infinity_platform | public | — | no | — | — | — | none observed | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/developer-portal/me | infinity_platform | require_developer_auth | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/developer-accounts | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/developer-accounts | infinity_platform | tenant role | verified header | queried | — | infinity_developer_accounts | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/developer-accounts/{developer_account_id} | infinity_platform | tenant role | verified header | queried | — | infinity_developer_accounts | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/infinity/developer-accounts/{developer_account_id}/status | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/developer-accounts/{developer_account_id}/api-keys | infinity_platform | tenant role | verified header | queried | — | infinity_developer_accounts | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/developer-accounts/{developer_account_id}/api-keys | infinity_platform | tenant role | verified header | queried | — | infinity_developer_api_keys | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/developer-accounts/{developer_account_id}/api-keys/{key_id}/revoke | infinity_platform | tenant role | verified header | queried | — | infinity_developer_api_keys | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/plugins | infinity_platform | tenant role | verified header | queried | unscoped: audit_logs | audit_logs, platform_plugins | audit_logs, platform_plugins | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/plugins | infinity_platform | tenant role | verified header | queried | — | platform_plugins | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/plugins/{plugin_key} | infinity_platform | tenant role | verified header | queried | — | platform_plugins | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/plugins/{plugin_key}/extensions | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/plugins/{plugin_key}/activate | infinity_platform | tenant role | verified header | queried | — | platform_plugins | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/plugins/{plugin_key}/disable | infinity_platform | tenant role | verified header | queried | — | platform_plugins | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/marketplace/listings | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/marketplace/listings | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/marketplace/listings/{listing_id} | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/marketplace/listings/{listing_id}/submit-for-review | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/marketplace/listings/{listing_id}/publish | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/marketplace/listings/{listing_id}/unpublish | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/marketplace/installations | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/marketplace/installations | infinity_platform | tenant role | verified header | queried | tenant-bound | infinity_marketplace_installations | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/marketplace/installations/{installation_id}/uninstall | infinity_platform | tenant role | verified header | queried | tenant-bound | infinity_marketplace_installations | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/certification/listings/{listing_id}/start | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/certification/listings/{listing_id}/advance | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/certification/listings/{listing_id} | infinity_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/billing/module-licenses | infinity_platform | tenant role | verified header | queried | tenant-bound | platform_module_licenses | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/billing/partner-licenses | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/billing/partner-licenses | infinity_platform | tenant role | query: tenant_id_filter; verified header | queried | tenant-bound | infinity_partner_licenses | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/billing/partner-licenses/{license_id}/revoke | infinity_platform | tenant role | verified header | queried | unscoped: infinity_partner_licenses | infinity_partner_licenses | — | refused (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/billing/revenue-events | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/billing/revenue-events/listings/{listing_id}/summary | infinity_platform | tenant role | verified header | queried | unscoped: infinity_marketplace_revenue_events | infinity_marketplace_revenue_events | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/sandbox/sessions | infinity_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/sandbox/sessions | infinity_platform | tenant role | verified header | queried | — | infinity_developer_sandbox_sessions | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/infinity/sandbox/sessions/{session_id} | infinity_platform | tenant role | verified header | queried | — | infinity_developer_sandbox_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/sandbox/sessions/{session_id}/terminate | infinity_platform | tenant role | verified header | queried | — | infinity_developer_sandbox_sessions | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/infinity/sandbox/sessions/expire-stale | infinity_platform | tenant role | verified header | queried | — | infinity_developer_sandbox_sessions | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/participants | olympus_network | tenant role | verified header | queried | unscoped: p24_consortium_members | p24_consortium_members | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/participants/{tenant_id} | olympus_network | tenant role | path: tenant_id; verified header | queried | tenant-bound | p24_consortium_members | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/directory-summary | olympus_network | tenant role | verified header | queried | unscoped: p24_consortium_members | p24_consortium_members | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/trust/{tenant_id}/compute | olympus_network | tenant role | path: tenant_id; verified header | queried | unscoped: olympus_network_trust_snapshots | horizon_clinical_evidence_references, horizon_knowledge_contributions +4 | olympus_network_trust_snapshots | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/trust/{tenant_id}/history | olympus_network | tenant role | path: tenant_id; verified header | queried | tenant-bound | olympus_network_trust_snapshots | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/trust/leaderboard | olympus_network | tenant role | verified header | queried | unscoped: olympus_network_trust_snapshots | olympus_network_trust_snapshots | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/exchange/packages | olympus_network | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/exchange/packages/{package_id}/governance-review | olympus_network | tenant role | verified header | queried | — | olympus_hix_exchange_packages | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/exchange/packages/{package_id}/publish | olympus_network | tenant role | verified header | queried | — | olympus_hix_exchange_packages | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/exchange/packages/mine | olympus_network | tenant role | verified header | queried | tenant-bound | olympus_hix_exchange_packages | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/exchange/packages/{package_id} | olympus_network | tenant role | verified header | queried | — | olympus_hix_exchange_packages | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/exchange/packages | olympus_network | tenant role | verified header | queried | — | olympus_hix_exchange_packages | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/observatory/contamination-trends | olympus_network | tenant role | verified header | queried | — | horizon_emerging_trend_alerts | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/observatory/instrument-trends | olympus_network | tenant role | verified header | queried | unscoped: instrument_risk_registry | instrument_risk_registry | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/observatory/quality-initiatives | olympus_network | tenant role | verified header | queried | unscoped: p24_consortium_members | p24_consortium_members | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/observatory/research | olympus_network | tenant role | verified header | queried | — | p24_standards_publications | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/observatory/summary | olympus_network | tenant role | verified header | queried | unscoped: instrument_risk_registry, p24_consortium_members | horizon_emerging_trend_alerts, instrument_risk_registry +2 | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/models | olympus_network | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/models | olympus_network | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/models/{model_id} | olympus_network | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/olympus/models/{model_id}/validation-status | olympus_network | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/models/{model_id}/version-chain | olympus_network | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/models/{model_id}/certification/start | olympus_network | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/models/{model_id}/certification/advance | olympus_network | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/models/{model_id}/certification | olympus_network | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/certification-registry | olympus_network | tenant role | verified header | queried | — | infinity_marketplace_listings, olympus_ai_model_registry_entries | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/marketplace/summary | olympus_network | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/governance/cases | olympus_network | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/olympus/governance/cases/{case_id}/decide | olympus_network | tenant role | verified header | queried | — | olympus_network_governance_cases | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/governance/cases/{case_id} | olympus_network | tenant role | verified header | queried | — | olympus_network_governance_cases | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/governance/cases | olympus_network | tenant role | verified header | queried | — | olympus_network_governance_cases | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/governance/summary | olympus_network | tenant role | verified header | queried | — | olympus_network_governance_cases | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/olympus/summary | olympus_network | tenant role | verified header | queried | unscoped: instrument_risk_registry, p24_consortium_members | horizon_emerging_trend_alerts, infinity_marketplace_listings +5 | — | refused | — | Lead | Remediated (batch 4) | Not reviewed |
+| PATCH | /api/guardianx/models/{model_id}/ownership | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/guardianx/models/{model_id}/validation-date | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/guardianx/models/{model_id}/retire | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/guardianx/models/{model_id}/training-dataset-metadata | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/guardianx/models/{model_id}/known-limitations | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/guardianx/models/{model_id}/use-cases | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/models/{model_id}/governance | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/models/governance | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/explainability | guardianx_assurance | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/explainability/{record_id} | guardianx_assurance | tenant role | verified header | queried | — | guardianx_explainability_records | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/guardianx/explainability/{record_id}/human-override | guardianx_assurance | tenant role | verified header | queried | — | guardianx_explainability_records | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/explainability | guardianx_assurance | tenant role | verified header | queried | — | guardianx_explainability_records | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/audit-replay/inspections/{inspection_id} | guardianx_assurance | tenant role | verified header | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/audit-replay/workflow-executions/{execution_id} | guardianx_assurance | tenant role | verified header | queried | tenant-bound | forge_workflow_executions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/audit-replay/rules/{rule_id} | guardianx_assurance | tenant role | verified header | queried | tenant-bound | forge_workflow_rules | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/audit-replay/recommendations | guardianx_assurance | tenant role | verified header | queried | unscoped: audit_logs | audit_logs, guardianx_evidence_ledger_entries +1 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/guardianx/risks | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/guardianx/risks/{risk_id}/status | guardianx_assurance | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/models/{model_id}/risks | guardianx_assurance | tenant role | verified header | queried | — | guardianx_ai_model_risk_entries | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/risks/summary | guardianx_assurance | tenant role | verified header | queried | — | guardianx_ai_model_risk_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/models/{model_id}/governance-review/start | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/guardianx/models/{model_id}/governance-review/advance | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/models/{model_id}/governance-review | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/guardianx/compliance-mappings | guardianx_assurance | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/compliance-mappings/traceability-matrix | guardianx_assurance | tenant role | verified header | queried | — | guardianx_compliance_capability_mappings | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/compliance-mappings/{mapping_id} | guardianx_assurance | tenant role | verified header | queried | — | guardianx_compliance_capability_mappings | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/compliance-mappings | guardianx_assurance | tenant role | verified header | queried | — | guardianx_compliance_capability_mappings | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/evidence | guardianx_assurance | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/evidence/{entry_id} | guardianx_assurance | tenant role | verified header | queried | — | guardianx_evidence_ledger_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/evidence/{entry_id}/verify | guardianx_assurance | tenant role | verified header | queried | — | guardianx_evidence_ledger_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/evidence | guardianx_assurance | tenant role | verified header | queried | — | guardianx_evidence_ledger_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/trust/models/{model_id}/compute | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/guardianx/trust/knowledge/compute | guardianx_assurance | tenant role | verified header | queried | tenant-bound | guardianx_trust_snapshots, knowledge_articles | guardianx_trust_snapshots | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/trust/workflow/compute | guardianx_assurance | tenant role | verified header | queried | tenant-bound | forge_approval_instances, forge_workflow_executions +2 | guardianx_trust_snapshots | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/trust/digital-twin/compute | guardianx_assurance | tenant role | verified header | queried | tenant-bound | cv_inference_provenance, cv_inference_records +5 | guardianx_trust_snapshots | refused | — | None observed | — | Not reviewed |
+| POST | /api/guardianx/trust/platform/compute | guardianx_assurance | tenant role | verified header | queried | tenant-bound | cv_inference_provenance, cv_inference_records +10 | guardianx_trust_snapshots | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/trust/history | guardianx_assurance | tenant role | verified header | queried | — | guardianx_trust_snapshots | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/reports/executive | guardianx_assurance | tenant role | verified header | queried | tenant-bound | clinical_cases, competency_events +15 | guardianx_trust_snapshots | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/reports/model-validation/{model_id} | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/guardianx/reports/governance | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/reports/audit-evidence-package | guardianx_assurance | tenant role | verified header | queried | unscoped: audit_logs | audit_logs, guardianx_evidence_ledger_entries +1 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/guardianx/reports/knowledge-provenance | guardianx_assurance | tenant role | verified header | queried | tenant-bound | clinical_cases, competency_events +5 | guardianx_trust_snapshots | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/assurance-center/summary | guardianx_assurance | tenant role | verified header | queried | — | guardianx_ai_model_risk_entries, olympus_ai_model_registry_entries | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/guardianx/assurance-center/models/{model_id} | guardianx_assurance | tenant role | verified header | queried | — | olympus_ai_model_registry_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/genesis-ai/instruments/{instrument_id}/profile | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | registry_instruments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/instruments/{instrument_id}/profile | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | registry_instruments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/genesis-ai/instruments/families/{instrument_family} | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | registry_instruments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/genesis-ai/anatomy-profiles | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/anatomy-profiles/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | genesis_ai_anatomy_profiles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/genesis-ai/anatomy-profiles/{profile_id} | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | genesis_ai_anatomy_profiles | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/anatomy-profiles | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | genesis_ai_anatomy_profiles | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/genesis-ai/evidence-cloud/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | unscoped: horizon_clinical_evidence_references | horizon_clinical_evidence_references | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/genesis-ai/manufacturer-updates | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/genesis-ai/manufacturer-updates/{update_id}/review | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | genesis_ai_manufacturer_knowledge_updates | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/manufacturer-updates/{update_id}/version-chain | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | genesis_ai_manufacturer_knowledge_updates | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/manufacturer-updates/{update_id} | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | genesis_ai_manufacturer_knowledge_updates | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/manufacturer-updates | genesis_ai_intelligence_cloud | tenant role | query: manufacturer_tenant_id; verified header | queried | tenant-bound | genesis_ai_manufacturer_knowledge_updates | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/genesis-ai/learning-engine/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | tenant-bound | forge_approval_instances, forge_workflow_executions +8 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/genesis-ai/research-hub/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | unscoped: p20_intelligence_sharing_agreements, p24_consortium_members | horizon_emerging_trend_alerts, horizon_federated_learning_signals +7 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| PATCH | /api/genesis-ai/participants/{tenant_id}/research-opt-in | genesis_ai_intelligence_cloud | tenant role | path: tenant_id; verified header | queried | tenant-bound | p24_consortium_members | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/genesis-ai/intelligence-exchange/research-dataset-packages | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/genesis-ai/intelligence-exchange/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | — | olympus_hix_exchange_packages | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/genesis-ai/standards-observatory/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | unscoped: horizon_clinical_evidence_references, p24_consortium_members | apollo_quality_policies, genesis_ai_manufacturer_knowledge_updates +3 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/genesis-ai/summary | genesis_ai_intelligence_cloud | tenant role | verified header | queried | unscoped: horizon_clinical_evidence_references, p24_consortium_members | apollo_quality_policies, genesis_ai_anatomy_profiles +6 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/nova/agents/seed-core | nova_agent_platform | tenant role | verified header | queried | — | nova_agent_definitions | nova_agent_definitions | refused | — | None observed | — | Not reviewed |
+| GET | /api/nova/agents | nova_agent_platform | tenant role | verified header | queried | — | nova_agent_definitions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nova/agents/{agent_key} | nova_agent_platform | tenant role | verified header | queried | — | nova_agent_definitions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/nova/agents/{agent_key}/status | nova_agent_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nova/agents/{agent_key}/invoke | nova_agent_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nova/messages | nova_agent_platform | tenant role | verified header | queried | tenant-bound | nova_agent_messages | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nova/task-runs | nova_agent_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nova/task-runs/{task_run_id}/advance | nova_agent_platform | tenant role | verified header | queried | unscoped: nova_agent_task_runs | nova_agent_task_runs | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/nova/task-runs/{task_run_id}/fail | nova_agent_platform | tenant role | verified header | queried | unscoped: nova_agent_task_runs | nova_agent_task_runs | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/nova/task-runs/{task_run_id} | nova_agent_platform | tenant role | verified header | queried | unscoped: nova_agent_task_runs | nova_agent_task_runs | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/nova/task-runs | nova_agent_platform | tenant role | verified header | queried | tenant-bound | nova_agent_task_runs | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nova/agents/{agent_key}/memory | nova_agent_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/nova/agents/{agent_key}/memory | nova_agent_platform | tenant role | verified header | queried | tenant-bound | nova_agent_memory_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/nova/collaboration-requests | nova_agent_platform | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/nova/collaboration-requests/{request_id}/resolve | nova_agent_platform | tenant role | verified header | queried | unscoped: nova_agent_collaboration_requests | nova_agent_collaboration_requests | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/nova/collaboration-requests/{request_id} | nova_agent_platform | tenant role | verified header | queried | unscoped: nova_agent_collaboration_requests | nova_agent_collaboration_requests | — | refused (baseline 404) | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/nova/collaboration-requests | nova_agent_platform | tenant role | verified header | queried | tenant-bound | nova_agent_collaboration_requests | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nova/marketplace/summary | nova_agent_platform | tenant role | verified header | queried | — | infinity_marketplace_listings | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nova/observability/summary | nova_agent_platform | tenant role | verified header | queried | tenant-bound | nova_agent_definitions, nova_agent_messages +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/nova/summary | nova_agent_platform | tenant role | verified header | queried | tenant-bound | infinity_marketplace_listings, nova_agent_definitions +2 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/vulcan/assess | vulcan_reliability | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vulcan/assessments/{assessment_id} | vulcan_reliability | tenant role | verified header | queried | tenant-bound | vulcan_reliability_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vulcan/taxonomy | vulcan_reliability | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/progression | vulcan_reliability | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/anatomy-zones | vulcan_reliability | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/repair-effectiveness | vulcan_reliability | tenant role | verified header | queried | tenant-bound | or_connect_repair_requests | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/forensics/search | vulcan_reliability | tenant role | verified header | queried | tenant-bound | vulcan_reliability_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/forensics/{instrument_identity} | vulcan_reliability | tenant role | verified header | queried | tenant-bound | or_connect_repair_requests, vulcan_reliability_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/watchlists | vulcan_reliability | tenant role | verified header | queried | tenant-bound | or_connect_repair_requests, vulcan_reliability_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/watchlists/{name} | vulcan_reliability | tenant role | verified header | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/vulcan/feedback/{assessment_id} | vulcan_reliability | tenant role | verified header | queried | tenant-bound | vulcan_reliability_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/vulcan/feedback/{assessment_id} | vulcan_reliability | tenant role | verified header | queried | tenant-bound | vulcan_feedback | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/vulcan/executive-summary | vulcan_reliability | tenant role | verified header | queried | tenant-bound | inspections, or_connect_repair_requests +2 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/taxonomy | sage_education | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sage/gaps/detect/{technician} | sage_education | tenant role | verified header | queried | unscoped: audit_logs | audit_logs, inspections | audit_logs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/sage/gaps | sage_education | tenant role | verified header | queried | tenant-bound | sage_knowledge_gaps | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sage/learning-plans | sage_education | tenant role | verified header | queried | unscoped: sage_learning_plans | sage_learning_plans | sage_learning_plans | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/sage/learning-plans/{plan_id}/approve | sage_education | tenant role | verified header | queried | tenant-bound | sage_learning_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/learning-plans/{plan_id}/reject-or-edit | sage_education | tenant role | verified header | queried | tenant-bound | sage_learning_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/learning-plans/{plan_id}/complete | sage_education | tenant role | verified header | queried | tenant-bound | sage_learning_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/learning-plans | sage_education | tenant role | verified header | queried | tenant-bound | sage_learning_plans | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/learning-plans/{plan_id} | sage_education | tenant role | verified header | queried | tenant-bound | sage_learning_plans | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/microlearning/{finding_type} | sage_education | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/microlearning/{module_id}/approve | sage_education | tenant role | verified header | queried | tenant-bound | sage_microlearning_modules | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/microlearning | sage_education | tenant role | verified header | queried | tenant-bound | sage_microlearning_modules | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sage/assessments | sage_education | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/assessments/{assessment_id}/result | sage_education | tenant role | verified header | queried | tenant-bound | sage_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/assessments/{assessment_id}/validate | sage_education | tenant role | verified header | queried | tenant-bound | sage_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/assessments | sage_education | tenant role | verified header | queried | tenant-bound | sage_assessments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sage/images/{retained_image_id}/curate | sage_education | tenant role | verified header | queried | tenant-bound | retained_images | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sage/images/{entry_id}/phi-review | sage_education | tenant role | verified header | queried | tenant-bound | sage_education_image_entries | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/images | sage_education | tenant role | verified header | queried | tenant-bound | sage_education_image_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sage/learning-plans/{plan_id}/measure-effectiveness | sage_education | tenant role | verified header | queried | tenant-bound | sage_learning_plans | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/workspace | sage_education | tenant role | verified header | queried | tenant-bound | sage_knowledge_gaps, sage_learning_plans +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/my-learning | sage_education | tenant role | verified header | queried | unscoped: competency_events | competency_events, sage_assessments +1 | — | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/sage/feedback | sage_education | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/feedback/{plan_id} | sage_education | tenant role | verified header | queried | tenant-bound | sage_feedback | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/aegis-recommendation | sage_education | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/vulcan-recommendation/{assessment_id} | sage_education | tenant role | verified header | queried | tenant-bound | vulcan_reliability_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sage/institutional-content | sage_education | tenant role | verified header | queried | tenant-bound | apollo_quality_policies, competency_events +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/department-competency-evidence | sage_education | tenant role | verified header | queried | tenant-bound | apollo_quality_twin_snapshots | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sage/executive-summary | sage_education | tenant role | verified header | queried | tenant-bound | sage_effectiveness_assessments, sage_knowledge_gaps +1 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/veritas/assess/{inspection_id} | veritas_evidence | tenant role | verified header | queried | tenant-bound | inspections | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/assessments/{assessment_id} | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_evidence_readiness_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/assessments | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_evidence_readiness_assessments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/veritas/baselines/{source_type}/{source_id}/governance-action | veritas_evidence | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/baselines/{source_type}/{source_id}/governance-history | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_baseline_governance_actions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/veritas/baselines/compare | veritas_evidence | tenant role | verified header | queried | — | — | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/veritas/provenance | veritas_evidence | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/provenance | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_evidence_provenance_records | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/veritas/training-dataset/{retained_image_id}/evaluate | veritas_evidence | tenant role | verified header | queried | tenant-bound | retained_images | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/training-dataset | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_training_dataset_entries | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/veritas/feedback | veritas_evidence | tenant role | verified header | queried | unscoped: veritas_feedback | veritas_feedback | veritas_feedback | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/veritas/feedback/{assessment_id} | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_feedback | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/veritas/workspace | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_baseline_governance_actions, veritas_evidence_conflicts +3 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/veritas/data-quality | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_baseline_governance_actions, veritas_evidence_conflicts +4 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/veritas/watchlists | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_baseline_governance_actions, veritas_evidence_conflicts +4 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/veritas/watchlists/{name} | veritas_evidence | tenant role | verified header | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/reports/{name} | veritas_evidence | tenant role | verified header | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/reports/{name}/export | veritas_evidence | tenant role | verified header | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/veritas/collaboration/clinical-reasoning/{assessment_id} | veritas_evidence | tenant role | verified header | queried | tenant-bound | veritas_evidence_readiness_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/sentinelx/assess | sentinelx_risk | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinelx/assessments/{assessment_id} | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_risk_assessments | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinelx/assessments | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_risk_assessments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinelx/alerts/scan | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_risk_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinelx/alerts | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_patient_safety_alerts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinelx/alerts/{alert_id}/acknowledge | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_patient_safety_alerts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinelx/heatmaps | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_risk_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinelx/heatmaps/{dimension} | sentinelx_risk | tenant role | verified header | queried | — | — | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinelx/timeline/{instrument_identity} | sentinelx_risk | tenant role | verified header | queried | tenant-bound | or_connect_repair_requests, sentinelx_risk_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinelx/predictive/{instrument_identity} | sentinelx_risk | tenant role | verified header | queried | tenant-bound | inspections, sentinelx_risk_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinelx/dashboard | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sage_knowledge_gaps, sentinelx_risk_assessments +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/sentinelx/supervisor-workspace | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_risk_assessments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/sentinelx/overrides | sentinelx_risk | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/sentinelx/overrides/{assessment_id} | sentinelx_risk | tenant role | verified header | queried | tenant-bound | sentinelx_supervisor_overrides | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/maestro/run | maestro_orchestration | tenant role | verified header | queried | unscoped: maestro_daily_briefs, maestro_operational_health_snapshots +1 | apollo_customer_complaints, apollo_quality_twin_snapshots +34 | maestro_daily_briefs, maestro_operational_health_snapshots +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/maestro/priorities/run | maestro_orchestration | tenant role | verified header | queried | tenant-bound | apollo_customer_complaints, executive_risk_signals +7 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/maestro/priorities | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_priority_items | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/maestro/recommendations/run | maestro_orchestration | tenant role | verified header | queried | unscoped: maestro_operational_health_snapshots, phoenix_platform_maturity_snapshots | apollo_customer_complaints, apollo_quality_twin_snapshots +31 | maestro_operational_health_snapshots, phoenix_platform_maturity_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/maestro/recommendations | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_recommendations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/maestro/recommendations/{recommendation_id}/status | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/maestro/recommendations/{recommendation_id}/create-capa | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_recommendations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/maestro/briefs/{brief_type}/generate | maestro_orchestration | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/maestro/briefs/{brief_type}/latest | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_daily_briefs | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/maestro/timeline | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_recommendations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/maestro/timeline/{recommendation_id}/move | maestro_orchestration | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/maestro/health/run | maestro_orchestration | tenant role | verified header | queried | unscoped: maestro_operational_health_snapshots, phoenix_platform_maturity_snapshots | apollo_quality_twin_snapshots, cv_inference_provenance +23 | maestro_operational_health_snapshots, phoenix_platform_maturity_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/maestro/decisions | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_recommendations | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/maestro/decisions | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_decision_journal_entries | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/maestro/decisions/{recommendation_id} | maestro_orchestration | tenant role | verified header | queried | tenant-bound | maestro_decision_journal_entries | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/maestro/workspace | maestro_orchestration | tenant role | verified header | queried | unscoped: maestro_operational_health_snapshots, phoenix_platform_maturity_snapshots | apollo_quality_twin_snapshots, cv_inference_provenance +28 | maestro_operational_health_snapshots, phoenix_platform_maturity_snapshots | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/council/teams | council_leadership | tenant role | verified header | queried | unscoped: council_team_configs | council_team_configs | council_team_configs | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/council/teams/{team_key} | council_leadership | tenant role | verified header | queried | tenant-bound | council_team_configs | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/council/teams/{team_key}/history | council_leadership | tenant role | verified header | queried | tenant-bound | council_team_configs | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/council/cases | council_leadership | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/council/cases/{council_case_id}/convene | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/council/cases | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/cases/{council_case_id} | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/assessments | council_leadership | tenant role | verified header | queried | tenant-bound | council_specialist_assessments | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/agreement-map | council_leadership | tenant role | verified header | queried | tenant-bound | council_specialist_assessments | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/council/cases/{council_case_id}/decisions | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/decisions | council_leadership | tenant role | verified header | queried | tenant-bound | council_human_decisions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/workspace | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases, council_outcome_reviews +1 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/briefs/{brief_type} | council_leadership | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/council/cases/{council_case_id}/meeting-notes | council_leadership | tenant role | verified header | queried | unscoped: council_meeting_notes | council_meeting_notes | council_meeting_notes | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/meeting-notes | council_leadership | tenant role | verified header | queried | tenant-bound | council_meeting_notes | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/council/cases/{council_case_id}/journal | council_leadership | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/council/cases/{council_case_id}/outcome-review | council_leadership | tenant role | verified header | queried | unscoped: council_outcome_reviews | council_outcome_reviews | council_outcome_reviews | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/outcome-review | council_leadership | tenant role | verified header | queried | tenant-bound | council_outcome_reviews | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/performance | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases, council_dissent_records +2 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/notifications | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases, council_outcome_reviews +4 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/cases/{council_case_id}/reports/{report_type} | council_leadership | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/council/reports/governance | council_leadership | tenant role | verified header | queried | tenant-bound | council_team_configs | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/council/reports/performance | council_leadership | tenant role | verified header | queried | tenant-bound | council_cases, council_dissent_records +2 | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/steward/actions | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/from-council/{council_case_id} | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/actions/{action_id} | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/owner | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/scope | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/status | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/plan | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/dependencies | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/change-management | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/change-readiness | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/rollouts | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/rollouts | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_rollouts | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/steward/rollouts/{rollout_id}/result | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_rollouts | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/rollouts/{rollout_id}/go-no-go | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/verifications | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/verifications | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_verifications | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/steward/actions/{action_id}/outcome-reviews | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/outcome-reviews | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_outcome_reviews | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/steward/actions/{action_id}/unintended-consequences | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/unintended-consequences | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_unintended_consequences | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/steward/unintended-consequences/{consequence_id}/review | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_unintended_consequences | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/steward/actions/{action_id}/residual-risk | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/residual-risk | governed_action | tenant role | verified header | queried | tenant-bound | governed_action_residual_risk_reviews | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/steward/actions/{action_id}/close | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/timeline | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/actions/{action_id}/council-status | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/workspace | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/boards/supervisor | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/boards/manager | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/boards/director | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/boards/executive | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/notifications | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/escalations | governed_action | tenant role | verified header | queried | tenant-bound | governed_actions | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/steward/actions/{action_id}/reports/{report_type} | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/steward/reports/{report_type} | governed_action | tenant role | verified header | queried | — | — | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/oracle/hypotheses | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_hypotheses | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/oracle/hypotheses/{hypothesis_id} | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_hypotheses | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/evidence | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/literature | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/confidence | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/advance | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_hypotheses | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/close | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/reassign-owner | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/hypotheses/{hypothesis_id}/comments | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/trends/detect | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/oracle/trends | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_trend_observations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/oracle/trends/{trend_id}/promote | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/digital-twin/apollo | oracle_discovery | tenant role | verified header | queried | unscoped: oracle_digital_twin_insights | apollo_quality_twin_snapshots, oracle_digital_twin_insights | oracle_digital_twin_insights | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/oracle/digital-twin/vulcan | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/oracle/digital-twin | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_digital_twin_insights | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/oracle/digital-twin/{insight_id}/promote | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/model-observations | oracle_discovery | tenant role | verified header | queried | unscoped: oracle_model_observations | inspections, oracle_model_observations +1 | oracle_model_observations | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/oracle/model-observations | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_model_observations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/oracle/model-observations/{observation_id}/review | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_model_observations | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/model-observations/{observation_id}/promote | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/knowledge-suggestions | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/oracle/knowledge-suggestions | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_knowledge_suggestions | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/oracle/knowledge-suggestions/{suggestion_id}/approve | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/knowledge-suggestions/{suggestion_id}/reject | oracle_discovery | tenant role | verified header | queried | — | — | — | refused (baseline 500) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/oracle/knowledge-suggestions/{suggestion_id}/publish | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_knowledge_suggestions | — | refused (baseline 422) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/oracle/workspace | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_digital_twin_insights, oracle_hypotheses +4 | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/oracle/registry/search | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_hypotheses | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/oracle/registry/summary | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_hypotheses | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/oracle/dashboard | oracle_discovery | tenant role | verified header | queried | tenant-bound | oracle_hypotheses | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/inspections/{inspection_id}/decision | lumen_decision_engine | global role | — | queried | unscoped: inspections | inspections | — | refused (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies | lumen_decision_engine | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Remediated (batch 4) | Not reviewed |
+| GET | /api/decision-policies | lumen_decision_engine | global role | — | queried | tenant-bound | baseline_decision_policies | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies/{policy_id}/submit | lumen_decision_engine | global role | — | queried | — | baseline_decision_policies | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies/{policy_id}/approve | lumen_decision_engine | global role | — | queried | — | baseline_decision_policies | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies/{policy_id}/activate | lumen_decision_engine | global role | — | queried | — | baseline_decision_policies | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies/{policy_id}/archive | lumen_decision_engine | global role | — | queried | — | baseline_decision_policies | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies/{policy_id}/reject | lumen_decision_engine | global role | — | queried | — | baseline_decision_policies | — | refused (baseline 404) | — | Incomplete | Remediated (batch 4) | Not reviewed |
+| POST | /api/decision-policies/simulate | lumen_decision_engine | global role | — | queried | tenant-bound | lumen_decision_records | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| GET | /api/unknown-findings | lumen_decision_engine | global role | — | queried | tenant-bound | unknown_finding_reviews | — | refused | — | None observed | Remediated (batch 4) | Not reviewed |
+| POST | /api/unknown-findings/{review_id}/classify | lumen_decision_engine | global role | — | queried | unscoped: unknown_finding_reviews | unknown_finding_reviews | — | refused (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/unknown-findings/{review_id}/second-review | lumen_decision_engine | global role | — | queried | unscoped: unknown_finding_reviews | unknown_finding_reviews | — | refused (baseline 404) | — | Lead | Remediated (batch 4) | Not reviewed |
+| POST | /api/annotations | annotation_database | global role | — | queried | unscoped: annotation_versions, annotations +1 | annotation_sequence_counters, annotation_versions +3 | annotation_sequence_counters, annotation_versions +2 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| GET | /api/annotations | annotation_database | global role | — | queried | tenant-bound | annotations | — | refused | — | None observed | — | Not reviewed |
+| GET | /api/annotations/{annotation_id} | annotation_database | global role | — | queried | tenant-bound | annotations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| GET | /api/annotations/{annotation_id}/versions | annotation_database | global role | — | queried | tenant-bound | annotations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| PATCH | /api/annotations/{annotation_id} | annotation_database | global role | — | queried | unscoped: annotation_versions, annotations +1 | annotation_versions, annotations +1 | annotation_versions, annotations +1 | refused | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/annotations/{annotation_id}/review/primary | annotation_database | global role | — | queried | tenant-bound | annotations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/annotations/{annotation_id}/review/secondary | annotation_database | global role | — | queried | tenant-bound | annotations | — | refused (baseline 404) | — | Incomplete | Review: incomplete | Not reviewed |
+| POST | /api/annotations/{annotation_id}/review/adjudicate | annotation_database | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/annotations/{annotation_id}/review | annotation_database | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| POST | /api/annotations/{annotation_id}/promote-ground-truth | annotation_database | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/annotations/analytics/summary | annotation_database | global role | — | queried | tenant-bound | annotation_reviews, annotations | — | refused | — | None observed | — | Not reviewed |
+| POST | /api/annotations/export | annotation_database | global role | — | n/a | n/a | — | — | role-gated | — | Not assessed | Review: role-gated | Not reviewed |
+| GET | /api/gpae/health/deep | gpae_monitoring | global role | — | queried | unscoped: audit_logs, baseline_image_links +2 | alembic_version, audit_logs +3 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+| POST | /api/gpae/monitoring/sweep | gpae_monitoring | global role | — | queried | unscoped: audit_logs, baseline_image_links +2 | alembic_version, audit_logs +3 | — | none observed | — | Lead | Review: SQL lead | Not reviewed |
+<!-- END GENERATED MATRIX -->

@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_audit_event
 from app.authz import require_roles
 from app.deps import get_db
-from app.enterprise_auth import get_request_tenant_id
+from app.auth.tenant_scope import principal_tenant
 from app.models.federated_horizon import BENCHMARK_METRICS
 from app.tenant_authz import assert_tenant_membership
 from app.services import (
@@ -63,7 +63,7 @@ def _tenant(current_user, request: Request, db: Session) -> str:
     enroll/withdraw/approve on behalf of) that hospital's cross-hospital
     intelligence data.
     """
-    tenant_id = getattr(current_user, "tenant_id", None) or get_request_tenant_id(request)
+    tenant_id = principal_tenant(current_user, request)
     assert_tenant_membership(db, tenant_id=tenant_id, user_email=_actor(current_user))
     return tenant_id
 
@@ -202,12 +202,13 @@ def post_approve_contribution(
     except InvalidContributionStateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     # Approval is a global leadership action gated by role, not scoped to any
-    # one tenant's data (contribution_id is looked up globally above) -- the
-    # tenant_id here is only descriptive audit metadata for "which org
-    # context this approver represented," so it doesn't need the
-    # membership-verified _tenant() used by the tenant-data-scoping routes
-    # in this file.
-    tenant_id = get_request_tenant_id(request)
+    # one tenant's data (contribution_id is looked up globally above). The
+    # tenant recorded in the audit row is "which organisation this approver
+    # belongs to": it is the approver's verified tenant, or "unassigned" when
+    # they have no single membership. It used to be copied from the request
+    # header, so the approver chose the organisation their approval was
+    # recorded under (P472-03 batch 2: audit attribution from verified identity).
+    tenant_id = getattr(current_user, "tenant_id", None) or "unassigned"
     log_audit_event(
         db, tenant_id=tenant_id, tenant_name=tenant_id, actor_email=_actor(current_user), actor_role="",
         action_type="horizon.contribution_approved", resource_type="horizon_knowledge_contribution", resource_id=str(contribution_id), details={},

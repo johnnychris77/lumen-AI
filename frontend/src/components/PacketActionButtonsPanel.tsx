@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, onProtectedLinkClick } from "@/lib/api";
 
 type PowerBiProductionLockCriterion = {
   criterion: string;
@@ -1016,19 +1016,19 @@ export default function PacketActionButtonsPanel() {
           />
         </label>
 
-        <a href={governanceZipUrl} target="_blank" rel="noreferrer" style={primaryButtonStyle} onClick={() => recordExport("Governance ZIP Bundle")}>
+        <a href={governanceZipUrl} target="_blank" rel="noreferrer" style={primaryButtonStyle} onClick={(event) => { recordExport("Governance ZIP Bundle"); onProtectedLinkClick(event, governanceZipUrl); }}>
           Download Governance ZIP
         </a>
 
-        <a href={vendorPdfUrl} target="_blank" rel="noreferrer" style={warningButtonStyle} onClick={() => recordExport("Vendor Escalation PDF")}>
+        <a href={vendorPdfUrl} target="_blank" rel="noreferrer" style={warningButtonStyle} onClick={(event) => { recordExport("Vendor Escalation PDF"); onProtectedLinkClick(event, vendorPdfUrl); }}>
           Download Vendor PDF
         </a>
 
-        <a href={ipPdfUrl} target="_blank" rel="noreferrer" style={infoButtonStyle} onClick={() => recordExport("Infection Prevention PDF")}>
+        <a href={ipPdfUrl} target="_blank" rel="noreferrer" style={infoButtonStyle} onClick={(event) => { recordExport("Infection Prevention PDF"); onProtectedLinkClick(event, ipPdfUrl); }}>
           Download IP PDF
         </a>
 
-        <a href={executivePdfUrl} target="_blank" rel="noreferrer" style={executiveButtonStyle} onClick={() => recordExport("Executive Quality PDF")}>
+        <a href={executivePdfUrl} target="_blank" rel="noreferrer" style={executiveButtonStyle} onClick={(event) => { recordExport("Executive Quality PDF"); onProtectedLinkClick(event, executivePdfUrl); }}>
           Download Executive PDF
         </a>
       </div>
@@ -1082,7 +1082,7 @@ export default function PacketActionButtonsPanel() {
               Clear
             </button>
 
-            <a href={historyPdfUrl} target="_blank" rel="noreferrer" style={historyPdfButtonStyle}>
+            <a href={historyPdfUrl} target="_blank" rel="noreferrer" style={historyPdfButtonStyle} onClick={(event) => onProtectedLinkClick(event, historyPdfUrl)}>
               Download History PDF
             </a>
 

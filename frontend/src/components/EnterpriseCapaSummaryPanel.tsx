@@ -32,8 +32,6 @@ export default function EnterpriseCapaSummaryPanel() {
           Authorization: `Bearer ${AUTH_TOKEN}`,
           "X-LumenAI-Role": "viewer",
           "X-LumenAI-Actor": "john-demo",
-          "X-Tenant-Id": "bonsecours",
-          "X-Tenant-Name": "Bon Secours",
         },
       });
 

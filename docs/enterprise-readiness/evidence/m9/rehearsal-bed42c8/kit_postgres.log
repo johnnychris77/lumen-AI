@@ -1,0 +1,50 @@
+RB-T24           before/final     failed        expected=failed     AssertionError: assert 200 == 404
+RB-T24           before/original  failed        expected=failed     AssertionError: assert 200 == 404
+RB-T24           after/final      passed        expected=passed     
+RB-T24           after/original   passed        expected=passed     
+RB-T25           before/final     failed        expected=failed     AssertionError: assert [{'id': 1, 's...ing-2'], ...}] == []
+RB-T25           before/original  failed        expected=failed     AssertionError: assert [{'id': 1, 's...ing-2'], ...}] == []
+RB-T25           after/final      passed        expected=passed     
+RB-T25           after/original   passed        expected=passed     
+RB-T26           before/final     failed        expected=failed     AssertionError: assert 200 == 404
+RB-T26           before/original  failed        expected=failed     AssertionError: assert 200 == 404
+RB-T26           after/final      passed        expected=passed     
+RB-T26           after/original   passed        expected=passed     
+RB-T27           before/final     failed        expected=failed     assert 'b54-user-a-...@example.com' not in '{"id":1,"so...7597+00:00"}'
+RB-T27           before/original  failed        expected=failed     assert 'b54-user-a-...@example.com' not in '{"id":1,"so...2221+00:00"}'
+RB-T27           after/final      passed        expected=passed     
+RB-T27           after/original   passed        expected=passed     
+RB-T28           before/final     failed        expected=failed     assert False
+RB-T28           before/original  failed        expected=failed     assert False
+RB-T28           after/final      passed        expected=passed     
+RB-T28           after/original   failed        expected=failed (original set-up's foreign write is now refused, Batch 7) AssertionError: {"detail":"Recording evidence for this source is not permitted."}
+RB-T29           before/final     failed        expected=failed     assert 201 == 404
+RB-T29           after/final      passed        expected=passed     
+RB-T30           before/final     failed        expected=failed     assert 201 == 403
+RB-T30           after/final      passed        expected=passed     
+RB-T31           before/final     failed        expected=failed     assert 201 == 404
+RB-T31           after/final      passed        expected=passed     
+RB-T33           before/final     failed        expected=failed     assert 201 == 403
+RB-T33           after/final      passed        expected=passed     
+RB-T32           before/final     failed        expected=failed     AssertionError: /api/guardianx/explainability
+RB-T32           before/original  failed        expected=failed     AssertionError: /api/guardianx/explainability
+RB-T32           after/final      passed        expected=passed     
+RB-T32           after/original   passed        expected=passed     
+RB-T34           before/final     failed        expected=failed     assert 200 == 404
+RB-T34           before/original  failed        expected=failed     assert 200 == 404
+RB-T34           after/final      passed        expected=passed     
+RB-T34           after/original   passed        expected=passed     
+RB-T35           before/final     failed        expected=failed     assert 201 == 403
+RB-T35           before/original  failed        expected=failed     assert 201 == 403
+RB-T35           after/final      passed        expected=passed     
+RB-T35           after/original   passed        expected=passed     
+RB-T36           before/final     failed        expected=failed     assert 'legacy-806dc6fb' not in '{"id":1,"so...8271+00:00"}'
+RB-T36           before/original  failed        expected=failed     assert 'legacy-83e43e67' not in '{"id":1,"so...1324+00:00"}'
+RB-T36           after/final      passed        expected=passed     
+RB-T36           after/original   passed        expected=passed     
+RB-T37           before/final     failed        expected=failed     assert 1 == 0
+RB-T37           before/original  failed        expected=failed     assert 1 == 0
+RB-T37           after/final      passed        expected=passed     
+RB-T37           after/original   passed        expected=passed     
+wrote ../docs/enterprise-readiness/evidence/m9/rehearsal-bed42c8/postgres/kit-results-postgres.json
+exit=0

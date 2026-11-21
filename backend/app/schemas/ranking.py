@@ -18,7 +18,8 @@ class RankingRequest(BaseModel):
     key_dot_value: str = ""
     baseline_status: str = ""
     instrument_match_status: str = ""
-    tenant_id: str = "default-tenant"
+    # P472-03 AW-04 (batch 4): a claim only; the route acts in the verified tenant.
+    tenant_id: str = ""
 
 
 class CompositeFindingInput(BaseModel):
@@ -36,7 +37,8 @@ class CompositeRankingRequest(BaseModel):
     instrument_id: int | None = None
     instrument_name: str = ""
     findings: list[CompositeFindingInput] = Field(min_length=1)
-    tenant_id: str = "default-tenant"
+    # P472-03 AW-04 (batch 4): a claim only; the route acts in the verified tenant.
+    tenant_id: str = ""
 
 
 class FindingDetail(BaseModel):
